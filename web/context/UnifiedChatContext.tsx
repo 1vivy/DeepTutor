@@ -30,6 +30,7 @@ import {
 import { normalizeMarkdownForDisplay } from "@/lib/markdown-display";
 import { normalizeMessageContent } from "@/lib/message-content";
 import { buildVisiblePath, tipMessageId } from "@/lib/message-branches";
+import { nextOptimisticId } from "@/lib/optimistic-id";
 import { reconcileTurnIds } from "@/lib/turn-reconcile";
 import {
   isNarrationMarker,
@@ -346,7 +347,7 @@ function reducer(state: ProviderState, action: Action): ProviderState {
             messages: [
               ...session.messages,
               {
-                id: -Date.now(),
+                id: nextOptimisticId(),
                 role: "user",
                 content: action.content,
                 capability: action.capability || "",
@@ -432,7 +433,7 @@ function reducer(state: ProviderState, action: Action): ProviderState {
             messages: [
               ...existing,
               {
-                id: -Date.now(),
+                id: nextOptimisticId(),
                 role: "assistant",
                 content: "",
                 events: [],
@@ -457,7 +458,7 @@ function reducer(state: ProviderState, action: Action): ProviderState {
       let last = msgs[msgs.length - 1];
       if (last?.role !== "assistant") {
         msgs.push({
-          id: -Date.now(),
+          id: nextOptimisticId(),
           role: "assistant",
           content: "",
           events: [],
