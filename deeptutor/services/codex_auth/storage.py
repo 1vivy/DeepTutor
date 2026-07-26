@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import sys
 import tempfile
 import threading
 from typing import Any, BinaryIO
@@ -60,7 +61,9 @@ def _locked_file(path: Path) -> Iterator[BinaryIO]:
             handle.write(b"\0")
             handle.flush()
         handle.seek(0)
-        if os.name == "nt":
+        # ``sys.platform`` rather than ``os.name``: the checker narrows on it,
+        # so the Windows-only ``msvcrt`` branch type-checks off Windows too.
+        if sys.platform == "win32":
             import msvcrt
 
             msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
@@ -72,7 +75,7 @@ def _locked_file(path: Path) -> Iterator[BinaryIO]:
             yield handle
         finally:
             handle.seek(0)
-            if os.name == "nt":
+            if sys.platform == "win32":
                 msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
             else:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)

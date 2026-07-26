@@ -990,10 +990,9 @@ function ProfileFields({
     profile,
   );
 
-  const fields =
-    isCodexOAuth
-      ? { apiKey: false, baseUrl: false, baseUrlRequired: false }
-      : service === "search"
+  const fields = isCodexOAuth
+    ? { apiKey: false, baseUrl: false, baseUrlRequired: false }
+    : service === "search"
       ? searchProviderFields(profile.provider)
       : { apiKey: true, baseUrl: true, baseUrlRequired: false };
   const searxngMissingBaseUrl =

@@ -159,7 +159,8 @@ export function CodexOAuthCard() {
 
   const polling = Boolean(status && shouldPollCodexStatus(status));
   const connected = status?.connection === "connected";
-  const messageKey = errorKey || (status ? codexStatusMessageKey(status) : null);
+  const messageKey =
+    errorKey || (status ? codexStatusMessageKey(status) : null);
 
   return (
     <section className="rounded-xl border border-[var(--border)] bg-[var(--muted)]/30 p-4">

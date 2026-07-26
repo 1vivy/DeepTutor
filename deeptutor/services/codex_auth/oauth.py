@@ -141,7 +141,7 @@ class LoopbackCallback:
             if callback_result is not None and not result.done():
                 result.set_result(callback_result)
 
-        async def bind(hosts: list[str], port: int) -> asyncio.AbstractServer | None:
+        async def bind(hosts: list[str], port: int) -> asyncio.Server | None:
             try:
                 server = await asyncio.start_server(handle, hosts, port)
             except OSError:
@@ -154,7 +154,7 @@ class LoopbackCallback:
             await server.wait_closed()
             return None
 
-        server: asyncio.AbstractServer | None = None
+        server: asyncio.Server | None = None
         for port in ports:
             server = await bind(list(cls.hosts), port) or await bind([cls.hosts[0]], port)
             if server is not None:

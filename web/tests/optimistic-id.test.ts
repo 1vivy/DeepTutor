@@ -9,7 +9,10 @@ test("optimistic ids are negative and strictly decreasing", () => {
   const ids = Array.from({ length: 50 }, () => nextOptimisticId());
   for (const id of ids) assert.ok(id < 0, `${id} must be negative`);
   for (let i = 1; i < ids.length; i++) {
-    assert.ok(ids[i] < ids[i - 1], `${ids[i]} must be older-ranking than ${ids[i - 1]}`);
+    assert.ok(
+      ids[i] < ids[i - 1],
+      `${ids[i]} must be older-ranking than ${ids[i - 1]}`,
+    );
   }
   assert.equal(new Set(ids).size, ids.length, "ids must be unique");
 });
@@ -56,7 +59,12 @@ test("a turn's two optimistic rows reconcile to distinct persisted ids", () => {
 test("the previous reply stays visible once the next turn is queued", () => {
   const messages = [
     { id: 166, role: "user" as const, content: "q1", parentMessageId: null },
-    { id: 167, role: "assistant" as const, content: "a1", parentMessageId: 166 },
+    {
+      id: 167,
+      role: "assistant" as const,
+      content: "a1",
+      parentMessageId: 166,
+    },
     {
       id: nextOptimisticId(),
       role: "user" as const,

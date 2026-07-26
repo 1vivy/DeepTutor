@@ -15,9 +15,7 @@ const CODEX_CARD = path.resolve(
   "components/settings/CodexOAuthCard.tsx",
 );
 
-function status(
-  overrides: Partial<CodexOAuthStatus> = {},
-): CodexOAuthStatus {
+function status(overrides: Partial<CodexOAuthStatus> = {}): CodexOAuthStatus {
   return {
     connection: "disconnected",
     operation_id: null,
@@ -39,10 +37,7 @@ test("Codex terminal operation states stop polling", () => {
     "expired",
     "failed",
   ] as const) {
-    assert.equal(
-      shouldPollCodexStatus(status({ operation_state })),
-      false,
-    );
+    assert.equal(shouldPollCodexStatus(status({ operation_state })), false);
   }
   for (const operation_state of [
     "waiting",
@@ -95,9 +90,7 @@ test("Codex error codes map to stable translation keys", () => {
     "codex.oauth.catalogFailed",
   );
   assert.equal(
-    codexStatusMessageKey(
-      status({ error_code: "inference_in_progress" }),
-    ),
+    codexStatusMessageKey(status({ error_code: "inference_in_progress" })),
     "codex.oauth.inferenceActive",
   );
 });
@@ -109,5 +102,7 @@ test("Codex sign-in opens its browser window before awaiting the API", () => {
     source.indexOf("const cancel"),
   );
 
-  assert.ok(signIn.indexOf("window.open(") < signIn.indexOf("await startCodexLogin()"));
+  assert.ok(
+    signIn.indexOf("window.open(") < signIn.indexOf("await startCodexLogin()"),
+  );
 });

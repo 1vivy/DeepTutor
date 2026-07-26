@@ -1,4 +1,8 @@
-import type { CatalogProfile, ProviderOption, ServiceName } from "./SettingsContext";
+import type {
+  CatalogProfile,
+  ProviderOption,
+  ServiceName,
+} from "./SettingsContext";
 
 /** The tag the backend stamps on the profile its Codex OAuth service owns. */
 export const CODEX_MANAGED_BY = "openai_codex_oauth";

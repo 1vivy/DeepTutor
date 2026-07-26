@@ -7,7 +7,10 @@ const EDITOR = path.resolve(
   process.cwd(),
   "components/settings/ServiceConfigEditor.tsx",
 );
-const HELPER = path.resolve(process.cwd(), "components/settings/codex-profile.ts");
+const HELPER = path.resolve(
+  process.cwd(),
+  "components/settings/codex-profile.ts",
+);
 const EN = path.resolve(process.cwd(), "locales/en/app.json");
 const ZH = path.resolve(process.cwd(), "locales/zh/app.json");
 
@@ -25,7 +28,10 @@ test("the Codex profile predicates live in one place", () => {
   // Duplicating the tag comparison per component is how the two copies of this
   // check drifted before; the editor must go through the shared helper.
   assert.equal(source.includes('=== "openai_codex_oauth"'), false);
-  assert.match(readFileSync(HELPER, "utf8"), /CODEX_MANAGED_BY = "openai_codex_oauth"/);
+  assert.match(
+    readFileSync(HELPER, "utf8"),
+    /CODEX_MANAGED_BY = "openai_codex_oauth"/,
+  );
 });
 
 test("managed Codex profiles cannot expose profile or model editing", () => {
