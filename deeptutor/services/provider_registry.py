@@ -66,6 +66,10 @@ class ProviderSpec:
         return "standard"
 
     @property
+    def auth_mode(self) -> str:
+        return "oauth" if self.is_oauth else "api_key"
+
+    @property
     def label(self) -> str:
         return self.display_name or self.name.title()
 

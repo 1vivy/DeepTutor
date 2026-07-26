@@ -40,6 +40,7 @@ export type CatalogModel = {
   id: string;
   name: string;
   model: string;
+  managed_by?: string;
   dimension?: string;
   send_dimensions?: boolean;
   supported_dimensions?: string;
@@ -75,6 +76,8 @@ export type LlmContextWindowDetection = {
 export type CatalogProfile = {
   id: string;
   name: string;
+  managed_by?: string;
+  read_only?: boolean;
   binding?: string;
   provider?: string;
   base_url: string;
@@ -160,6 +163,7 @@ export type ProviderOption = {
   default_dim?: string;
   default_model?: string;
   default_voice?: string;
+  auth_mode?: "api_key" | "oauth";
 };
 
 export type SystemStatus = {
