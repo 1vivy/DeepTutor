@@ -126,6 +126,29 @@ def test_local_api_key_placeholder_when_missing() -> None:
     )
 
 
+def test_engine_entry_points_run_on_a_private_loop() -> None:
+    """GraphRAG's LLM layer patches the *current* loop at import time and
+    refuses uvloop — the loop uvicorn[standard] runs the backend on. Every
+    entry point must therefore execute on its own plain-asyncio loop, off the
+    caller's (issue #695)."""
+    seen: dict[str, object] = {}
+
+    async def work() -> str:
+        seen["running"] = asyncio.get_running_loop()
+        seen["current"] = asyncio.get_event_loop()
+        return "done"
+
+    async def caller() -> str:
+        seen["outer"] = asyncio.get_running_loop()
+        return await engine._run_isolated(work)
+
+    assert asyncio.run(caller()) == "done"
+    assert seen["running"] is not seen["outer"]
+    # ``nest_asyncio2.apply()`` patches whatever ``get_event_loop()`` returns,
+    # so the private loop has to be the thread's current one, not just running.
+    assert seen["current"] is seen["running"]
+
+
 def test_write_settings_roundtrips(tmp_path) -> None:
     import yaml
 
