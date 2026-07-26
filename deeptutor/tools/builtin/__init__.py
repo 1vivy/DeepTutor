@@ -12,6 +12,7 @@ from deeptutor.capabilities.obsidian import OBSIDIAN_TOOL_TYPES
 from deeptutor.capabilities.solve import SOLVE_TOOL_TYPES
 from deeptutor.capabilities.subagent import SUBAGENT_TOOL_TYPES
 from deeptutor.core.tool_protocol import BaseTool, ToolDefinition, ToolParameter, ToolResult
+from deeptutor.knowledge.manifest import KB_FILES_DEFAULT_LIMIT, KB_FILES_MAX_LIMIT
 from deeptutor.tools.exec_tool import ExecTool
 from deeptutor.tools.media_gen_tool import ImagegenTool, VideogenTool
 from deeptutor.tools.partner_memory import (
@@ -138,6 +139,96 @@ class RAGTool(_PromptHintsMixin, BaseTool):
             sources=_rag_sources(result, query=query, kb_name=kb_name),
             metadata=result,
         )
+
+
+class KbFilesTool(_PromptHintsMixin, BaseTool):
+    """Enumerate what a knowledge base holds — the query ``rag`` cannot serve.
+
+    Retrieval returns passages; it cannot report how many documents a KB holds
+    or whether a named file is in it. The chat system prompt carries a truncated
+    inventory for exactly this reason; this tool serves the full list and
+    name filtering.
+    """
+
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="kb_files",
+            description=(
+                "List the documents stored in one of the knowledge bases attached "
+                "to this turn, with the total count. Use this — never rag — for "
+                "questions about how many files a knowledge base holds, what its "
+                "files are called, or whether a particular file is in it."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="kb_name",
+                    type="string",
+                    description="Knowledge base to inspect. Must be one of the attached knowledge bases.",
+                ),
+                ToolParameter(
+                    name="pattern",
+                    type="string",
+                    description=(
+                        "Optional name filter: a glob such as '*.pdf', or a "
+                        "case-insensitive substring. Omit to list everything."
+                    ),
+                    required=False,
+                ),
+                ToolParameter(
+                    name="limit",
+                    type="integer",
+                    description=(
+                        f"Optional maximum number of documents to list "
+                        f"(default {KB_FILES_DEFAULT_LIMIT}, max {KB_FILES_MAX_LIMIT})."
+                    ),
+                    required=False,
+                ),
+            ],
+        )
+
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        from deeptutor.knowledge.manifest import render_manifest_report
+        from deeptutor.multi_user.knowledge_access import resolve_kb_manifest
+
+        kb_name = str(kwargs.get("kb_name") or "").strip()
+        if not kb_name:
+            raise ValueError("kb_files requires an explicit kb_name.")
+        pattern = str(kwargs.get("pattern") or "").strip()
+        language = str(kwargs.get("language") or "en")
+
+        manifest = await asyncio.to_thread(
+            resolve_kb_manifest,
+            kb_name,
+            limit=_kb_files_limit(kwargs.get("limit")),
+            pattern=pattern,
+        )
+        if manifest is None:
+            raise ValueError(f"Knowledge base '{kb_name}' is not accessible.")
+
+        return ToolResult(
+            content=render_manifest_report(manifest, language=language),
+            metadata={
+                "kb_name": manifest.name,
+                "total": manifest.total,
+                "matched": manifest.matched,
+                "listed": [document.name for document in manifest.documents],
+                "omitted": manifest.omitted,
+                "pattern": manifest.pattern,
+                "status": manifest.status,
+                "unavailable": manifest.unavailable,
+            },
+        )
+
+
+def _kb_files_limit(raw: Any) -> int:
+    """Clamp a model-supplied ``limit`` into range; fall back on anything unusable."""
+    try:
+        requested = int(raw)
+    except (TypeError, ValueError):
+        return KB_FILES_DEFAULT_LIMIT
+    if requested <= 0:
+        return KB_FILES_DEFAULT_LIMIT
+    return min(requested, KB_FILES_MAX_LIMIT)
 
 
 class WebSearchTool(_PromptHintsMixin, BaseTool):
@@ -1471,6 +1562,7 @@ class CronTool(_PromptHintsMixin, BaseTool):
 BUILTIN_TOOL_TYPES: tuple[type[BaseTool], ...] = (
     BrainstormTool,
     RAGTool,
+    KbFilesTool,
     WebSearchTool,
     CodeExecutionTool,
     ReasonTool,
@@ -1554,6 +1646,7 @@ USER_TOGGLEABLE_TOOL_NAMES: tuple[str, ...] = (
 # this surface.
 CONFIGURABLE_BUILTIN_TOOL_NAMES: tuple[str, ...] = (
     "rag",
+    "kb_files",
     "code_execution",
     "read_source",
     "read_memory",
@@ -1592,6 +1685,7 @@ __all__ = [
     "ExecTool",
     "GeoGebraAnalysisTool",
     "GithubTool",
+    "KbFilesTool",
     "ImagegenTool",
     "VideogenTool",
     "ListNotebookTool",
