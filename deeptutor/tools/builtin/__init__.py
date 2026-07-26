@@ -74,6 +74,23 @@ class BrainstormTool(_PromptHintsMixin, BaseTool):
         return ToolResult(content=result.get("answer", ""), metadata=result)
 
 
+def _rag_sources(result: dict[str, Any], *, query: str, kb_name: str) -> list[dict[str, Any]]:
+    """Citations for one ``rag`` call, from the retrieval's own provenance.
+
+    Every pipeline normalises what it retrieved into ``result["sources"]``
+    (``{title, content, source, page, chunk_id, score}`` — see the GraphRAG and
+    LightRAG-server pipelines). Forward those so a grounded claim is traceable
+    to the chunk / entity / report behind it; without this the tool reported
+    only an echo of its own query (issue #694). ``type``/``kb_name`` are kept on
+    every entry so consumers that key on them still work, and an engine that
+    surfaces no provenance still yields the echo rather than nothing.
+    """
+    retrieved = [item for item in (result.get("sources") or []) if isinstance(item, dict)]
+    if not retrieved:
+        return [{"type": "rag", "query": query, "kb_name": kb_name}]
+    return [{"type": "rag", "kb_name": kb_name, **item} for item in retrieved]
+
+
 class RAGTool(_PromptHintsMixin, BaseTool):
     def get_definition(self) -> ToolDefinition:
         return ToolDefinition(
@@ -118,7 +135,7 @@ class RAGTool(_PromptHintsMixin, BaseTool):
         content = result.get("answer") or result.get("content", "")
         return ToolResult(
             content=content,
-            sources=[{"type": "rag", "query": query, "kb_name": kb_name}],
+            sources=_rag_sources(result, query=query, kb_name=kb_name),
             metadata=result,
         )
 
