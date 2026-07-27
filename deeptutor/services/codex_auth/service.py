@@ -18,7 +18,6 @@ from deeptutor.services.config.model_catalog import (
     ModelCatalogService,
     get_model_catalog_service,
 )
-from deeptutor.services.path_service import get_path_service
 
 from .catalog import CodexModelCatalog
 from .constants import (
@@ -621,20 +620,18 @@ _SERVICE_INSTANCES: dict[str, CodexOAuthService] = {}
 
 
 def _codex_user_root() -> Path:
-    """Anchor the credential store to the caller's own root.
+    """Anchor the credential store to the account that owns the caller's scope.
 
     A Codex token is issued against one person's ChatGPT plan. Resolving other
     users to the administrator's root would run a whole deployment on a single
     subscription, so every account signs in for itself or does not use Codex.
+    Owner resolution is what keeps that true while still letting a partner —
+    a synthetic user with a workspace but no account — inherit the login of
+    the person who owns it (#711).
     """
-    from deeptutor.multi_user.context import get_current_user_or_none
-    from deeptutor.multi_user.paths import get_admin_path_service
-    from deeptutor.services.partners.scope import PARTNER_USER_PREFIX
+    from deeptutor.multi_user.paths import get_owner_path_service
 
-    user = get_current_user_or_none()
-    if user is not None and user.id.startswith(PARTNER_USER_PREFIX):
-        return get_admin_path_service().get_user_root().resolve()
-    return get_path_service().get_user_root().resolve()
+    return get_owner_path_service().get_user_root().resolve()
 
 
 def get_codex_oauth_service() -> CodexOAuthService:

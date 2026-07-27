@@ -151,6 +151,30 @@ def get_current_path_service() -> PathService:
     return get_path_service_for_scope(user.scope)
 
 
+def get_owner_path_service() -> PathService:
+    """Resolve to the root of the human account that owns the current scope.
+
+    A partner is a *synthetic* user, not a person: it has a workspace under
+    ``data/partners/<id>`` but no account of its own, and that workspace is
+    created by — and lives inside — the admin tree. Assets keyed to a real
+    account rather than to a workspace (OAuth credentials, above all) must
+    therefore resolve to the owner, or a partner turn would look for a login
+    that can never exist there. Every other scope owns itself.
+
+    Use this only for owner-keyed assets; workspace-keyed ones (rag, skills,
+    notebooks, memory) belong to the partner and go through
+    :func:`get_current_path_service`.
+    """
+    from deeptutor.services.partners.scope import is_partner_user_id
+
+    from .context import get_current_user_or_none
+
+    user = get_current_user_or_none()
+    if user is not None and is_partner_user_id(user.id):
+        return get_admin_path_service()
+    return get_current_path_service()
+
+
 @contextmanager
 def user_context(user: CurrentUser) -> Iterator[None]:
     from .context import reset_current_user, set_current_user

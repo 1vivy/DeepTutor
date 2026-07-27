@@ -254,16 +254,18 @@ class SpineSynthesizer(BaseAgent):
         stage: str,
     ) -> dict[str, Any]:
         from ..blocks._language import language_directive
-        from deeptutor.services.llm import complete as llm_complete
 
         system_prompt = system_prompt.rstrip() + language_directive(self.language)
         try:
-            raw = await llm_complete(
-                prompt=user_prompt,
+            # Blocking rather than streamed: nothing consumes the partial JSON,
+            # and a reasoning model's <think> prelude never reaches the parser
+            # this way, so a truncated spine cannot collapse to one placeholder
+            # chapter (#707).
+            raw = await self.call_llm(
+                user_prompt=user_prompt,
                 system_prompt=system_prompt,
                 response_format={"type": "json_object"},
-                temperature=self.get_temperature(),
-                max_tokens=self.get_max_tokens(),
+                stage=stage,
             )
         except Exception as exc:
             logger.warning(f"SpineSynthesizer LLM call ({stage}) failed: {exc}")

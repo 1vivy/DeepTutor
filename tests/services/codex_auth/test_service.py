@@ -38,18 +38,47 @@ def test_each_user_gets_their_own_codex_credential_root(
     Resolving other accounts to the administrator's root would run an entire
     deployment on a single subscription.
     """
+    from deeptutor.multi_user import paths as paths_module
+
     roots = {"admin": tmp_path / "admin-user", "learner": tmp_path / "regular-user"}
     signed_in = {"who": "admin"}
     monkeypatch.setattr(
-        service_module,
-        "get_path_service",
+        paths_module,
+        "get_owner_path_service",
         lambda: type("Paths", (), {"get_user_root": lambda self: roots[signed_in["who"]]})(),
     )
 
     assert service_module._codex_user_root() == roots["admin"]
     signed_in["who"] = "learner"
     assert service_module._codex_user_root() == roots["learner"]
+    # Who owns a scope is decided by get_owner_path_service, not here: codex_auth
+    # must never reach for the admin root — or learn what a partner is — itself.
     assert not hasattr(service_module, "get_admin_path_service")
+    assert not hasattr(service_module, "PARTNER_USER_PREFIX")
+
+
+def test_partner_turn_inherits_its_owner_codex_login(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A partner has a workspace but no account, so it borrows its owner's token.
+
+    Before #711 the credential store followed the partner scope to
+    ``data/partners/<id>/workspace/user``, found nothing, and failed in 0s.
+    """
+    from deeptutor.multi_user import paths as paths_module
+    from deeptutor.multi_user.context import reset_current_user, set_current_user
+    from deeptutor.services.partners.scope import partner_user
+
+    admin_root = (tmp_path / "data").resolve()
+    monkeypatch.setattr(paths_module, "ADMIN_WORKSPACE_ROOT", admin_root)
+    monkeypatch.setattr(paths_module, "_path_services", {})
+
+    token = set_current_user(partner_user("ada"))
+    try:
+        assert service_module._codex_user_root() == admin_root / "user"
+    finally:
+        reset_current_user(token)
 
 
 def _model(

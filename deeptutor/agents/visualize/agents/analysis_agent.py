@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from deeptutor.agents.base_agent import BaseAgent
 from deeptutor.core.context import Attachment
+from deeptutor.core.trace import build_trace_metadata, new_call_id
 
 from ..models import VisualizationAnalysis
 from ..utils import extract_json_object
@@ -71,14 +72,22 @@ class AnalysisAgent(BaseAgent):
 
         user_prompt = user_template.format(**format_kwargs)
 
-        from deeptutor.services.llm import complete as llm_complete
-
-        raw = await llm_complete(
-            prompt=user_prompt,
+        # Blocking rather than streamed: nothing consumes the partial JSON, and
+        # a reasoning model's <think> prelude never reaches the parser this way.
+        raw = await self.call_llm(
+            user_prompt=user_prompt,
             system_prompt=system_prompt,
             response_format={"type": "json_object"},
-            temperature=self.get_temperature(),
-            max_tokens=self.get_max_tokens(),
+            stage="analyzing",
+            attachments=attachments,
+            trace_meta=build_trace_metadata(
+                call_id=new_call_id("viz-analysis"),
+                phase="analyzing",
+                label="Visualization analysis",
+                call_kind="viz_analysis",
+                trace_role="analyze",
+                trace_kind="llm_output",
+            ),
         )
         result = VisualizationAnalysis.model_validate(extract_json_object(raw))
         if render_mode in ("svg", "chartjs", "mermaid", "html"):

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 from deeptutor.agents.base_agent import BaseAgent
+from deeptutor.core.trace import build_trace_metadata, new_call_id
 
 from ..models import VisualizationAnalysis
 from ..utils import extract_code_block
@@ -57,13 +58,19 @@ class CodeGeneratorAgent(BaseAgent):
             analysis_json=json.dumps(analysis.model_dump(), ensure_ascii=False, indent=2),
         )
 
-        from deeptutor.services.llm import complete as llm_complete
-
-        response = await llm_complete(
-            prompt=user_prompt,
+        # Blocking rather than streamed: the fenced block is only usable whole.
+        response = await self.call_llm(
+            user_prompt=user_prompt,
             system_prompt=system_prompt,
-            temperature=self.get_temperature(),
-            max_tokens=self.get_max_tokens(),
+            stage="generating",
+            trace_meta=build_trace_metadata(
+                call_id=new_call_id("viz-codegen"),
+                phase="generating",
+                label="Code generation",
+                call_kind="viz_code_generation",
+                trace_role="generate",
+                trace_kind="llm_output",
+            ),
         )
 
         if analysis.render_type == "svg":
