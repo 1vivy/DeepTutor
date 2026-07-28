@@ -23,6 +23,7 @@ from deeptutor.services.codex_auth.service import (
     CodexOAuthService,
     codex_model_id,
     remove_codex_catalog,
+    ssh_forward_command,
     sync_codex_catalog,
 )
 from deeptutor.services.codex_auth.storage import CodexCredentialStore
@@ -79,6 +80,67 @@ def test_partner_turn_inherits_its_owner_codex_login(
         assert service_module._codex_user_root() == admin_root / "user"
     finally:
         reset_current_user(token)
+
+
+def test_ssh_forward_command_maps_callback_to_frontend_port() -> None:
+    assert (
+        ssh_forward_command(1457, 4782) == "ssh -N -L 1457:127.0.0.1:4782 <ssh-user>@<server-host>"
+    )
+
+
+@pytest.mark.parametrize("callback_forward_port", [0, 65_536, True, "3782"])
+def test_callback_forward_port_must_be_a_valid_integer(
+    tmp_path: Path,
+    callback_forward_port: object,
+) -> None:
+    store = CodexCredentialStore(tmp_path)
+    model_catalog, _original = _seeded_service(tmp_path)
+
+    with pytest.raises(ValueError):
+        CodexOAuthService(
+            store,
+            FakeCatalog(_snapshot("live")),
+            model_catalog,
+            oauth_client=FakeOAuthClient(),
+            callback_forward_port=callback_forward_port,  # type: ignore[arg-type]
+        )
+
+
+def test_service_singleton_reads_frontend_port_only_when_created(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    settings_calls = 0
+    captured: dict[str, Any] = {}
+
+    def load_settings() -> dict[str, int]:
+        nonlocal settings_calls
+        settings_calls += 1
+        return {"frontend_port": 4782}
+
+    class CapturingService:
+        def __init__(self, *_args: object, **kwargs: object) -> None:
+            captured.update(kwargs)
+
+    monkeypatch.setattr(service_module, "_SERVICE_INSTANCES", {})
+    monkeypatch.setattr(service_module, "_codex_user_root", lambda: tmp_path)
+    monkeypatch.setattr(service_module, "load_system_settings", load_settings)
+    monkeypatch.setattr(service_module, "CodexCredentialStore", lambda _root: object())
+    monkeypatch.setattr(
+        service_module,
+        "CodexModelCatalog",
+        lambda _store, *, http: object(),
+    )
+    monkeypatch.setattr(service_module, "CodexOAuthClient", lambda _http: object())
+    monkeypatch.setattr(service_module, "get_model_catalog_service", lambda: object())
+    monkeypatch.setattr(service_module, "CodexOAuthService", CapturingService)
+
+    first = service_module.get_codex_oauth_service()
+    second = service_module.get_codex_oauth_service()
+
+    assert first is second
+    assert settings_calls == 1
+    assert captured["callback_forward_port"] == 4782
 
 
 def _model(
@@ -292,6 +354,7 @@ class FakeCallback:
             asyncio.get_running_loop().create_future()
         )
         self.error = error
+        self.expected_state: str | None = None
 
     async def wait(self, timeout: float) -> OAuthCallbackResult:
         if self.error is not None:
@@ -304,14 +367,21 @@ class FakeCallback:
                 CodexAuthError("login_cancelled", "Codex sign-in was cancelled.", 409)
             )
 
+    def submit(self, result: OAuthCallbackResult) -> None:
+        if self._result.done():
+            raise CodexAuthError(
+                "login_not_active",
+                "Codex sign-in is not waiting for a callback.",
+                409,
+            )
+        self._result.set_result(result)
+
     def complete(self, authorize_url: str, *, code: str = "authorization-code") -> None:
         state = parse_qs(urlsplit(authorize_url).query)["state"][0]
-        self._result.set_result(OAuthCallbackResult(code=code, state=state, error=None))
+        self.submit(OAuthCallbackResult(code=code, state=state, error=None))
 
     def complete_with_state(self, state: str) -> None:
-        self._result.set_result(
-            OAuthCallbackResult(code="authorization-code", state=state, error=None)
-        )
+        self.submit(OAuthCallbackResult(code="authorization-code", state=state, error=None))
 
 
 class FakeOAuthClient:
@@ -415,6 +485,7 @@ async def _oauth_service(
     callback_error: CodexAuthError | None = None,
     catalog_error: CodexAuthError | None = None,
     clock: list[int] | None = None,
+    callback_forward_port: int = 3_782,
 ) -> tuple[
     CodexOAuthService,
     FakeCallback,
@@ -430,7 +501,8 @@ async def _oauth_service(
     store = CodexCredentialStore(tmp_path)
     model_catalog, _original = _seeded_service(tmp_path)
 
-    async def callback_factory() -> FakeCallback:
+    async def callback_factory(expected_state: str) -> FakeCallback:
+        callback.expected_state = expected_state
         return callback
 
     service = CodexOAuthService(
@@ -440,6 +512,7 @@ async def _oauth_service(
         oauth_client=oauth,
         callback_factory=callback_factory,
         clock=(lambda: (clock or [1_000])[0]),
+        callback_forward_port=callback_forward_port,
     )
     return service, callback, oauth, catalog, store, model_catalog
 
@@ -462,7 +535,10 @@ async def _wait_until_terminal(service: CodexOAuthService) -> dict[str, Any]:
 async def test_successful_live_login_keeps_the_existing_model_selection(
     tmp_path: Path,
 ) -> None:
-    service, callback, _oauth, _catalog, _store, model_catalog = await _oauth_service(tmp_path)
+    service, callback, _oauth, _catalog, _store, model_catalog = await _oauth_service(
+        tmp_path,
+        callback_forward_port=4_782,
+    )
     original_selection = _selection(model_catalog.load())
 
     started = await service.start_login()
@@ -471,15 +547,164 @@ async def test_successful_live_login_keeps_the_existing_model_selection(
     status = await _wait_until_terminal(service)
 
     assert duplicate == started
+    assert callback.expected_state == parse_qs(urlsplit(started["authorize_url"]).query)["state"][0]
     assert status["connection"] == "connected"
     assert status["operation_state"] == "completed"
+    assert status["authorize_url"] is None
+    assert status["expires_in"] is None
     assert status["catalog_source"] == "live"
     # Codex is published but not activated, so it reports no active model of its
     # own and the deployment keeps running on whatever was already selected.
     assert status["active_model"] is None
     assert status["activated"] is False
     assert _selection(model_catalog.load()) == original_selection
-    assert set(started) == {"operation_id", "authorize_url", "expires_in"}
+    assert started["callback_port"] == 1455
+    assert started["callback_forward_port"] == 4782
+    assert started["redirect_uri"] == "http://localhost:1455/auth/callback"
+    assert (
+        started["ssh_forward_command"] == "ssh -N -L 1455:127.0.0.1:4782 <ssh-user>@<server-host>"
+    )
+    assert set(started) == {
+        "operation_id",
+        "authorize_url",
+        "expires_in",
+        "callback_port",
+        "callback_forward_port",
+        "redirect_uri",
+        "ssh_forward_command",
+    }
+
+
+@pytest.mark.asyncio
+async def test_callback_broker_keeps_waiting_after_wrong_state_then_completes(
+    tmp_path: Path,
+) -> None:
+    service, _callback, _oauth, _catalog, _store, _models = await _oauth_service(tmp_path)
+    started = await service.start_login()
+    expected_state = parse_qs(urlsplit(started["authorize_url"]).query)["state"][0]
+
+    with pytest.raises(CodexAuthError) as exc_info:
+        await service.receive_callback(
+            code="do-not-accept",
+            state="wrong-state",
+            error=None,
+        )
+
+    assert exc_info.value.code == "state_mismatch"
+    assert exc_info.value.http_status == 400
+    assert service.public_status()["operation_state"] == "waiting"
+
+    await service.receive_callback(
+        code="authorization-code",
+        state=expected_state,
+        error=None,
+    )
+    status = await _wait_until_terminal(service)
+    assert status["operation_state"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_callback_broker_rejects_when_no_login_is_active(tmp_path: Path) -> None:
+    service, _callback, _oauth, _catalog, _store, _models = await _oauth_service(tmp_path)
+
+    with pytest.raises(CodexAuthError) as exc_info:
+        await service.receive_callback(
+            code="authorization-code",
+            state="untrusted-state",
+            error=None,
+        )
+
+    assert exc_info.value.code == "login_not_active"
+    assert exc_info.value.http_status == 409
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalid_state", ["snowman-\u2603", "a" * 129])
+async def test_callback_broker_rejects_malformed_state_without_ending_login(
+    tmp_path: Path,
+    invalid_state: str,
+) -> None:
+    service, _callback, _oauth, _catalog, _store, _models = await _oauth_service(tmp_path)
+    await service.start_login()
+
+    with pytest.raises(CodexAuthError) as exc_info:
+        await service.receive_callback(
+            code="do-not-accept",
+            state=invalid_state,
+            error=None,
+        )
+
+    assert exc_info.value.code == "state_mismatch"
+    assert exc_info.value.http_status == 400
+    assert service.public_status()["operation_state"] == "waiting"
+    await service.cancel_login()
+
+
+@pytest.mark.asyncio
+async def test_background_callback_unicode_state_has_stable_error(
+    tmp_path: Path,
+) -> None:
+    service, callback, _oauth, _catalog, _store, _models = await _oauth_service(tmp_path)
+    await service.start_login()
+
+    callback.complete_with_state("snowman-\u2603")
+    status = await _wait_until_terminal(service)
+
+    assert status["operation_state"] == "failed"
+    assert status["error_code"] == "state_mismatch"
+
+
+@pytest.mark.asyncio
+async def test_login_status_keeps_callback_metadata_without_exposing_secrets(
+    tmp_path: Path,
+) -> None:
+    clock = [1_000]
+    service, _callback, _oauth, _catalog, _store, _models = await _oauth_service(
+        tmp_path,
+        callback_error=CodexAuthError(
+            "login_timeout",
+            "Codex sign-in timed out.",
+            408,
+        ),
+        clock=clock,
+        callback_forward_port=4_782,
+    )
+
+    started = await service.start_login()
+    waiting = service.public_status()
+    clock[0] += 17
+    later_waiting = service.public_status()
+    timed_out = await _wait_until_terminal(service)
+
+    assert waiting["operation_state"] == "waiting"
+    assert waiting["authorize_url"] == started["authorize_url"]
+    assert waiting["expires_in"] == started["expires_in"]
+    assert later_waiting["authorize_url"] == started["authorize_url"]
+    assert later_waiting["expires_in"] == started["expires_in"] - 17
+    assert timed_out["operation_state"] == "expired"
+    for status in (waiting, timed_out):
+        assert status["callback_port"] == started["callback_port"] == 1455
+        assert status["callback_forward_port"] == started["callback_forward_port"] == 4782
+        assert (
+            status["redirect_uri"]
+            == started["redirect_uri"]
+            == "http://localhost:1455/auth/callback"
+        )
+    assert timed_out["authorize_url"] is None
+    assert timed_out["expires_in"] is None
+
+    forbidden_fields = {
+        "state_secret",
+        "pkce",
+        "verifier",
+        "access_token",
+        "refresh_token",
+        "account_id",
+        "email",
+    }
+    for payload in (started, waiting, timed_out):
+        serialized = json.loads(json.dumps(payload))
+        assert forbidden_fields.isdisjoint(serialized)
 
 
 @pytest.mark.asyncio
@@ -539,6 +764,8 @@ async def test_login_failures_do_not_overwrite_old_credentials(
     assert loaded is not None
     assert loaded.access_token == old.access_token
     assert status["operation_state"] == ("expired" if failure == "timeout" else "failed")
+    assert status["authorize_url"] is None
+    assert status["expires_in"] is None
 
 
 @pytest.mark.asyncio
@@ -553,6 +780,8 @@ async def test_cancel_login_preserves_existing_credentials(tmp_path: Path) -> No
     assert loaded is not None
     assert loaded.access_token == old.access_token
     assert status["operation_state"] == "cancelled"
+    assert status["authorize_url"] is None
+    assert status["expires_in"] is None
 
 
 @pytest.mark.asyncio
@@ -712,7 +941,7 @@ async def test_restarted_service_restores_connection_without_operation_or_secret
         catalog,
         model_catalog,
         oauth_client=oauth,
-        callback_factory=lambda: None,  # type: ignore[arg-type,return-value]
+        callback_factory=lambda _state: None,  # type: ignore[arg-type,return-value]
         clock=lambda: 1_000,
     )
 
@@ -722,6 +951,11 @@ async def test_restarted_service_restores_connection_without_operation_or_secret
     assert status["connection"] == "connected"
     assert status["operation_id"] is None
     assert status["operation_state"] is None
+    assert status["callback_port"] is None
+    assert status["callback_forward_port"] is None
+    assert status["redirect_uri"] is None
+    assert status["authorize_url"] is None
+    assert status["expires_in"] is None
     assert "top-secret" not in serialized
     assert "full-account-secret" not in serialized
 
