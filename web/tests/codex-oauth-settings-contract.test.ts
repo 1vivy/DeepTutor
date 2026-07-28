@@ -103,9 +103,6 @@ test("Codex OAuth callback copy interpolates real ports and has a safe unknown-p
     assert.equal(fallback.includes("localhost:"), false);
     assert.equal(fallback.includes("SSH"), false);
     assert.equal(fallback.includes("隧道"), false);
-    assert.match(
-      i18n.t("codex.oauth.expiresIn", { seconds: 42 }),
-      /42/,
-    );
+    assert.match(i18n.t("codex.oauth.expiresIn", { seconds: 42 }), /42/);
   }
 });

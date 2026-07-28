@@ -167,9 +167,7 @@ class TestFillPreviewText:
         from deeptutor.services.session import artifact_attachments as module
 
         _write_minimal_pptx(tmp_path / "deck.pptx", "Chapter one")
-        monkeypatch.setattr(
-            module, "_resolve_artifact_path", lambda url: tmp_path / "deck.pptx"
-        )
+        monkeypatch.setattr(module, "_resolve_artifact_path", lambda url: tmp_path / "deck.pptx")
 
         attachments = [{"filename": "deck.pptx", "url": "/api/outputs/x/deck.pptx"}]
         await fill_preview_text(attachments)
@@ -183,9 +181,7 @@ class TestFillPreviewText:
         from deeptutor.services.session import artifact_attachments as module
 
         calls: list[str] = []
-        monkeypatch.setattr(
-            module, "_resolve_artifact_path", lambda url: calls.append(url) or None
-        )
+        monkeypatch.setattr(module, "_resolve_artifact_path", lambda url: calls.append(url) or None)
 
         attachments = [
             {"filename": "report.docx", "url": "/api/outputs/x/report.docx"},

@@ -431,7 +431,7 @@ Cada capítulo compila em blocos tipados — texto, callouts, quizzes, cartões 
 <img src="../../assets/figs/web-1.4.6+/knowledge/00-overview.png" alt="Centro de Conhecimento DeepTutor" width="900">
 </div>
 
-As bases de conhecimento são as coleções de documentos por trás do RAG — fundamentam os turnos do Chat, edições do Co-Writer, geração do Book e conversas do Partner. O que é distintivo é uma **escolha de motores de recuperação**: **LlamaIndex** (o padrão, vetor local + BM25), **PageIndex** (alojado, recuperação de raciocínio com citações ao nível da página), **GraphRAG** e **LightRAG** (recuperação de grafo de conhecimento), **LightRAG Server** (recuperação delegada a uma instância externa de LightRAG conectada via HTTP), ou um vault **Obsidian** vinculado que o tutor lê e escreve no lugar. Cada KB está vinculada a um motor.
+As bases de conhecimento são as coleções de documentos por trás do RAG — fundamentam os turnos do Chat, edições do Co-Writer, geração do Book e conversas do Partner. O que é distintivo é uma **escolha de motores de recuperação**: **LlamaIndex** (o padrão, vetor local + BM25), **PageIndex** (alojado, recuperação de raciocínio com citações ao nível da página), **GraphRAG** e **LightRAG** (recuperação de grafo de conhecimento), **LightRAG Server** (recuperação delegada a uma instância externa de LightRAG conectada via HTTP), **Tencent IMA** (uma biblioteca que cura no IMA, pesquisada através da sua OpenAPI), ou um vault **Obsidian** vinculado que o tutor lê e escreve no lugar. Cada KB está vinculada a um motor.
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/knowledge/01-create%20knowledge%20base.png" alt="Criar uma base de conhecimento" width="900">
@@ -491,6 +491,24 @@ Configurações é o plano de controlo operacional, com uma faixa de estado em t
 A maioria das secções usa um fluxo de rascunho e aplicação, para que possa testar um provedor antes de o confirmar. Quatro temas incluídos — Default, Cream, Dark e Glass. Os ficheiros `.env` da raiz do projeto são intencionalmente ignorados; a configuração de runtime vive sob `data/user/settings/*.json` a menos que `DEEPTUTOR_HOME` ou `deeptutor start --home` aponte a aplicação para outro lugar.
 
 **OpenAI Codex OAuth (experimental).** Escolher **OpenAI Codex** em Models → LLM substitui os campos de chave API por um login no navegador que corre contra o seu próprio plano ChatGPT, pelo que não é necessária nenhuma `OPENAI_API_KEY`. Os tokens vivem apenas em `<user-root>/private/openai-codex/` e o DeepTutor nunca lê nem modifica o seu login CLI `~/.codex`. A lista de modelos vem do catálogo ao vivo dessa conta; iniciar sessão publica o perfil mas só se torna o modelo ativo quando ainda não há nenhum LLM configurado, pelo que nunca redireciona uma implementação sem o seu conhecimento. Como um token autoriza o plano de uma pessoa, o perfil não é partilhável através de concessões de utilizador — cada conta inicia sessão por si própria, e o navegador tem de alcançar a máquina que executa o backend (num servidor remoto, execute `deeptutor provider login openai-codex` lá em vez disso). Erros de quota e falhas de catálogo são reportados tal como ocorrem e nunca recorrem a um provedor pago. Este caminho de compatibilidade é experimental: a interface upstream pode mudar.
+
+Para uma implementação remota, o `localhost` do navegador e o `localhost` do servidor são máquinas diferentes, pelo que um proxy inverso comum sozinho não consegue transportar o callback localhost do navegador até ao servidor. Use um túnel SSH como ponte de callback. O túnel alcança a porta Web já publicada; o Next.js reencaminha apenas o caminho exato de callback para o broker de callback público, e o broker valida `state` antes de encaminhar para a operação OAuth original. O listener de callback permanece no loopback do backend, as portas `1455` e `1457` não são publicadas, e este caminho suporta a rede bridge predefinida do Docker.
+
+```bash
+ssh -N -L 1455:127.0.0.1:3782 <ssh-user>@<server-host>
+```
+
+Se o DeepTutor reportar a porta de callback de reserva `1457`, use:
+
+```bash
+ssh -N -L 1457:127.0.0.1:3782 <ssh-user>@<server-host>
+```
+
+Execute apenas o comando que corresponde à porta de callback real; nunca execute ambos. `3782` é apenas a porta Web de exemplo: é a porta de frontend/contentor configurada, reportada como `callback_forward_port`. Esse valor não garante que a mesma porta esteja à escuta no `127.0.0.1` do host SSH. Se o Docker ou o Podman publicarem uma porta de host diferente, ou um proxy inverso escutar numa porta diferente, substitua apenas a porta de destino do lado direito (`3782` acima) pela porta Web que realmente está à escuta no `127.0.0.1` do host SSH; mantenha a porta de callback do lado esquerdo como `1455` ou `1457`. `<server-host>` é o host SSH cujo loopback possui essa porta à escuta. Se o URL do navegador nomear um proxy inverso ou balanceador de carga, substitua-o pelo host frontend SSH correto.
+
+A CLI imprime o comando do túnel e depois tenta imediatamente abrir o navegador. Numa implementação remota, mantenha a página de autorização aberta sem a concluir, estabeleça o túnel impresso noutro terminal, e só depois continue a autorização.
+
+A deteção de topologia remota tem um limite de localhost. Se o próprio Web for alcançado através de um encaminhamento localhost SSH ou de IDE, o navegador não consegue saber que o servidor é remoto. Para a operação Web atual, deixe a sua página de autorização por concluir, leia `redirect_uri` no URL de autorização dessa operação para identificar a porta de callback `1455` ou `1457`, e crie o segundo túnel a partir dessa porta local para a porta Web real. Em alternativa, cancele essa operação Web e inicie uma nova com a CLI; a saída da CLI pertence à nova operação e não deve ser usada para a operação Web existente. Erros de quota e falhas de catálogo são reportados tal como ocorrem e nunca recorrem a um provedor pago. Este caminho de compatibilidade é experimental: a interface upstream pode mudar.
 
 </details>
 

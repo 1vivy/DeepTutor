@@ -441,7 +441,7 @@ Chaque chapitre se compile en blocs typés — texte, encadrés, quiz, fiches, c
 <img src="../../assets/figs/web-1.4.6+/knowledge/00-overview.png" alt="Knowledge Center de DeepTutor" width="900">
 </div>
 
-Les bases de connaissances sont les collections de documents derrière le RAG — elles ancrent les tours de Chat, les éditions Co-Writer, la génération de Book et les conversations Partner. Ce qui est distinctif est un **choix de moteurs de récupération** : **LlamaIndex** (par défaut, vecteur local + BM25), **PageIndex** (hébergé, récupération par raisonnement avec citations au niveau de la page), **GraphRAG** et **LightRAG** (récupération par graphe de connaissances), **LightRAG Server** (récupération déléguée à une instance LightRAG externe connectée via HTTP), ou un vault **Obsidian** lié que le tuteur lit et écrit en place. Chaque KB est liée à un moteur.
+Les bases de connaissances sont les collections de documents derrière le RAG — elles ancrent les tours de Chat, les éditions Co-Writer, la génération de Book et les conversations Partner. Ce qui est distinctif est un **choix de moteurs de récupération** : **LlamaIndex** (par défaut, vecteur local + BM25), **PageIndex** (hébergé, récupération par raisonnement avec citations au niveau de la page), **GraphRAG** et **LightRAG** (récupération par graphe de connaissances), **LightRAG Server** (récupération déléguée à une instance LightRAG externe connectée via HTTP), **Tencent IMA** (une bibliothèque que vous constituez dans IMA, interrogée via son OpenAPI), ou un vault **Obsidian** lié que le tuteur lit et écrit en place. Chaque KB est liée à un moteur.
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/knowledge/01-create%20knowledge%20base.png" alt="Créer une base de connaissances" width="900">
@@ -501,6 +501,24 @@ Settings est le plan de contrôle opérationnel, avec une bande de statut en dir
 La plupart des sections utilisent un flux brouillon-et-application, vous pouvez donc tester un fournisseur avant de vous y engager. Quatre thèmes sont livrés dans la boîte — Default, Cream, Dark et Glass. Les fichiers `.env` à la racine du projet sont intentionnellement ignorés ; la configuration d'exécution vit sous `data/user/settings/*.json` sauf si `DEEPTUTOR_HOME` ou `deeptutor start --home` pointe l'application ailleurs.
 
 **OAuth OpenAI Codex (expérimental).** Choisir **OpenAI Codex** sous Modèles → LLM remplace les champs de clé API par une connexion navigateur qui s'exécute contre votre propre forfait ChatGPT, donc aucune `OPENAI_API_KEY` n'est nécessaire. Les jetons résident uniquement dans `<user-root>/private/openai-codex/` et DeepTutor ne lit ni ne modifie jamais votre connexion CLI `~/.codex`. La liste de modèles provient du catalogue en direct de ce compte ; se connecter publie le profil, mais celui-ci ne devient le modèle actif que si aucun LLM n'est encore configuré, donc cela ne redirige jamais un déploiement à votre insu. Parce qu'un jeton autorise le forfait d'une seule personne, le profil n'est pas partageable via les attributions utilisateur — chaque compte doit se connecter pour lui-même, et le navigateur doit pouvoir atteindre la machine qui exécute le backend (sur un serveur distant, exécutez plutôt `deeptutor provider login openai-codex` là-bas). Les erreurs de quota et les échecs de catalogue sont rapportés tels quels et ne basculent jamais vers un fournisseur payant. Ce chemin de compatibilité est expérimental : l'interface en amont peut changer.
+
+Pour un déploiement distant, le `localhost` du navigateur et le `localhost` du serveur sont deux machines différentes, donc un simple proxy inverse ne peut pas à lui seul acheminer le callback localhost du navigateur jusqu'au serveur. Utilisez un tunnel SSH comme pont de callback. Le tunnel atteint le port Web déjà publié ; Next.js ne réécrit que le chemin de callback exact vers le courtier de callback public, et ce courtier valide `state` avant de router vers l'opération OAuth d'origine. L'écouteur de callback reste sur le loopback du backend, les ports `1455` et `1457` ne sont pas publiés, et ce chemin prend en charge le réseau bridge Docker par défaut.
+
+```bash
+ssh -N -L 1455:127.0.0.1:3782 <ssh-user>@<server-host>
+```
+
+Si DeepTutor signale le port de callback de repli `1457`, utilisez :
+
+```bash
+ssh -N -L 1457:127.0.0.1:3782 <ssh-user>@<server-host>
+```
+
+N'exécutez que la seule commande correspondant au port de callback réel ; n'exécutez jamais les deux. `3782` n'est que le port Web d'exemple : c'est le port frontend/conteneur configuré, rapporté comme `callback_forward_port`. Cette valeur ne garantit pas que ce même port écoute sur le `127.0.0.1` de l'hôte SSH. Si Docker ou Podman publie un port hôte différent, ou si un proxy inverse écoute sur un port différent, remplacez uniquement le port cible de droite (`3782` ci-dessus) par le port Web réellement à l'écoute sur le `127.0.0.1` de l'hôte SSH ; conservez le port de callback de gauche à `1455` ou `1457`. `<server-host>` est l'hôte SSH dont le loopback possède ce port à l'écoute. Si l'URL du navigateur nomme un proxy inverse ou un répartiteur de charge, remplacez-la par l'hôte frontend SSH correct.
+
+La CLI affiche la commande de tunnel puis tente immédiatement d'ouvrir le navigateur. Sur un déploiement distant, laissez la page d'autorisation ouverte sans la terminer, établissez le tunnel affiché dans un autre terminal, et ne poursuivez l'autorisation qu'ensuite.
+
+La détection de topologie distante a une limite liée à localhost. Si l'application Web elle-même est atteinte via un transfert localhost SSH ou IDE, le navigateur ne peut pas savoir que le serveur est distant. Pour l'opération Web en cours, laissez sa page d'autorisation inachevée, lisez `redirect_uri` dans l'URL d'autorisation de cette opération pour identifier le port de callback `1455` ou `1457`, puis créez le second tunnel de ce port local vers le port Web réel. Autre possibilité : annulez cette opération Web et démarrez-en une nouvelle avec la CLI ; la sortie de la CLI appartient à la nouvelle opération et ne doit pas être utilisée pour l'opération Web existante. Les erreurs de quota et les échecs de catalogue sont rapportés tels quels et ne basculent jamais vers un fournisseur payant. Ce chemin de compatibilité est expérimental : l'interface en amont peut changer.
 
 </details>
 

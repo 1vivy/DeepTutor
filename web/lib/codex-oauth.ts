@@ -40,10 +40,7 @@ export type CodexLoginStart = {
   ssh_forward_command: string;
 };
 
-export type CodexRemoteGuidance = Omit<
-  CodexLoginStart,
-  "ssh_forward_command"
->;
+export type CodexRemoteGuidance = Omit<CodexLoginStart, "ssh_forward_command">;
 
 export class CodexOAuthApiError extends Error {
   code: string;

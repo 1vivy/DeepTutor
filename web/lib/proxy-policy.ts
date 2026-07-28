@@ -9,8 +9,7 @@
 export const LOGIN_PATH = "/login";
 export const COOKIE_NAME = "dt_token";
 export const CODEX_CALLBACK_PATH = "/auth/callback";
-export const CODEX_CALLBACK_API_PATH =
-  "/api/v1/auth/openai-codex/callback";
+export const CODEX_CALLBACK_API_PATH = "/api/v1/auth/openai-codex/callback";
 
 export function isCodexCallbackPath(pathname: string): boolean {
   return pathname === CODEX_CALLBACK_PATH;

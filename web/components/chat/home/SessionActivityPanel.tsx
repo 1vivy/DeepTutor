@@ -502,9 +502,13 @@ function AttachmentRow({
   // Generated files carry a size; showing it distinguishes a real deliverable
   // from an empty stub without opening it. The hover title answers "where did
   // this land on disk?" — the question the transcript cannot.
-  const size = attachment.generated ? formatBytes(attachment.size_bytes ?? -1) : "";
+  const size = attachment.generated
+    ? formatBytes(attachment.size_bytes ?? -1)
+    : "";
   const detail = [spec.label, size].filter(Boolean).join(" · ");
-  const diskPath = attachment.generated ? artifactDiskPath(attachment.url) : null;
+  const diskPath = attachment.generated
+    ? artifactDiskPath(attachment.url)
+    : null;
 
   return (
     <li>

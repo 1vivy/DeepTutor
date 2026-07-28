@@ -419,7 +419,7 @@ Book selected sources को एक interactive **living book** में बद
 <img src="../../assets/figs/web-1.4.6+/knowledge/00-overview.png" alt="DeepTutor Knowledge Center" width="900">
 </div>
 
-Knowledge bases RAG के पीछे document collections हैं — वे Chat turns, Co-Writer edits, Book generation, और Partner conversations को ground करते हैं। जो distinctive है वह है **retrieval engines का choice**: **LlamaIndex** (default, local vector + BM25), **PageIndex** (hosted, reasoning retrieval with page-level citations), **GraphRAG** और **LightRAG** (knowledge-graph retrieval), **LightRAG Server** (retrieval एक external LightRAG instance पर offload किया जाता है जिसे आप HTTP पर connect करते हैं), या एक linked **Obsidian** vault जिसे tutor in-place पढ़ता और लिखता है। हर KB एक engine से bound होती है।
+Knowledge bases RAG के पीछे document collections हैं — वे Chat turns, Co-Writer edits, Book generation, और Partner conversations को ground करते हैं। जो distinctive है वह है **retrieval engines का choice**: **LlamaIndex** (default, local vector + BM25), **PageIndex** (hosted, reasoning retrieval with page-level citations), **GraphRAG** और **LightRAG** (knowledge-graph retrieval), **LightRAG Server** (retrieval एक external LightRAG instance पर offload किया जाता है जिसे आप HTTP पर connect करते हैं), **Tencent IMA** (एक library जिसे आप IMA में curate करते हैं, इसके OpenAPI पर search किया जाता है), या एक linked **Obsidian** vault जिसे tutor in-place पढ़ता और लिखता है। हर KB एक engine से bound होती है।
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/knowledge/01-create%20knowledge%20base.png" alt="एक knowledge base बनाएं" width="900">
@@ -478,7 +478,25 @@ Settings operational control plane है, एक live status strip (Backend, LL
 
 अधिकांश sections एक draft-and-apply flow उपयोग करते हैं, इसलिए आप provider को commit करने से पहले test कर सकते हैं। चार themes box में आते हैं — Default, Cream, Dark, और Glass। Project-root `.env` files जानबूझकर ignored हैं; runtime configuration `data/user/settings/*.json` के नीचे रहती है जब तक कि `DEEPTUTOR_HOME` या `deeptutor start --home` app को कहीं और point न करे।
 
-**OpenAI Codex OAuth (experimental).** **Models → LLM** के तहत **OpenAI Codex** चुनना API-key fields को एक browser sign-in से replace कर देता है जो आपके अपने ChatGPT plan के विरुद्ध चलता है, इसलिए किसी `OPENAI_API_KEY` की जरूरत नहीं। Tokens केवल `<user-root>/private/openai-codex/` में रहते हैं और DeepTutor कभी आपकी `~/.codex` CLI login को न तो पढ़ता है न ही modify करता है। Model list उस account के live catalog से आती है; sign in करना profile को publish करता है लेकिन यह active model तभी बनता है जब अभी तक कोई LLM configure न हो, इसलिए यह कभी भी आपकी जानकारी के बिना किसी deployment को repoint नहीं करता। क्योंकि एक token एक व्यक्ति के plan को authorize करता है, profile user grants के जरिए shareable नहीं है — हर account खुद के लिए sign in करता है, और browser को backend चलाने वाली machine तक पहुंचना होता है (remote server पर इसके बजाय वहां `deeptutor provider login openai-codex` run करें)। Quota errors और catalog failures जैसे हैं वैसे ही report होते हैं और कभी किसी paid provider पर fall back नहीं करते। यह compatibility path experimental है: upstream interface बदल सकता है।
+**OpenAI Codex OAuth (experimental).** **Models → LLM** के तहत **OpenAI Codex** चुनना API-key fields को एक browser sign-in से replace कर देता है जो आपके अपने ChatGPT plan के विरुद्ध चलता है, इसलिए किसी `OPENAI_API_KEY` की जरूरत नहीं। Tokens केवल `<user-root>/private/openai-codex/` में रहते हैं और DeepTutor कभी आपकी `~/.codex` CLI login को न तो पढ़ता है न ही modify करता है। Model list उस account के live catalog से आती है; sign in करना profile को publish करता है लेकिन यह active model तभी बनता है जब अभी तक कोई LLM configure न हो, इसलिए यह कभी भी आपकी जानकारी के बिना किसी deployment को repoint नहीं करता। क्योंकि एक token एक व्यक्ति के plan को authorize करता है, profile user grants के जरिए shareable नहीं है — हर account खुद के लिए sign in करता है।
+
+Remote deployment में, browser का `localhost` और server का `localhost` एक ही machine नहीं हैं, इसलिए सिर्फ एक ordinary reverse proxy browser के localhost callback को server तक नहीं पहुंचा सकता — callback bridge बनाने के लिए SSH tunnel जरूरी है। Tunnel पहले से published Web port तक पहुंचता है; Next.js केवल exact callback path को public callback broker पर rewrite करता है, और broker original OAuth operation पर route करने से पहले `state` validate करता है। Callback listener backend loopback पर ही रहता है, ports `1455` और `1457` publish नहीं होते, और यह path default Docker bridge network को support करता है।
+
+```bash
+ssh -N -L 1455:127.0.0.1:3782 <ssh-user>@<server-host>
+```
+
+अगर DeepTutor fallback callback port `1457` report करता है, तो उपयोग करें:
+
+```bash
+ssh -N -L 1457:127.0.0.1:3782 <ssh-user>@<server-host>
+```
+
+केवल वही एक command run करें जो actual callback port से मेल खाता हो; कभी दोनों run न करें। `3782` केवल example Web port है: यह configured frontend/container port है जो `callback_forward_port` के रूप में report होता है। यह value गारंटी नहीं देती कि वही port SSH host के `127.0.0.1` पर listen कर रहा है। अगर Docker या Podman कोई अलग host port publish करता है, या कोई reverse proxy किसी अलग port पर listen करता है, तो केवल right-hand target port (ऊपर `3782`) को उस Web port से replace करें जो actually SSH host के `127.0.0.1` पर listen कर रहा है; left-hand callback port को `1455` या `1457` ही रखें। `<server-host>` वह SSH host है जिसका loopback उस listening port को own करता है। अगर browser URL किसी reverse proxy या load balancer का नाम लेता है, तो उसे सही SSH frontend host से replace करें।
+
+CLI tunnel command print करता है और फिर तुरंत browser खोलने की कोशिश करता है। Remote deployment पर, authorization page को complete किए बिना खुला रखें, दूसरे terminal में printed tunnel establish करें, और तभी authorization जारी रखें।
+
+Remote-topology detection की एक localhost boundary है। अगर Web खुद एक SSH या IDE localhost forward के जरिए reach होता है, तो browser यह नहीं बता सकता कि server remote है। Current Web operation के लिए, इसका authorization page अधूरा छोड़ें, callback port `1455` या `1457` identify करने के लिए उस operation के authorize URL में `redirect_uri` पढ़ें, और उस local port से actual Web port तक दूसरा tunnel बनाएं। वैकल्पिक रूप से, उस Web operation को cancel करें और CLI से एक नया शुरू करें; CLI output नए operation से belong करता है और इसे existing Web operation के लिए उपयोग नहीं किया जाना चाहिए। Quota errors और catalog failures जैसे हैं वैसे ही report होते हैं और कभी किसी paid provider पर fall back नहीं करते। यह compatibility path experimental है: upstream interface बदल सकता है।
 
 </details>
 

@@ -274,8 +274,7 @@ export function CodexOAuthCard() {
   const connected = status?.connection === "connected";
   const messageKey =
     errorKey || (status ? codexStatusMessageKey(status) : null);
-  const callbackPort =
-    status?.callback_port ?? loginStart?.callback_port;
+  const callbackPort = status?.callback_port ?? loginStart?.callback_port;
   const displayMessageKey =
     messageKey === "codex.oauth.callbackMissing" && callbackPort == null
       ? "codex.oauth.callbackMissingUnknown"

@@ -78,11 +78,7 @@ export const bookApi = {
       type: "create_result";
       book: Book;
       proposal: BookProposal;
-    }>(
-      { type: "create", ...payload },
-      "create_result",
-      onEvent,
-    ),
+    }>({ type: "create", ...payload }, "create_result", onEvent),
   confirmProposal: (
     book_id: string,
     proposal?: BookProposal,

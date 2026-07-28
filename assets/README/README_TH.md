@@ -419,7 +419,7 @@ Book แปลงแหล่งที่มาที่เลือกให้
 <img src="../../assets/figs/web-1.4.6+/knowledge/00-overview.png" alt="DeepTutor Knowledge Center" width="900">
 </div>
 
-Knowledge bases คือคอลเลกชันเอกสารที่อยู่เบื้องหลัง RAG — รองรับ Chat turns, Co-Writer edits, Book generation และบทสนทนา Partner สิ่งที่โดดเด่นคือ **การเลือกเอ็นจิน retrieval**: **LlamaIndex** (ค่าเริ่มต้น, local vector + BM25), **PageIndex** (hosted, reasoning retrieval พร้อม page-level citations), **GraphRAG** และ **LightRAG** (knowledge-graph retrieval), **LightRAG Server** (retrieval ที่ offload ไปยัง LightRAG instance ภายนอกที่คุณเชื่อมต่อผ่าน HTTP) หรือ **Obsidian** vault ที่เชื่อมโยง tutor อ่านและเขียนในที่ KB แต่ละอันถูกผูกกับเอ็นจินหนึ่ง
+Knowledge bases คือคอลเลกชันเอกสารที่อยู่เบื้องหลัง RAG — รองรับ Chat turns, Co-Writer edits, Book generation และบทสนทนา Partner สิ่งที่โดดเด่นคือ **การเลือกเอ็นจิน retrieval**: **LlamaIndex** (ค่าเริ่มต้น, local vector + BM25), **PageIndex** (hosted, reasoning retrieval พร้อม page-level citations), **GraphRAG** และ **LightRAG** (knowledge-graph retrieval), **LightRAG Server** (retrieval ที่ offload ไปยัง LightRAG instance ภายนอกที่คุณเชื่อมต่อผ่าน HTTP), **Tencent IMA** (ไลบรารีที่คุณคัดสรรใน IMA ค้นหาผ่าน OpenAPI ของมัน) หรือ **Obsidian** vault ที่เชื่อมโยง tutor อ่านและเขียนในที่ KB แต่ละอันถูกผูกกับเอ็นจินหนึ่ง
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/knowledge/01-create%20knowledge%20base.png" alt="สร้าง knowledge base" width="900">
@@ -479,6 +479,24 @@ Settings คือ control plane การดำเนินงาน พร้�
 ส่วนส่วนใหญ่ใช้ draft-and-apply flow เพื่อให้คุณทดสอบ provider ก่อนยืนยัน ธีมสี่แบบมาในกล่อง — Default, Cream, Dark และ Glass ไฟล์ `.env` ที่ root ของโปรเจกต์ถูกเพิกเฉยโดยเจตนา; การกำหนดค่า runtime อยู่ใน `data/user/settings/*.json` เว้นแต่ `DEEPTUTOR_HOME` หรือ `deeptutor start --home` จะชี้แอปไปที่อื่น
 
 **OpenAI Codex OAuth (ทดลอง)** การเลือก **OpenAI Codex** ภายใต้ **Models → LLM** จะแทนที่ช่อง API key ด้วยการลงชื่อเข้าใช้ผ่านเบราว์เซอร์ที่รันกับแผน ChatGPT ของคุณเอง จึงไม่จำเป็นต้องใช้ `OPENAI_API_KEY` Tokens อยู่เฉพาะใน `<user-root>/private/openai-codex/` เท่านั้น และ DeepTutor จะไม่อ่านหรือแก้ไข `~/.codex` CLI login ของคุณเลย รายการ model มาจาก catalog แบบสดของบัญชีนั้น; การลงชื่อเข้าใช้จะเผยแพร่โปรไฟล์ แต่จะกลายเป็น model ที่ใช้งานอยู่ก็ต่อเมื่อยังไม่มีการกำหนดค่า LLM ใด ๆ เท่านั้น จึงไม่มีทางเปลี่ยนทิศทางของการปรับใช้โดยที่คุณไม่รู้ตัว เนื่องจาก token อนุญาตให้ใช้แผนของคนคนเดียว โปรไฟล์นี้จึงไม่สามารถแชร์ผ่าน per-user grants ได้ — แต่ละบัญชีต้องลงชื่อเข้าใช้ด้วยตัวเอง และเบราว์เซอร์ต้องเข้าถึงเครื่องที่รัน backend ได้ (บนเซิร์ฟเวอร์ remote ให้รัน `deeptutor provider login openai-codex` ที่นั่นแทน) ข้อผิดพลาดเรื่อง quota และความล้มเหลวของ catalog จะถูกรายงานตามจริงและจะไม่ตกกลับไปใช้ provider แบบเสียเงินแทนเด็ดขาด เส้นทาง compatibility นี้ยังอยู่ในขั้นทดลอง: อินเทอร์เฟซต้นทางอาจเปลี่ยนแปลงได้
+
+สำหรับการปรับใช้แบบ remote `localhost` ของเบราว์เซอร์และ `localhost` ของเซิร์ฟเวอร์คือคนละเครื่องกัน ดังนั้น reverse proxy ธรรมดาเพียงอย่างเดียวไม่สามารถส่ง callback แบบ localhost ของเบราว์เซอร์ไปถึงเซิร์ฟเวอร์ได้ ให้ใช้ SSH tunnel เป็นสะพานเชื่อม callback ตัว tunnel จะไปถึงพอร์ต Web ที่เผยแพร่อยู่แล้ว; Next.js จะ rewrite เฉพาะ callback path ที่ตรงเป๊ะไปยัง public callback broker เท่านั้น และ broker จะตรวจสอบ `state` ก่อนที่จะ route ไปยัง OAuth operation ต้นทาง callback listener ยังคงอยู่ที่ backend loopback พอร์ต `1455` และ `1457` จะไม่ถูกเผยแพร่ และเส้นทางนี้รองรับ Docker bridge network เริ่มต้น
+
+```bash
+ssh -N -L 1455:127.0.0.1:3782 <ssh-user>@<server-host>
+```
+
+หาก DeepTutor รายงาน callback port สำรอง `1457` ให้ใช้:
+
+```bash
+ssh -N -L 1457:127.0.0.1:3782 <ssh-user>@<server-host>
+```
+
+รันเฉพาะคำสั่งเดียวที่ตรงกับ callback port จริงเท่านั้น อย่ารันทั้งสองคำสั่ง `3782` เป็นเพียงพอร์ต Web ตัวอย่าง: มันคือพอร์ต frontend/container ที่กำหนดค่าไว้ซึ่งรายงานเป็น `callback_forward_port` ค่านั้นไม่ได้รับประกันว่าพอร์ตเดียวกันจะ listen อยู่ที่ `127.0.0.1` ของ SSH host หาก Docker หรือ Podman เผยแพร่พอร์ต host ที่แตกต่างออกไป หรือ reverse proxy listen อยู่ที่พอร์ตอื่น ให้แทนที่เฉพาะพอร์ตปลายทางด้านขวา (`3782` ด้านบน) ด้วยพอร์ต Web ที่ listen อยู่จริงที่ `127.0.0.1` ของ SSH host; คงพอร์ต callback ด้านซ้ายไว้เป็น `1455` หรือ `1457` `<server-host>` คือ SSH host ที่เป็นเจ้าของพอร์ตที่ listen นั้นผ่าน loopback หากเบราว์เซอร์ URL ระบุชื่อ reverse proxy หรือ load balancer ให้แทนที่ด้วย SSH frontend host ที่ถูกต้อง
+
+CLI จะพิมพ์คำสั่ง tunnel ออกมาแล้วพยายามเปิดเบราว์เซอร์ทันที สำหรับการปรับใช้แบบ remote ให้เปิดหน้า authorization ค้างไว้โดยยังไม่กดยืนยัน สร้าง tunnel ที่พิมพ์ออกมาในอีก terminal หนึ่ง แล้วค่อยดำเนินการ authorization ต่อ
+
+การตรวจจับ remote topology มีข้อจำกัดที่ขอบเขต localhost หาก Web เองถูกเข้าถึงผ่าน SSH หรือ IDE localhost forward เบราว์เซอร์จะไม่สามารถบอกได้ว่าเซิร์ฟเวอร์อยู่ remote สำหรับ Web operation ปัจจุบัน ให้เปิดหน้า authorization ของมันค้างไว้โดยยังไม่เสร็จสมบูรณ์ อ่าน `redirect_uri` ใน authorize URL ของ operation นั้นเพื่อระบุ callback port `1455` หรือ `1457` แล้วสร้าง tunnel ตัวที่สองจากพอร์ต local นั้นไปยังพอร์ต Web จริง หรืออีกทางหนึ่งคือยกเลิก Web operation นั้นแล้วเริ่ม operation ใหม่ด้วย CLI; ผลลัพธ์ของ CLI เป็นของ operation ใหม่และต้องไม่นำไปใช้กับ Web operation เดิม ข้อผิดพลาดเรื่อง quota และความล้มเหลวของ catalog จะถูกรายงานตามจริงและจะไม่ตกกลับไปใช้ provider แบบเสียเงินแทนเด็ดขาด เส้นทาง compatibility นี้ยังอยู่ในขั้นทดลอง: อินเทอร์เฟซต้นทางอาจเปลี่ยนแปลงได้
 
 </details>
 

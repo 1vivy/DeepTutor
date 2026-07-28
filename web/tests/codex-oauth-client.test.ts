@@ -120,7 +120,10 @@ test("Codex remote guidance requires waiting state and complete operation fields
     "callback_forward_port",
     "redirect_uri",
   ] as const) {
-    assert.equal(codexRemoteGuidance({ ...complete, [field]: null }, null), null);
+    assert.equal(
+      codexRemoteGuidance({ ...complete, [field]: null }, null),
+      null,
+    );
   }
 });
 
@@ -381,10 +384,7 @@ test("Codex status polling waits for each request and stops state updates after 
     pollingEffect,
     /if \(\s*pending \|\|\s*!status \|\| !shouldPollCodexStatus\(status\)\s*\) return;/,
   );
-  assert.match(
-    pollingEffect,
-    /\[loadStatus, pending, status, pollTick\]/,
-  );
+  assert.match(pollingEffect, /\[loadStatus, pending, status, pollTick\]/);
 });
 
 test("Codex status request epochs reject stale responses across user actions", () => {
@@ -426,8 +426,7 @@ test("Codex status request epochs reject stale responses across user actions", (
   ];
   for (const action of actionBlocks) {
     assert.ok(
-      action.indexOf("invalidateStatusRequests()") <
-        action.indexOf("await "),
+      action.indexOf("invalidateStatusRequests()") < action.indexOf("await "),
     );
   }
 
@@ -461,21 +460,21 @@ test("Local Codex sign-in opens its browser window before awaiting the API", () 
     localSignIn.indexOf('window.open("about:blank"') <
       localSignIn.indexOf("await startCodexLogin()"),
   );
-  assert.match(localSignIn, /authWindow\.location\.replace\(started\.authorize_url\)/);
-  assert.match(localSignIn, /window\.location\.assign\(started\.authorize_url\)/);
+  assert.match(
+    localSignIn,
+    /authWindow\.location\.replace\(started\.authorize_url\)/,
+  );
+  assert.match(
+    localSignIn,
+    /window\.location\.assign\(started\.authorize_url\)/,
+  );
 });
 
 test("Codex sign-in detects remote browsers and retains the login start", () => {
   const source = readFileSync(CODEX_CARD, "utf8");
 
-  assert.match(
-    source,
-    /isLoopbackHostname\(window\.location\.hostname\)/,
-  );
-  assert.match(
-    source,
-    /useState<CodexLoginStart \| null>\(null\)/,
-  );
+  assert.match(source, /isLoopbackHostname\(window\.location\.hostname\)/);
+  assert.match(source, /useState<CodexLoginStart \| null>\(null\)/);
   assert.match(
     source,
     /const signIn = remoteAccess \? remoteSignIn : localSignIn;/,

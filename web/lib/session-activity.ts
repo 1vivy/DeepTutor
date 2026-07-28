@@ -161,4 +161,3 @@ export function buildSessionActivity(messages: MessageItem[]): SessionActivity {
     isEmpty,
   };
 }
-

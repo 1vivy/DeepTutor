@@ -431,7 +431,7 @@ Cada capítulo se compila en bloques tipados — texto, callouts, quizzes, tarje
 <img src="../../assets/figs/web-1.4.6+/knowledge/00-overview.png" alt="Centro de Conocimiento DeepTutor" width="900">
 </div>
 
-Las bases de conocimiento son las colecciones de documentos detrás del RAG — fundamentan los turnos de Chat, las ediciones de Co-Writer, la generación de Book y las conversaciones de Partner. Lo que las distingue es la **elección de motores de recuperación**: **LlamaIndex** (el predeterminado, vector local + BM25), **PageIndex** (hospedado, recuperación por razonamiento con citas a nivel de página), **GraphRAG** y **LightRAG** (recuperación por grafo de conocimiento), **LightRAG Server** (recuperación delegada a una instancia externa de LightRAG a la que te conectas por HTTP), o un vault **Obsidian** vinculado que el tutor lee y escribe en el lugar. Cada KB está vinculada a un motor.
+Las bases de conocimiento son las colecciones de documentos detrás del RAG — fundamentan los turnos de Chat, las ediciones de Co-Writer, la generación de Book y las conversaciones de Partner. Lo que las distingue es la **elección de motores de recuperación**: **LlamaIndex** (el predeterminado, vector local + BM25), **PageIndex** (hospedado, recuperación por razonamiento con citas a nivel de página), **GraphRAG** y **LightRAG** (recuperación por grafo de conocimiento), **LightRAG Server** (recuperación delegada a una instancia externa de LightRAG a la que te conectas por HTTP), **Tencent IMA** (una biblioteca que curas en IMA, consultada a través de su OpenAPI), o un vault **Obsidian** vinculado que el tutor lee y escribe en el lugar. Cada KB está vinculada a un motor.
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/knowledge/01-create%20knowledge%20base.png" alt="Crear una base de conocimiento" width="900">
@@ -491,6 +491,24 @@ Settings es el panel de control operativo, con una tira de estado en vivo (Backe
 La mayoría de las secciones usan un flujo de borrador y aplicación, de modo que puedes probar un proveedor antes de confirmarlo. Cuatro temas se incluyen por defecto — Default, Cream, Dark y Glass. Los archivos `.env` de la raíz del proyecto se ignoran intencionalmente; la configuración de runtime vive bajo `data/user/settings/*.json` a menos que `DEEPTUTOR_HOME` o `deeptutor start --home` apunten la app en otro lugar.
 
 **OpenAI Codex OAuth (experimental).** Elegir **OpenAI Codex** bajo Models → LLM reemplaza los campos de clave API por un inicio de sesión en el navegador que se ejecuta contra tu propio plan de ChatGPT, de modo que no se necesita `OPENAI_API_KEY`. Los tokens viven solo en `<user-root>/private/openai-codex/` y DeepTutor nunca lee ni modifica tu inicio de sesión de la CLI `~/.codex`. La lista de modelos proviene del catálogo en vivo de esa cuenta; iniciar sesión publica el perfil, pero este solo se convierte en el modelo activo cuando todavía no hay ningún LLM configurado, de modo que nunca redirige un despliegue a tus espaldas. Como un token autoriza el plan de una sola persona, el perfil no se puede compartir a través de permisos de usuario — cada cuenta inicia sesión por sí misma, y el navegador debe poder alcanzar la máquina que ejecuta el backend (en un servidor remoto, ejecuta `deeptutor provider login openai-codex` allí en su lugar). Los errores de cuota y las fallas del catálogo se reportan tal cual y nunca recurren a un proveedor de pago. Esta ruta de compatibilidad es experimental: la interfaz upstream puede cambiar.
+
+Para un despliegue remoto, el `localhost` del navegador y el `localhost` del servidor son máquinas diferentes, de modo que un proxy inverso ordinario por sí solo no puede llevar la devolución de llamada localhost del navegador hasta el servidor. Usa un túnel SSH como puente de devolución de llamada. El túnel llega hasta el puerto Web ya publicado; Next.js reescribe únicamente la ruta exacta de devolución de llamada hacia el broker público de devolución de llamada, y el broker valida `state` antes de enrutar hacia la operación OAuth original. El listener de devolución de llamada permanece en el loopback del backend, los puertos `1455` y `1457` no se publican, y esta ruta admite la red bridge predeterminada de Docker.
+
+```bash
+ssh -N -L 1455:127.0.0.1:3782 <ssh-user>@<server-host>
+```
+
+Si DeepTutor reporta el puerto de devolución de llamada de reserva `1457`, usa:
+
+```bash
+ssh -N -L 1457:127.0.0.1:3782 <ssh-user>@<server-host>
+```
+
+Ejecuta solo el comando que coincide con el puerto de devolución de llamada real; nunca ejecutes ambos. `3782` es solo el puerto Web de ejemplo: es el puerto de frontend/contenedor configurado, reportado como `callback_forward_port`. Ese valor no garantiza que el mismo puerto esté escuchando en el `127.0.0.1` del host SSH. Si Docker o Podman publican un puerto de host diferente, o un proxy inverso escucha en un puerto distinto, reemplaza solo el puerto de destino del lado derecho (`3782` arriba) por el puerto Web que realmente escucha en el `127.0.0.1` del host SSH; conserva el puerto de devolución de llamada del lado izquierdo como `1455` o `1457`. `<server-host>` es el host SSH cuyo loopback posee ese puerto en escucha. Si la URL del navegador nombra un proxy inverso o balanceador de carga, reemplázala por el host frontend SSH correcto.
+
+La CLI imprime el comando del túnel y luego intenta abrir el navegador de inmediato. En un despliegue remoto, mantén abierta la página de autorización sin completarla, establece el túnel impreso en otra terminal, y solo entonces continúa la autorización.
+
+La detección de topología remota tiene un límite de localhost. Si Web mismo se alcanza a través de un forward de localhost de SSH o del IDE, el navegador no puede saber que el servidor es remoto. Para la operación Web actual, deja su página de autorización sin terminar, lee `redirect_uri` en la URL de autorización de esa operación para identificar el puerto de devolución de llamada `1455` o `1457`, y crea el segundo túnel desde ese puerto local hasta el puerto Web real. Alternativamente, cancela esa operación Web e inicia una nueva con la CLI; la salida de la CLI pertenece a la nueva operación y no debe usarse para la operación Web existente. Los errores de cuota y las fallas de catálogo se reportan tal cual y nunca recurren a un proveedor de pago. Esta ruta de compatibilidad es experimental: la interfaz upstream puede cambiar.
 
 </details>
 

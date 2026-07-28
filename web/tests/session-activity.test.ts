@@ -11,7 +11,10 @@ import type {
 import type { StreamEvent } from "../lib/unified-ws";
 
 /** A StreamEvent with only the fields the fold reads set explicitly. */
-function event(type: string, metadata: Record<string, unknown> = {}): StreamEvent {
+function event(
+  type: string,
+  metadata: Record<string, unknown> = {},
+): StreamEvent {
   return {
     type: type as StreamEvent["type"],
     source: "",
@@ -174,7 +177,9 @@ test("derives the data-root-relative path from an outputs URL", () => {
 
 test("decodes percent-escaped segments", () => {
   assert.equal(
-    artifactDiskPath("/api/outputs/workspace/chat/chat/t/exec/%E6%8A%A5%E5%91%8A.pptx"),
+    artifactDiskPath(
+      "/api/outputs/workspace/chat/chat/t/exec/%E6%8A%A5%E5%91%8A.pptx",
+    ),
     "workspace/chat/chat/t/exec/报告.pptx",
   );
 });

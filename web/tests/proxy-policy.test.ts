@@ -33,10 +33,7 @@ test("isBackendPath matches /api and /ws paths only", () => {
 
 test("isCodexCallbackPath matches only the exact public callback path", () => {
   assert.equal(CODEX_CALLBACK_PATH, "/auth/callback");
-  assert.equal(
-    CODEX_CALLBACK_API_PATH,
-    "/api/v1/auth/openai-codex/callback",
-  );
+  assert.equal(CODEX_CALLBACK_API_PATH, "/api/v1/auth/openai-codex/callback");
   assert.equal(isCodexCallbackPath("/auth/callback"), true);
   assert.equal(isCodexCallbackPath("/auth/callback/"), false);
   assert.equal(isCodexCallbackPath("/auth/callback/extra"), false);
@@ -45,13 +42,8 @@ test("isCodexCallbackPath matches only the exact public callback path", () => {
 });
 
 test("proxy rewrites the exact callback before backend routing and auth gating", () => {
-  const source = readFileSync(
-    path.resolve(process.cwd(), "proxy.ts"),
-    "utf8",
-  );
-  const callbackBranch = source.indexOf(
-    "if (isCodexCallbackPath(pathname))",
-  );
+  const source = readFileSync(path.resolve(process.cwd(), "proxy.ts"), "utf8");
+  const callbackBranch = source.indexOf("if (isCodexCallbackPath(pathname))");
   const backendBranch = source.indexOf("if (isBackendPath(pathname))");
   const authGate = source.indexOf("if (!AUTH_ENABLED");
 
