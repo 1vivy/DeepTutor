@@ -29,16 +29,15 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { formatDate as formatLocaleDate, type Language } from "@/lib/datetime";
 
-function formatDate(iso: string, language: string): string {
+// Delegates to the shared locale mapping so a new UI language only has to be
+// taught to lib/datetime; the guard here is for the empty or unparseable
+// created_at that Intl would throw on.
+function formatDate(iso: string, lang: Language): string {
   if (!iso) return "—";
   try {
-    const locale = language.toLowerCase().startsWith("zh") ? "zh-CN" : "en-US";
-    return new Date(iso).toLocaleDateString(locale, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+    return formatLocaleDate(new Date(iso), lang);
   } catch {
     return "—";
   }
@@ -47,6 +46,7 @@ function formatDate(iso: string, language: string): string {
 export default function AdminUsersPage() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
+  const lang: Language = i18n.language?.startsWith("zh") ? "zh" : "en";
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -385,10 +385,7 @@ export default function AdminUsersPage() {
                           </span>
                         </td>
                         <td className="px-5 py-3.5 text-[var(--muted-foreground)]">
-                          {formatDate(
-                            user.created_at,
-                            i18n.resolvedLanguage ?? i18n.language,
-                          )}
+                          {formatDate(user.created_at, lang)}
                         </td>
                         <td className="px-5 py-3.5">
                           <div className="flex items-center justify-end gap-1.5">
@@ -521,10 +518,7 @@ export default function AdminUsersPage() {
                       confirmTarget.user.role === "admin"
                         ? t("Admin")
                         : t("User"),
-                    date: formatDate(
-                      confirmTarget.user.created_at,
-                      i18n.resolvedLanguage ?? i18n.language,
-                    ),
+                    date: formatDate(confirmTarget.user.created_at, lang),
                   })}
                 </p>
               </div>
