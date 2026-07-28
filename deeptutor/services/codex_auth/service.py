@@ -284,6 +284,21 @@ class CodexOAuthService:
             and (operation.task is None or not operation.task.done())
         )
 
+    def awaits_callback_state(self, state: str | None) -> bool:
+        """Whether this instance holds the active login that owns ``state``.
+
+        Read without the operation lock: the caller only uses this to pick a
+        recipient, and :meth:`receive_callback` revalidates under the lock.
+        """
+        operation = self._operation
+        if operation is None or not self._operation_is_active():
+            return False
+        return oauth_state_matches(state, operation.state_secret)
+
+    def awaits_callback(self) -> bool:
+        """Whether this instance has a login waiting for a browser callback."""
+        return self._operation is not None and self._operation_is_active()
+
     async def receive_callback(
         self,
         code: str | None,
@@ -711,12 +726,48 @@ def get_codex_oauth_service() -> CodexOAuthService:
     return service
 
 
+async def deliver_codex_oauth_callback(
+    code: str | None,
+    state: str | None,
+    error: str | None,
+) -> None:
+    """Hand a browser OAuth callback to whichever login is awaiting it.
+
+    The browser reaches ``/auth/callback`` on its own loopback address — the
+    far end of the user's tunnel — not on the DeepTutor Web origin, so the
+    request carries no session and the per-user service instance behind
+    :func:`get_codex_oauth_service` cannot be resolved from it. Resolving it
+    anyway would land every callback on the default root and strand every
+    non-administrator mid-login.
+
+    The OAuth ``state`` is the identity instead: it is a secret this process
+    minted for exactly one login, and it is compared in constant time. That is
+    already the trust model the loopback listener uses.
+    """
+    for service in list(_SERVICE_INSTANCES.values()):
+        if service.awaits_callback_state(state):
+            await service.receive_callback(code, state, error)
+            return
+    if any(service.awaits_callback() for service in list(_SERVICE_INSTANCES.values())):
+        raise CodexAuthError(
+            "state_mismatch",
+            "Codex sign-in returned an invalid state.",
+            400,
+        )
+    raise CodexAuthError(
+        "login_not_active",
+        "Codex sign-in is not waiting for a callback.",
+        409,
+    )
+
+
 __all__ = [
     "CODEX_PROFILE_ID",
     "MANAGED_BY",
     "CatalogSyncResult",
     "CodexOAuthService",
     "codex_model_id",
+    "deliver_codex_oauth_callback",
     "get_codex_oauth_service",
     "remove_codex_catalog",
     "ssh_forward_command",

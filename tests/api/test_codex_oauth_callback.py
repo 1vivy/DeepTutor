@@ -43,7 +43,11 @@ def _client(
     monkeypatch: pytest.MonkeyPatch,
     service: FakeCodexOAuthService,
 ) -> TestClient:
-    monkeypatch.setattr(auth_router, "get_codex_oauth_service", lambda: service)
+    monkeypatch.setattr(
+        auth_router,
+        "deliver_codex_oauth_callback",
+        service.receive_callback,
+    )
     app = FastAPI()
     app.include_router(auth_router.router, prefix="/api/v1/auth")
     return TestClient(app)

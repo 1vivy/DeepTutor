@@ -604,6 +604,85 @@ async def test_callback_broker_keeps_waiting_after_wrong_state_then_completes(
 
 
 @pytest.mark.asyncio
+async def test_callback_delivery_finds_the_login_that_owns_the_state(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A callback must reach the account that started the login, not the default root.
+
+    The browser hits ``/auth/callback`` on the far end of its own tunnel, so the
+    request carries no session and cannot name a user. Routing by the OAuth
+    state is what keeps a non-administrator's sign-in from being delivered to
+    the default root instead.
+    """
+    default_root = tmp_path / "user"
+    member_root = tmp_path / "users" / "member"
+    default_root.mkdir(parents=True)
+    member_root.mkdir(parents=True)
+    default_service, *_ = await _oauth_service(default_root)
+    member_service, _callback, _oauth, _catalog, _store, _models = await _oauth_service(member_root)
+    monkeypatch.setattr(
+        service_module,
+        "_SERVICE_INSTANCES",
+        {str(default_root): default_service, str(member_root): member_service},
+    )
+
+    started = await member_service.start_login()
+    member_state = parse_qs(urlsplit(started["authorize_url"]).query)["state"][0]
+
+    await service_module.deliver_codex_oauth_callback(
+        code="authorization-code",
+        state=member_state,
+        error=None,
+    )
+
+    status = await _wait_until_terminal(member_service)
+    assert status["operation_state"] == "completed"
+    assert default_service.public_status()["operation_state"] is None
+
+
+@pytest.mark.asyncio
+async def test_callback_delivery_rejects_a_state_no_login_owns(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    service, _callback, _oauth, _catalog, _store, _models = await _oauth_service(tmp_path)
+    monkeypatch.setattr(service_module, "_SERVICE_INSTANCES", {str(tmp_path): service})
+    await service.start_login()
+
+    with pytest.raises(CodexAuthError) as exc_info:
+        await service_module.deliver_codex_oauth_callback(
+            code="do-not-accept",
+            state="wrong-state",
+            error=None,
+        )
+
+    assert exc_info.value.code == "state_mismatch"
+    assert exc_info.value.http_status == 400
+    assert service.public_status()["operation_state"] == "waiting"
+    await service.cancel_login()
+
+
+@pytest.mark.asyncio
+async def test_callback_delivery_rejects_when_nothing_is_waiting(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    service, _callback, _oauth, _catalog, _store, _models = await _oauth_service(tmp_path)
+    monkeypatch.setattr(service_module, "_SERVICE_INSTANCES", {str(tmp_path): service})
+
+    with pytest.raises(CodexAuthError) as exc_info:
+        await service_module.deliver_codex_oauth_callback(
+            code="authorization-code",
+            state="untrusted-state",
+            error=None,
+        )
+
+    assert exc_info.value.code == "login_not_active"
+    assert exc_info.value.http_status == 409
+
+
+@pytest.mark.asyncio
 async def test_callback_broker_rejects_when_no_login_is_active(tmp_path: Path) -> None:
     service, _callback, _oauth, _catalog, _store, _models = await _oauth_service(tmp_path)
 

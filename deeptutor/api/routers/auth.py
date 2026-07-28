@@ -50,7 +50,7 @@ from deeptutor.services.auth import (
     set_role,
 )
 from deeptutor.services.codex_auth.contracts import CodexAuthError
-from deeptutor.services.codex_auth.service import get_codex_oauth_service
+from deeptutor.services.codex_auth.service import deliver_codex_oauth_callback
 
 logger = logging.getLogger(__name__)
 
@@ -380,7 +380,7 @@ async def receive_codex_oauth_callback(
     headers = {"Cache-Control": "no-store"}
     try:
         callback_state = state if len(request.query_params.getlist("state")) == 1 else None
-        await get_codex_oauth_service().receive_callback(code, callback_state, error)
+        await deliver_codex_oauth_callback(code, callback_state, error)
     except CodexAuthError as exc:
         return HTMLResponse(
             (
