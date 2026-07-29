@@ -327,6 +327,7 @@ export default memo(function ChatComposer({
   const [moreCapsOpen, setMoreCapsOpen] = useState(false);
   const [lastCapMenuOpen, setLastCapMenuOpen] = useState(capMenuOpen);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const restoreFocusOnReturnRef = useRef(false);
   const inputHandleRef = useRef<ComposerInputHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   if (lastCapMenuOpen !== capMenuOpen) {
@@ -389,9 +390,37 @@ export default memo(function ChatComposer({
     [onAddFiles],
   );
 
+  const focusTextarea = useCallback(() => {
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, []);
+
   useEffect(() => {
-    if (!hasMessages) textareaRef.current?.focus();
-  }, [hasMessages]);
+    const rememberFocus = () => {
+      restoreFocusOnReturnRef.current =
+        document.activeElement === textareaRef.current;
+    };
+    const restoreFocus = () => {
+      if (
+        restoreFocusOnReturnRef.current &&
+        document.visibilityState === "visible"
+      ) {
+        focusTextarea();
+      }
+    };
+
+    window.addEventListener("blur", rememberFocus);
+    window.addEventListener("focus", restoreFocus);
+    document.addEventListener("visibilitychange", restoreFocus);
+    return () => {
+      window.removeEventListener("blur", rememberFocus);
+      window.removeEventListener("focus", restoreFocus);
+      document.removeEventListener("visibilitychange", restoreFocus);
+    };
+  }, [focusTextarea]);
+
+  useEffect(() => {
+    if (!hasMessages) focusTextarea();
+  }, [hasMessages, focusTextarea]);
 
   const handleSelectCapability = useCallback(
     (value: string) => {
@@ -414,8 +443,12 @@ export default memo(function ChatComposer({
       onSend(content);
       setHasContent(false);
       inputHandleRef.current?.clear();
+      // Sending can move focus to the button or rerender the empty-state
+      // composer into the conversation layout. Restore it after that update
+      // so the user can keep typing, including after switching back to the tab.
+      focusTextarea();
     },
-    [onSend],
+    [focusTextarea, onSend],
   );
 
   const hasReferences =
