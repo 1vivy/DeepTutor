@@ -112,7 +112,7 @@ deeptutor init
 deeptutor start --dev
 ```
 
-Instalacje ze źródeł uruchamiają Next.js w trybie deweloperskim względem lokalnego katalogu `web/`; wszystko inne (układ konfiguracji, porty, zatrzymanie za pomocą `Ctrl+C`) odpowiada Opcji 1.
+`deeptutor start` buduje lokalny frontend `web/` na potrzeby produkcji jednorazowo i ponownie go wykorzystuje; `--dev` uruchamia Next.js z automatycznym przeładowywaniem modułów (HMR). Układ konfiguracji, porty i `Ctrl+C` odpowiadają Opcji 1.
 
 <details>
 <summary><b>Środowisko Conda</b> (zamiast <code>venv</code>)</summary>
@@ -143,7 +143,7 @@ pip install -e ".[math-animator]"   # addon Manim; wymaga LaTeX/ffmpeg/bibliotek
 
 **Zmiana zależności frontendowych:** uruchom `npm install --legacy-peer-deps`, aby odświeżyć `web/package-lock.json`, a następnie zatwierdź zarówno `web/package.json`, jak i `web/package-lock.json`.
 
-**Zablokowany serwer deweloperski:** jeśli `deeptutor start` zgłasza istniejący frontend, który nie odpowiada, zatrzymaj PID, który wydrukuje. Jeśli żaden proces Next.js nie jest uruchomiony, pliki blokady są przestarzałe — usuń je i spróbuj ponownie:
+**Zablokowany serwer deweloperski:** jeśli `deeptutor start --dev` zgłasza istniejący frontend, który nie odpowiada, zatrzymaj PID, który wydrukuje. Jeśli żaden proces Next.js nie jest uruchomiony, pliki blokady są przestarzałe — usuń je i spróbuj ponownie:
 
 ```bash
 rm -f web/.next/dev/lock web/.next/lock

@@ -45,6 +45,7 @@ def _apply_single_user_allocator_env(env: dict[str, str]) -> None:
     env.setdefault("MALLOC_ARENA_MAX", "2")
     env.setdefault("MALLOC_TRIM_THRESHOLD_", "131072")
 
+
 # Mutable holder so module-level helpers can format messages in the active
 # UI language without threading the labels through every function.
 _ACTIVE_LABELS: dict[str, str] = labels_for("en")

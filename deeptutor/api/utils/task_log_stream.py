@@ -189,7 +189,9 @@ class KnowledgeTaskStreamManager:
 
     def _prune_locked(self, now: float) -> None:
         for task_id, terminal_at in list(self._terminal_at.items()):
-            if now - terminal_at >= self._TERMINAL_TTL_SECONDS and not self._subscribers.get(task_id):
+            if now - terminal_at >= self._TERMINAL_TTL_SECONDS and not self._subscribers.get(
+                task_id
+            ):
                 self._drop_task_locked(task_id)
 
         overflow = len(self._buffers) - self._MAX_RETAINED_TASKS

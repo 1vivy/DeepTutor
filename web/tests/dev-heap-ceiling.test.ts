@@ -18,8 +18,7 @@ import path from "node:path";
 const webRoot = process.cwd();
 const repoRoot = path.resolve(webRoot, "..");
 
-const read = (...parts: string[]) =>
-  readFileSync(path.join(...parts), "utf8");
+const read = (...parts: string[]) => readFileSync(path.join(...parts), "utf8");
 
 test("npm dev scripts route through the heap-ceiling wrapper", () => {
   const scripts = JSON.parse(read(webRoot, "package.json")).scripts as Record<
@@ -48,9 +47,13 @@ test("the container dev stage routes through the wrapper too", () => {
     .split("\n")
     .filter((line) => !line.trimStart().startsWith("#"))
     .filter(
-      (line) => line.includes("bin/next dev") || line.includes("scripts/dev.mjs"),
+      (line) =>
+        line.includes("bin/next dev") || line.includes("scripts/dev.mjs"),
     );
-  assert.ok(devFrontend.length > 0, "no dev frontend command found in Dockerfile");
+  assert.ok(
+    devFrontend.length > 0,
+    "no dev frontend command found in Dockerfile",
+  );
   for (const line of devFrontend) {
     assert.match(
       line,

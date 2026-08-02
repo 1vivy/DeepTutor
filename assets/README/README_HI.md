@@ -112,7 +112,7 @@ deeptutor init
 deeptutor start --dev
 ```
 
-Source installs local `web/` directory के विरुद्ध Next.js को dev mode में run करते हैं; बाकी सब (config layout, ports, `Ctrl+C` से stop) Option 1 से match करता है।
+`deeptutor start` local `web/` frontend को production के लिए एक बार build करता है और उसे reuse करता है; `--dev` Next.js को HMR के साथ run करता है। Config layout, ports, और `Ctrl+C` Option 1 से match करते हैं।
 
 <details>
 <summary><b>Conda environment</b> (<code>venv</code> की बजाय)</summary>
@@ -143,7 +143,7 @@ pip install -e ".[math-animator]"   # Manim addon; LaTeX/ffmpeg/system libs च�
 
 **Frontend dependencies बदलना:** `web/package-lock.json` refresh करने के लिए `npm install --legacy-peer-deps` run करें, फिर `web/package.json` और `web/package-lock.json` दोनों को commit करें।
 
-**Stuck dev server:** अगर `deeptutor start` एक existing frontend report करता है जो respond नहीं कर रहा, तो उस PID को stop करें जो वह print करता है। अगर कोई Next.js process actually नहीं चल रही, तो lock files stale हैं — उन्हें remove करें और retry करें:
+**Stuck dev server:** अगर `deeptutor start --dev` एक existing frontend report करता है जो respond नहीं कर रहा, तो उस PID को stop करें जो वह print करता है। अगर कोई Next.js process actually नहीं चल रही, तो lock files stale हैं — उन्हें remove करें और retry करें:
 
 ```bash
 rm -f web/.next/dev/lock web/.next/lock

@@ -112,7 +112,7 @@ deeptutor init
 deeptutor start --dev
 ```
 
-源码安装会以开发模式运行 Next.js，指向本地 `web/` 目录；其他所有内容（配置布局、端口、`Ctrl+C` 停止）与方式一相同。
+`deeptutor start` 会为本地 `web/` 前端构建一次生产版本并复用；`--dev` 则以热更新（HMR）方式运行 Next.js。配置布局、端口和 `Ctrl+C` 停止均与方式一相同。
 
 <details>
 <summary><b>Conda 环境</b>（替代 <code>venv</code>）</summary>
@@ -143,7 +143,7 @@ pip install -e ".[math-animator]"   # Manim 插件；需要 LaTeX/ffmpeg/系统�
 
 **修改前端依赖：** 运行 `npm install --legacy-peer-deps` 以刷新 `web/package-lock.json`，然后同时提交 `web/package.json` 和 `web/package-lock.json`。
 
-**开发服务器卡住：** 如果 `deeptutor start` 报告有已存在但无响应的前端进程，停止它打印的 PID。如果实际上没有 Next.js 进程在运行，则锁文件已过时 — 删除后重试：
+**开发服务器卡住：** 如果 `deeptutor start --dev` 报告有已存在但无响应的前端进程，停止它打印的 PID。如果实际上没有 Next.js 进程在运行，则锁文件已过时 — 删除后重试：
 
 ```bash
 rm -f web/.next/dev/lock web/.next/lock

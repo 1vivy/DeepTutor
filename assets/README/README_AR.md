@@ -112,7 +112,7 @@ deeptutor init
 deeptutor start --dev
 ```
 
-تشغّل تثبيتات المصدر Next.js في وضع التطوير مقابل دليل `web/` المحلي؛ كل شيء آخر (تخطيط التهيئة، المنافذ، الإيقاف بـ `Ctrl+C`) يطابق الخيار 1.
+يبني أمر `deeptutor start` واجهة `web/` المحلية للإنتاج مرة واحدة ويعيد استخدامها؛ بينما يشغّل `--dev` تطبيق Next.js مع إعادة التحميل الفوري للوحدات (HMR). تخطيط التهيئة، والمنافذ، والإيقاف بـ `Ctrl+C` يطابق الخيار 1.
 
 <details>
 <summary><b>بيئة Conda</b> (بديلاً عن <code>venv</code>)</summary>
@@ -143,7 +143,7 @@ pip install -e ".[math-animator]"   # إضافة Manim؛ تتطلب LaTeX/ffmpeg
 
 **تغيير تبعيات الواجهة الأمامية:** شغّل `npm install --legacy-peer-deps` لتحديث `web/package-lock.json`، ثم ارفع كلاً من `web/package.json` و`web/package-lock.json`.
 
-**خادم تطوير متوقف:** إذا أبلغ `deeptutor start` عن واجهة أمامية موجودة لا تستجيب، أوقف الـ PID الذي يطبعه. إذا لم يكن هناك أي عملية Next.js تعمل فعلياً، فملفات القفل قديمة — احذفها وأعد المحاولة:
+**خادم تطوير متوقف:** إذا أبلغ `deeptutor start --dev` عن واجهة أمامية موجودة لا تستجيب، أوقف الـ PID الذي يطبعه. إذا لم يكن هناك أي عملية Next.js تعمل فعلياً، فملفات القفل قديمة — احذفها وأعد المحاولة:
 
 ```bash
 rm -f web/.next/dev/lock web/.next/lock

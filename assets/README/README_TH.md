@@ -112,7 +112,7 @@ deeptutor init
 deeptutor start --dev
 ```
 
-การติดตั้งจากซอร์สจะรัน Next.js ในโหมด dev กับไดเร็กทอรี `web/` ในเครื่อง ทุกอย่างอื่น (layout ของ config, พอร์ต, หยุดด้วย `Ctrl+C`) ตรงกับตัวเลือกที่ 1
+`deeptutor start` จะ build frontend `web/` ในเครื่องสำหรับ production ครั้งเดียวแล้วนำมาใช้ซ้ำ; `--dev` รัน Next.js ด้วย HMR (hot reload) Layout ของ config, พอร์ต และ `Ctrl+C` ตรงกับตัวเลือกที่ 1
 
 <details>
 <summary><b>สภาพแวดล้อม Conda</b> (แทน <code>venv</code>)</summary>
@@ -143,7 +143,7 @@ pip install -e ".[math-animator]"   # Manim addon; ต้องการ LaTeX/f
 
 **การเปลี่ยน dependency ของ frontend:** รัน `npm install --legacy-peer-deps` เพื่อรีเฟรช `web/package-lock.json` จากนั้น commit ทั้ง `web/package.json` และ `web/package-lock.json`
 
-**เซิร์ฟเวอร์ dev ค้าง:** หาก `deeptutor start` รายงาน frontend ที่มีอยู่แต่ไม่ตอบสนอง ให้หยุด PID ที่พิมพ์ออกมา หากไม่มีกระบวนการ Next.js จริง ๆ ที่รันอยู่ ไฟล์ lock จะล้าสมัย — ลบออกแล้วลองใหม่:
+**เซิร์ฟเวอร์ dev ค้าง:** หาก `deeptutor start --dev` รายงาน frontend ที่มีอยู่แต่ไม่ตอบสนอง ให้หยุด PID ที่พิมพ์ออกมา หากไม่มีกระบวนการ Next.js จริง ๆ ที่รันอยู่ ไฟล์ lock จะล้าสมัย — ลบออกแล้วลองใหม่:
 
 ```bash
 rm -f web/.next/dev/lock web/.next/lock

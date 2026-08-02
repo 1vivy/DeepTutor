@@ -112,7 +112,7 @@ deeptutor init
 deeptutor start --dev
 ```
 
-ソースインストールはローカルの`web/`ディレクトリに対してNext.jsをdevモードで実行します。その他（設定レイアウト、ポート、`Ctrl+C`での停止）はオプション1と同じです。
+`deeptutor start`はローカルの`web/`フロントエンドを一度だけ本番用にビルドして再利用し、`--dev`はNext.jsをHMR（ホットリロード）付きで実行します。その他（設定レイアウト、ポート、`Ctrl+C`での停止）はオプション1と同じです。
 
 <details>
 <summary><b>Conda環境</b>（<code>venv</code>の代わり）</summary>
@@ -143,7 +143,7 @@ pip install -e ".[math-animator]"   # Maninアドオン; LaTeX/ffmpeg/システ�
 
 **フロントエンド依存関係の変更：** `npm install --legacy-peer-deps`を実行して`web/package-lock.json`を更新し、`web/package.json`と`web/package-lock.json`の両方をコミットしてください。
 
-**devサーバーが動かない場合：** `deeptutor start`が応答しない既存のフロントエンドを報告する場合は、表示されたPIDを停止してください。実際にNext.jsプロセスが実行されていない場合、ロックファイルが古くなっています — それらを削除して再試行してください：
+**devサーバーが動かない場合：** `deeptutor start --dev`が応答しない既存のフロントエンドを報告する場合は、表示されたPIDを停止してください。実際にNext.jsプロセスが実行されていない場合、ロックファイルが古くなっています — それらを削除して再試行してください：
 
 ```bash
 rm -f web/.next/dev/lock web/.next/lock
