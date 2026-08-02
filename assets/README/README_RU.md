@@ -109,7 +109,7 @@ python -m pip install -e .
 ( cd web && npm ci --legacy-peer-deps )
 
 deeptutor init
-deeptutor start
+deeptutor start --dev
 ```
 
 Установки из исходного кода запускают Next.js в режиме разработки для локальной директории `web/`; всё остальное (структура конфигурации, порты, остановка с `Ctrl+C`) соответствует Варианту 1.
@@ -147,7 +147,7 @@ pip install -e ".[math-animator]"   # дополнение Manim; требует
 
 ```bash
 rm -f web/.next/dev/lock web/.next/lock
-deeptutor start
+deeptutor start --dev
 ```
 
 </details>
@@ -569,7 +569,7 @@ deeptutor run deep_question "Quiz me on that survey" --session "$SID" --format j
 | Команда | Описание |
 |:---|:---|
 | `deeptutor init` | Создать или обновить `data/user/settings` для текущего рабочего пространства |
-| `deeptutor start [--home PATH]` | Запустить бэкенд + фронтенд вместе |
+| `deeptutor start [--home PATH] [--dev]` | Запустить бэкенд + фронтенд вместе |
 | `deeptutor serve [--port PORT]` | Запустить только бэкенд FastAPI |
 | `deeptutor run <capability> <message>` | Запустить один ход возможности (`chat`, `deep_solve`, `deep_question`, `deep_research`, `visualize`, `math_animator`, `mastery_path`); добавьте `--format json` для вывода NDJSON |
 | `deeptutor chat` | Интерактивный REPL с управлением возможностями, инструментами, KB, блокнотами и историей |

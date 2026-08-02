@@ -109,7 +109,7 @@ python -m pip install -e .
 ( cd web && npm ci --legacy-peer-deps )
 
 deeptutor init
-deeptutor start
+deeptutor start --dev
 ```
 
 การติดตั้งจากซอร์สจะรัน Next.js ในโหมด dev กับไดเร็กทอรี `web/` ในเครื่อง ทุกอย่างอื่น (layout ของ config, พอร์ต, หยุดด้วย `Ctrl+C`) ตรงกับตัวเลือกที่ 1
@@ -147,7 +147,7 @@ pip install -e ".[math-animator]"   # Manim addon; ต้องการ LaTeX/f
 
 ```bash
 rm -f web/.next/dev/lock web/.next/lock
-deeptutor start
+deeptutor start --dev
 ```
 
 </details>
@@ -569,7 +569,7 @@ repo มี root [`SKILL.md`](../../SKILL.md) — เอกสาร handover ~1
 | คำสั่ง | คำอธิบาย |
 |:---|:---|
 | `deeptutor init` | สร้างหรืออัพเดต `data/user/settings` สำหรับ workspace ปัจจุบัน |
-| `deeptutor start [--home PATH]` | เปิดตัว backend + frontend ด้วยกัน |
+| `deeptutor start [--home PATH] [--dev]` | เปิดตัว backend + frontend ด้วยกัน |
 | `deeptutor serve [--port PORT]` | เริ่มเฉพาะ FastAPI backend |
 | `deeptutor run <capability> <message>` | รัน capability turn เดียว (`chat`, `deep_solve`, `deep_question`, `deep_research`, `visualize`, `math_animator`, `mastery_path`); เพิ่ม `--format json` สำหรับ NDJSON output |
 | `deeptutor chat` | Interactive REPL พร้อม capability, tool, KB, notebook และ history controls |

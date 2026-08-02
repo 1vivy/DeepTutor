@@ -109,7 +109,7 @@ python -m pip install -e .
 ( cd web && npm ci --legacy-peer-deps )
 
 deeptutor init
-deeptutor start
+deeptutor start --dev
 ```
 
 ソースインストールはローカルの`web/`ディレクトリに対してNext.jsをdevモードで実行します。その他（設定レイアウト、ポート、`Ctrl+C`での停止）はオプション1と同じです。
@@ -147,7 +147,7 @@ pip install -e ".[math-animator]"   # Maninアドオン; LaTeX/ffmpeg/システ�
 
 ```bash
 rm -f web/.next/dev/lock web/.next/lock
-deeptutor start
+deeptutor start --dev
 ```
 
 </details>
@@ -569,7 +569,7 @@ deeptutor run deep_question "Quiz me on that survey" --session "$SID" --format j
 | コマンド | 説明 |
 |:---|:---|
 | `deeptutor init` | 現在のワークスペースの`data/user/settings`を作成または更新 |
-| `deeptutor start [--home PATH]` | バックエンド + フロントエンドを一緒に起動 |
+| `deeptutor start [--home PATH] [--dev]` | バックエンド + フロントエンドを一緒に起動 |
 | `deeptutor serve [--port PORT]` | FastAPIバックエンドのみ起動 |
 | `deeptutor run <capability> <message>` | 単一機能ターンを実行（`chat`、`deep_solve`、`deep_question`、`deep_research`、`visualize`、`math_animator`、`mastery_path`）；`--format json`でNDJSON出力 |
 | `deeptutor chat` | 機能、ツール、KB、ノートブック、履歴コントロール付きインタラクティブREPL |

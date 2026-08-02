@@ -109,7 +109,7 @@ python -m pip install -e .
 ( cd web && npm ci --legacy-peer-deps )
 
 deeptutor init
-deeptutor start
+deeptutor start --dev
 ```
 
 Les installations depuis les sources exécutent Next.js en mode dev contre le répertoire `web/` local ; tout le reste (structure de configuration, ports, arrêt avec `Ctrl+C`) correspond à l'Option 1.
@@ -147,7 +147,7 @@ pip install -e ".[math-animator]"   # addon Manim ; nécessite LaTeX/ffmpeg/libs
 
 ```bash
 rm -f web/.next/dev/lock web/.next/lock
-deeptutor start
+deeptutor start --dev
 ```
 
 </details>
@@ -591,7 +591,7 @@ Le dépôt inclut un [`SKILL.md`](SKILL.md) racine — un document de passation 
 | Commande | Description |
 |:---|:---|
 | `deeptutor init` | Créer ou mettre à jour `data/user/settings` pour l'espace de travail actuel |
-| `deeptutor start [--home PATH]` | Lancer le backend + frontend ensemble |
+| `deeptutor start [--home PATH] [--dev]` | Lancer le backend + frontend ensemble |
 | `deeptutor serve [--port PORT]` | Démarrer uniquement le backend FastAPI |
 | `deeptutor run <capacité> <message>` | Exécuter un seul tour de capacité (`chat`, `deep_solve`, `deep_question`, `deep_research`, `visualize`, `math_animator`, `mastery_path`) ; ajoutez `--format json` pour la sortie NDJSON |
 | `deeptutor chat` | REPL interactif avec contrôles de capacité, outil, KB, carnet et historique |

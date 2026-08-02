@@ -109,7 +109,7 @@ python -m pip install -e .
 ( cd web && npm ci --legacy-peer-deps )
 
 deeptutor init
-deeptutor start
+deeptutor start --dev
 ```
 
 Source installs local `web/` directory के विरुद्ध Next.js को dev mode में run करते हैं; बाकी सब (config layout, ports, `Ctrl+C` से stop) Option 1 से match करता है।
@@ -147,7 +147,7 @@ pip install -e ".[math-animator]"   # Manim addon; LaTeX/ffmpeg/system libs च�
 
 ```bash
 rm -f web/.next/dev/lock web/.next/lock
-deeptutor start
+deeptutor start --dev
 ```
 
 </details>
@@ -569,7 +569,7 @@ Repo एक root [`SKILL.md`](../../SKILL.md) ship करता है — ए�
 | Command | विवरण |
 |:---|:---|
 | `deeptutor init` | Current workspace के लिए `data/user/settings` create या update करें |
-| `deeptutor start [--home PATH]` | Backend + frontend को एक साथ launch करें |
+| `deeptutor start [--home PATH] [--dev]` | Backend + frontend को एक साथ launch करें |
 | `deeptutor serve [--port PORT]` | केवल FastAPI backend start करें |
 | `deeptutor run <capability> <message>` | एक single capability turn run करें (`chat`, `deep_solve`, `deep_question`, `deep_research`, `visualize`, `math_animator`, `mastery_path`); NDJSON output के लिए `--format json` add करें |
 | `deeptutor chat` | capability, tool, KB, notebook, और history controls के साथ interactive REPL |

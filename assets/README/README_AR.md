@@ -109,7 +109,7 @@ python -m pip install -e .
 ( cd web && npm ci --legacy-peer-deps )
 
 deeptutor init
-deeptutor start
+deeptutor start --dev
 ```
 
 تشغّل تثبيتات المصدر Next.js في وضع التطوير مقابل دليل `web/` المحلي؛ كل شيء آخر (تخطيط التهيئة، المنافذ، الإيقاف بـ `Ctrl+C`) يطابق الخيار 1.
@@ -147,7 +147,7 @@ pip install -e ".[math-animator]"   # إضافة Manim؛ تتطلب LaTeX/ffmpeg
 
 ```bash
 rm -f web/.next/dev/lock web/.next/lock
-deeptutor start
+deeptutor start --dev
 ```
 
 </details>
@@ -569,7 +569,7 @@ deeptutor run deep_question "Quiz me on that survey" --session "$SID" --format j
 | الأمر | الوصف |
 |:---|:---|
 | `deeptutor init` | إنشاء أو تحديث `data/user/settings` لمساحة العمل الحالية |
-| `deeptutor start [--home PATH]` | تشغيل الخلفية + الواجهة الأمامية معاً |
+| `deeptutor start [--home PATH] [--dev]` | تشغيل الخلفية + الواجهة الأمامية معاً |
 | `deeptutor serve [--port PORT]` | تشغيل خلفية FastAPI فقط |
 | `deeptutor run <capability> <message>` | تشغيل دور قدرة واحدة (`chat` و`deep_solve` و`deep_question` و`deep_research` و`visualize` و`math_animator` و`mastery_path`)؛ أضف `--format json` لإخراج NDJSON |
 | `deeptutor chat` | REPL تفاعلي مع تحكمات القدرة والأداة وقاعدة المعرفة ودفتر الملاحظات والتاريخ |
