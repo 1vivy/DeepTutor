@@ -96,6 +96,7 @@ PROVIDER_ALIASES = {
     "atlas_cloud": "atlascloud",
     "atlas-cloud": "atlascloud",
     "eden_ai": "edenai",
+    "novita_ai": "novita",
 }
 
 
@@ -183,6 +184,16 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         is_gateway=True,
         detect_by_base_keyword="siliconflow",
         default_api_base="https://api.siliconflow.cn/v1",
+    ),
+    ProviderSpec(
+        name="novita",
+        keywords=("novita", "novita-ai", "novita ai"),
+        env_key="NOVITA_API_KEY",
+        display_name="Novita AI",
+        backend="openai_compat",
+        is_gateway=True,
+        detect_by_base_keyword="novita",
+        default_api_base="https://api.novita.ai/openai",
     ),
     ProviderSpec(
         name="atlascloud",
