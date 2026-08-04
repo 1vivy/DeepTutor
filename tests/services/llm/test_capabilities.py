@@ -119,3 +119,9 @@ def test_claude_model_ids_are_vision_capable() -> None:
 def test_claude_override_does_not_leak_to_other_vendors() -> None:
     assert supports_vision("custom", "gpt-3.5-turbo") is False
     assert supports_vision("lm_studio", "gemma-2-9b") is False
+
+
+def test_kimi_k3_is_vision_capable() -> None:
+    """Kimi K3 is natively multimodal, like the K2.5/K2.6 entries above it."""
+    assert supports_vision("moonshot", "kimi-k3") is True
+    assert supports_vision("custom", "kimi-k3") is True
