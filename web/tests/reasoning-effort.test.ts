@@ -6,11 +6,7 @@ import {
   setModelReasoningEffort,
 } from "../lib/reasoning-effort";
 
-const values = (
-  binding: string,
-  model: string,
-  current = "",
-): string[] =>
+const values = (binding: string, model: string, current = ""): string[] =>
   reasoningEffortOptions(binding, model, current).map((option) => option.value);
 
 test("Gemini 3 and 2.5 Pro do not list the invalid none effort", () => {
@@ -94,11 +90,7 @@ test("known reasoning families get conservative provider-specific choices", () =
     "medium",
     "high",
   ]);
-  assert.deepEqual(values("dashscope", "qwen3-max"), [
-    "",
-    "minimal",
-    "high",
-  ]);
+  assert.deepEqual(values("dashscope", "qwen3-max"), ["", "minimal", "high"]);
   assert.deepEqual(values("custom", "deepseek-reasoner"), [
     "",
     "minimal",
