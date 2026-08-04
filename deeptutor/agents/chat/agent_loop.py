@@ -314,6 +314,9 @@ class AgentLoop:
                     max_tokens=self.pipeline.loop_max_tokens,
                     tool_schemas=self.tool_schemas,
                     defer_visible_output=self.pipeline._has_capability_finish_guard(self.context),
+                    tool_choice=(
+                        self.pipeline.initial_tool_choice if state.rounds == 0 else None
+                    ),
                 )
             except Exception as exc:
                 # A mid-loop LLM failure (timeout / transient network) must not
@@ -666,6 +669,7 @@ class AgentLoop:
         max_tokens: int,
         tool_schemas: list[dict[str, Any]] | None = None,
         defer_visible_output: bool = False,
+        tool_choice: str | None = None,
     ) -> LLMCallResult:
         await self.pipeline._guard_context_window(messages, self.stream)
         stage = LOOP_STAGE
@@ -701,7 +705,20 @@ class AgentLoop:
             kwargs["stream_options"] = {"include_usage": True}
         if tool_schemas:
             kwargs["tools"] = tool_schemas
-            kwargs["tool_choice"] = "auto"
+            available_tools = {
+                str((schema.get("function") or {}).get("name") or "")
+                for schema in tool_schemas
+                if isinstance(schema, dict)
+            }
+            kwargs["tool_choice"] = (
+                {
+                    "type": "function",
+                    "function": {"name": tool_choice},
+                }
+                if tool_choice and tool_choice in available_tools
+                else "auto"
+            )
+        forced_tool_choice = isinstance(kwargs.get("tool_choice"), dict)
         # What this request actually carried, pinned now: the loop keeps
         # appending to ``messages`` and the deferred loader keeps appending to
         # ``tool_schemas``, so the turn's context budget is read off the last
@@ -790,7 +807,7 @@ class AgentLoop:
                         # <think> segments remain trace-only while DSML markup
                         # and its argument payload never enter either channel.
                         visible_content = dsml_filter.feed(content)
-                        if visible_content:
+                        if visible_content and not forced_tool_choice:
                             await _emit_segments(think_filter.feed(visible_content))
 
                     for tc_delta in getattr(delta, "tool_calls", None) or []:
@@ -865,9 +882,10 @@ class AgentLoop:
             break
 
         dsml_tail = dsml_filter.flush()
-        if dsml_tail:
-            await _emit_segments(think_filter.feed(dsml_tail))
-        await _emit_segments(think_filter.flush())
+        if not forced_tool_choice:
+            if dsml_tail:
+                await _emit_segments(think_filter.feed(dsml_tail))
+            await _emit_segments(think_filter.flush())
         text = "".join(text_parts)
         record_streamed_usage(
             self.pipeline.usage,
@@ -910,6 +928,14 @@ class AgentLoop:
             completion_metadata["answer_visible"] = True
 
         completion_event_metadata = merge_trace_metadata(trace_meta, completion_metadata)
+        if forced_tool_choice and not tool_calls and text:
+            # Some compatibility providers accept ``tool_choice`` but ignore
+            # it. Do not lose their answer merely because it was buffered.
+            fallback_dsml = DSMLStreamFilter()
+            fallback_filter = InlineThinkFilter()
+            visible = fallback_dsml.feed(text) + fallback_dsml.flush()
+            await _emit_segments(fallback_filter.feed(visible) + fallback_filter.flush())
+
         if not defer_visible_output:
             await self.stream.progress(
                 "",
