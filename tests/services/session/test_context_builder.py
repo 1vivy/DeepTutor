@@ -296,8 +296,8 @@ class TestBuildHistory:
 
         history = ContextBuilder(store=MagicMock())._build_history("", [message])
         assert history == [
-            {"role": "assistant", "content": "I adapted the explanation."},
             {"role": "user", "content": clarification},
+            {"role": "assistant", "content": "I adapted the explanation."},
         ]
 
 
