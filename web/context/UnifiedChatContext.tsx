@@ -11,11 +11,11 @@ import React, {
   useRef,
 } from "react";
 import {
-  LANGUAGE_EVENT,
-  LANGUAGE_STORAGE_KEY,
+  RESPONSE_LANGUAGE_EVENT,
+  RESPONSE_LANGUAGE_STORAGE_KEY,
   normalizeLanguage,
   readStoredChatResponseTimeout,
-  readStoredLanguage,
+  readStoredResponseLanguage,
   writeStoredActiveSessionId,
 } from "@/context/app-shell-storage";
 import type { StreamEvent, ChatMessage, LLMSelection } from "@/lib/unified-ws";
@@ -270,7 +270,8 @@ function createSessionEntry(
     messages: [],
     isStreaming: false,
     currentStage: "",
-    language: typeof window === "undefined" ? "en" : readStoredLanguage(),
+    language:
+      typeof window === "undefined" ? "en" : readStoredResponseLanguage(),
     status: "idle",
     activeTurnId: null,
     lastSeq: 0,
@@ -1364,10 +1365,10 @@ export function UnifiedChatProvider({
           typeof session.preferences?.persona === "string"
             ? session.preferences.persona
             : "",
-        // The Settings language is global UI state. Historical sessions may
-        // have stale persisted preferences, so new turns follow the current
-        // app language rather than the language saved when the session began.
-        language: readStoredLanguage(),
+        // Model output language is account-level state. Historical sessions
+        // may have stale persisted preferences, so new turns follow the
+        // current response-language setting rather than their original value.
+        language: readStoredResponseLanguage(),
         selectedBranches: normalizeSelectedBranches(
           session.preferences?.selected_branches,
         ),
@@ -1405,18 +1406,19 @@ export function UnifiedChatProvider({
     const syncLanguage = (language: string | null | undefined) => {
       dispatch({ type: "SET_LANGUAGE", lang: normalizeLanguage(language) });
     };
-    const onLanguage = (event: Event) => {
+    const onResponseLanguage = (event: Event) => {
       const detail = (event as CustomEvent<{ language?: string }>).detail;
       syncLanguage(detail?.language);
     };
     const onStorage = (event: StorageEvent) => {
-      if (event.key === LANGUAGE_STORAGE_KEY) syncLanguage(event.newValue);
+      if (event.key === RESPONSE_LANGUAGE_STORAGE_KEY)
+        syncLanguage(event.newValue);
     };
 
-    window.addEventListener(LANGUAGE_EVENT, onLanguage);
+    window.addEventListener(RESPONSE_LANGUAGE_EVENT, onResponseLanguage);
     window.addEventListener("storage", onStorage);
     return () => {
-      window.removeEventListener(LANGUAGE_EVENT, onLanguage);
+      window.removeEventListener(RESPONSE_LANGUAGE_EVENT, onResponseLanguage);
       window.removeEventListener("storage", onStorage);
     };
   }, []);
@@ -1513,7 +1515,7 @@ export function UnifiedChatProvider({
           ? (replaySnapshot.llmSelection ?? null)
           : session.llmSelection;
       const effectiveLanguage =
-        replaySnapshot?.language ?? readStoredLanguage();
+        replaySnapshot?.language ?? readStoredResponseLanguage();
       // Persona resolution: replay snapshot wins; then an explicit per-call
       // persona (quiz follow-up surface); then the session-level preference.
       // Always a string — "" means Default / no persona.
@@ -1747,7 +1749,7 @@ export function UnifiedChatProvider({
       type: "regenerate",
       session_id: session.sessionId,
       overrides: {
-        language: readStoredLanguage(),
+        language: readStoredResponseLanguage(),
       },
     });
   }, [sendThroughRunner]);

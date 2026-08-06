@@ -39,6 +39,10 @@ from deeptutor.services.llm.client import reset_llm_client
 from deeptutor.services.llm.config import clear_llm_config_cache
 from deeptutor.services.model_selection import list_llm_options
 from deeptutor.services.path_service import get_path_service
+from deeptutor.services.settings.interface_settings import (
+    DEFAULT_UI_SETTINGS as INTERFACE_DEFAULTS,
+)
+from deeptutor.services.settings.interface_settings import resolve_languages
 from deeptutor.tools.builtin import USER_TOGGLEABLE_TOOL_NAMES
 
 router = APIRouter()
@@ -69,9 +73,10 @@ DEFAULT_SIDEBAR_NAV_ORDER = {
 }
 
 DEFAULT_UI_SETTINGS = {
-    # "snow" is the pure-white neutral theme, shown as "Default" in the UI.
-    "theme": "snow",
-    "language": "en",
+    # theme / language / response_language come from the module that owns
+    # interface.json, so the two readers of that file can't drift on what a
+    # fresh install defaults to.
+    **INTERFACE_DEFAULTS,
     "sidebar_description": "✨ Data Intelligence Lab @ HKU",
     "sidebar_nav_order": DEFAULT_SIDEBAR_NAV_ORDER,
     # User-toggleable chat tools. Default = all on; the /settings/tools page
@@ -103,6 +108,7 @@ class SidebarNavOrder(BaseModel):
 class UISettings(BaseModel):
     theme: Literal["light", "dark", "glass", "snow"] = "snow"
     language: Literal["zh", "en"] = "en"
+    response_language: Literal["zh", "en"] = "en"
     sidebar_description: Optional[str] = None
     sidebar_nav_order: Optional[SidebarNavOrder] = None
     code_block_theme: Optional[str] = None
@@ -125,6 +131,7 @@ class UISettingsUpdate(BaseModel):
     # so PUT /ui cannot persist a theme/language the app can't render.
     theme: Literal["light", "dark", "glass", "snow"] | None = None
     language: Literal["zh", "en"] | None = None
+    response_language: Literal["zh", "en"] | None = None
     sidebar_description: str | None = None
     sidebar_nav_order: SidebarNavOrder | None = None
     code_block_theme: str | None = None
@@ -282,7 +289,9 @@ def load_ui_settings() -> dict[str, Any]:
         try:
             with open(settings_file, encoding="utf-8") as handle:
                 saved = json.load(handle)
-                merged = {**DEFAULT_UI_SETTINGS, **saved}
+                # resolve_languages owns the legacy migration (a file predating
+                # the UI/response split inherits its one language into both).
+                merged = {**DEFAULT_UI_SETTINGS, **saved, **resolve_languages(saved)}
                 # Filter persisted enabled_optional_tools to current
                 # toggleable set so retired tool names can't leak into
                 # the per-turn payload.
@@ -1111,17 +1120,19 @@ async def update_chat_response_timeout(update: ChatResponseTimeoutUpdate):
     return {"chat_response_timeout": update.chat_response_timeout}
 
 
-# The only two UI preferences a page can need before it knows who is asking.
-PRESESSION_UI_FIELDS = ("theme", "language")
+# The UI preferences a page can need before it knows who is asking. All three
+# describe the person's own presentation and output choices; none of them say
+# anything about how the deployment is configured.
+PRESESSION_UI_FIELDS = ("theme", "language", "response_language")
 
 
 @public_router.get("/ui")
 async def get_ui_settings():
-    """Return the pre-session UI preferences: theme and interface language.
+    """Return the pre-session UI preferences: theme and the two languages.
 
     Public by design, which is why it is a narrow projection rather than the
     saved ``ui`` blob. The app shell — and the statically prerendered auth
-    pages, which have no session at all — adopt the persisted language here
+    pages, which have no session at all — adopt the persisted languages here
     during bootstrap. Theme rides along so those pages can paint in the right
     one instead of flashing.
 
