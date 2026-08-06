@@ -37,6 +37,27 @@ def _package(name: str) -> types.ModuleType:
     return module
 
 
+def _fake_config_module() -> types.ModuleType:
+    """Stand in for ``deeptutor.services.config``, deferring the rest to the real one.
+
+    Only the two names the question router reads at import time are overridden.
+    Everything else resolves to the real attribute, because the websocket
+    handler lazily imports ``deeptutor.api.routers.auth``, which pulls
+    *unrelated* loaders (auth settings, integrations, …) out of this same
+    package. Stubbing those one at a time was whack-a-mole, and skipping them
+    left the test passing only when an earlier test had already put
+    ``deeptutor.api.routers.auth`` in ``sys.modules`` — so the lazy import was
+    a cache hit that never reached this stand-in. Green in a full run, red on
+    its own.
+    """
+    real = importlib.import_module("deeptutor.services.config")
+    module = types.ModuleType("deeptutor.services.config")
+    module.__getattr__ = lambda name: getattr(real, name)  # PEP 562
+    module.PROJECT_ROOT = Path.cwd()
+    module.load_config_with_main = lambda *_args, **_kwargs: {}
+    return module
+
+
 def _load_question_router_module(monkeypatch: pytest.MonkeyPatch):
     sys.modules.pop("deeptutor.api.routers.question", None)
 
@@ -54,10 +75,7 @@ def _load_question_router_module(monkeypatch: pytest.MonkeyPatch):
     fake_logging.current_log_context = lambda: {}
     monkeypatch.setitem(sys.modules, "deeptutor.logging", fake_logging)
 
-    fake_config = types.ModuleType("deeptutor.services.config")
-    fake_config.PROJECT_ROOT = Path.cwd()
-    fake_config.load_config_with_main = lambda *_args, **_kwargs: {}
-    monkeypatch.setitem(sys.modules, "deeptutor.services.config", fake_config)
+    monkeypatch.setitem(sys.modules, "deeptutor.services.config", _fake_config_module())
 
     fake_llm_package = _package("deeptutor.services.llm")
     fake_llm_config = types.ModuleType("deeptutor.services.llm.config")
