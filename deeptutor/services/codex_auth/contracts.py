@@ -163,8 +163,10 @@ class CodexModel:
                 supports_reasoning_summary=bool(payload["supports_reasoning_summary"]),
                 supports_parallel_tool_calls=bool(payload["supports_parallel_tool_calls"]),
                 use_responses_lite=bool(payload["use_responses_lite"]),
-                context_window=_optional_positive_int(payload.get("context_window")),
-                max_context_window=_optional_positive_int(payload.get("max_context_window")),
+                context_window=_require_optional_positive_int(payload.get("context_window")),
+                max_context_window=_require_optional_positive_int(
+                    payload.get("max_context_window")
+                ),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise CodexAuthError(
@@ -174,7 +176,15 @@ class CodexModel:
             ) from exc
 
 
-def _optional_positive_int(value: object) -> int | None:
+def _require_optional_positive_int(value: object) -> int | None:
+    """Validate a cached context window, rejecting anything malformed.
+
+    Deliberately stricter than ``catalog._optional_positive_int``, which drops
+    junk from a *live* API response so one odd field can't fail the whole sync.
+    Here the payload is our own cache: a value we never could have written means
+    the file is corrupt, so the ``ValueError`` is caught by ``from_dict`` above
+    and reported as ``catalog_corrupt`` rather than silently read as "unknown".
+    """
     if value is None:
         return None
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
