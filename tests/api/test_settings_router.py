@@ -24,9 +24,7 @@ def test_load_ui_settings_migrates_legacy_language_to_response_language(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     settings_file = tmp_path / "interface.json"
-    settings_file.write_text(
-        '{"theme": "snow", "language": "zh"}', encoding="utf-8"
-    )
+    settings_file.write_text('{"theme": "snow", "language": "zh"}', encoding="utf-8")
     monkeypatch.setattr(settings_router, "_settings_file", lambda: settings_file)
 
     settings = settings_router.load_ui_settings()
@@ -51,9 +49,7 @@ def test_both_readers_of_interface_json_agree_on_a_legacy_file(
     settings_file = tmp_path / "interface.json"
     settings_file.write_text('{"theme": "dark", "language": "zh"}', encoding="utf-8")
     monkeypatch.setattr(settings_router, "_settings_file", lambda: settings_file)
-    monkeypatch.setattr(
-        interface_settings, "_interface_settings_file", lambda: settings_file
-    )
+    monkeypatch.setattr(interface_settings, "_interface_settings_file", lambda: settings_file)
 
     from_router = settings_router.load_ui_settings()
     from_service = interface_settings.get_ui_settings()
@@ -70,9 +66,7 @@ async def test_ui_languages_are_persisted_independently(
     monkeypatch.setattr(settings_router, "_settings_file", lambda: settings_file)
 
     response = await settings_router.update_ui_settings(
-        settings_router.UISettingsUpdate(
-            theme="snow", language="en", response_language="zh"
-        )
+        settings_router.UISettingsUpdate(theme="snow", language="en", response_language="zh")
     )
 
     assert response["language"] == "en"
@@ -999,9 +993,7 @@ async def test_update_ui_settings_persists_explicit_theme_and_language_defaults(
     assert persisted["language"] == "en"
 
 
-def test_get_ui_settings_is_public_without_auth(
-    monkeypatch: pytest.MonkeyPatch, tmp_path
-) -> None:
+def test_get_ui_settings_is_public_without_auth(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     """Auth pages bootstrap the interface language *before* a session exists.
 
     Regression for #760: the app shell fetches GET /api/v1/settings/ui on the
