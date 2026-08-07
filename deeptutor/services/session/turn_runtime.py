@@ -744,6 +744,7 @@ class TurnRuntimeManager:
                     "model_id": assigned_llms[0].get("model_id"),
                 }
         if llm_selection:
+            from deeptutor.multi_user.personal_models import merge_personal_llm_profiles
             from deeptutor.services.config import get_model_catalog_service
             from deeptutor.services.model_selection import (
                 LLMSelection,
@@ -751,8 +752,12 @@ class TurnRuntimeManager:
             )
 
             try:
+                # Personal (owner-bound) profiles live in the user's own
+                # catalog, so validating against the shared one alone would
+                # reject a Codex model the user signed in for themselves —
+                # the same merge the resolution path performs (#781).
                 apply_llm_selection_to_catalog(
-                    get_model_catalog_service().load(),
+                    merge_personal_llm_profiles(get_model_catalog_service().load()),
                     LLMSelection.from_payload(llm_selection),
                 )
             except ValueError as exc:
