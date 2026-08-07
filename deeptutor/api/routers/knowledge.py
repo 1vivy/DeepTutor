@@ -458,6 +458,34 @@ def _save_uploaded_files(
     return uploaded_files, uploaded_file_paths
 
 
+async def _save_uploaded_files_off_loop(
+    files: list[UploadFile],
+    target_dir: Path,
+    allowed_extensions: set[str] | None = None,
+    kb_name: str | None = None,
+    rel_paths: list[str] | None = None,
+) -> tuple[list[str], list[str]]:
+    """:func:`_save_uploaded_files` on a worker thread.
+
+    That function blocks end to end — a chunked write of every uploaded byte,
+    zip extraction for archive members, and (when PocketBase is enabled) one
+    synchronous HTTP upload per file. Called inline from an ``async def``
+    route it held the event loop for the whole batch, so every other request
+    — chat WebSockets included — stalled until the upload finished (#777).
+
+    Safe to hand to a thread: it only touches ``UploadFile.file``, the plain
+    ``SpooledTemporaryFile`` underneath, never the async ``UploadFile`` API.
+    """
+    return await asyncio.to_thread(
+        _save_uploaded_files,
+        files,
+        target_dir,
+        allowed_extensions=allowed_extensions,
+        kb_name=kb_name,
+        rel_paths=rel_paths,
+    )
+
+
 def _get_upload_file_size(file: UploadFile) -> int | None:
     """Best-effort byte size detection without consuming the uploaded stream."""
     try:
@@ -853,7 +881,14 @@ async def run_upload_processing_task(
                 rag_provider=rag_provider,
             )
 
-            staged_files = adder.add_documents(uploaded_file_paths, allow_duplicates=False)
+            # Staging blocks: a full-content hash per file, plus a copy for
+            # anything not already under raw/. A BackgroundTasks entry declared
+            # ``async def`` is awaited ON the event loop — starlette only routes
+            # *sync* callables to its threadpool — so doing this inline stalled
+            # every other request for the length of the batch (#777).
+            staged_files = await asyncio.to_thread(
+                adder.add_documents, uploaded_file_paths, allow_duplicates=False
+            )
             _task_log(task_id, f"Staged {len(staged_files)} new file(s)")
 
             if not staged_files:
@@ -2195,7 +2230,7 @@ async def upload_files(
         # archive itself is never indexed (``safe_extract_zip`` skips ``.zip``).
         upload_extensions = allowed_extensions | {".zip"}
         _validate_upload_batch(files, allowed_extensions=upload_extensions, rel_paths=rel_paths)
-        uploaded_files, uploaded_file_paths = _save_uploaded_files(
+        uploaded_files, uploaded_file_paths = await _save_uploaded_files_off_loop(
             files, raw_dir, allowed_extensions=upload_extensions, rel_paths=rel_paths
         )
         task_id = _build_unique_task_id("kb_upload", kb_name)
@@ -2302,7 +2337,7 @@ async def create_knowledge_base(
             logger.warning(f"KB {name} not found in config, registering manually")
             initializer._register_to_config()
 
-        uploaded_files, _ = _save_uploaded_files(
+        uploaded_files, _ = await _save_uploaded_files_off_loop(
             files, initializer.raw_dir, allowed_extensions=allowed_extensions, rel_paths=rel_paths
         )
 
