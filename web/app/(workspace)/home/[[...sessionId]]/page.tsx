@@ -43,6 +43,15 @@ import SessionLoadingView from "@/components/chat/home/SessionLoadingView";
 // render. The heavy renderers inside still load lazily.
 import FilePreviewDrawer from "@/components/chat/preview/FilePreviewDrawer";
 import { buildSessionActivity } from "@/components/chat/home/SessionActivityPanel";
+import TutorToday from "@/components/tutor/TutorToday";
+import { chatPathForMode } from "@/lib/workspace-mode";
+import {
+  ALL_TOOLS,
+  capabilitiesForMode,
+  getCapabilityForMode,
+  type CapabilityDef,
+  type ToolName,
+} from "@/lib/chat-capabilities";
 import Tooltip from "@/components/common/Tooltip";
 import SessionViewerPanel, {
   type SessionViewerPanelHandle,
@@ -173,113 +182,6 @@ const ResearchConfigPanel = dynamic(
 /*  Type & data definitions                                           */
 /* ------------------------------------------------------------------ */
 
-type ToolName =
-  | "brainstorm"
-  | "geogebra_analysis"
-  | "web_search"
-  | "code_execution"
-  | "reason"
-  | "paper_search"
-  | "imagegen"
-  | "videogen";
-
-interface ToolDef {
-  name: ToolName;
-  label: string;
-  icon: LucideIcon;
-}
-
-const ALL_TOOLS: ToolDef[] = [
-  { name: "brainstorm", label: "Brainstorm", icon: Lightbulb },
-  { name: "geogebra_analysis", label: "GeoGebra", icon: Compass },
-  { name: "web_search", label: "Web Search", icon: Globe },
-  { name: "code_execution", label: "Code", icon: Code2 },
-  { name: "reason", label: "Reason", icon: Sparkles },
-  { name: "paper_search", label: "Arxiv Search", icon: FileSearch },
-  { name: "imagegen", label: "Image Gen", icon: ImageIcon },
-  { name: "videogen", label: "Video Gen", icon: Clapperboard },
-];
-
-interface CapabilityDef {
-  value: string;
-  label: string;
-  description: string;
-  icon: LucideIcon;
-  allowedTools: ToolName[];
-  defaultTools: ToolName[];
-  // Loop-engine capabilities run on the chat agent loop (solve / mastery) rather
-  // than a bespoke pipeline. They are collapsed into the "More" flyout in the
-  // capability picker instead of listed directly. Driven by the loop-capability
-  // registry on the backend; mirrored here as a static flag.
-  loopEngine?: boolean;
-}
-
-const CAPABILITIES: CapabilityDef[] = [
-  {
-    value: "",
-    label: "Chat",
-    description: "Flexible conversation with any tool",
-    icon: MessageSquare,
-    allowedTools: [
-      "brainstorm",
-      "geogebra_analysis",
-      "web_search",
-      "code_execution",
-      "reason",
-      "paper_search",
-      "imagegen",
-      "videogen",
-    ],
-    defaultTools: [],
-  },
-  {
-    value: "deep_solve",
-    label: "Solve",
-    description: "Multi-step reasoning & problem solving",
-    icon: BrainCircuit,
-    allowedTools: ["web_search", "code_execution", "reason"],
-    defaultTools: ["web_search", "code_execution", "reason"],
-    loopEngine: true,
-  },
-  {
-    value: "deep_question",
-    label: "Quiz",
-    description: "Auto-validated question generation",
-    icon: PenLine,
-    allowedTools: ["web_search", "code_execution"],
-    defaultTools: ["web_search", "code_execution"],
-  },
-  {
-    value: "deep_research",
-    label: "Research",
-    description: "Comprehensive multi-agent research",
-    icon: Microscope,
-    allowedTools: ["web_search", "paper_search", "code_execution"],
-    defaultTools: ["web_search", "paper_search", "code_execution"],
-  },
-  {
-    value: "visualize",
-    label: "Visualize",
-    description:
-      "Generate charts, diagrams, interactive pages, or math animations",
-    icon: BarChart3,
-    allowedTools: [],
-    defaultTools: [],
-  },
-  {
-    value: "mastery_path",
-    label: "Mastery Path",
-    description: "Mastery-based tutoring with a hard gate",
-    icon: GraduationCap,
-    // The mastery tools (status/quiz/grade/assess/build) auto-mount server-side
-    // when this capability is active; rag auto-mounts when a KB is attached.
-    // These are only the extra optional tools the tutor may also reach for.
-    allowedTools: ["web_search", "code_execution"],
-    defaultTools: [],
-    loopEngine: true,
-  },
-];
-
 interface KnowledgeBase {
   name: string;
   is_default?: boolean;
@@ -304,9 +206,6 @@ interface PendingAttachment {
 /*  Helpers                                                           */
 /* ------------------------------------------------------------------ */
 
-function getCapability(value: string | null): CapabilityDef {
-  return CAPABILITIES.find((c) => c.value === (value || "")) ?? CAPABILITIES[0];
-}
 
 /**
  * Read the context-window measurement a finished turn attached to its
@@ -345,7 +244,11 @@ export default function ChatPage() {
   const router = useRouter();
   const { t } = useTranslation();
   const sessionIdParam = params.sessionId?.[0] ?? null;
-  const { setActiveSessionId, language: appLanguage } = useAppShell();
+  const {
+    setActiveSessionId,
+    language: appLanguage,
+    mode,
+  } = useAppShell();
 
   const {
     state,
@@ -590,9 +493,12 @@ export default function ChatPage() {
     return () => window.removeEventListener("dt:visualize-prompt", onVizPrompt);
   }, [handlePrefillComposer]);
 
+  // Resolved within the active workspace, so each mode offers its own list and
+  // falls back to its own default rather than General's.
+  const capabilities = useMemo(() => capabilitiesForMode(mode), [mode]);
   const activeCap = useMemo(
-    () => getCapability(state.activeCapability),
-    [state.activeCapability],
+    () => getCapabilityForMode(mode, state.activeCapability),
+    [mode, state.activeCapability],
   );
   const isQuizMode = activeCap.value === "deep_question";
   const isVisualizeMode = activeCap.value === "visualize";
@@ -946,9 +852,11 @@ export default function ChatPage() {
   }, []);
   /* ---- URL-driven session loading ---- */
 
+  // Back to the *current* workspace's chat root. A literal "/home" here would
+  // silently move a Tutor learner into General on a cancelled session load.
   const navigateToHome = useCallback(() => {
-    router.replace("/home", { scroll: false });
-  }, [router]);
+    router.replace(chatPathForMode(mode), { scroll: false });
+  }, [mode, router]);
 
   /** Abort in-flight load + navigate home. */
   const cancelSessionLoad = useCallback(() => {
@@ -1034,12 +942,13 @@ export default function ChatPage() {
     }
   }, [sessionIdParam, startSessionLoad, newSession, state.sessionId]);
 
-  // When a new session_id is assigned by the server, update the URL
+  // When a new session_id is assigned by the server, update the URL — within
+  // the workspace the conversation was started in.
   useEffect(() => {
     if (state.sessionId && !sessionIdParam) {
-      router.replace(`/home/${state.sessionId}`, { scroll: false });
+      router.replace(chatPathForMode(mode, state.sessionId), { scroll: false });
     }
-  }, [state.sessionId, sessionIdParam, router]);
+  }, [state.sessionId, sessionIdParam, mode, router]);
 
   useEffect(() => {
     setActiveSessionId(state.sessionId || sessionIdParam || null);
@@ -1201,8 +1110,7 @@ export default function ChatPage() {
 
   const handleSelectCapability = useCallback(
     (value: string) => {
-      const cap =
-        CAPABILITIES.find((c) => c.value === value) ?? CAPABILITIES[0];
+      const cap = getCapabilityForMode(mode, value);
       const storageKey = cap.value || "chat";
       const config = resolveCapabilityPlaygroundConfig(
         capabilityConfigs,
@@ -1228,7 +1136,14 @@ export default function ChatPage() {
       setCapabilityConfigConfirmed(false);
       setCapMenuOpen(false);
     },
-    [capabilityConfigs, setCapability, setKBs, setTools, userEnabledTools],
+    [
+      capabilityConfigs,
+      mode,
+      setCapability,
+      setKBs,
+      setTools,
+      userEnabledTools,
+    ],
   );
 
   const fileToAttachment = useCallback(
@@ -1979,21 +1894,28 @@ export default function ChatPage() {
                 </div>
               </div>
             ) : !hasMessages ? (
-              <div className="flex w-full flex-1 min-h-0 items-end justify-center pb-14 animate-fade-in px-6">
-                <div className="w-full max-w-[960px] flex items-center justify-center gap-4">
-                  <img
-                    src="/logo_black.png"
-                    alt="DeepTutor"
-                    width={40}
-                    height={40}
-                    className="h-10 w-10 select-none"
-                    draggable={false}
-                  />
-                  <h1 className="font-serif text-[40px] font-medium leading-[1.1] tracking-[-0.015em] text-[var(--foreground)]">
-                    {t(welcomeGreeting)}
-                  </h1>
+              // The two workspaces differ most here. General is demand-driven,
+              // so it opens on a greeting and an empty composer; Tutor is
+              // state-driven and opens on what is actually due.
+              mode === "tutor" ? (
+                <TutorToday onPick={handlePrefillComposer} />
+              ) : (
+                <div className="flex w-full flex-1 min-h-0 items-end justify-center pb-14 animate-fade-in px-6">
+                  <div className="w-full max-w-[960px] flex items-center justify-center gap-4">
+                    <img
+                      src="/logo_black.png"
+                      alt="DeepTutor"
+                      width={40}
+                      height={40}
+                      className="h-10 w-10 select-none"
+                      draggable={false}
+                    />
+                    <h1 className="font-serif text-[40px] font-medium leading-[1.1] tracking-[-0.015em] text-[var(--foreground)]">
+                      {t(welcomeGreeting)}
+                    </h1>
+                  </div>
                 </div>
-              </div>
+              )
             ) : (
               // Positioned wrapper spanning exactly the scrollport, so the
               // turn navigator can overlay the left gutter without living
@@ -2106,7 +2028,7 @@ export default function ChatPage() {
               capabilityNeedsConfig={capabilityNeedsConfig}
               capabilityConfigConfirmed={capabilityConfigConfirmed}
               onRequestConfigConfirm={ensureActivityPanelOpen}
-              capabilities={CAPABILITIES}
+              capabilities={capabilities}
               onSetCapMenuOpen={setCapMenuOpen}
               onSetSpaceMenuOpen={setSpaceMenuOpen}
               onToggleKB={handleToggleKB}

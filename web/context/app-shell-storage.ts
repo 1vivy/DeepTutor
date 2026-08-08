@@ -1,8 +1,30 @@
 "use client";
 
+import {
+  normalizeWorkspaceMode,
+  type WorkspaceMode,
+} from "@/lib/workspace-mode";
+
 export type AppLanguage = "en" | "zh";
 
+/** General keeps the historical unsuffixed key so existing tabs never lose
+ *  their restored session; only the new mode carries a suffix. */
 export const ACTIVE_SESSION_STORAGE_KEY = "deeptutor.activeSessionId.tab";
+
+/**
+ * Per-mode key for the restored session.
+ *
+ * Sharing one key across modes would restore a Tutor session into the General
+ * workspace (and vice versa) — a session the sidebar in that mode is not even
+ * allowed to list, which reads as a phantom conversation.
+ */
+export function activeSessionStorageKey(mode: WorkspaceMode): string {
+  return mode === "general"
+    ? ACTIVE_SESSION_STORAGE_KEY
+    : `${ACTIVE_SESSION_STORAGE_KEY}.${mode}`;
+}
+
+export const WORKSPACE_MODE_STORAGE_KEY = "deeptutor.workspaceMode";
 export const LANGUAGE_STORAGE_KEY = "deeptutor-language";
 export const RESPONSE_LANGUAGE_STORAGE_KEY = "deeptutor-response-language";
 export const SIDEBAR_COLLAPSED_STORAGE_KEY = "deeptutor.sidebarCollapsed";
@@ -56,6 +78,7 @@ export function writeStoredChatResponseTimeout(seconds: number): void {
 }
 
 export const ACTIVE_SESSION_EVENT = "deeptutor:active-session";
+export const WORKSPACE_MODE_EVENT = "deeptutor:workspace-mode";
 export const LANGUAGE_EVENT = "deeptutor:language";
 export const RESPONSE_LANGUAGE_EVENT = "deeptutor:response-language";
 export const SIDEBAR_COLLAPSED_EVENT = "deeptutor:sidebar-collapsed";
@@ -141,30 +164,62 @@ export function writeStoredResponseLanguage(language: AppLanguage): void {
   }
 }
 
-export function readStoredActiveSessionId(): string | null {
+export function readStoredActiveSessionId(
+  mode: WorkspaceMode = "general",
+): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return window.sessionStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+    return window.sessionStorage.getItem(activeSessionStorageKey(mode));
   } catch {
     return null;
   }
 }
 
-export function writeStoredActiveSessionId(sessionId: string | null): void {
+export function writeStoredActiveSessionId(
+  sessionId: string | null,
+  mode: WorkspaceMode = "general",
+): void {
   if (typeof window === "undefined") return;
   try {
     if (sessionId) {
-      window.sessionStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, sessionId);
+      window.sessionStorage.setItem(activeSessionStorageKey(mode), sessionId);
     } else {
-      window.sessionStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+      window.sessionStorage.removeItem(activeSessionStorageKey(mode));
     }
     window.dispatchEvent(
       new CustomEvent(ACTIVE_SESSION_EVENT, {
-        detail: { sessionId },
+        detail: { sessionId, mode },
       }),
     );
   } catch {
     // sessionStorage may be unavailable
+  }
+}
+
+/** The workspace the user was last in. localStorage, not sessionStorage: this
+ *  is a durable preference, unlike the per-tab restored session. */
+export function readStoredWorkspaceMode(): WorkspaceMode {
+  if (typeof window === "undefined") return "general";
+  try {
+    return normalizeWorkspaceMode(
+      window.localStorage.getItem(WORKSPACE_MODE_STORAGE_KEY),
+    );
+  } catch {
+    return "general";
+  }
+}
+
+export function writeStoredWorkspaceMode(mode: WorkspaceMode): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, mode);
+    window.dispatchEvent(
+      new CustomEvent(WORKSPACE_MODE_EVENT, {
+        detail: { mode },
+      }),
+    );
+  } catch {
+    // localStorage may be unavailable
   }
 }
 

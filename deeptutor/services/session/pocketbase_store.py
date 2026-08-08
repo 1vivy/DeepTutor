@@ -118,10 +118,12 @@ class PocketBaseSessionStore:
         self,
         title: str | None = None,
         session_id: str | None = None,
+        mode: str | None = None,
     ) -> dict[str, Any]:
         now = time.time()
         resolved_id = session_id or f"unified_{int(now * 1000)}_{uuid.uuid4().hex[:8]}"
         resolved_title = (title or "New conversation").strip() or "New conversation"
+        resolved_mode = mode or "general"
         owner_id = _current_user_id()
 
         def _create():
@@ -138,6 +140,7 @@ class PocketBaseSessionStore:
                         "preferences_json": {},
                         "capability": "",
                         "status": "idle",
+                        "mode": resolved_mode,
                     }
                 )
             )
@@ -163,12 +166,15 @@ class PocketBaseSessionStore:
     async def ensure_session(
         self,
         session_id: str | None = None,
+        mode: str | None = None,
     ) -> dict[str, Any]:
         if session_id:
             session = await self.get_session(session_id)
             if session is not None:
+                # An existing conversation keeps the workspace it was created
+                # in; ``mode`` only ever stamps a brand-new one.
                 return session
-        return await self.create_session()
+        return await self.create_session(mode=mode)
 
     def _session_record_to_dict(
         self,
@@ -194,6 +200,7 @@ class PocketBaseSessionStore:
             "capability": getattr(record, "capability", "") or "",
             "status": getattr(record, "status", "idle") or "idle",
             "active_turn_id": "",
+            "mode": getattr(record, "mode", "") or "general",
         }
 
     async def update_session_title(self, session_id: str, title: str) -> bool:
@@ -236,12 +243,21 @@ class PocketBaseSessionStore:
         self,
         limit: int = 50,
         offset: int = 0,
+        mode: str | None = None,
     ) -> list[dict[str, Any]]:
         page = (offset // limit) + 1
         uid = _current_user_id()
 
         def _list():
-            query_params: dict[str, Any] = {"sort": "-updated", "filter": f'user_id="{uid}"'}
+            filter_expr = f'user_id="{uid}"'
+            if mode:
+                # Records written before the Tutor workspace have no ``mode``
+                # field at all, so General must also claim the empty value or
+                # every pre-existing conversation would vanish from the list.
+                filter_expr += (
+                    f' && (mode="{mode}" || mode="")' if mode == "general" else f' && mode="{mode}"'
+                )
+            query_params: dict[str, Any] = {"sort": "-updated", "filter": filter_expr}
             return _pb().collection("sessions").get_list(page, limit, query_params=query_params)
 
         try:

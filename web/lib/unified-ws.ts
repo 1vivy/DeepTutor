@@ -11,6 +11,7 @@
  */
 
 import { wsUrl } from "./api";
+import type { WorkspaceMode } from "@/lib/workspace-mode";
 
 // ---- StreamEvent types (mirror Python StreamEventType) ----
 
@@ -76,6 +77,9 @@ export interface StartTurnMessage {
     page_ids: string[];
   }[];
   persona?: string;
+  /** Workspace this turn was started from. Decides the mode of a *new*
+   *  session; an existing session keeps the one it was created with. */
+  mode?: WorkspaceMode;
   llm_selection?: LLMSelection | null;
   /** Edit-branching: when present (even as ``null``) the new user message
    *  attaches at this exact parent — creating a sibling rather than

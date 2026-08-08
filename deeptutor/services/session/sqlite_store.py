@@ -127,7 +127,12 @@ class SQLiteSessionStore:
                     updated_at REAL NOT NULL,
                     compressed_summary TEXT DEFAULT '',
                     summary_up_to_msg_id INTEGER DEFAULT 0,
-                    preferences_json TEXT DEFAULT '{}'
+                    preferences_json TEXT DEFAULT '{}',
+                    -- Workspace the conversation belongs to ('general' |
+                    -- 'tutor'). A real column rather than a preferences_json
+                    -- key because the history list filters on it on every
+                    -- sidebar refresh, and a JSON probe cannot use an index.
+                    mode TEXT NOT NULL DEFAULT 'general'
                 );
 
                 CREATE TABLE IF NOT EXISTS messages (
@@ -235,6 +240,16 @@ class SQLiteSessionStore:
             columns = {row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()}
             if "preferences_json" not in columns:
                 conn.execute("ALTER TABLE sessions ADD COLUMN preferences_json TEXT DEFAULT '{}'")
+            if "mode" not in columns:
+                # Every pre-existing conversation predates the Tutor workspace,
+                # so the column default backfills them all into General — which
+                # is exactly where their owners left them.
+                conn.execute(
+                    "ALTER TABLE sessions ADD COLUMN mode TEXT NOT NULL DEFAULT 'general'"
+                )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sessions_mode ON sessions(mode, updated_at DESC)"
+            )
             if "kind" in columns:
                 try:
                     conn.execute("ALTER TABLE sessions DROP COLUMN kind")
@@ -420,20 +435,22 @@ class SQLiteSessionStore:
         self,
         title: str | None = None,
         session_id: str | None = None,
+        mode: str | None = None,
     ) -> dict[str, Any]:
         now = time.time()
         resolved_id = session_id or f"unified_{int(now * 1000)}_{uuid.uuid4().hex[:8]}"
         resolved_title = (title or "New conversation").strip() or "New conversation"
+        resolved_mode = mode or "general"
         with self._connect() as conn:
             conn.execute(
                 """
                 INSERT INTO sessions (
                     id, title, created_at, updated_at,
-                    compressed_summary, summary_up_to_msg_id
+                    compressed_summary, summary_up_to_msg_id, mode
                 )
-                VALUES (?, ?, ?, ?, '', 0)
+                VALUES (?, ?, ?, ?, '', 0, ?)
                 """,
-                (resolved_id, resolved_title[:100], now, now),
+                (resolved_id, resolved_title[:100], now, now, resolved_mode),
             )
             conn.commit()
         return {
@@ -444,14 +461,16 @@ class SQLiteSessionStore:
             "updated_at": now,
             "compressed_summary": "",
             "summary_up_to_msg_id": 0,
+            "mode": resolved_mode,
         }
 
     async def create_session(
         self,
         title: str | None = None,
         session_id: str | None = None,
+        mode: str | None = None,
     ) -> dict[str, Any]:
-        return await self._run(self._create_session_sync, title, session_id)
+        return await self._run(self._create_session_sync, title, session_id, mode)
 
     def _get_session_sync(self, session_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
@@ -514,12 +533,15 @@ class SQLiteSessionStore:
     async def ensure_session(
         self,
         session_id: str | None = None,
+        mode: str | None = None,
     ) -> dict[str, Any]:
         if session_id:
             session = await self.get_session(session_id)
             if session is not None:
+                # An existing conversation keeps the workspace it was created
+                # in; ``mode`` only ever stamps a brand-new one.
                 return session
-        return await self.create_session()
+        return await self.create_session(mode=mode)
 
     @staticmethod
     def _serialize_turn(row: sqlite3.Row) -> dict[str, Any]:
@@ -1349,6 +1371,7 @@ class SQLiteSessionStore:
             s.compressed_summary,
             s.summary_up_to_msg_id,
             s.preferences_json,
+            s.mode,
             COUNT(m.id) AS message_count,
             COALESCE(
                 (SELECT t.status FROM turns t WHERE t.session_id = s.id
@@ -1385,12 +1408,19 @@ class SQLiteSessionStore:
     _WHERE_IMPORTED = r"WHERE s.id LIKE 'imported\_%' ESCAPE '\'"
 
     def _list_session_summaries_sync(
-        self, where_sql: str, limit: int, offset: int
+        self, where_sql: str, limit: int, offset: int, mode: str | None = None
     ) -> list[dict[str, Any]]:
+        params: list[Any] = []
+        if mode:
+            # Appended to the caller's WHERE (never replacing it) so the
+            # native/imported split keeps applying on top of the mode filter.
+            where_sql = f"{where_sql} AND s.mode = ?"
+            params.append(mode)
+        params.extend((limit, offset))
         with self._connect() as conn:
             rows = conn.execute(
                 self._SESSION_SUMMARY_SQL.format(where=where_sql),
-                (limit, offset),
+                tuple(params),
             ).fetchall()
         sessions = []
         for row in rows:
@@ -1404,10 +1434,11 @@ class SQLiteSessionStore:
         self,
         limit: int = 50,
         offset: int = 0,
+        mode: str | None = None,
     ) -> list[dict[str, Any]]:
         # Native chats only — imported histories surface under their own
         # Space category, not the regular history list.
-        return self._list_session_summaries_sync(self._WHERE_NATIVE, limit, offset)
+        return self._list_session_summaries_sync(self._WHERE_NATIVE, limit, offset, mode)
 
     def _list_imported_sessions_sync(
         self,
@@ -1420,8 +1451,9 @@ class SQLiteSessionStore:
         self,
         limit: int = 50,
         offset: int = 0,
+        mode: str | None = None,
     ) -> list[dict[str, Any]]:
-        return await self._run(self._list_sessions_sync, limit, offset)
+        return await self._run(self._list_sessions_sync, limit, offset, mode)
 
     async def list_imported_sessions(
         self,

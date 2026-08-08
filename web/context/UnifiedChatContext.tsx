@@ -27,6 +27,7 @@ import {
   updateSessionTitle,
   type SessionMessage,
 } from "@/lib/session-api";
+import { useAppShell } from "@/context/AppShellContext";
 import { normalizeMarkdownForDisplay } from "@/lib/markdown-display";
 import { normalizeMessageContent } from "@/lib/message-content";
 import { buildVisiblePath, tipMessageId } from "@/lib/message-branches";
@@ -990,6 +991,7 @@ export function UnifiedChatProvider({
 }: {
   children: React.ReactNode;
 }) {
+  const { mode } = useAppShell();
   const [state, dispatch] = useReducer(reducer, initialState);
   const stateRef = useRef(initialState);
   const runnersRef = useRef<
@@ -1397,8 +1399,10 @@ export function UnifiedChatProvider({
     const current = state.selectedKey
       ? state.sessions[state.selectedKey]
       : null;
-    writeStoredActiveSessionId(current?.sessionId ?? null);
-  }, [state.selectedKey, state.sessions]);
+    // Scoped to the active workspace: each mode restores its own session, so
+    // a Tutor conversation must never be handed back to General on reload.
+    writeStoredActiveSessionId(current?.sessionId ?? null, mode);
+  }, [mode, state.selectedKey, state.sessions]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1623,6 +1627,9 @@ export function UnifiedChatProvider({
         session_id: session.sessionId,
         attachments: effectiveAttachments,
         language: effectiveLanguage,
+        // Stamps the workspace on a session the backend is about to create.
+        // Existing sessions ignore it — the stored column stays authoritative.
+        mode,
         ...(effectiveNotebookReferences?.length
           ? { notebook_references: effectiveNotebookReferences }
           : {}),
@@ -1662,7 +1669,7 @@ export function UnifiedChatProvider({
           : {}),
       });
     },
-    [makeDraftKey, sendThroughRunner],
+    [makeDraftKey, mode, sendThroughRunner],
   );
 
   const cancelStreamingTurn = useCallback(() => {

@@ -46,9 +46,12 @@ export const SPACE_ITEMS: SpaceItem[] = [
   {
     key: "notebooks",
     href: "/space/notebooks",
-    label: "Notebooks",
+    // Display name only — the route, table and API keys stay ``notebook*``.
+    // The records were always question / answer / is_correct rows; "Notebooks"
+    // simply never described them.
+    label: "Mistakes",
     description:
-      "Organize saved outputs from chat, research, Co-Writer, and more.",
+      "Review the questions you got wrong and track what is still unresolved.",
     icon: NotebookPen,
   },
   {

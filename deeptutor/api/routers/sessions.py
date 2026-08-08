@@ -81,9 +81,16 @@ def _format_quiz_results_message(answers: list[QuizResultItem]) -> str:
 async def list_sessions(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    mode: str | None = Query(default=None, pattern="^(general|tutor)$"),
 ):
+    """List conversations, optionally narrowed to one workspace.
+
+    ``mode`` is omitted by callers that legitimately span both workspaces (the
+    dashboard's recent-activity feed); the sidebar always passes it so each
+    workspace's history stays its own.
+    """
     store = get_session_store()
-    sessions = await store.list_sessions(limit=limit, offset=offset)
+    sessions = await store.list_sessions(limit=limit, offset=offset, mode=mode)
     return {"sessions": sessions}
 
 

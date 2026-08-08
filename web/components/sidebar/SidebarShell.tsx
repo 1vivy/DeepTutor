@@ -6,22 +6,12 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { useAppShell } from "@/context/AppShellContext";
 import {
-  BookOpen,
   BookText,
-  Bot,
-  Brain,
   ChevronDown,
   Github,
-  HeartHandshake,
-  House,
-  LayoutGrid,
-  Library,
   Lock,
   PanelLeftClose,
   PanelLeftOpen,
-  PenLine,
-  Settings,
-  type LucideIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import SessionList from "@/components/SessionList";
@@ -31,85 +21,17 @@ import { VersionBadge } from "@/components/sidebar/VersionBadge";
 import type { SessionSummary } from "@/lib/session-api";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { useCapabilityAccess } from "@/components/access/CapabilityAccessContext";
-import type { Capability } from "@/lib/capability-routes";
+import { useTutorDueCount } from "@/hooks/useTutorDueCount";
+import {
+  chatPathForMode,
+  navForMode,
+  MODE_ICON,
+  MODE_LABEL,
+  WORKSPACE_MODES,
+  type NavEntry,
+  type WorkspaceMode,
+} from "@/lib/workspace-mode";
 
-interface NavEntry {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  tooltipKey?: string;
-  /** Model capability this feature needs; locked when the user lacks it. */
-  requires?: Capability;
-}
-
-const PRIMARY_NAV: NavEntry[] = [
-  {
-    href: "/home",
-    label: "Home",
-    icon: House,
-    tooltipKey: "Home tooltip",
-    requires: "llm",
-  },
-  {
-    href: "/partners",
-    label: "Partners",
-    icon: HeartHandshake,
-    tooltipKey: "Partners tooltip",
-    requires: "llm",
-  },
-  {
-    // My Agents is its own top-level feature (pulled out of the Learning
-    // Space): connect a live local Claude Code / Codex to consult in chat,
-    // and manage imported agent conversations. Ungated — managing connections
-    // and imports needs no per-user model grant.
-    href: "/agents",
-    label: "My Agents",
-    icon: Bot,
-    tooltipKey: "Agents tooltip",
-  },
-  {
-    href: "/co-writer",
-    label: "Co-Writer",
-    icon: PenLine,
-    tooltipKey: "Co-Writer tooltip",
-    requires: "llm",
-  },
-  {
-    href: "/book",
-    label: "Book",
-    icon: Library,
-    tooltipKey: "Book tooltip",
-    requires: "llm",
-  },
-  {
-    href: "/space",
-    label: "Learning Space",
-    icon: LayoutGrid,
-    tooltipKey: "Space tooltip",
-  },
-];
-
-const SECONDARY_NAV: NavEntry[] = [
-  {
-    // Memory is its own top-level console (pulled out of the Learning Space):
-    // a place to inspect and curate the tutor's long-term memory, not a daily
-    // workspace. Never gated — memory has no per-user model requirement.
-    href: "/memory",
-    label: "Memory",
-    icon: Brain,
-    tooltipKey: "Memory tooltip",
-  },
-  {
-    // Knowledge Center sits just above Settings: it's a console for managing
-    // KBs and retrieval engines, not a daily workspace. Never gated — embedding
-    // / search are shared admin infrastructure, no per-user model grant needed.
-    href: "/knowledge",
-    label: "Knowledge Center",
-    icon: BookOpen,
-    tooltipKey: "Knowledge tooltip",
-  },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
 const GITHUB_REPO_URL = "https://github.com/HKUDS/DeepTutor";
 const DOCS_URL = "https://deeptutor.info/";
 const RECENTS_COLLAPSED_KEY = "deeptutor.sidebar.recentsCollapsed";
@@ -147,9 +69,16 @@ export function SidebarShell({
   const router = useRouter();
   const { t } = useTranslation();
   const { has } = useCapabilityAccess();
-  const { sidebarCollapsed, setSidebarCollapsed: setCollapsed } = useAppShell();
+  const {
+    sidebarCollapsed,
+    setSidebarCollapsed: setCollapsed,
+    mode,
+    setMode,
+  } = useAppShell();
   const { isMobile } = useDevice();
   const drawer = useSidebarDrawer();
+  const { primary: primaryNav, secondary: secondaryNav } = navForMode(mode);
+  const dueCount = useTutorDueCount(mode === "tutor");
 
   // Inside the mobile drawer the icon-only rail is pointless — the panel is
   // already hidden when you don't want it, so it always opens fully expanded
@@ -189,17 +118,32 @@ export function SidebarShell({
     });
   };
 
-  const handleHomeClick = (event: React.MouseEvent) => {
-    // Always reset to a fresh session (mirrors the old "New Chat" affordance);
-    // let modifier-clicks fall through to default Link behavior so middle-click
-    // open-in-new-tab still works.
+  // Clicking the mode's own chat root always resets to a fresh session
+  // (mirrors the old "New Chat" affordance); modifier-clicks fall through to
+  // default Link behavior so middle-click open-in-new-tab still works.
+  const handleChatRootClick = (event: React.MouseEvent) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.button === 1)
       return;
     event.preventDefault();
     drawer?.close();
     onNewChat?.();
-    router.push("/home");
+    router.push(chatPathForMode(mode));
   };
+
+  // Switching workspace lands on that workspace's chat root rather than trying
+  // to hold the current route: the two modes do not share a page inventory, so
+  // "stay where you are" would often mean staying somewhere the new sidebar
+  // has no entry for.
+  const switchMode = (next: WorkspaceMode) => {
+    if (next === mode) return;
+    drawer?.close();
+    setMode(next);
+    onNewChat?.();
+    router.push(chatPathForMode(next));
+  };
+
+  const badgeCount = (item: NavEntry) =>
+    item.badge === "tutor-due" ? dueCount : null;
 
   /* ---- Collapsed state ---- */
   if (collapsed) {
@@ -229,9 +173,39 @@ export function SidebarShell({
           </button>
         </div>
 
+        {/* Workspace switcher — icon pair on the rail */}
+        <div className="mb-1 flex w-full flex-col items-center gap-0.5 px-1.5">
+          {WORKSPACE_MODES.map((entry) => {
+            const Icon = MODE_ICON[entry];
+            const isActive = entry === mode;
+            return (
+              <Tooltip
+                key={entry}
+                label={t(MODE_LABEL[entry])}
+                side="right"
+              >
+                <button
+                  type="button"
+                  onClick={() => switchMode(entry)}
+                  aria-current={isActive ? "page" : undefined}
+                  aria-label={t(MODE_LABEL[entry]) as string}
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-150 ${
+                    isActive
+                      ? "bg-[var(--background)] text-[var(--foreground)] shadow-sm"
+                      : "text-[var(--muted-foreground)]/70 hover:bg-[var(--background)]/50 hover:text-[var(--foreground)]"
+                  }`}
+                >
+                  <Icon size={16} strokeWidth={isActive ? 2 : 1.6} />
+                </button>
+              </Tooltip>
+            );
+          })}
+        </div>
+        <div className="mb-1 h-px w-7 bg-[var(--border)]/40" />
+
         {/* Primary nav */}
         <nav className="mt-1 flex w-full flex-col items-center gap-1 px-1.5">
-          {PRIMARY_NAV.map((item) => {
+          {primaryNav.map((item) => {
             const active = pathname.startsWith(item.href);
             const locked = navLocked(item);
             const description = locked
@@ -271,7 +245,7 @@ export function SidebarShell({
               >
                 <Link
                   href={item.href}
-                  onClick={item.href === "/home" ? handleHomeClick : undefined}
+                  onClick={item.isChatRoot ? handleChatRootClick : undefined}
                   aria-label={t(item.label)}
                   className={`relative flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-150 ${
                     active
@@ -280,6 +254,11 @@ export function SidebarShell({
                   }`}
                 >
                   <item.icon size={18} strokeWidth={active ? 2 : 1.6} />
+                  {badgeCount(item) ? (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--primary)] px-1 text-[9px] font-medium leading-none text-[var(--primary-foreground)]">
+                      {badgeCount(item)}
+                    </span>
+                  ) : null}
                 </Link>
               </Tooltip>
             );
@@ -291,7 +270,7 @@ export function SidebarShell({
         {/* Secondary nav + footer */}
         <div className="flex w-full flex-col items-center gap-1 px-1.5">
           <div className="my-1 h-px w-7 bg-[var(--border)]/40" />
-          {SECONDARY_NAV.map((item) => {
+          {secondaryNav.map((item) => {
             const active = pathname.startsWith(item.href);
             return (
               <Link
@@ -368,10 +347,39 @@ export function SidebarShell({
         </button>
       </div>
 
+      {/* Workspace switcher — the General / Tutor split */}
+      <div
+        role="tablist"
+        aria-label={t("Workspace") as string}
+        className="mx-2 mb-1 flex gap-0.5 rounded-lg bg-[var(--background)]/45 p-0.5"
+      >
+        {WORKSPACE_MODES.map((entry) => {
+          const Icon = MODE_ICON[entry];
+          const isActive = entry === mode;
+          return (
+            <button
+              key={entry}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => switchMode(entry)}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-[7px] px-2 py-1.5 text-[12.5px] transition-all duration-150 ${
+                isActive
+                  ? "bg-[var(--secondary)] font-medium text-[var(--foreground)] shadow-sm"
+                  : "text-[var(--muted-foreground)]/75 hover:text-[var(--foreground)]"
+              }`}
+            >
+              <Icon size={14} strokeWidth={isActive ? 1.9 : 1.5} />
+              <span>{t(MODE_LABEL[entry])}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Primary nav */}
       <nav className="px-2 pt-1">
         <div className="space-y-px">
-          {PRIMARY_NAV.map((item) => {
+          {primaryNav.map((item) => {
             const active = pathname.startsWith(item.href);
             const locked = navLocked(item);
             if (locked) {
@@ -399,7 +407,7 @@ export function SidebarShell({
                 key={item.href}
                 href={item.href}
                 onClick={
-                  item.href === "/home" ? handleHomeClick : closeDrawerOnNav
+                  item.isChatRoot ? handleChatRootClick : closeDrawerOnNav
                 }
                 className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] transition-colors ${
                   active
@@ -409,6 +417,11 @@ export function SidebarShell({
               >
                 <item.icon size={16} strokeWidth={active ? 1.9 : 1.5} />
                 <span>{t(item.label)}</span>
+                {badgeCount(item) ? (
+                  <span className="ml-auto flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-[var(--primary)] px-1 text-[10px] font-medium leading-none text-[var(--primary-foreground)]">
+                    {badgeCount(item)}
+                  </span>
+                ) : null}
               </Link>
             );
           })}
@@ -472,7 +485,7 @@ export function SidebarShell({
 
       {/* Secondary nav + footer */}
       <div className="border-t border-[var(--border)]/40 px-2 py-2">
-        {SECONDARY_NAV.map((item) => {
+        {secondaryNav.map((item) => {
           const active = pathname.startsWith(item.href);
           return (
             <Link

@@ -288,6 +288,85 @@ class LearningService:
                 continue
         return {"summaries": summaries, "errors": errors}
 
+    def today_overview(self, *, now: float | None = None, limit: int = 20) -> dict:
+        """Cross-path answer to "what should I study right now?".
+
+        Folds every stored path into three lists: review items whose spaced
+        repetition has come due, the next step of each path in flight, and how
+        many logged mistakes are still unresolved. The scheduler has been
+        maintaining ``review_queue`` all along — this is the first surface that
+        reads it.
+        """
+        logger = logging.getLogger(__name__)
+        current = now if now is not None else time.time()
+
+        due: list[dict] = []
+        continuing: list[dict] = []
+        unresolved_errors = 0
+
+        for bid in self._store.list_all():
+            try:
+                progress = self._store.load(bid)
+            except Exception:
+                logger.warning("Failed to load progress for book %s, skipping", bid, exc_info=True)
+                continue
+            if progress is None:
+                continue
+
+            book_name = (progress.modules[0].name if progress.modules else "") or progress.book_id
+            kp_names = {
+                kp.id: kp.name for module in progress.modules for kp in module.knowledge_points
+            }
+
+            for task in progress.review_queue:
+                if task.due_at > current:
+                    continue
+                due.append(
+                    {
+                        "book_id": progress.book_id,
+                        "book_name": book_name,
+                        "kp_id": task.knowledge_point_id,
+                        "kp_name": kp_names.get(task.knowledge_point_id, task.knowledge_point_id),
+                        "knowledge_type": task.knowledge_type.value,
+                        "due_at": task.due_at,
+                        "priority": task.priority,
+                    }
+                )
+
+            unresolved_errors += sum(
+                1 for record in progress.error_records if record.status in ("active", "retrying")
+            )
+
+            if progress.current_stage != LearningStage.COMPLETED and progress.modules:
+                module = next(
+                    (m for m in progress.modules if m.id == progress.current_module_id),
+                    progress.modules[0],
+                )
+                continuing.append(
+                    {
+                        "book_id": progress.book_id,
+                        "book_name": book_name,
+                        "module_id": module.id,
+                        "module_name": module.name,
+                        "stage": progress.current_stage.value,
+                        "updated_at": progress.updated_at,
+                    }
+                )
+
+        # Longest-overdue first, then by the scheduler's own priority so a
+        # memory item never queues behind a design one that came due together.
+        due.sort(key=lambda item: (item["due_at"], item["priority"]))
+        continuing.sort(key=lambda item: item["updated_at"], reverse=True)
+
+        return {
+            # The true total, independent of the truncated list below, so the
+            # sidebar badge never under-reports what is actually waiting.
+            "due_count": len(due),
+            "due": due[:limit],
+            "continuing": continuing[:limit],
+            "unresolved_errors": unresolved_errors,
+        }
+
     def save(self, progress: LearningProgress) -> None:
         self._store.save(progress)
 

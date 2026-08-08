@@ -8,6 +8,8 @@ import { LogoutButton } from "@/components/auth/LogoutButton";
 import { AdminLink } from "@/components/auth/AdminLink";
 import { ProfileLink } from "@/components/auth/ProfileLink";
 import { useUnifiedChat } from "@/context/UnifiedChatContext";
+import { useAppShell } from "@/context/AppShellContext";
+import { chatPathForMode } from "@/lib/workspace-mode";
 import {
   deleteSession,
   listSessions,
@@ -18,6 +20,7 @@ import {
 export default function WorkspaceSidebar() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { mode } = useAppShell();
   const {
     newSession,
     cancelStreamingTurn,
@@ -34,14 +37,14 @@ export default function WorkspaceSidebar() {
       setLoadingSessions(true);
     }
     try {
-      setSessions(await listSessions(50, 0, { force: true }));
+      setSessions(await listSessions(50, 0, { force: true, mode }));
       hasLoadedSessionsRef.current = true;
     } catch (error) {
       console.error("Failed to load sessions", error);
     } finally {
       setLoadingSessions(false);
     }
-  }, []);
+  }, [mode]);
 
   // First mount shows the skeleton; subsequent refreshes triggered by
   // ``sidebarRefreshToken`` (STREAM_END, server-side session bind,
@@ -79,14 +82,14 @@ export default function WorkspaceSidebar() {
   const handleNewChat = useCallback(() => {
     cancelStreamingTurn();
     newSession();
-    router.push("/home");
-  }, [cancelStreamingTurn, newSession, router]);
+    router.push(chatPathForMode(mode));
+  }, [cancelStreamingTurn, mode, newSession, router]);
 
   const handleSelectSession = useCallback(
     async (sessionId: string) => {
-      router.push(`/home/${sessionId}`);
+      router.push(chatPathForMode(mode, sessionId));
     },
-    [router],
+    [mode, router],
   );
 
   const handleRenameSession = useCallback(
@@ -117,10 +120,10 @@ export default function WorkspaceSidebar() {
       if (selectedSessionId === sessionId) {
         cancelStreamingTurn();
         newSession();
-        router.push("/home");
+        router.push(chatPathForMode(mode));
       }
     },
-    [cancelStreamingTurn, newSession, router, selectedSessionId, t],
+    [cancelStreamingTurn, mode, newSession, router, selectedSessionId, t],
   );
 
   return (

@@ -16,6 +16,7 @@ class SessionStoreProtocol(Protocol):
         self,
         title: str | None = None,
         session_id: str | None = None,
+        mode: str | None = None,
     ) -> dict[str, Any]: ...
 
     async def get_session(self, session_id: str) -> dict[str, Any] | None: ...
@@ -23,6 +24,7 @@ class SessionStoreProtocol(Protocol):
     async def ensure_session(
         self,
         session_id: str | None = None,
+        mode: str | None = None,
     ) -> dict[str, Any]: ...
 
     async def create_turn(self, session_id: str, capability: str = "") -> dict[str, Any]: ...
@@ -71,6 +73,7 @@ class SessionStoreProtocol(Protocol):
         self,
         limit: int = 50,
         offset: int = 0,
+        mode: str | None = None,
     ) -> list[dict[str, Any]]: ...
 
     async def update_summary(self, session_id: str, summary: str, up_to_msg_id: int) -> bool: ...

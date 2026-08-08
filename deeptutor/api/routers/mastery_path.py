@@ -108,6 +108,18 @@ async def list_all_progress():
     return service.list_progress()
 
 
+@router.get("/today")
+async def today_overview():
+    """Cross-path "what should I study now?" feed backing the Tutor landing page.
+
+    Declared before ``/progress/{book_id}`` would ever be consulted for a
+    literal "today" — it is a sibling of ``/progress``, not a book id — so the
+    two can never collide.
+    """
+    service = get_learning_service()
+    return service.today_overview()
+
+
 @router.get("/progress/{book_id}")
 async def get_progress(book_id: str):
     _validate_book_id(book_id)

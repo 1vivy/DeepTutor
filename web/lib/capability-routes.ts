@@ -20,6 +20,9 @@ export const ROUTE_CAPABILITIES: ReadonlyArray<{
   capability: Capability;
 }> = [
   { prefix: "/home", capability: "llm" },
+  // The Tutor workspace's chat root. Same engine as /home, so the same gate —
+  // omitting it would leave a second, ungated door to the model.
+  { prefix: "/tutor", capability: "llm" },
   { prefix: "/partners", capability: "llm" },
   { prefix: "/co-writer", capability: "llm" },
   { prefix: "/book", capability: "llm" },

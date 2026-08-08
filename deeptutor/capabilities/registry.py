@@ -8,6 +8,7 @@ from deeptutor.capabilities.obsidian import ObsidianCapability
 from deeptutor.capabilities.protocol import LoopCapability
 from deeptutor.capabilities.solve import SolveLoopCapability
 from deeptutor.capabilities.subagent import SubagentCapability
+from deeptutor.capabilities.tutor_context import TutorContextCapability
 from deeptutor.core.context import UnifiedContext
 
 LOOP_CAPABILITIES: tuple[LoopCapability, ...] = (
@@ -16,6 +17,7 @@ LOOP_CAPABILITIES: tuple[LoopCapability, ...] = (
     ObsidianCapability(),
     SubagentCapability(),
     ExploreContextCapability(),
+    TutorContextCapability(),
 )
 
 

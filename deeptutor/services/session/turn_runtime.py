@@ -654,6 +654,10 @@ class TurnRuntimeManager:
 
     async def start_turn(self, payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
         capability = str(payload.get("capability") or "chat")
+        # Workspace the turn was started from. Unknown values collapse to
+        # "general" so a malformed client can never mint a third workspace.
+        mode = "tutor" if str(payload.get("mode") or "") == "tutor" else "general"
+        payload = {**payload, "mode": mode}
         if not payload.get("language"):
             from deeptutor.services.settings.interface_settings import (
                 get_response_language,
@@ -687,7 +691,13 @@ class TurnRuntimeManager:
             "capability": capability,
             "config": {**validated_public_config, **runtime_only_config},
         }
-        session = await self.store.ensure_session(payload.get("session_id"))
+        session = await self.store.ensure_session(payload.get("session_id"), mode=mode)
+        # A turn always runs in the workspace its session belongs to. The
+        # payload only decides the mode when the session is being created here;
+        # for an existing one the stored column wins, so an old conversation
+        # reopened from the other workspace cannot be relabelled mid-flight.
+        mode = str(session.get("mode") or mode)
+        payload = {**payload, "mode": mode}
         preferences = session.get("preferences") or {}
         # Persona is a session-level preference (mirrors llm_selection): an
         # explicit ``persona`` key in the payload — including an empty string,
@@ -1631,6 +1641,9 @@ class TurnRuntimeManager:
                     "history_token_count": history_result.token_count,
                     "history_budget": history_result.budget,
                     "turn_id": turn_id,
+                    # Read by TutorContextCapability to decide whether this turn
+                    # runs in the Tutor workspace (mirrors ``mastery_mode``).
+                    "mode": payload.get("mode") or "general",
                     "question_followup_context": followup_question_context or {},
                     "notebook_references": notebook_references,
                     "history_references": history_references,

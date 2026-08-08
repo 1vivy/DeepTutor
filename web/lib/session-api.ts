@@ -1,6 +1,7 @@
 import { apiFetch, apiUrl } from "@/lib/api";
 import { invalidateClientCache, withClientCache } from "@/lib/client-cache";
 import type { LLMSelection, StreamEvent } from "@/lib/unified-ws";
+import type { WorkspaceMode } from "@/lib/workspace-mode";
 
 export interface SessionMessage {
   id: number;
@@ -43,6 +44,8 @@ export interface SessionSummary {
     | "cancelled"
     | "rejected";
   active_turn_id?: string;
+  /** Workspace the conversation belongs to; absent on pre-Tutor records. */
+  mode?: WorkspaceMode;
   preferences?: {
     capability?: string;
     tools?: string[];
@@ -131,14 +134,17 @@ async function expectJson<T>(response: Response): Promise<T> {
 export async function listSessions(
   limit = 50,
   offset = 0,
-  options?: { force?: boolean },
+  options?: { force?: boolean; mode?: WorkspaceMode },
 ): Promise<SessionSummary[]> {
   const qs = new URLSearchParams({
     limit: String(limit),
     offset: String(offset),
   });
+  if (options?.mode) qs.set("mode", options.mode);
   return withClientCache<SessionSummary[]>(
-    `sessions:${limit}:${offset}`,
+    // The mode belongs in the cache key, not just the query string: without it
+    // the two workspaces would serve each other's cached history for the TTL.
+    `sessions:${limit}:${offset}:${options?.mode ?? "all"}`,
     async () => {
       const response = await apiFetch(
         apiUrl(`/api/v1/sessions?${qs.toString()}`),
