@@ -1205,7 +1205,7 @@
   "settingsTour.appearance.title": "外观",
   "settingsTour.appearance.desc": "选择视觉主题和界面语言，改动立即生效。",
   "settingsTour.status.title": "状态",
-  "settingsTour.status.desc": "后端与已配置模型服务的运行状态，常驻主页一目了然。",
+  "settingsTour.status.desc": "后端是否在线，以及 DeepTutor 各进程当前占用的内存，常驻主页一目了然。",
   "settingsTour.network.title": "网络",
   "settingsTour.network.desc": "端口、浏览器访问后端的 API 地址与 CORS 来源——Docker、局域网、反向代理部署在这里配。",
   "settingsTour.models.title": "模型",
@@ -2938,5 +2938,14 @@
   "Feynman check": "费曼检查",
   "Review mistakes": "错题诊断",
   "Spaced review": "间隔复习",
-  "Tutoring conversation that knows what you are learning": "了解你学习进度的辅导对话"
+  "Tutoring conversation that knows what you are learning": "了解你学习进度的辅导对话",
+  "Frontend": "前端",
+  "Sandbox": "沙箱",
+  "Supervisor": "主进程",
+  "Other": "其他",
+  "System available": "系统可用",
+  "Container available": "容器可用",
+  "{{used}} · {{percent}}% of {{total}}": "{{used}} · 占 {{total}} 的 {{percent}}%",
+  "(backend only)": "（仅后端）",
+  "Only the backend and its own children. Start DeepTutor through the launcher to include the web server.": "仅统计后端及其子进程。通过 DeepTutor 启动器运行才能把前端服务一起算进来。"
 }
