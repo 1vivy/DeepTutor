@@ -60,6 +60,35 @@ class ReferenceSettings:
 
 
 @dataclass(frozen=True)
+class AutopilotSettings:
+    """Whether memory keeps itself current, or waits to be told.
+
+    Two switches rather than one, because the two steps cost incomparable
+    amounts:
+
+    ``snapshot`` reconciles the L1 workspace mirror — pure file diffing, no
+    model call. It defaults to ``auto`` because its absence is exactly the
+    complaint "my conversation isn't in memory until I go click Refresh".
+
+    ``consolidate`` runs the L1→L2 pass, which is one LLM call per chunk. It
+    defaults to ``manual``: turning it on spends tokens on a cadence the user
+    never asked for, so it stays an explicit opt-in.
+    """
+
+    snapshot: Literal["manual", "auto"] = "auto"
+    consolidate: Literal["manual", "auto"] = "manual"
+    # Collapse bursts: several turns finishing back-to-back should reconcile
+    # once, not once each.
+    debounce_seconds: int = 5
+    # How many workspace entities L2 has never seen before an automatic
+    # consolidation is worth its tokens.
+    consolidate_after: int = 20
+    # Floor between two automatic consolidations of the same surface, so a
+    # busy surface cannot run the model in a tight cycle.
+    consolidate_cooldown_seconds: int = 900
+
+
+@dataclass(frozen=True)
 class MemorySettings:
     update: UpdateSettings = field(default_factory=UpdateSettings)
     audit: AuditSettings = field(default_factory=AuditSettings)
@@ -67,6 +96,7 @@ class MemorySettings:
     merge: MergeSettings = field(default_factory=MergeSettings)
     chunking: ChunkingSettings = field(default_factory=ChunkingSettings)
     reference: ReferenceSettings = field(default_factory=ReferenceSettings)
+    autopilot: AutopilotSettings = field(default_factory=AutopilotSettings)
 
 
 def load_memory_settings() -> MemorySettings:
@@ -108,6 +138,14 @@ _MAX_OVERLAP = 0.5
 _MIN_CHUNK_CHARS = 200
 _MAX_CHUNK_CHARS = 64000
 _BOUNDARIES = ("paragraph", "sentence")
+_AUTOPILOT_MODES = ("manual", "auto")
+_AUTOPILOT_MODE_FIELDS = ("snapshot", "consolidate")
+_MIN_DEBOUNCE = 1
+_MAX_DEBOUNCE = 600
+_MIN_CONSOLIDATE_AFTER = 1
+_MAX_CONSOLIDATE_AFTER = 1000
+_MIN_COOLDOWN = 60
+_MAX_COOLDOWN = 86400
 
 
 def _from_dict(cls: type, raw: Any) -> Any:
@@ -162,6 +200,11 @@ def _coerce_scalar(name: str, raw: Any, default: Any) -> Any:
         str_value = str(raw)
         if name == "boundary" and str_value not in _BOUNDARIES:
             return default
+        # An unrecognised autopilot mode falls back to the default rather than
+        # being stored verbatim — otherwise a typo silently reads as "not
+        # auto" everywhere downstream.
+        if name in _AUTOPILOT_MODE_FIELDS and str_value not in _AUTOPILOT_MODES:
+            return default
         return str_value
     return raw
 
@@ -169,6 +212,12 @@ def _coerce_scalar(name: str, raw: Any, default: Any) -> Any:
 def _clamp_int(name: str, value: int, default: int) -> int:
     if name.endswith("budget"):
         return max(_MIN_BUDGET, min(_MAX_BUDGET, value))
+    if name == "debounce_seconds":
+        return max(_MIN_DEBOUNCE, min(_MAX_DEBOUNCE, value))
+    if name == "consolidate_after":
+        return max(_MIN_CONSOLIDATE_AFTER, min(_MAX_CONSOLIDATE_AFTER, value))
+    if name == "consolidate_cooldown_seconds":
+        return max(_MIN_COOLDOWN, min(_MAX_COOLDOWN, value))
     if name == "iterations":
         return max(_MIN_DEDUP_ITER, min(_MAX_DEDUP_ITER, value))
     if name == "min_chunk_chars":
@@ -186,6 +235,7 @@ def _clamp_float(name: str, value: float, default: float) -> float:
 
 __all__ = [
     "AuditSettings",
+    "AutopilotSettings",
     "ChunkingSettings",
     "DedupSettings",
     "MemorySettings",

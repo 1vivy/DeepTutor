@@ -167,15 +167,14 @@ const CAPABILITIES_BY_MODE: Record<WorkspaceMode, CapabilityDef[]> = {
     VISUALIZE_CAPABILITY,
     MASTERY_CAPABILITY,
   ],
-  // Narrowed to what teaching actually needs. Mastery Path stays an explicit
-  // choice rather than the default: it binds the turn to a learning path, and
-  // most tutor conversations start as a plain question.
-  tutor: [
-    TUTOR_CHAT_CAPABILITY,
-    MASTERY_CAPABILITY,
-    QUIZ_CAPABILITY,
-    SOLVE_CAPABILITY,
-  ],
+  // Exactly one, and that is the design: in Tutor the engine decides what a
+  // request needs. Research, quizzing, visualization, solving and mastery
+  // tutoring are all reachable — as subagents the tutor delegates to
+  // (``run_subagent``), chosen from the question rather than from a menu the
+  // learner has to understand first. A one-entry list renders as a label
+  // instead of a picker, so the composer stays honest about there being no
+  // choice to make.
+  tutor: [TUTOR_CHAT_CAPABILITY],
 };
 
 export function capabilitiesForMode(mode: WorkspaceMode): CapabilityDef[] {

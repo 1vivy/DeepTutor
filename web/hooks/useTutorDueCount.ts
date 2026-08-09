@@ -19,7 +19,7 @@ export function useTutorDueCount(enabled: boolean): number | null {
     const controller = new AbortController();
     void (async () => {
       try {
-        const response = await apiFetch(apiUrl("/api/v1/mastery-path/today"), {
+        const response = await apiFetch(apiUrl("/api/v1/learning/today"), {
           signal: controller.signal,
           cache: "no-store",
           skipAuthRedirect: true,

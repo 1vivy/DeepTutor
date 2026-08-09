@@ -53,12 +53,14 @@
   "/(workspace)/book/page": "/book",
   "/(workspace)/co-writer/[docId]/page": "/co-writer/[docId]",
   "/(workspace)/co-writer/page": "/co-writer",
+  "/(workspace)/daily/page": "/daily",
   "/(workspace)/home/[[...sessionId]]/page": "/home/[[...sessionId]]",
   "/(workspace)/page": "/",
   "/(workspace)/partners/[partnerId]/page": "/partners/[partnerId]",
   "/(workspace)/partners/new/page": "/partners/new",
   "/(workspace)/partners/page": "/partners",
   "/(workspace)/playground/page": "/playground",
+  "/(workspace)/tutor/[[...sessionId]]/page": "/tutor/[[...sessionId]]",
   "/_global-error/page": "/_global-error",
   "/_not-found/page": "/_not-found"
 }

@@ -1,0 +1,6 @@
+short_description: "Read the full content behind memory refs from memory_search or memory_index."
+when_to_use: "After a search, when a snippet suggests an item is genuinely relevant and you need what it actually says."
+input_format: "refs: array of refs — `L1:chat:<session_id>` (a whole conversation), `T1:<surface>:<trace_id>` (one event), `L2:<surface>`, `L3:<slot>`. Several at once is fine."
+guideline: "Read the few refs that matter, not everything a search returned — a whole conversation can be long. Each ref resolves independently, so one bad ref reports its own error without spoiling the batch."
+note: "Refs must come from memory_search / memory_index. Do not construct them from guessed ids."
+phase: "exploration"

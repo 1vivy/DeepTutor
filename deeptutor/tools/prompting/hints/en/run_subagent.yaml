@@ -1,0 +1,6 @@
+short_description: "Delegate a self-contained goal to a specialist capability (research / quiz / visualize / solve / mastery / chat), which runs its own loop and reports back."
+when_to_use: "When the work genuinely needs another mode: a broad literature sweep, a rendered diagram or animation, a generated quiz, a multi-step solve, or advancing a mastery path. Not for anything you can answer directly — delegation costs a full nested run."
+input_format: "capability (one of the listed subagents) + goal (a complete, standalone instruction). The subagent cannot see this conversation, so put everything it needs in the goal."
+guideline: "One delegation per need, and read the result before deciding whether another is warranted. The user watches its progress in the Activity panel, so narrate why you are delegating before you call. Fold the subagent's answer into your own reply — do not paste it verbatim as if the user asked it."
+note: "Subagents cannot ask the learner questions and cannot delegate further. If one reports that it needed input, ask the learner yourself and delegate again with the answer included."
+phase: "exploration"

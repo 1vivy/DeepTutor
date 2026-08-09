@@ -26,6 +26,7 @@ import {
   BookOpen,
   Bot,
   Brain,
+  Compass,
   GraduationCap,
   HeartHandshake,
   House,
@@ -34,6 +35,7 @@ import {
   ListChecks,
   NotebookPen,
   PenLine,
+  Route,
   Settings,
   Sun,
   type LucideIcon,
@@ -67,8 +69,12 @@ export const MODE_LABEL: Record<WorkspaceMode, string> = {
   tutor: "Tutor",
 };
 
+/* General deliberately does *not* reuse House: its own first nav entry is
+   "Home", also a House, and the switcher sits directly above it — two identical
+   glyphs stacked eight pixels apart made the switcher look like a duplicated
+   nav row rather than a level above it. */
 export const MODE_ICON: Record<WorkspaceMode, LucideIcon> = {
-  general: House,
+  general: Compass,
   tutor: GraduationCap,
 };
 
@@ -207,18 +213,24 @@ export const NAV_BY_MODE: Record<WorkspaceMode, ModeNav> = {
   tutor: {
     primary: [
       {
-        href: "/tutor",
-        label: "Today",
+        // Not a chat root: Daily is its own page, so it needs the viewport a
+        // floating composer would otherwise take from it.
+        href: "/daily",
+        label: "Daily",
         icon: Sun,
-        tooltipKey: "Today tooltip",
-        requires: "llm",
-        isChatRoot: true,
+        tooltipKey: "Daily tooltip",
         badge: "tutor-due",
       },
+      // No row for the chat route itself. A conversation is something you
+      // start, not a place you visit, so it lives in the New chat action above
+      // this nav; every row here is a page with contents of its own.
+      // ``modeCoversPath`` covers ``/tutor`` regardless.
       {
+        // Route, not GraduationCap: the cap is the Tutor workspace's own mark
+        // in the switcher right above this row (see MODE_ICON).
         href: "/space/learning",
         label: "Mastery Path",
-        icon: GraduationCap,
+        icon: Route,
         tooltipKey: "Mastery Path tooltip",
         requires: "llm",
       },
@@ -248,4 +260,31 @@ export const NAV_BY_MODE: Record<WorkspaceMode, ModeNav> = {
 
 export function navForMode(mode: WorkspaceMode): ModeNav {
   return NAV_BY_MODE[mode] ?? NAV_BY_MODE[DEFAULT_WORKSPACE_MODE];
+}
+
+/**
+ * Does ``mode``'s sidebar carry an entry that covers ``pathname``?
+ *
+ * Switching workspaces uses this to choose between staying put and landing on
+ * the new mode's chat root. Book, Knowledge Center, Memory, Settings and the
+ * Learning Space routes appear in *both* tables, so being thrown back to a chat
+ * root from one of them discards the page for nothing. Only a route the
+ * destination sidebar genuinely cannot show — the other mode's chat root,
+ * Partners, My Agents — needs the fallback.
+ */
+export function modeCoversPath(
+  mode: WorkspaceMode,
+  pathname: string | null | undefined,
+): boolean {
+  if (!pathname) return false;
+  // A workspace always covers its own chat route, listed in its nav or not.
+  // Tutor starts conversations from a New chat action above the nav rather than
+  // a nav row, and a learner reading a Tutor conversation must not be bounced
+  // out of it just because no row happens to point there.
+  const root = MODE_CHAT_ROOT[mode];
+  if (pathname === root || pathname.startsWith(`${root}/`)) return true;
+  const { primary, secondary } = navForMode(mode);
+  return [...primary, ...secondary].some(
+    (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
+  );
 }

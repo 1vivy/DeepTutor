@@ -199,6 +199,47 @@
   .muted-chip {
     @apply rounded-full bg-[var(--muted)] px-3 py-1 text-xs text-[var(--muted-foreground)];
   }
+
+  /* ─── Workspace switcher ───
+     The General / Tutor segmented control. Its whole job is to read as one
+     control with two positions, which needs the track to sink *below* the
+     sidebar surface and the selected pill to float *above* it. Both light
+     themes get that by darkening the track (--accent is one step down from
+     the sidebar's --secondary) and lifting the thumb to near-white; the two
+     dark themes swap which token plays which role, because there "raised"
+     means lighter than its surroundings, not whiter.
+
+     These live here rather than in utility classes because the light/dark
+     inversion is a theme decision, and because `bg-[var(--token)]/NN` silently
+     compiles to nothing under Tailwind 3 — the reason this control used to
+     render with no visible track at all. */
+  .ws-track {
+    /* Deliberately short of a full --accent: that is exactly the fill of the
+       selected nav row right below, and matching it made the switcher read as
+       a second nav row instead of the level above one. The track only has to
+       sink slightly; the contrast that matters is track against thumb. */
+    background: color-mix(in srgb, var(--accent) 62%, var(--secondary));
+  }
+
+  .dark .ws-track,
+  .theme-glass .ws-track {
+    background: var(--background);
+  }
+
+  .ws-thumb {
+    background: var(--background);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.07),
+      0 0 0 1px color-mix(in srgb, var(--border) 60%, transparent);
+  }
+
+  .dark .ws-thumb,
+  .theme-glass .ws-thumb {
+    background: color-mix(in srgb, var(--foreground) 9%, var(--accent));
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.4),
+      0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
+  }
 }
 
 @layer utilities {

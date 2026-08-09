@@ -1,0 +1,6 @@
+short_description: "Search the user's memory by keyword across raw activity (L1), raw events (T1) and the consolidated summaries (L2/L3). Every hit reports how many days ago it happened."
+when_to_use: "When teaching or answering would land better against what this user actually did recently — what they were working through, what they got wrong, what they already covered. Also when the user refers to past work (\"the thing we discussed\", \"my mistakes on this\")."
+input_format: "query (keywords, all must match; leave empty to list recent activity), days (lookback window), layers, surfaces, limit. Returns refs plus days_ago and a snippet."
+guideline: "Bound it: `days: 3` for this week's work, `surfaces: [\"quiz\"]` for what they got wrong. Trust days_ago rather than computing ages from timestamps. Read the refs that matter with memory_read instead of guessing from snippets."
+note: "Empty results are normal for a new user — say so plainly instead of inventing history."
+phase: "exploration"

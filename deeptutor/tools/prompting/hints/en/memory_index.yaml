@@ -1,0 +1,6 @@
+short_description: "List what the user's memory holds: which surfaces have activity, which consolidated documents exist, and how stale each is."
+when_to_use: "Before searching, when you don't already know where the relevant material lives — or when you need to know whether a surface has anything at all."
+input_format: "No parameters. Returns L1 (workspace mirror) and T1 (raw events) per surface with counts and recency, plus L2/L3 documents with entry counts and backlog."
+guideline: "Reads no content, so it is cheap — but it is orientation, not an answer. Follow it with memory_search on the surfaces that look promising."
+note: "A surface missing from L1 simply has no recorded activity yet."
+phase: "exploration"

@@ -48,6 +48,12 @@ _CONDITIONAL_MOUNT_FLAGS: dict[str, str] = {
     "kb_files": "has_kb",
     "read_source": "has_sources",
     "read_memory": "has_memory",
+    # Same gate as read_memory: all four ride on the user having a memory
+    # directory at all. Searching the layers needs no extra condition — an
+    # empty surface simply returns nothing.
+    "memory_index": "has_memory",
+    "memory_search": "has_memory",
+    "memory_read": "has_memory",
     "list_notebook": "has_notebooks",
     "write_note": "has_notebooks",
     "read_skill": "has_skills",

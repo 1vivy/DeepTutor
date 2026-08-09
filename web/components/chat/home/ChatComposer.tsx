@@ -857,6 +857,20 @@ export default memo(function ChatComposer({
               on hover. */}
           <div className="px-3 pb-2 pt-0.5">
             <div className="flex items-center gap-1">
+              {capabilities.length <= 1 ? (
+                // One capability means there is nothing to choose. Rendering
+                // the button anyway would offer a menu that opens onto a single
+                // already-selected row. The label stays so it is still clear
+                // which engine is answering — in Tutor the engine picks its own
+                // mode and delegates to subagents, which is not a decision the
+                // learner makes up front.
+                <span className="inline-flex h-8 shrink-0 items-center gap-1.5 px-2 text-[14px] font-medium text-[var(--foreground)]">
+                  <CapIcon size={16} strokeWidth={1.7} className="shrink-0" />
+                  {composerCompact ? null : (
+                    <span className="truncate">{t(activeCap.label)}</span>
+                  )}
+                </span>
+              ) : (
               <div className="relative">
                 <button
                   ref={capBtnRef}
@@ -980,6 +994,7 @@ export default memo(function ChatComposer({
                   </div>
                 )}
               </div>
+              )}
 
               <div className="relative flex min-w-0 flex-1 items-center">
                 <button

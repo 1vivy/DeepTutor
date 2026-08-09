@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { apiFetch, apiUrl } from "@/lib/api";
@@ -30,6 +30,13 @@ interface MemorySettingsDTO {
   reference: {
     enforce_required: boolean;
     drop_invalid_refs: boolean;
+  };
+  autopilot: {
+    snapshot: "manual" | "auto";
+    consolidate: "manual" | "auto";
+    debounce_seconds: number;
+    consolidate_after: number;
+    consolidate_cooldown_seconds: number;
   };
 }
 
@@ -104,9 +111,80 @@ export default function MemorySettingsPage() {
       <SettingsPageHeader
         title={t("Memory")}
         description={t(
-          "Tune the chunk-based consolidator: how many LLM rounds per Update / Audit / Dedup, how aggressively to chunk, and how strictly to validate references.",
+          "Decide whether memory keeps itself current, then tune the chunk-based consolidator: how many LLM rounds per Update / Audit / Dedup, how aggressively to chunk, and how strictly to validate references.",
         )}
       />
+
+      <SettingSection
+        title={t("Automatic upkeep")}
+        description={t(
+          "Two separate steps. Mirroring the workspace into L1 costs no model calls and runs after each conversation; folding L1 into L2 is an LLM pass, so it stays opt-in.",
+        )}
+      >
+        <SelectRow
+          label={t("Mirror the workspace into L1")}
+          help={t(
+            "On automatic, new conversations, quizzes and documents enter L1 by themselves — no Refresh needed in the workbench.",
+          )}
+          value={settings.autopilot.snapshot}
+          options={[
+            { value: "auto", label: t("Automatic") },
+            { value: "manual", label: t("Manual") },
+          ]}
+          onChange={(v) =>
+            patch("autopilot", { snapshot: v as "manual" | "auto" })
+          }
+        />
+        <SelectRow
+          label={t("Consolidate L1 into L2")}
+          help={t(
+            "Costs tokens: one LLM pass per surface that has enough new material.",
+          )}
+          value={settings.autopilot.consolidate}
+          options={[
+            { value: "manual", label: t("Manual") },
+            { value: "auto", label: t("Automatic") },
+          ]}
+          onChange={(v) =>
+            patch("autopilot", { consolidate: v as "manual" | "auto" })
+          }
+        />
+        <NumberRow
+          label={t("Debounce (seconds)")}
+          help={t(
+            "Conversations finishing back-to-back reconcile once, not once each.",
+          )}
+          value={settings.autopilot.debounce_seconds}
+          onChange={(n) => patch("autopilot", { debounce_seconds: n })}
+          min={1}
+          max={600}
+        />
+        <NumberRow
+          label={t("Consolidate after N new items")}
+          help={t(
+            "How much unseen material a surface must accumulate before an automatic L2 pass is worth its tokens.",
+          )}
+          value={settings.autopilot.consolidate_after}
+          onChange={(n) => patch("autopilot", { consolidate_after: n })}
+          min={1}
+          max={1000}
+        />
+        <NumberRow
+          label={t("Consolidation cooldown (seconds)")}
+          help={t(
+            "Minimum gap between two automatic consolidations of the same surface.",
+          )}
+          value={settings.autopilot.consolidate_cooldown_seconds}
+          onChange={(n) =>
+            patch("autopilot", { consolidate_cooldown_seconds: n })
+          }
+          min={60}
+          max={86400}
+          step={60}
+        />
+        <SyncNowRow />
+      </SettingSection>
+
       <SettingSection
         title={t("Update mode")}
         description={t(
@@ -268,6 +346,74 @@ export default function MemorySettingsPage() {
 }
 
 // ── Field components ────────────────────────────────────────────────
+
+/**
+ * Reconcile L1 on demand.
+ *
+ * Not a duplicate of the workbench's per-surface Refresh: this runs the same
+ * pass the autopilot runs, across every surface, so the switch above can be
+ * verified without waiting for the next conversation. Reports what moved,
+ * including "nothing" — silence would read as a failure.
+ */
+function SyncNowRow() {
+  const { t } = useTranslation();
+  const [state, setState] = useState<"idle" | "running">("idle");
+  const [result, setResult] = useState<string>("");
+
+  async function run() {
+    setState("running");
+    setResult("");
+    try {
+      const res = await apiFetch(apiUrl("/api/v1/memory/upkeep"), {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const data = (await res.json()) as {
+        surfaces_refreshed: string[];
+        changes: number;
+        skipped: string;
+      };
+      if (data.skipped === "disabled") {
+        setResult(t("Automatic upkeep is off."));
+      } else if (data.changes > 0) {
+        setResult(
+          t("Recorded {{count}} change(s) across {{surfaces}} surface(s).", {
+            count: data.changes,
+            surfaces: data.surfaces_refreshed.length,
+          }),
+        );
+      } else {
+        setResult(t("Already up to date."));
+      }
+    } catch {
+      setResult(t("Sync failed."));
+    } finally {
+      setState("idle");
+    }
+  }
+
+  return (
+    <SettingRow
+      title={t("Sync now")}
+      description={result || t("Reconcile every surface immediately.")}
+      control={
+        <button
+          type="button"
+          onClick={() => void run()}
+          disabled={state === "running"}
+          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] px-2.5 py-1 text-[12px] text-[var(--foreground)] transition-colors hover:bg-[var(--secondary)] disabled:opacity-50"
+        >
+          {state === "running" ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <RefreshCw size={12} strokeWidth={1.8} />
+          )}
+          {t("Sync")}
+        </button>
+      }
+    />
+  );
+}
 
 interface NumberRowProps {
   label: string;

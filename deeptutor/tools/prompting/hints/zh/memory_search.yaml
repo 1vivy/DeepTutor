@@ -1,0 +1,6 @@
+short_description: "按关键词检索该用户的记忆，覆盖原始活动（L1）、原始事件（T1）与整合摘要（L2/L3）。每条结果都会给出距今多少天。"
+when_to_use: "当讲解或回答如果结合该用户最近真实做过的事会更到位时调用——他们在攻克什么、错在哪里、已经学过什么。用户提及过去的事情时（\"我们之前聊的那个\"、\"我这块做错的题\"）也调用。"
+input_format: "query（关键词，需全部命中；留空则列出近期活动）、days（回溯天数）、layers、surfaces、limit。返回 ref、days_ago 和摘要片段。"
+guideline: "要收窄范围：`days: 3` 看本周做了什么，`surfaces: [\"quiz\"]` 看错在哪。直接用 days_ago，不要自己拿时间戳算天数。真正相关的 ref 用 memory_read 读全文，不要靠片段猜。"
+note: "新用户没有结果是正常的——直说没有，不要编造历史。"
+phase: "exploration"

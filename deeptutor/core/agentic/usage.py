@@ -77,6 +77,27 @@ class UsageTracker:
         if input_chars or output_chars:
             self.add_estimated(input_chars=input_chars, output_chars=output_chars)
 
+    def absorb(self, summary: dict[str, Any] | None) -> None:
+        """Fold a nested run's :meth:`summary` into this tracker.
+
+        Used when a turn delegates to another capability: the child builds its
+        own tracker, and its tokens are the parent turn's tokens — the user
+        spent them on this turn. Without this the footer would under-report
+        every delegation, which is the one place cost is least obvious.
+
+        Token counts add; cost is deliberately *not* carried over, because the
+        child may have run on a different model and this tracker recomputes
+        cost from its own ``model``. The absorbed tokens are therefore priced
+        at the parent's model — an approximation, and a visible one, versus
+        silently dropping them.
+        """
+        if not summary:
+            return
+        self.prompt_tokens += int(summary.get("prompt_tokens", 0) or 0)
+        self.completion_tokens += int(summary.get("completion_tokens", 0) or 0)
+        self.total_tokens += int(summary.get("total_tokens", 0) or 0)
+        self.calls += int(summary.get("total_calls", 0) or 0)
+
     def summary(self) -> dict[str, Any] | None:
         if self.calls == 0:
             return None

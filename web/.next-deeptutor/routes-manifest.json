@@ -61,6 +61,14 @@
         "nxtPpartnerId": "nxtPpartnerId"
       },
       "namedRegex": "^/partners/(?<nxtPpartnerId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/tutor/[[...sessionId]]",
+      "regex": "^/tutor(?:/(.+?))?(?:/)?$",
+      "routeKeys": {
+        "nxtPsessionId": "nxtPsessionId"
+      },
+      "namedRegex": "^/tutor(?:/(?<nxtPsessionId>.+?))?(?:/)?$"
     }
   ],
   "staticRoutes": [
@@ -105,6 +113,12 @@
       "regex": "^/co\\-writer(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/co\\-writer(?:/)?$"
+    },
+    {
+      "page": "/daily",
+      "regex": "^/daily(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/daily(?:/)?$"
     },
     {
       "page": "/knowledge",

@@ -1,0 +1,6 @@
+short_description: "按 memory_search / memory_index 返回的 ref 读取完整内容。"
+when_to_use: "检索之后，当某条摘要片段显示这一项确实相关、你需要知道它究竟说了什么时调用。"
+input_format: "refs：ref 数组——`L1:chat:<session_id>`（一整段对话）、`T1:<surface>:<trace_id>`（一条事件）、`L2:<surface>`、`L3:<slot>`。可以一次传多个。"
+guideline: "只读真正相关的那几个 ref，不要把检索结果全读一遍——一整段对话可能很长。每个 ref 独立解析，所以个别 ref 写错只会单独报错，不影响其他。"
+note: "ref 必须来自 memory_search / memory_index，不要用猜测的 id 自己拼。"
+phase: "exploration"

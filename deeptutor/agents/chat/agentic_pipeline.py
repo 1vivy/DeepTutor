@@ -57,11 +57,26 @@ from deeptutor.services.llm import (
 from deeptutor.services.llm.context_window import resolve_effective_context_window
 from deeptutor.services.prompt import get_prompt_manager
 from deeptutor.tools.builtin import PARTNER_BUILTIN_TOOL_NAMES
+from deeptutor.tools.subagent_capability import SUBAGENT_CAPABILITY_TOOL_NAMES
 
 logger = logging.getLogger(__name__)
 
-# Chat memory tools a partner turn replaces with the partner_* variants.
-_PARTNER_SUPPRESSED_TOOLS: tuple[str, ...] = ("read_memory", "write_memory")
+# Chat memory tools a partner turn replaces with the partner_* variants. The
+# layered-access trio goes too: a partner reaches memory through its own
+# workspace-scoped tools, and mounting both would give one turn two different
+# answers to "what do you remember".
+_PARTNER_SUPPRESSED_TOOLS: tuple[str, ...] = (
+    "read_memory",
+    "write_memory",
+    "memory_index",
+    "memory_search",
+    "memory_read",
+)
+
+
+def _is_subagent_turn(context: UnifiedContext) -> bool:
+    """Whether this turn is itself running as somebody's delegated subagent."""
+    return bool((context.metadata or {}).get("_subagent_depth"))
 
 
 CHAT_EXCLUDED_TOOLS: set[str] = set()
@@ -324,6 +339,12 @@ class AgenticChatPipeline:
         return self.respond_max_tokens
 
     async def run(self, context: UnifiedContext, stream: StreamBus) -> None:
+        # Held for the whole turn so tools that need to emit into it — the
+        # delegation tool, which runs a child capability against this very bus
+        # so its progress shows up in the Activity panel — can be handed it via
+        # ``_augment_tool_kwargs``, which the dispatcher calls without a stream.
+        # A pipeline instance is constructed per turn, so this is turn-scoped.
+        self._turn_stream = stream
         await self._prepare_deferred_tools(context)
         await self._prepare_kb_manifests(context)
         self._exec_enabled = await self._exec_allowed(context)
@@ -622,7 +643,14 @@ class AgenticChatPipeline:
             # (own workspace writable, owner's memory read-only) lives in those
             # tools, not in chat's.
             forced=PARTNER_BUILTIN_TOOL_NAMES if is_partner else (),
-            suppressed=_PARTNER_SUPPRESSED_TOOLS if is_partner else (),
+            suppressed=(
+                (_PARTNER_SUPPRESSED_TOOLS if is_partner else ())
+                # A subagent must not delegate further. The tool refuses at call
+                # time as well, but not offering it is better than offering it
+                # and rejecting: the model never spends a round discovering the
+                # limit.
+                + (SUBAGENT_CAPABILITY_TOOL_NAMES if _is_subagent_turn(context) else ())
+            ),
         )
         return _drop_unconfigured_generation_tools(composed)
 
@@ -1015,6 +1043,15 @@ class AgenticChatPipeline:
                     "session_id": context.session_id,
                     "language": context.language or "en",
                 }
+        elif tool_name == "run_subagent":
+            # Server-owned, all three: the model names a capability and a goal,
+            # and the runtime decides which turn it runs inside. Passing the
+            # turn's own stream is what makes the child's work visible in the
+            # Activity panel; passing the parent context is what keeps the child
+            # inside this user's scope and grant.
+            kwargs["_parent_context"] = context
+            kwargs["_stream"] = getattr(self, "_turn_stream", None)
+            kwargs["_usage"] = self.usage
         elif tool_name in {"reason", "brainstorm"}:
             kwargs.setdefault("context", context.user_message)
         elif tool_name == "paper_search":

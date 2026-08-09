@@ -12,6 +12,7 @@ import {
   Lock,
   PanelLeftClose,
   PanelLeftOpen,
+  Plus,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import SessionList from "@/components/SessionList";
@@ -22,12 +23,11 @@ import type { SessionSummary } from "@/lib/session-api";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { useCapabilityAccess } from "@/components/access/CapabilityAccessContext";
 import { useTutorDueCount } from "@/hooks/useTutorDueCount";
+import { WorkspaceSwitcher } from "@/components/sidebar/WorkspaceSwitcher";
 import {
   chatPathForMode,
+  modeCoversPath,
   navForMode,
-  MODE_ICON,
-  MODE_LABEL,
-  WORKSPACE_MODES,
   type NavEntry,
   type WorkspaceMode,
 } from "@/lib/workspace-mode";
@@ -94,6 +94,9 @@ export function SidebarShell({
 
   const navLocked = (item: NavEntry) =>
     item.requires ? !has(item.requires) : false;
+  // Chatting needs a model, so the New chat action carries the same grant gate
+  // the chat-root nav rows used to.
+  const newChatLocked = !has("llm");
   const lockedTooltip = t("Locked — contact your administrator to get access.");
   const renderedFooter =
     typeof footerSlot === "function" ? footerSlot(collapsed) : footerSlot;
@@ -130,14 +133,25 @@ export function SidebarShell({
     router.push(chatPathForMode(mode));
   };
 
-  // Switching workspace lands on that workspace's chat root rather than trying
-  // to hold the current route: the two modes do not share a page inventory, so
-  // "stay where you are" would often mean staying somewhere the new sidebar
-  // has no entry for.
+  // The New chat action, for workspaces that offer no chat-root nav row.
+  // Lands on the empty chat route; the page rewrites the URL to the session's
+  // own path once the first message binds a session.
+  const handleNewChatClick = () => {
+    drawer?.close();
+    onNewChat?.();
+    router.push(chatPathForMode(mode));
+  };
+
+  // Switching workspace holds the current page whenever the destination
+  // sidebar has an entry covering it — Book, Knowledge Center, Settings and the
+  // Learning Space routes are in both tables, and being bounced to a chat root
+  // from one of them throws away the page for nothing. Only a route the new
+  // workspace genuinely cannot show falls back to its chat root.
   const switchMode = (next: WorkspaceMode) => {
     if (next === mode) return;
     drawer?.close();
     setMode(next);
+    if (modeCoversPath(next, pathname)) return;
     onNewChat?.();
     router.push(chatPathForMode(next));
   };
@@ -173,38 +187,49 @@ export function SidebarShell({
           </button>
         </div>
 
-        {/* Workspace switcher — icon pair on the rail */}
-        <div className="mb-1 flex w-full flex-col items-center gap-0.5 px-1.5">
-          {WORKSPACE_MODES.map((entry) => {
-            const Icon = MODE_ICON[entry];
-            const isActive = entry === mode;
-            return (
-              <Tooltip
-                key={entry}
-                label={t(MODE_LABEL[entry])}
-                side="right"
-              >
-                <button
-                  type="button"
-                  onClick={() => switchMode(entry)}
-                  aria-current={isActive ? "page" : undefined}
-                  aria-label={t(MODE_LABEL[entry]) as string}
-                  className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-150 ${
-                    isActive
-                      ? "bg-[var(--background)] text-[var(--foreground)] shadow-sm"
-                      : "text-[var(--muted-foreground)]/70 hover:bg-[var(--background)]/50 hover:text-[var(--foreground)]"
-                  }`}
-                >
-                  <Icon size={16} strokeWidth={isActive ? 2 : 1.6} />
-                </button>
-              </Tooltip>
-            );
-          })}
+        {/* Workspace switcher — the same control as the expanded sidebar,
+            stacked and label-less. It carries its own track, so the rail needs
+            no extra rule between it and the nav. */}
+        {/* w-9 matches the rail's nav buttons, so the track lines up with the
+            column of icons below it rather than bulging past it. */}
+        <div className="mb-2 w-9">
+          <WorkspaceSwitcher
+            mode={mode}
+            onSelect={switchMode}
+            orientation="vertical"
+          />
         </div>
-        <div className="mb-1 h-px w-7 bg-[var(--border)]/40" />
+
+        {/* Same action as the expanded rail's, reduced to its glyph. */}
+        <div className="mb-1.5">
+          <Tooltip
+            label={t("New chat")}
+            description={newChatLocked ? lockedTooltip : undefined}
+            side="right"
+          >
+            {newChatLocked ? (
+              <div
+                aria-label={`${t("New chat")} — ${lockedTooltip}`}
+                aria-disabled
+                className="relative flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-xl text-[var(--muted-foreground)]/40"
+              >
+                <Plus size={18} strokeWidth={1.7} />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleNewChatClick}
+                aria-label={t("New chat")}
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-[var(--foreground)] transition-colors hover:bg-[var(--secondary)]"
+              >
+                <Plus size={18} strokeWidth={1.7} />
+              </button>
+            )}
+          </Tooltip>
+        </div>
 
         {/* Primary nav */}
-        <nav className="mt-1 flex w-full flex-col items-center gap-1 px-1.5">
+        <nav className="flex w-full flex-col items-center gap-1 px-1.5">
           {primaryNav.map((item) => {
             const active = pathname.startsWith(item.href);
             const locked = navLocked(item);
@@ -269,7 +294,7 @@ export function SidebarShell({
 
         {/* Secondary nav + footer */}
         <div className="flex w-full flex-col items-center gap-1 px-1.5">
-          <div className="my-1 h-px w-7 bg-[var(--border)]/40" />
+          <div className="my-1 h-px w-7 bg-[color-mix(in_srgb,var(--border)_60%,transparent)]" />
           {secondaryNav.map((item) => {
             const active = pathname.startsWith(item.href);
             return (
@@ -348,36 +373,41 @@ export function SidebarShell({
       </div>
 
       {/* Workspace switcher — the General / Tutor split */}
-      <div
-        role="tablist"
-        aria-label={t("Workspace") as string}
-        className="mx-2 mb-1 flex gap-0.5 rounded-lg bg-[var(--background)]/45 p-0.5"
-      >
-        {WORKSPACE_MODES.map((entry) => {
-          const Icon = MODE_ICON[entry];
-          const isActive = entry === mode;
-          return (
-            <button
-              key={entry}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              onClick={() => switchMode(entry)}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-[7px] px-2 py-1.5 text-[12.5px] transition-all duration-150 ${
-                isActive
-                  ? "bg-[var(--secondary)] font-medium text-[var(--foreground)] shadow-sm"
-                  : "text-[var(--muted-foreground)]/75 hover:text-[var(--foreground)]"
-              }`}
+      <div className="mx-2 mb-2.5">
+        <WorkspaceSwitcher mode={mode} onSelect={switchMode} />
+      </div>
+
+      {/* Starting a conversation is an action, not a destination, so it sits
+          between the switcher and the nav rather than among the pages. It also
+          reads as "new chat in the workspace I just picked", which is exactly
+          what it does. */}
+      <div className="mx-2 mb-1.5">
+        {newChatLocked ? (
+          <Tooltip label={t("New chat")} description={lockedTooltip} side="right">
+            <div
+              aria-label={`${t("New chat")} — ${lockedTooltip}`}
+              aria-disabled
+              className="flex cursor-not-allowed items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] text-[var(--muted-foreground)]/40"
             >
-              <Icon size={14} strokeWidth={isActive ? 1.9 : 1.5} />
-              <span>{t(MODE_LABEL[entry])}</span>
-            </button>
-          );
-        })}
+              <Plus size={16} strokeWidth={1.8} />
+              <span>{t("New chat")}</span>
+              <Lock size={13} strokeWidth={1.8} className="ml-auto" />
+            </div>
+          </Tooltip>
+        ) : (
+          <button
+            type="button"
+            onClick={handleNewChatClick}
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--secondary)]"
+          >
+            <Plus size={16} strokeWidth={1.8} />
+            <span>{t("New chat")}</span>
+          </button>
+        )}
       </div>
 
       {/* Primary nav */}
-      <nav className="px-2 pt-1">
+      <nav className="px-2">
         <div className="space-y-px">
           {primaryNav.map((item) => {
             const active = pathname.startsWith(item.href);

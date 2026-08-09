@@ -338,6 +338,7 @@ from deeptutor.api.routers import (
     space_mcp,
     subagents,
     system,
+    tutor,
     unified_ws,
     voice,
 )
@@ -384,6 +385,7 @@ app.include_router(
     tags=["mastery-path"],
     dependencies=_auth,
 )
+app.include_router(tutor.router, prefix="/api/v1/tutor", tags=["tutor"], dependencies=_auth)
 app.include_router(
     co_writer.router, prefix="/api/v1/co_writer", tags=["co_writer"], dependencies=_auth
 )

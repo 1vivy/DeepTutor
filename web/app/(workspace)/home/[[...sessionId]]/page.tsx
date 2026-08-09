@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import {
   type KeyboardEvent,
   useCallback,
@@ -12,6 +13,7 @@ import {
 import { useParams, useRouter } from "next/navigation";
 
 import {
+  ArrowRight,
   BarChart3,
   BrainCircuit,
   Clapperboard,
@@ -43,7 +45,8 @@ import SessionLoadingView from "@/components/chat/home/SessionLoadingView";
 // render. The heavy renderers inside still load lazily.
 import FilePreviewDrawer from "@/components/chat/preview/FilePreviewDrawer";
 import { buildSessionActivity } from "@/components/chat/home/SessionActivityPanel";
-import TutorToday from "@/components/tutor/TutorToday";
+import TutorGreeting from "@/components/tutor/TutorGreeting";
+import { takeStagedPrompt } from "@/lib/composer-handoff";
 import { chatPathForMode } from "@/lib/workspace-mode";
 import {
   ALL_TOOLS,
@@ -491,6 +494,25 @@ export default function ChatPage() {
     };
     window.addEventListener("dt:visualize-prompt", onVizPrompt);
     return () => window.removeEventListener("dt:visualize-prompt", onVizPrompt);
+  }, [handlePrefillComposer]);
+
+  // A row on /daily can start a conversation about itself. It cannot reach this
+  // composer directly — the composer does not exist during that navigation — so
+  // the text waits in sessionStorage and is claimed here, once. Deliberately
+  // only prefilled, never sent: the wording came from a dashboard row, so the
+  // learner gets to edit or drop it.
+  useEffect(() => {
+    const staged = takeStagedPrompt();
+    if (!staged) return;
+    // The composer registers its prefill handle in its own effect. Children
+    // mount before parents, so it is normally ready by now; the frame gives it
+    // one more tick if the composer was still suspended.
+    if (prefillInputRef.current) {
+      handlePrefillComposer(staged);
+      return;
+    }
+    const frame = requestAnimationFrame(() => handlePrefillComposer(staged));
+    return () => cancelAnimationFrame(frame);
   }, [handlePrefillComposer]);
 
   // Resolved within the active workspace, so each mode offers its own list and
@@ -1894,28 +1916,44 @@ export default function ChatPage() {
                 </div>
               </div>
             ) : !hasMessages ? (
-              // The two workspaces differ most here. General is demand-driven,
-              // so it opens on a greeting and an empty composer; Tutor is
-              // state-driven and opens on what is actually due.
-              mode === "tutor" ? (
-                <TutorToday onPick={handlePrefillComposer} />
-              ) : (
-                <div className="flex w-full flex-1 min-h-0 items-end justify-center pb-14 animate-fade-in px-6">
-                  <div className="w-full max-w-[960px] flex items-center justify-center gap-4">
-                    <img
-                      src="/logo_black.png"
-                      alt="DeepTutor"
-                      width={40}
-                      height={40}
-                      className="h-10 w-10 select-none"
-                      draggable={false}
-                    />
-                    <h1 className="font-serif text-[40px] font-medium leading-[1.1] tracking-[-0.015em] text-[var(--foreground)]">
-                      {t(welcomeGreeting)}
-                    </h1>
-                  </div>
+              // Both workspaces open on a greeting sitting just above the
+              // composer. The learner's activity used to render here for
+              // Tutor, but a dashboard cannot share a viewport with a floating
+              // composer — anything past the second section slid underneath it.
+              // It has its own route now (``/daily``), and this keeps a link to
+              // it instead of a copy of it.
+              <div className="flex w-full flex-1 min-h-0 items-end justify-center pb-14 animate-fade-in px-6">
+                <div className="w-full max-w-[760px] flex flex-col items-center gap-3">
+                  {mode === "tutor" ? (
+                    // Generated from the learner's recent work rather than the
+                    // clock — see components/tutor/TutorGreeting.
+                    <TutorGreeting />
+                  ) : (
+                    <div className="flex items-center justify-center gap-4">
+                      <img
+                        src="/logo_black.png"
+                        alt="DeepTutor"
+                        width={40}
+                        height={40}
+                        className="h-10 w-10 select-none"
+                        draggable={false}
+                      />
+                      <h1 className="font-serif text-[40px] font-medium leading-[1.1] tracking-[-0.015em] text-[var(--foreground)]">
+                        {t(welcomeGreeting)}
+                      </h1>
+                    </div>
+                  )}
+                  {mode === "tutor" ? (
+                    <Link
+                      href="/daily"
+                      className="inline-flex items-center gap-1.5 text-[13px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+                    >
+                      {t("See what is due and what you have been doing")}
+                      <ArrowRight size={13} strokeWidth={1.8} />
+                    </Link>
+                  ) : null}
                 </div>
-              )
+              </div>
             ) : (
               // Positioned wrapper spanning exactly the scrollport, so the
               // turn navigator can overlay the left gutter without living

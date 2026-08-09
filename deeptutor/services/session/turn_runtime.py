@@ -1892,6 +1892,16 @@ class TurnRuntimeManager:
                         with contextlib.suppress(asyncio.QueueFull):
                             subscriber.queue.put_nowait(None)
                     self._executions.pop(turn_id, None)
+            # The turn just changed the workspace (a new session, new messages,
+            # possibly quiz rows). Let memory reconcile itself in the
+            # background instead of waiting for someone to press Refresh in
+            # the Memory workbench. Cost, cadence and the manual/auto switch
+            # all live in the autopilot; this call only reports that something
+            # happened, and never raises.
+            from deeptutor.services.memory.autopilot import schedule_upkeep
+
+            schedule_upkeep(reason="chat_turn")
+
             # A turn may have parsed large attachments or built substantial
             # temporary prompts/results. Reclaim after this coroutine returns,
             # outside the user-visible streaming path.

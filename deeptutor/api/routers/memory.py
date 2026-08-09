@@ -762,6 +762,26 @@ async def refresh_snapshot(surface: str):
     }
 
 
+@router.post("/upkeep")
+async def run_upkeep_now():
+    """Reconcile every surface's mirror right now, ignoring the debounce.
+
+    The automatic path already runs after each turn; this is the Settings
+    page's "sync now" affordance and a way to verify the switch took effect
+    without waiting for the next conversation. Consolidation still obeys its
+    own switch and threshold — this never starts an unrequested LLM run.
+    """
+    from deeptutor.services.memory.autopilot import run_upkeep
+
+    report = await run_upkeep(reason="manual", force=True)
+    return {
+        "surfaces_refreshed": list(report.surfaces_refreshed),
+        "changes": report.changes,
+        "consolidations_started": list(report.consolidations_started),
+        "skipped": report.skipped,
+    }
+
+
 @router.get("/snapshot/{surface}/changes")
 async def get_changes(surface: str, limit: int = 200, offset: int = 0):
     surf = _validate_surface(surface)

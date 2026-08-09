@@ -1,0 +1,6 @@
+short_description: "列出该用户记忆里有什么：哪些 surface 有活动、哪些整合文档存在、各自有多旧。"
+when_to_use: "在检索之前、你还不确定相关材料在哪一层哪个 surface 时调用；或者需要判断某个 surface 到底有没有内容时调用。"
+input_format: "无参数。返回每个 surface 的 L1（工作区镜像）与 T1（原始事件）数量和新旧程度，以及 L2/L3 文档的条目数与积压量。"
+guideline: "它不读内容，所以很便宜——但它只是定位，不是答案。看完之后对有希望的 surface 调用 memory_search。"
+note: "L1 里没出现的 surface 只是还没有记录任何活动。"
+phase: "exploration"

@@ -15,6 +15,10 @@ from deeptutor.core.tool_protocol import BaseTool, ToolDefinition, ToolParameter
 from deeptutor.knowledge.manifest import KB_FILES_DEFAULT_LIMIT, KB_FILES_MAX_LIMIT
 from deeptutor.tools.exec_tool import ExecTool
 from deeptutor.tools.media_gen_tool import ImagegenTool, VideogenTool
+from deeptutor.tools.memory_access import (
+    MEMORY_ACCESS_TOOL_NAMES,
+    MEMORY_ACCESS_TOOL_TYPES,
+)
 from deeptutor.tools.partner_memory import (
     PARTNER_BUILTIN_TOOL_NAMES,
     PartnerMemorizeTool,
@@ -22,6 +26,10 @@ from deeptutor.tools.partner_memory import (
     PartnerSearchTool,
 )
 from deeptutor.tools.prompting import load_prompt_hints
+from deeptutor.tools.subagent_capability import (
+    SUBAGENT_CAPABILITY_TOOL_NAMES,
+    SUBAGENT_CAPABILITY_TOOL_TYPES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1570,6 +1578,14 @@ BUILTIN_TOOL_TYPES: tuple[type[BaseTool], ...] = (
     ReadSourceTool,
     ReadMemoryTool,
     WriteMemoryTool,
+    # Layered memory access: index / search / read across L1 (workspace
+    # mirror), T1 (raw event trace) and the consolidated L2 / L3 documents.
+    # ``read_memory`` stays what it is — the L3 digest — and these answer the
+    # questions it structurally cannot ("when", "which one", "show me that").
+    *MEMORY_ACCESS_TOOL_TYPES,
+    # Delegation: every deep mode becomes a subagent the agent can hand a goal
+    # to, instead of a mode the user must pick before typing.
+    *SUBAGENT_CAPABILITY_TOOL_TYPES,
     ReadSkillTool,
     LoadToolsTool,
     ExecTool,
@@ -1651,6 +1667,8 @@ CONFIGURABLE_BUILTIN_TOOL_NAMES: tuple[str, ...] = (
     "read_source",
     "read_memory",
     "write_memory",
+    *MEMORY_ACCESS_TOOL_NAMES,
+    *SUBAGENT_CAPABILITY_TOOL_NAMES,
     "read_skill",
     "list_notebook",
     "write_note",

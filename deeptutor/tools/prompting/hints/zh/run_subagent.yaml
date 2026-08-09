@@ -1,0 +1,6 @@
+short_description: "把一个自包含的目标委派给专门的 capability（research / quiz / visualize / solve / mastery / chat），它会跑自己的 loop 并回报结果。"
+when_to_use: "当这项工作确实需要另一种模式时：大范围文献扫描、渲染图表或动画、生成测验题、多步求解、推进掌握路径。你能直接回答的事情不要委派——委派会完整跑一次嵌套流程，成本不低。"
+input_format: "capability（从列出的 subagent 中选一个）+ goal（完整、独立的指令）。subagent 看不到当前这段对话，所以它需要的信息必须全写进 goal。"
+guideline: "一个需求委派一次，读完结果再判断要不要继续委派。用户会在 Activity 面板里看到它的执行过程，所以调用前先说明你为什么要委派。把 subagent 的结果融进你自己的回答——不要原文照贴。"
+note: "subagent 不能向学习者提问，也不能再往下委派。如果它回报说需要用户输入，你自己去问，然后把答案写进 goal 重新委派。"
+phase: "exploration"

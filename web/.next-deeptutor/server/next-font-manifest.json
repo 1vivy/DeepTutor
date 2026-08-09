@@ -216,6 +216,10 @@
       "static/media/caa3a2e1cccd8315-s.p.09~u27dqhyhd6.woff2",
       "static/media/8c2eb9ceedecfc8e-s.p.0oeo8epbafgia.woff2"
     ],
+    "[project]/app/(workspace)/daily/page": [
+      "static/media/caa3a2e1cccd8315-s.p.09~u27dqhyhd6.woff2",
+      "static/media/8c2eb9ceedecfc8e-s.p.0oeo8epbafgia.woff2"
+    ],
     "[project]/app/(workspace)/home/[[...sessionId]]/page": [
       "static/media/caa3a2e1cccd8315-s.p.09~u27dqhyhd6.woff2",
       "static/media/8c2eb9ceedecfc8e-s.p.0oeo8epbafgia.woff2"
@@ -237,6 +241,10 @@
       "static/media/8c2eb9ceedecfc8e-s.p.0oeo8epbafgia.woff2"
     ],
     "[project]/app/(workspace)/playground/page": [
+      "static/media/caa3a2e1cccd8315-s.p.09~u27dqhyhd6.woff2",
+      "static/media/8c2eb9ceedecfc8e-s.p.0oeo8epbafgia.woff2"
+    ],
+    "[project]/app/(workspace)/tutor/[[...sessionId]]/page": [
       "static/media/caa3a2e1cccd8315-s.p.09~u27dqhyhd6.woff2",
       "static/media/8c2eb9ceedecfc8e-s.p.0oeo8epbafgia.woff2"
     ],
