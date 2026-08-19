@@ -96,6 +96,19 @@ def _resolve_turn_id(kwargs: dict[str, Any]) -> str:
     return str(kwargs.get("_turn_id") or "").strip()
 
 
+_DIFFICULTIES = ("easy", "medium", "hard")
+
+
+def _normalize_difficulty(raw: Any) -> str:
+    """Map the model's difficulty onto the bank's badge values, or drop it.
+
+    An unrecognised value is discarded rather than rejected: a mislabelled
+    difficulty must never cost the learner a question.
+    """
+    value = str(raw or "").strip().lower()
+    return value if value in _DIFFICULTIES else ""
+
+
 def _question_bank_type(question_type: str) -> str:
     qtype = str(question_type or "").strip().lower()
     if qtype == "choice":
@@ -208,8 +221,10 @@ async def _sync_mastery_attempt_to_question_bank(
         "question_type": _question_bank_type(pending.question_type),
         "options": choice_options or parse_options(list(pending.options or [])),
         "correct_answer": correct_answer or pending.expected_answer,
-        "explanation": "",
-        "difficulty": "",
+        # Carried from mastery_quiz. Without these the bank held a bare
+        # right/wrong for every mastery attempt — reviewable only as a score.
+        "explanation": pending.explanation,
+        "difficulty": pending.difficulty,
         "user_answer": user_answer,
         "is_correct": is_correct,
     }
@@ -406,6 +421,28 @@ class MasteryQuizTool(BaseTool):
                     required=False,
                     items={"type": "string"},
                 ),
+                ToolParameter(
+                    name="explanation",
+                    type="string",
+                    description=(
+                        "Why the expected answer is right, in one or two sentences. "
+                        "Held server-side like expected_answer — never shown on the "
+                        "card the learner is answering — and saved with the attempt "
+                        "so a wrong answer is reviewable later in their question "
+                        "bank instead of being just a score."
+                    ),
+                    required=False,
+                ),
+                ToolParameter(
+                    name="difficulty",
+                    type="string",
+                    description=(
+                        "How hard this question is for this learner right now. "
+                        "Shown as a badge when they review the attempt later."
+                    ),
+                    required=False,
+                    enum=list(_DIFFICULTIES),
+                ),
             ],
         )
 
@@ -446,6 +483,8 @@ class MasteryQuizTool(BaseTool):
             question_type=q_type,
             expected_answer=expected,
             options=options,
+            explanation=str(kwargs.get("explanation") or "").strip()[:2000],
+            difficulty=_normalize_difficulty(kwargs.get("difficulty")),
         )
         from deeptutor.learning.service import MasteryInteractionError
 
