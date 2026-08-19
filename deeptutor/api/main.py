@@ -244,23 +244,35 @@ app = FastAPI(
 )
 
 
-@app.exception_handler(Exception)
-async def unhandled_exception_handler(request: Request, exc: Exception):
-    """Catch-all so 500s always return JSON, never Starlette's plain-text body."""
-    logger.error(
-        "Unhandled exception on %s %s: %s",
-        request.method,
-        request.url.path,
-        exc,
-        exc_info=True,
-    )
-    return JSONResponse(
-        status_code=500,
-        content={
-            "detail": f"{type(exc).__name__}: {exc}",
-            "type": type(exc).__name__,
-        },
-    )
+@app.middleware("http")
+async def json_error_boundary(request: Request, call_next):
+    """Catch-all so 500s always return JSON, never Starlette's plain-text body.
+
+    Registered as a middleware rather than an ``@app.exception_handler``: a
+    handler for ``Exception`` is installed on Starlette's outermost
+    ``ServerErrorMiddleware``, so its response skips every middleware added
+    here — the 500 would carry no CORS headers (a cross-origin caller sees an
+    opaque CORS failure instead of this body) and would never reach the access
+    log below. Registered *before* ``CORSMiddleware``, this boundary sits
+    inside it, so the response travels back out through the normal stack.
+    """
+    try:
+        return await call_next(request)
+    except Exception as exc:
+        logger.error(
+            "Unhandled exception on %s %s: %s",
+            request.method,
+            request.url.path,
+            exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": f"{type(exc).__name__}: {exc}",
+                "type": type(exc).__name__,
+            },
+        )
 
 
 # Access logging is funneled through this one middleware. uvicorn's own
