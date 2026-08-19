@@ -3200,5 +3200,13 @@
   "Nothing in this view": "此视图下没有内容",
   "Switch to another filter to see your other questions.": "切换筛选条件查看其他题目。",
   "Showing {{shown}} of {{total}} — narrow the view to see the rest.": "已显示 {{shown}} / {{total}} 条 —— 缩小范围可查看其余。",
-  "Delete this category? The questions themselves stay in your bank.": "删除这个分类？题目本身会保留在题库里。"
+  "Delete this category? The questions themselves stay in your bank.": "删除这个分类？题目本身会保留在题库里。",
+  "Indexing": "索引",
+  "Applies the next time a knowledge base is built or rebuilt.": "下次构建或重建知识库时生效。",
+  "Files in parallel": "并行处理文件数",
+  "Higher finishes sooner but uses more memory": "调高更快完成，但占用更多内存",
+  "Concurrent LLM calls": "并发 LLM 调用数",
+  "Lower this if your provider rate-limits you": "如果提供商限流，请调低",
+  "Extra extraction passes": "额外抽取轮数",
+  "Recovers missed entities; each pass costs another call": "补捞漏掉的实体；每轮多消耗一次调用"
 }

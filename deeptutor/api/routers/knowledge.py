@@ -1374,7 +1374,7 @@ class LightRagConfigUpdate(BaseModel):
 
 @router.get("/rag-pipelines/lightrag/config")
 async def get_lightrag_pipeline_config():
-    """Read LightRAG's query knobs (top_k, response style)."""
+    """Read LightRAG's query knobs plus its indexing concurrency/extraction knobs."""
     try:
         from deeptutor.services.config import get_runtime_settings_service
 
@@ -1386,7 +1386,12 @@ async def get_lightrag_pipeline_config():
 
 @router.put("/rag-pipelines/lightrag/config")
 async def update_lightrag_pipeline_config(payload: LightRagConfigUpdate):
-    """Persist LightRAG's query knobs. Takes effect on the next query."""
+    """Persist LightRAG's knobs.
+
+    Query knobs (``top_k``, ``response_type``) take effect on the next query;
+    the indexing knobs shape how a KB is built, so they apply to the next
+    build or rebuild.
+    """
     try:
         from deeptutor.services.config import get_runtime_settings_service
 

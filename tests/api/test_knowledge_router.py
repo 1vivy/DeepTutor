@@ -1872,3 +1872,49 @@ def test_upload_progress_counts_completed_files_and_reports_reliable_stages(
         ("Saving metadata...", 1, 1),
         ("Successfully processed 1 files!", 1, 1),
     ]
+
+
+def test_lightrag_config_endpoint_round_trips_the_indexing_knobs(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """The contract the settings UI edits: GET exposes the knobs, PUT keeps them.
+
+    EngineDetail's LightRAG form reads every field off this payload and sends
+    all five back on save, so a field the router drops is a field the UI
+    silently cannot change.
+    """
+    from deeptutor.services.config.runtime_settings import RuntimeSettingsService
+
+    service = RuntimeSettingsService(tmp_path, process_env={})
+    monkeypatch.setattr(
+        "deeptutor.services.config.get_runtime_settings_service",
+        lambda: service,
+    )
+
+    client = TestClient(_build_app())
+
+    initial = client.get("/api/v1/knowledge/rag-pipelines/lightrag/config")
+    assert initial.status_code == 200
+    for key in ("top_k", "response_type", "max_concurrent_files", "llm_model_max_async"):
+        assert key in initial.json(), f"{key} missing from the payload the UI reads"
+
+    saved = client.put(
+        "/api/v1/knowledge/rag-pipelines/lightrag/config",
+        json={
+            "top_k": 42,
+            "response_type": "Single Paragraph",
+            "max_concurrent_files": 4,
+            "llm_model_max_async": 8,
+            "entity_extract_max_gleaning": 2,
+        },
+    )
+    assert saved.status_code == 200
+    assert saved.json()["max_concurrent_files"] == 4
+    assert saved.json()["llm_model_max_async"] == 8
+    assert saved.json()["entity_extract_max_gleaning"] == 2
+
+    # And they survive a reload rather than living only in the response.
+    again = client.get("/api/v1/knowledge/rag-pipelines/lightrag/config").json()
+    assert again["max_concurrent_files"] == 4
+    assert again["entity_extract_max_gleaning"] == 2
+    assert again["top_k"] == 42

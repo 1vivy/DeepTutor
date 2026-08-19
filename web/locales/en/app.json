@@ -3200,5 +3200,13 @@
   "Nothing in this view": "Nothing in this view",
   "Switch to another filter to see your other questions.": "Switch to another filter to see your other questions.",
   "Showing {{shown}} of {{total}} — narrow the view to see the rest.": "Showing {{shown}} of {{total}} — narrow the view to see the rest.",
-  "Delete this category? The questions themselves stay in your bank.": "Delete this category? The questions themselves stay in your bank."
+  "Delete this category? The questions themselves stay in your bank.": "Delete this category? The questions themselves stay in your bank.",
+  "Indexing": "Indexing",
+  "Applies the next time a knowledge base is built or rebuilt.": "Applies the next time a knowledge base is built or rebuilt.",
+  "Files in parallel": "Files in parallel",
+  "Higher finishes sooner but uses more memory": "Higher finishes sooner but uses more memory",
+  "Concurrent LLM calls": "Concurrent LLM calls",
+  "Lower this if your provider rate-limits you": "Lower this if your provider rate-limits you",
+  "Extra extraction passes": "Extra extraction passes",
+  "Recovers missed entities; each pass costs another call": "Recovers missed entities; each pass costs another call"
 }
