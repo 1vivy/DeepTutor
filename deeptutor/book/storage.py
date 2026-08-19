@@ -21,7 +21,6 @@ Layout (relative to ``data/user/workspace/book/``)::
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, timezone
 import json
 import logging
@@ -92,10 +91,20 @@ def _read_json(path: Path) -> Any | None:
 
 
 class BookStorage:
-    """Async-friendly wrapper around the on-disk book layout."""
+    """Wrapper around the on-disk book layout.
 
-    def __init__(self) -> None:
-        self._lock = asyncio.Lock()
+    Every method here is synchronous and every write goes through an atomic
+    replace, and that is what keeps the read-modify-write helpers below (e.g.
+    :meth:`upsert_learning_capture`) safe: DeepTutor serves from a single
+    process, so a sync call from an ``async def`` route holds the event loop for
+    its whole duration and cannot interleave with another request.
+
+    That invariant is the thing to preserve. A read-modify-write helper must not
+    ``await`` between its read and its write — and if this store ever moves to
+    ``asyncio.to_thread`` or a multi-worker server, these helpers need real
+    locking before it does. (There used to be an ``asyncio.Lock`` here that
+    nothing ever acquired, which read as protection that was not present.)
+    """
 
     @property
     def path_service(self):
