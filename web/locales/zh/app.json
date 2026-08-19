@@ -3183,5 +3183,22 @@
   "Drag to resize · double-click to reset": "拖动调整宽度 · 双击恢复默认",
   "Available only after every stale page has been recompiled.": "只有所有过期页面重新编译完成后才能使用。",
   "Mark as seen anyway": "仍然标记为已读",
-  "Dismiss the warning without recompiling those pages.": "不重新编译这些页面，直接忽略该提示。"
+  "Dismiss the warning without recompiling those pages.": "不重新编译这些页面，直接忽略该提示。",
+  "Add to category": "归入分类",
+  "No categories yet. Type a name below to create one.": "还没有分类。在下方输入名称即可新建。",
+  "New category…": "新建分类…",
+  "Create and add": "新建并归入",
+  "Search questions and answers…": "搜索题目和答案…",
+  "Toggle sort order": "切换排序",
+  "Newest first": "最新在前",
+  "Oldest first": "最早在前",
+  "Unfiled": "未归类",
+  "No matching questions": "没有匹配的题目",
+  "Try a different word, or clear the search to see everything.": "换个关键词，或清空搜索查看全部。",
+  "Everything is filed": "全部已归类",
+  "No questions are waiting to be sorted into a category.": "没有待归类的题目了。",
+  "Nothing in this view": "此视图下没有内容",
+  "Switch to another filter to see your other questions.": "切换筛选条件查看其他题目。",
+  "Showing {{shown}} of {{total}} — narrow the view to see the rest.": "已显示 {{shown}} / {{total}} 条 —— 缩小范围可查看其余。",
+  "Delete this category? The questions themselves stay in your bank.": "删除这个分类？题目本身会保留在题库里。"
 }

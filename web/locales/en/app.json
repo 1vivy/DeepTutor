@@ -3183,5 +3183,22 @@
   "Drag to resize · double-click to reset": "Drag to resize · double-click to reset",
   "Available only after every stale page has been recompiled.": "Available only after every stale page has been recompiled.",
   "Mark as seen anyway": "Mark as seen anyway",
-  "Dismiss the warning without recompiling those pages.": "Dismiss the warning without recompiling those pages."
+  "Dismiss the warning without recompiling those pages.": "Dismiss the warning without recompiling those pages.",
+  "Add to category": "Add to category",
+  "No categories yet. Type a name below to create one.": "No categories yet. Type a name below to create one.",
+  "New category…": "New category…",
+  "Create and add": "Create and add",
+  "Search questions and answers…": "Search questions and answers…",
+  "Toggle sort order": "Toggle sort order",
+  "Newest first": "Newest first",
+  "Oldest first": "Oldest first",
+  "Unfiled": "Unfiled",
+  "No matching questions": "No matching questions",
+  "Try a different word, or clear the search to see everything.": "Try a different word, or clear the search to see everything.",
+  "Everything is filed": "Everything is filed",
+  "No questions are waiting to be sorted into a category.": "No questions are waiting to be sorted into a category.",
+  "Nothing in this view": "Nothing in this view",
+  "Switch to another filter to see your other questions.": "Switch to another filter to see your other questions.",
+  "Showing {{shown}} of {{total}} — narrow the view to see the rest.": "Showing {{shown}} of {{total}} — narrow the view to see the rest.",
+  "Delete this category? The questions themselves stay in your bank.": "Delete this category? The questions themselves stay in your bank."
 }
