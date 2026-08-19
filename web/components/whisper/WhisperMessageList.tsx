@@ -30,7 +30,9 @@ function showSource(source?: string): boolean {
   return source !== "whisper_visitor" && source !== "whisper_trainee";
 }
 
-function useMarkdown(msg: WhisperMessage): boolean {
+// A plain predicate, not a React hook. Under a `use` prefix it read as one, and
+// calling it inside the map below tripped react-hooks/rules-of-hooks.
+function rendersMarkdown(msg: WhisperMessage): boolean {
   return msg.role !== "user" && msg.role !== "system";
 }
 
@@ -85,7 +87,7 @@ export default function WhisperMessageList({
           >
             <div
               className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-6 ${bubbleClass(msg)} ${
-                useMarkdown(msg) ? "" : "whitespace-pre-wrap"
+                rendersMarkdown(msg) ? "" : "whitespace-pre-wrap"
               }`}
             >
               {showMeta && (
@@ -101,7 +103,7 @@ export default function WhisperMessageList({
                   {msg.localSeat && <span>· you ({msg.localSeat})</span>}
                 </div>
               )}
-              {useMarkdown(msg) ? (
+              {rendersMarkdown(msg) ? (
                 <MarkdownRenderer
                   content={msg.text}
                   variant="compact"

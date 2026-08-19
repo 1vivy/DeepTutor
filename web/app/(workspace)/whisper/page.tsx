@@ -139,7 +139,9 @@ export default function WhisperPage() {
       setConnected(false);
     });
     clientRef.current = client;
-    setConnected(false);
+    // No reset needed here: `connected` starts false and the client's onClose
+    // above owns clearing it. Setting it synchronously in the effect only
+    // cascaded a render.
     client.connect();
 
     // Poll readyState until open (UnifiedWSClient has no onOpen hook).
