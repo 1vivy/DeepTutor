@@ -8,6 +8,7 @@ import pytest
 
 from deeptutor.core.capability_protocol import BaseCapability, CapabilityManifest
 from deeptutor.core.context import UnifiedContext
+import deeptutor.core.entry_points as ep_module
 from deeptutor.core.stream_bus import StreamBus
 
 
@@ -33,7 +34,7 @@ def test_discover_plugins_from_capability_class(monkeypatch):
         assert group == "deeptutor.plugins"
         return [_ep("demo_cap", lambda: _DemoCapability)]
 
-    monkeypatch.setattr(loader, "entry_points", fake_entry_points)
+    monkeypatch.setattr(ep_module, "entry_points", fake_entry_points)
 
     manifests = loader.discover_plugins()
     assert len(manifests) == 1
@@ -57,7 +58,7 @@ def test_discover_skips_broken_entry_points(monkeypatch):
             _ep("demo_cap", lambda: _DemoCapability),
         ]
 
-    monkeypatch.setattr(loader, "entry_points", fake_entry_points)
+    monkeypatch.setattr(ep_module, "entry_points", fake_entry_points)
     manifests = loader.discover_plugins()
     assert [m.name for m in manifests] == ["demo_cap"]
 
@@ -66,7 +67,7 @@ def test_load_plugin_capability_instantiates(monkeypatch):
     from deeptutor.plugins import loader
 
     monkeypatch.setattr(
-        loader,
+        ep_module,
         "entry_points",
         lambda *, group: [_ep("demo_cap", lambda: _DemoCapability)],
     )
@@ -102,7 +103,7 @@ def test_discover_from_manifest_factory(monkeypatch):
         )
 
     monkeypatch.setattr(
-        loader,
+        ep_module,
         "entry_points",
         lambda *, group: [_ep("from_factory", factory)],
     )
@@ -117,7 +118,7 @@ def test_capability_registry_loads_plugins(monkeypatch):
     from deeptutor.runtime.registry import capability_registry as cr
 
     monkeypatch.setattr(
-        loader,
+        ep_module,
         "entry_points",
         lambda *, group: [_ep("demo_cap", lambda: _DemoCapability)],
     )

@@ -14,12 +14,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import importlib
-from importlib.metadata import entry_points
 import inspect
 import logging
 from typing import Any
 
 from deeptutor.core.capability_protocol import BaseCapability
+from deeptutor.core.entry_points import load_entry_point_group
 
 logger = logging.getLogger(__name__)
 
@@ -41,30 +41,7 @@ class PluginManifest:
 
 def discover_plugins() -> list[PluginManifest]:
     """Discover plugins registered via ``deeptutor.plugins`` entry points."""
-    manifests: list[PluginManifest] = []
-    try:
-        eps = entry_points(group=ENTRY_POINT_GROUP)
-    except TypeError:
-        # Python <3.10 style Selection / dict API
-        all_eps = entry_points()
-        if isinstance(all_eps, dict):
-            eps = all_eps.get(ENTRY_POINT_GROUP, [])
-        else:
-            eps = all_eps.select(group=ENTRY_POINT_GROUP)
-
-    for ep in eps:
-        try:
-            loaded = ep.load()
-            manifest = _coerce_manifest(ep.name, loaded)
-            if manifest is not None:
-                manifests.append(manifest)
-        except Exception:
-            logger.warning(
-                "Failed to load plugin entry point %r; skipping.",
-                getattr(ep, "name", ep),
-                exc_info=True,
-            )
-    return manifests
+    return load_entry_point_group(ENTRY_POINT_GROUP, _coerce_manifest, log=logger)
 
 
 def load_plugin_capability(manifest: PluginManifest) -> BaseCapability | None:

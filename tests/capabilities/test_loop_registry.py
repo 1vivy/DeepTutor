@@ -8,6 +8,7 @@ import pytest
 
 from deeptutor.capabilities.registry import LOOP_CAPABILITIES, discover_external_loop_capabilities
 from deeptutor.core.context import UnifiedContext
+import deeptutor.core.entry_points as ep_module
 
 
 @pytest.fixture(autouse=True)
@@ -97,7 +98,7 @@ def test_loop_capabilities_tuple_is_builtins_only() -> None:
 def test_all_loop_capabilities_equals_builtins_without_plugins(monkeypatch) -> None:
     from deeptutor.capabilities import registry
 
-    monkeypatch.setattr(registry, "entry_points", _no_plugins)
+    monkeypatch.setattr(ep_module, "entry_points", _no_plugins)
 
     merged = registry.all_loop_capabilities()
     assert merged == LOOP_CAPABILITIES
@@ -110,7 +111,7 @@ def test_external_class_is_appended(monkeypatch) -> None:
         assert group == "deeptutor.loop_capabilities"
         return [_ep("demo_loop", lambda: _DemoLoop)]
 
-    monkeypatch.setattr(registry, "entry_points", fake_entry_points)
+    monkeypatch.setattr(ep_module, "entry_points", fake_entry_points)
 
     merged = registry.all_loop_capabilities()
     assert merged[: len(LOOP_CAPABILITIES)] == LOOP_CAPABILITIES
@@ -125,7 +126,7 @@ def test_factory_callable_returning_instance(monkeypatch) -> None:
         assert group == "deeptutor.loop_capabilities"
         return [_ep("demo_loop", lambda: lambda: _DemoLoop())]
 
-    monkeypatch.setattr(registry, "entry_points", fake_entry_points)
+    monkeypatch.setattr(ep_module, "entry_points", fake_entry_points)
 
     merged = registry.all_loop_capabilities()
     assert merged[-1].name == "demo_loop"
@@ -137,7 +138,7 @@ def test_builtin_name_wins_and_warns(monkeypatch) -> None:
     def fake_entry_points(*, group: str):
         return [_ep("mastery", lambda: _ShadowMastery)]
 
-    monkeypatch.setattr(registry, "entry_points", fake_entry_points)
+    monkeypatch.setattr(ep_module, "entry_points", fake_entry_points)
     warnings = _capture_warnings(monkeypatch, registry)
 
     merged = registry.all_loop_capabilities()
@@ -157,7 +158,7 @@ def test_broken_entry_point_is_skipped(monkeypatch) -> None:
     def fake_entry_points(*, group: str):
         return [_ep("broken", boom), _ep("demo_loop", lambda: _DemoLoop)]
 
-    monkeypatch.setattr(registry, "entry_points", fake_entry_points)
+    monkeypatch.setattr(ep_module, "entry_points", fake_entry_points)
     warnings = _capture_warnings(monkeypatch, registry)
 
     merged = registry.all_loop_capabilities()
@@ -172,7 +173,7 @@ def test_invalid_object_is_skipped(monkeypatch) -> None:
     def fake_entry_points(*, group: str):
         return [_ep("not_a_cap", lambda: object)]
 
-    monkeypatch.setattr(registry, "entry_points", fake_entry_points)
+    monkeypatch.setattr(ep_module, "entry_points", fake_entry_points)
     warnings = _capture_warnings(monkeypatch, registry)
 
     merged = registry.all_loop_capabilities()
@@ -205,7 +206,7 @@ def test_duplicate_external_name_first_wins(monkeypatch) -> None:
             _ep("demo_loop_dup", lambda: _Other),
         ]
 
-    monkeypatch.setattr(registry, "entry_points", fake_entry_points)
+    monkeypatch.setattr(ep_module, "entry_points", fake_entry_points)
 
     merged = registry.all_loop_capabilities()
     demo = [cap for cap in merged if cap.name == "demo_loop"]
@@ -219,7 +220,7 @@ def test_active_loop_capabilities_includes_external(monkeypatch) -> None:
     def fake_entry_points(*, group: str):
         return [_ep("demo_loop", lambda: _DemoLoop)]
 
-    monkeypatch.setattr(registry, "entry_points", fake_entry_points)
+    monkeypatch.setattr(ep_module, "entry_points", fake_entry_points)
 
     idle = registry.active_loop_capabilities(UnifiedContext())
     assert all(cap.name != "demo_loop" for cap in idle)
@@ -234,7 +235,7 @@ def test_capability_tool_owners_includes_external(monkeypatch) -> None:
     def fake_entry_points(*, group: str):
         return [_ep("demo_loop", lambda: _DemoLoop)]
 
-    monkeypatch.setattr(registry, "entry_points", fake_entry_points)
+    monkeypatch.setattr(ep_module, "entry_points", fake_entry_points)
 
     owners = registry.capability_tool_owners()
     assert owners["demo_tool"] == "demo_loop"

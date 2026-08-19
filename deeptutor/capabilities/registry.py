@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from functools import cache
-from importlib.metadata import entry_points
 import inspect
 import logging
 from typing import Any
@@ -18,6 +17,7 @@ from deeptutor.capabilities.setup import SetupCapability
 from deeptutor.capabilities.solve import SolveLoopCapability
 from deeptutor.capabilities.subagent import SubagentCapability
 from deeptutor.core.context import UnifiedContext
+from deeptutor.core.entry_points import load_entry_point_group
 
 logger = logging.getLogger(__name__)
 
@@ -95,35 +95,26 @@ def discover_external_loop_capabilities() -> tuple[LoopCapability, ...]:
     server; tests reset the cache with ``discover_external_loop_capabilities
     .cache_clear()``.
     """
-    found: list[LoopCapability] = []
     seen = {cap.name for cap in LOOP_CAPABILITIES}
-    try:
-        discovered = entry_points(group=LOOP_CAPABILITIES_GROUP)
-    except Exception as exc:
-        logger.warning("Failed to read %s entry points: %s", LOOP_CAPABILITIES_GROUP, exc)
-        return ()
 
-    for ep in discovered:
-        try:
-            cap = _coerce_loop_capability(ep.load())
-        except Exception as exc:
-            logger.warning("Failed to load loop capability plugin '%s': %s", ep.name, exc)
-            continue
+    def _accept(ep_name: str, loaded: object) -> LoopCapability | None:
+        cap = _coerce_loop_capability(loaded)
         if cap is None:
             logger.warning(
                 "Ignoring loop capability plugin '%s': not a LoopCapability class or factory",
-                ep.name,
+                ep_name,
             )
-            continue
+            return None
         if cap.name in seen:
             logger.warning(
                 "Loop capability plugin '%s' shadowed by built-in or earlier plugin (ignored)",
                 cap.name,
             )
-            continue
+            return None
         seen.add(cap.name)
-        found.append(cap)
-    return tuple(found)
+        return cap
+
+    return tuple(load_entry_point_group(LOOP_CAPABILITIES_GROUP, _accept, log=logger))
 
 
 def all_loop_capabilities() -> tuple[LoopCapability, ...]:
