@@ -147,22 +147,15 @@ class ChatPromptAssembler:
         Resolving relative dates does not need sub-day precision.
         """
         now = datetime.now().astimezone()
+        # The date *format* is locale data, so it lives here; the guidance
+        # prose around it is copy, so it lives in the per-language yaml like
+        # every other block. The default below is only the invariant fact, not
+        # a second copy of the prose.
         if self.language == "zh":
             dt_str = f"{now.year}年{now.month}月{now.day}日"
-            default = (
-                "当前时间：{datetime}。以此为准解析「今天 / 本周 / 本月 / 今年 / 现在」等相对时间词，"
-                "并在构造 web_search、paper_search 等查询时把它们换算成这个真实日期，"
-                "不要使用训练数据里的旧日期。"
-            )
         else:
             dt_str = now.date().isoformat()
-            default = (
-                "Current date: {datetime}. Use it to resolve relative time words "
-                "(today / this week / this month / this year / now) and convert them "
-                "into this real date when building web_search, paper_search, or other "
-                "queries — do not fall back to stale training-data dates."
-            )
-        template = self._t("runtime_context", default=default)
+        template = self._t("runtime_context", default="Current date: {datetime}.")
         try:
             return template.format(datetime=dt_str)
         except (KeyError, IndexError, ValueError):
