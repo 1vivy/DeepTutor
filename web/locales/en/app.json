@@ -3169,5 +3169,8 @@
   "That annotation could not be removed.": "That annotation could not be removed.",
   "Explain this passage": "Explain this passage",
   "Resize the reader": "Resize the reader",
-  "Drag to resize · double-click to reset": "Drag to resize · double-click to reset"
+  "Drag to resize · double-click to reset": "Drag to resize · double-click to reset",
+  "Available only after every stale page has been recompiled.": "Available only after every stale page has been recompiled.",
+  "Mark as seen anyway": "Mark as seen anyway",
+  "Dismiss the warning without recompiling those pages.": "Dismiss the warning without recompiling those pages."
 }
