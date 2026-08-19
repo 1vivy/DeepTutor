@@ -104,3 +104,52 @@ def test_add_documents_source_outside_source_root_falls_back_to_basename(
     staged = adder.add_documents([str(doc)], source_root=str(linked_folder))
 
     assert staged == [kb_dir / "raw" / "note.md"]
+
+
+def test_batched_syncs_of_sibling_folders_keep_both_same_named_files(
+    tmp_path: Path,
+) -> None:
+    """A folder too large to sync at once is added one subfolder at a time, so
+    each batch roots at its own folder and both files want ``raw/README.md``.
+    Preserving structure does not help here — the second one used to be dropped
+    as a "filename collision", losing a document with no error (#866)."""
+    kb_dir = tmp_path / "kb"
+    _ready_llamaindex_kb(kb_dir)
+
+    cli = tmp_path / "docs" / "cli"
+    events = tmp_path / "docs" / "events"
+    cli.mkdir(parents=True)
+    events.mkdir(parents=True)
+    (cli / "README.md").write_text("cli docs", encoding="utf-8")
+    (events / "README.md").write_text("event docs", encoding="utf-8")
+
+    adder = DocumentAdder(kb_name="kb", base_dir=str(tmp_path))
+    adder.add_documents([str(cli / "README.md")], source_root=str(cli))
+    staged = adder.add_documents([str(events / "README.md")], source_root=str(events))
+
+    raw = kb_dir / "raw"
+    assert staged == [raw / "README (2).md"]
+    assert {path.name for path in raw.iterdir()} == {"README.md", "README (2).md"}
+    assert {path.read_text(encoding="utf-8") for path in raw.iterdir()} == {
+        "cli docs",
+        "event docs",
+    }
+
+
+def test_restaging_identical_bytes_reuses_the_staged_copy(tmp_path: Path) -> None:
+    """Keeping colliding documents must not turn a repeated sync into "(2)"
+    churn: identical content still recovers the file already staged."""
+    kb_dir = tmp_path / "kb"
+    _ready_llamaindex_kb(kb_dir)
+
+    linked_folder = tmp_path / "linked"
+    linked_folder.mkdir()
+    doc = linked_folder / "note.md"
+    doc.write_text("same", encoding="utf-8")
+
+    adder = DocumentAdder(kb_name="kb", base_dir=str(tmp_path))
+    first = adder.add_documents([str(doc)], source_root=str(linked_folder))
+    second = adder.add_documents([str(doc)], source_root=str(linked_folder))
+
+    assert first == second == [kb_dir / "raw" / "note.md"]
+    assert [path.name for path in (kb_dir / "raw").iterdir()] == ["note.md"]

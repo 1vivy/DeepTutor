@@ -8,6 +8,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 import hashlib
+import itertools
 import json
 import logging
 from pathlib import Path
@@ -213,6 +214,24 @@ class DocumentAdder:
                 return {}
         return {}
 
+    @staticmethod
+    def _non_colliding(dest_path: Path) -> Path:
+        """A free sibling name for a *different* document that wants a taken one.
+
+        Two files can legitimately share a name and hold different content — a
+        docs tree with a README.md per folder is the ordinary case, and batched
+        syncs of sibling folders stage them against different roots, so they
+        land on the same name even with structure preserved. Dropping the later
+        one loses a document the user asked to index, silently.
+        """
+        if not dest_path.exists():
+            return dest_path
+        for index in itertools.count(2):
+            candidate = dest_path.with_name(f"{dest_path.stem} ({index}){dest_path.suffix}")
+            if not candidate.exists():
+                return candidate
+        raise AssertionError("unreachable")  # pragma: no cover
+
     def add_documents(
         self,
         source_files: List[str],
@@ -265,13 +284,13 @@ class DocumentAdder:
                     logger.info(f"Recovering staged file: {source_path.name}")
                     files_to_process.append(dest_path)
                     continue
-                if not allow_duplicates:
-                    logger.info(f"Skipped (filename collision): {source_path.name}")
-                    continue
+                # Same name, different document: keep both rather than
+                # silently dropping this one.
+                dest_path = self._non_colliding(dest_path)
 
             dest_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source_path, dest_path)
-            logger.info(f"Staged to raw: {source_path.name}")
+            logger.info(f"Staged to raw: {dest_path.relative_to(self.raw_dir).as_posix()}")
             files_to_process.append(dest_path)
 
         return files_to_process
