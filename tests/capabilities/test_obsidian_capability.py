@@ -273,3 +273,70 @@ def test_obsidian_vault_refs_enumerates_every_selected_vault(monkeypatch, tmp_pa
     monkeypatch.setattr("deeptutor.multi_user.knowledge_access.resolve_kb_metadata", fake)
     ctx = UnifiedContext(user_message="hi", knowledge_bases=["vaultA", "kb1", "vaultB"])
     assert obsidian_binding.obsidian_vault_refs(ctx) == {"vaultA", "vaultB"}
+
+
+# ---- failures must be legible, and must not corrupt the vault ----------------
+
+
+def _write_undecodable(root: Path, name: str = "broken.md") -> Path:
+    path = root / name
+    path.write_bytes(b"hello \xe5\xaa world\n")
+    return path
+
+
+def test_vault_refuses_to_rewrite_an_undecodable_note(tmp_path: Path) -> None:
+    """Lenient reads have a strict counterpart: a read-modify-write must not
+    launder undecodable bytes into U+FFFD, and must say so as a VaultError so
+    the tool layer can explain it instead of failing opaquely."""
+    path = _write_undecodable(tmp_path)
+    original = path.read_bytes()
+
+    for operation in (
+        lambda: V.append_note(tmp_path, "broken", "more"),
+        lambda: V.set_property(tmp_path, "broken", "status", "draft"),
+    ):
+        with pytest.raises(V.VaultError, match="not valid UTF-8"):
+            operation()
+
+    assert path.read_bytes() == original
+
+
+@pytest.mark.asyncio
+async def test_append_to_undecodable_note_explains_itself(tmp_path: Path) -> None:
+    """The model gets a message it can act on, not an unknown error."""
+    _write_undecodable(tmp_path)
+
+    res = await ObsidianAppendTool().execute(
+        note="broken.md", content="x", _vault_path=str(tmp_path)
+    )
+
+    assert res.success is False
+    assert "not valid UTF-8" in res.content and "encoding" in res.content
+
+
+@pytest.mark.asyncio
+async def test_datetime_frontmatter_serialises_as_iso(tmp_path: Path) -> None:
+    """A YAML timestamp is a datetime; str() would render it with a space."""
+    (tmp_path / "stamped.md").write_text(
+        "---\ncreated: 2026-08-11 09:30:00\n---\n\nbody\n", encoding="utf-8"
+    )
+
+    res = await ObsidianReadTool().execute(note="stamped.md", _vault_path=str(tmp_path))
+
+    assert json.loads(res.content)["frontmatter"]["created"] == "2026-08-11T09:30:00"
+
+
+@pytest.mark.asyncio
+async def test_unexpected_tool_failure_names_its_cause(tmp_path: Path, monkeypatch) -> None:
+    """Issue #914: a non-VaultError escaping the tool left the model with
+    "An unknown error occurred" and nothing to act on."""
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("disk went away")
+
+    monkeypatch.setattr(V, "read_note", boom)
+
+    res = await ObsidianReadTool().execute(note="whatever", _vault_path=str(tmp_path))
+
+    assert res.success is False
+    assert "RuntimeError" in res.content and "disk went away" in res.content
