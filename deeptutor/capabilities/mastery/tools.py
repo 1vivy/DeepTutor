@@ -1,7 +1,7 @@
 """Mastery Path tools — the seam between the chat-loop tutor and the pure
 mastery engine (:mod:`deeptutor.learning`).
 
-These five tools are auto-mounted only when a mastery path is active on the
+These tools are auto-mounted only when a mastery path is active on the
 turn (via the chat loop mastery capability). The chat agent loop IS the tutor;
 these tools let it read the gate and record outcomes, while the pedagogy —
 what to teach, how to question, when to explain — stays the model's job. The
@@ -56,6 +56,7 @@ from deeptutor.learning.policy import (
 )
 
 if TYPE_CHECKING:
+    from deeptutor.learning.models import LearningProgress
     from deeptutor.learning.service import LearningService
 
 # Tool names the pipeline mounts together when a mastery path is active. Kept
@@ -243,6 +244,58 @@ def _no_path_result() -> ToolResult:
     )
 
 
+def _load_path(service: LearningService, path_id: str) -> LearningProgress | None:
+    """Read a path, or ``None`` when it does not exist yet.
+
+    Reading must not create. ``get_or_create`` is the right entry point for
+    building, but as a read it manufactures an empty path — and the id it
+    manufactures under is usually the conversation's own scratch id, which is
+    how a chat that merely *asked* about its progress left an empty path behind
+    each time (#909).
+    """
+    return service.store.load(path_id)
+
+
+def _no_built_path_result(tool: str) -> ToolResult:
+    return ToolResult(
+        content=(
+            f"This conversation is not on a built mastery path yet, so {tool} has "
+            "nothing to act on. Call mastery_paths to see the learner's existing "
+            "paths (mastery_switch to continue one), or mastery_build to design "
+            "one here."
+        ),
+        success=False,
+    )
+
+
+async def _unbuilt_status_message(service: LearningService, active_path_id: str) -> str:
+    """What to tell the model when the active path has no objectives.
+
+    Telling it to build unconditionally is what made the tutor answer "no
+    mastery path has been built yet, let me create one" to a learner who had
+    several — a fresh conversation resolves to its own scratch id, not to the
+    paths they built elsewhere. Mention those first, and only then offer to
+    build (#909).
+    """
+    overviews = await asyncio.to_thread(service.list_path_overviews)
+    elsewhere = [
+        overview
+        for overview in overviews
+        if overview["objectives"] > 0 and overview["path_id"] != active_path_id
+    ]
+    if not elsewhere:
+        return (
+            "No mastery path has been built yet. Design one from the learner's "
+            "materials and call mastery_build."
+        )
+    return (
+        f"This conversation is not on a built path, but the learner already has "
+        f"{len(elsewhere)} built elsewhere. Call mastery_paths for their ids and "
+        "mastery_switch to continue one — only call mastery_build if they want a "
+        "new path here."
+    )
+
+
 class MasteryStatusTool(BaseTool):
     """Read the current objective + map snapshot. Call FIRST every turn."""
 
@@ -264,16 +317,13 @@ class MasteryStatusTool(BaseTool):
         if not path_id:
             return _no_path_result()
         service = _new_service()
-        progress = service.get_or_create(path_id)
-        if not any(module.knowledge_points for module in progress.modules):
+        progress = _load_path(service, path_id)
+        if progress is None or not any(module.knowledge_points for module in progress.modules):
             return _json_result(
                 {
                     "status": "empty",
-                    "path_revision": progress.version,
-                    "message": (
-                        "No mastery path has been built yet. Design one from the "
-                        "learner's materials and call mastery_build."
-                    ),
+                    "path_revision": progress.version if progress is not None else 0,
+                    "message": await _unbuilt_status_message(service, path_id),
                 },
                 meta_key="mastery_status",
             )
@@ -379,7 +429,9 @@ class MasteryQuizTool(BaseTool):
             return ToolResult(content=str(exc), success=False)
 
         service = _new_service()
-        progress = service.get_or_create(path_id)
+        progress = _load_path(service, path_id)
+        if progress is None:
+            return _no_built_path_result("mastery_quiz")
         kp, module_id, _ = find_knowledge_point(progress, kp_id)
         if kp is None:
             return ToolResult(
@@ -479,7 +531,9 @@ class MasteryGradeTool(BaseTool):
             # The pause/resume boundary already committed the learner's exact
             # reply. Never let a later model round paraphrase the graded input.
             answer = interaction.user_answer
-        progress_before = service.get_or_create(path_id)
+        progress_before = _load_path(service, path_id)
+        if progress_before is None:
+            return _no_built_path_result("mastery_grade")
         pending = (
             interaction.question if interaction is not None else progress_before.pending_question
         )
@@ -589,7 +643,9 @@ class MasteryAssessTool(BaseTool):
         feedback = str(kwargs.get("feedback") or "").strip()
 
         service = _new_service()
-        progress = service.get_or_create(path_id)
+        progress = _load_path(service, path_id)
+        if progress is None:
+            return _no_built_path_result("mastery_assess")
         kp, _, _ = find_knowledge_point(progress, kp_id)
         if kp is None:
             return ToolResult(
