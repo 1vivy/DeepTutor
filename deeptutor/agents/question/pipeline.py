@@ -40,6 +40,7 @@ from deeptutor.agents._shared.tool_composition import (
     default_optional_tools,
     user_has_memory,
     user_has_notebooks,
+    user_has_question_bank,
 )
 from deeptutor.core.agentic import (
     DispatchOutcome,
@@ -1500,6 +1501,7 @@ class QuestionPipeline:
             has_sources=bool(self._source_index(context)),
             has_memory=user_has_memory(),
             has_notebooks=user_has_notebooks(),
+            has_question_bank=user_has_question_bank(),
             has_code=exec_capability_available(),
         )
 
