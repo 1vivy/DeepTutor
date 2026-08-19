@@ -910,11 +910,15 @@ export async function connectLightRagServer(payload: {
 export async function uploadKnowledgeBaseFiles(
   name: string,
   files: File[],
-  options?: { provider?: string },
+  options?: { provider?: string; destSubdir?: string },
 ): Promise<KnowledgeTaskResponse> {
   const form = new FormData();
   appendFilesWithPaths(form, files);
   if (options?.provider) form.append("rag_provider", options.provider);
+  // Places the batch under an existing KB folder. A folder pick reports paths
+  // relative to the chosen directory, so its ancestors are not in the payload
+  // — this is how the caller says where the subtree belongs (#866).
+  if (options?.destSubdir) form.append("dest_subdir", options.destSubdir);
 
   const res = await apiFetch(
     apiUrl(`/api/v1/knowledge/${encodeURIComponent(name)}/upload`),

@@ -36,7 +36,11 @@ interface KnowledgeBaseDetailProps {
   task?: TaskState;
   history: HistoryEntry[];
   onCreate: () => void;
-  onUpload: (kbName: string, files: File[]) => Promise<void>;
+  onUpload: (
+    kbName: string,
+    files: File[],
+    destSubdir?: string,
+  ) => Promise<void>;
   onReindex: (kbName: string) => Promise<void>;
   onRetry: (kbName: string) => Promise<void>;
   onSetDefault: (kbName: string) => Promise<void>;
@@ -238,8 +242,10 @@ export default function KnowledgeBaseDetail({
                   history={history}
                   onClearHistory={() => onClearHistory(kb.name)}
                   onRetry={handleRetry}
-                  onUpload={(files) =>
-                    kb.read_only ? Promise.resolve() : onUpload(kb.name, files)
+                  onUpload={(files, destSubdir) =>
+                    kb.read_only
+                      ? Promise.resolve()
+                      : onUpload(kb.name, files, destSubdir)
                   }
                 />
               )}

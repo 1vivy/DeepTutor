@@ -2523,6 +2523,8 @@
   "Root": "Root",
   "No folders yet": "No folders yet",
   "New folder": "New folder",
+  "Add to folder": "Add to folder",
+  "Knowledge base root": "Knowledge base root",
   "Folder name": "Folder name",
   "Or select an entire folder": "Or select an entire folder",
   "Unsupported files are skipped; the rest will be indexed.": "Unsupported files are skipped; the rest will be indexed.",

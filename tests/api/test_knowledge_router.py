@@ -1168,6 +1168,80 @@ def test_upload_allows_same_filename_in_different_folders(monkeypatch, tmp_path:
     assert (manager.base_dir / "kb" / "raw" / "ModuleB" / "note.txt").is_file()
 
 
+def test_upload_places_a_batch_under_dest_subdir(monkeypatch, tmp_path: Path) -> None:
+    """A folder pick reports paths relative to the chosen directory, so its
+    ancestors never reach the server. dest_subdir re-attaches the batch where
+    it belongs instead of stacking every batch at the KB root (#866)."""
+    manager = _ready_kb_manager(tmp_path)
+    monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
+    monkeypatch.setattr(knowledge_router_module, "_kb_base_dir", tmp_path / "knowledge_bases")
+
+    async def _noop_upload_task(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(knowledge_router_module, "run_upload_processing_task", _noop_upload_task)
+
+    with TestClient(_build_app()) as client:
+        response = client.post(
+            "/api/v1/knowledge/kb/upload",
+            files=[("files", ("README.txt", b"cli", "text/plain"))],
+            data={
+                "rel_paths": "DingTalkCLI/README.txt",
+                "dest_subdir": "AppDev",
+            },
+        )
+
+    assert response.status_code == 200
+    raw = manager.base_dir / "kb" / "raw"
+    assert (raw / "AppDev" / "DingTalkCLI" / "README.txt").is_file()
+    assert not (raw / "DingTalkCLI").exists()
+
+
+def test_upload_dest_subdir_refuses_traversal(monkeypatch, tmp_path: Path) -> None:
+    """dest_subdir is caller-supplied, so it goes through the same guard as a
+    directory upload's own relative path — it can never escape raw/."""
+    manager = _ready_kb_manager(tmp_path)
+    monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
+    monkeypatch.setattr(knowledge_router_module, "_kb_base_dir", tmp_path / "knowledge_bases")
+
+    async def _noop_upload_task(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(knowledge_router_module, "run_upload_processing_task", _noop_upload_task)
+
+    with TestClient(_build_app()) as client:
+        response = client.post(
+            "/api/v1/knowledge/kb/upload",
+            files=[("files", ("note.txt", b"hi", "text/plain"))],
+            data={"dest_subdir": "../../escaped"},
+        )
+
+    assert response.status_code == 400
+    assert not (manager.base_dir.parent / "escaped").exists()
+
+
+def test_upload_without_dest_subdir_is_unchanged(monkeypatch, tmp_path: Path) -> None:
+    """The parameter is optional; omitting it keeps the previous placement."""
+    manager = _ready_kb_manager(tmp_path)
+    monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
+    monkeypatch.setattr(knowledge_router_module, "_kb_base_dir", tmp_path / "knowledge_bases")
+
+    async def _noop_upload_task(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(knowledge_router_module, "run_upload_processing_task", _noop_upload_task)
+
+    with TestClient(_build_app()) as client:
+        response = client.post(
+            "/api/v1/knowledge/kb/upload",
+            files=[("files", ("note.txt", b"hi", "text/plain"))],
+            data={"rel_paths": "Folder/note.txt"},
+        )
+
+    assert response.status_code == 200
+    assert (manager.base_dir / "kb" / "raw" / "Folder" / "note.txt").is_file()
+
+
 def test_move_file_into_folder(monkeypatch, tmp_path: Path) -> None:
     manager = _ready_kb_manager(tmp_path)
     raw = manager.base_dir / "kb" / "raw"

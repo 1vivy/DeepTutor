@@ -352,6 +352,7 @@ def _save_uploaded_files(
     allowed_extensions: set[str] | None = None,
     kb_name: str | None = None,
     rel_paths: list[str] | None = None,
+    dest_subdir: str = "",
 ) -> tuple[list[str], list[str]]:
     """
     Save uploaded files to the local raw/ directory.
@@ -388,7 +389,12 @@ def _save_uploaded_files(
                     if rel_paths and idx < len(rel_paths) and rel_paths[idx]
                     else ""
                 )
-                subdir = _sanitize_rel_subdir(rel.rsplit("/", 1)[0]) if "/" in rel else ""
+                own_subdir = _sanitize_rel_subdir(rel.rsplit("/", 1)[0]) if "/" in rel else ""
+                # A browser folder pick reports paths relative to the chosen
+                # directory, so its ancestors are simply not in the payload.
+                # dest_subdir is how the caller re-attaches the batch to the
+                # place it belongs inside the KB (#866).
+                subdir = "/".join(part for part in (dest_subdir, own_subdir) if part)
                 dest_dir = target_dir / subdir if subdir else target_dir
                 if subdir:
                     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -478,6 +484,7 @@ async def _save_uploaded_files_off_loop(
     allowed_extensions: set[str] | None = None,
     kb_name: str | None = None,
     rel_paths: list[str] | None = None,
+    dest_subdir: str = "",
 ) -> tuple[list[str], list[str]]:
     """:func:`_save_uploaded_files` on a worker thread.
 
@@ -497,6 +504,7 @@ async def _save_uploaded_files_off_loop(
         allowed_extensions=allowed_extensions,
         kb_name=kb_name,
         rel_paths=rel_paths,
+        dest_subdir=dest_subdir,
     )
 
 
@@ -2487,8 +2495,16 @@ async def upload_files(
     files: list[UploadFile] = File(...),
     rag_provider: str = Form(None),
     rel_paths: list[str] = Form(None),
+    dest_subdir: str = Form(None),
 ):
-    """Upload files to a knowledge base and process them in background."""
+    """Upload files to a knowledge base and process them in background.
+
+    ``dest_subdir`` places the whole batch under that folder inside the KB.
+    A browser folder pick reports each file's path relative to the chosen
+    directory, so the directory's own ancestors never reach the server; this
+    is how a caller adding one subtree at a time re-attaches it where it
+    belongs instead of piling every batch at the root (#866).
+    """
     try:
         manager, kb_name, kb_base_dir = _writable_kb(kb_name)
         requested_provider = None
@@ -2520,7 +2536,11 @@ async def upload_files(
         upload_extensions = allowed_extensions | {".zip"}
         _validate_upload_batch(files, allowed_extensions=upload_extensions, rel_paths=rel_paths)
         uploaded_files, uploaded_file_paths = await _save_uploaded_files_off_loop(
-            files, raw_dir, allowed_extensions=upload_extensions, rel_paths=rel_paths
+            files,
+            raw_dir,
+            allowed_extensions=upload_extensions,
+            rel_paths=rel_paths,
+            dest_subdir=_sanitize_rel_subdir(dest_subdir),
         )
         task_id = _build_unique_task_id("kb_upload", kb_name)
         get_task_stream_manager().ensure_task(task_id)

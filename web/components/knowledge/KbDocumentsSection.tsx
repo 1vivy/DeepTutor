@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, RefreshCw, Upload } from "lucide-react";
-import type { KnowledgeUploadPolicy } from "@/lib/knowledge-api";
+import { FolderInput, Loader2, RefreshCw, Upload } from "lucide-react";
+import {
+  listKnowledgeBaseFiles,
+  type KnowledgeUploadPolicy,
+} from "@/lib/knowledge-api";
 import {
   kbIsUploadable,
   kbNeedsReindex,
@@ -28,7 +31,7 @@ interface KbDocumentsSectionProps {
   history: HistoryEntry[];
   onClearHistory: () => void;
   onRetry?: () => Promise<void>;
-  onUpload: (files: File[]) => Promise<void>;
+  onUpload: (files: File[], destSubdir?: string) => Promise<void>;
 }
 
 /**
@@ -50,6 +53,31 @@ export default function KbDocumentsSection({
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [retrySubmitting, setRetrySubmitting] = useState(false);
+  // Existing folders in this KB, offered as a destination for the batch.
+  const [folders, setFolders] = useState<string[]>([]);
+  const [destSubdir, setDestSubdir] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    void listKnowledgeBaseFiles(kb.name)
+      .then((entries) => {
+        if (cancelled) return;
+        setFolders(
+          entries
+            .filter((entry) => entry.type === "folder")
+            .map((entry) => entry.name)
+            .sort((a, b) => a.localeCompare(b)),
+        );
+      })
+      .catch(() => {
+        // A destination picker is an optional convenience; failing to list
+        // folders just means the batch goes to the root as it always did.
+        if (!cancelled) setFolders([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [kb.name]);
 
   const uploadable = kbIsUploadable(kb);
   const needsReindex = kbNeedsReindex(kb);
@@ -97,7 +125,7 @@ export default function KbDocumentsSection({
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      await onUpload(selection.validFiles);
+      await onUpload(selection.validFiles, destSubdir || undefined);
       setFiles([]);
     } finally {
       setSubmitting(false);
@@ -181,6 +209,26 @@ export default function KbDocumentsSection({
         uploadPolicy={policyForProvider}
         disabled={!canUpload || isUploadingHere}
       />
+
+      {folders.length > 0 && files.length > 0 && (
+        <label className="flex items-center gap-2 text-[12px] text-[var(--muted-foreground)]">
+          <FolderInput size={13} strokeWidth={1.7} />
+          <span>{t("Add to folder")}</span>
+          <select
+            value={destSubdir}
+            onChange={(event) => setDestSubdir(event.target.value)}
+            disabled={!canUpload || isUploadingHere}
+            className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-[12px] text-[var(--foreground)] disabled:opacity-40"
+          >
+            <option value="">{t("Knowledge base root")}</option>
+            {folders.map((folder) => (
+              <option key={folder} value={folder}>
+                {folder}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <div className="flex items-center justify-end">
         <button

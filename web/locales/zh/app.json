@@ -2523,6 +2523,8 @@
   "Root": "根目录",
   "No folders yet": "暂无文件夹",
   "New folder": "新建文件夹",
+  "Add to folder": "添加到文件夹",
+  "Knowledge base root": "知识库根目录",
   "Folder name": "文件夹名称",
   "Or select an entire folder": "或选择整个文件夹",
   "Unsupported files are skipped; the rest will be indexed.": "不支持的文件将被跳过，其余照常索引。",
