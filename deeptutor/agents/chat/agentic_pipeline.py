@@ -22,6 +22,7 @@ from deeptutor.capabilities import (
     active_loop_capabilities,
     any_exclusive_capability_active,
 )
+from deeptutor.capabilities.protocol import END_LOOP
 from deeptutor.core.agentic import (
     DispatchOutcome,
     LLMClientConfig,
@@ -959,7 +960,7 @@ class AgenticChatPipeline:
         # Neutral stop signal for loop plugins (e.g. a crisis redirect): the
         # outer capability owns the final message, so skip further LLM rounds.
         # Everything below only exists to feed the answer back to the model.
-        if context.metadata.get("end_loop"):
+        if context.metadata.get(END_LOOP):
             return False
 
         body_text = _format_user_reply_body(

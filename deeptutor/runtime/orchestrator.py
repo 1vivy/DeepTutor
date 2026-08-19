@@ -13,6 +13,7 @@ import logging
 from typing import Any, AsyncIterator
 import uuid
 
+from deeptutor.capabilities.protocol import AGENT_OUTPUT, EVENT_METADATA
 from deeptutor.core.context import UnifiedContext
 from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.core.stream_bus import StreamBus, register_bus, unregister_bus
@@ -26,8 +27,9 @@ logger = logging.getLogger(__name__)
 def completion_event_fields(context: UnifiedContext, cap_name: str) -> tuple[str, dict[str, Any]]:
     """Build CAPABILITY_COMPLETE ``agent_output`` + metadata.
 
-    Capabilities may stash a body on ``context.metadata["agent_output"]`` and
-    publishable extras under ``context.metadata["event_metadata"]``.
+    Capabilities may stash a body on ``context.metadata[AGENT_OUTPUT]`` and
+    publishable extras under ``context.metadata[EVENT_METADATA]`` (both named in
+    ``deeptutor.capabilities.protocol``).
     ``capability``, ``session_id`` and ``turn_id`` always win so consumers can
     rely on those keys.
 
@@ -40,8 +42,8 @@ def completion_event_fields(context: UnifiedContext, cap_name: str) -> tuple[str
     encode. A capability that wants a value on the bus says so.
     """
     meta = context.metadata or {}
-    agent_output = str(meta.get("agent_output") or "")
-    published = meta.get("event_metadata")
+    agent_output = str(meta.get(AGENT_OUTPUT) or "")
+    published = meta.get(EVENT_METADATA)
     extras = dict(published) if isinstance(published, dict) else {}
     return agent_output, {
         **extras,
