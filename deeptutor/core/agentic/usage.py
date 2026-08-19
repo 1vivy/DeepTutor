@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from deeptutor.services.llm.usage_frame import token_counts
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,23 +32,13 @@ class UsageTracker:
         self.model: str | None = model
 
     def add_from_response(self, response_or_usage: Any) -> None:
-        usage = getattr(response_or_usage, "usage", None) or response_or_usage
-        if hasattr(usage, "model_dump"):
-            usage = usage.model_dump()
-        elif not isinstance(usage, dict):
-            usage = {
-                key: getattr(usage, key, None)
-                for key in ("prompt_tokens", "completion_tokens", "total_tokens")
-                if hasattr(usage, key)
-            }
-        prompt = int(usage.get("prompt_tokens") or 0)
-        completion = int(usage.get("completion_tokens") or 0)
-        total = int(usage.get("total_tokens") or prompt + completion)
-        if prompt or completion or total:
-            self.prompt_tokens += prompt
-            self.completion_tokens += completion
-            self.total_tokens += total
-            self.calls += 1
+        counts = token_counts(getattr(response_or_usage, "usage", None) or response_or_usage)
+        if not counts:
+            return
+        self.prompt_tokens += counts["prompt_tokens"]
+        self.completion_tokens += counts["completion_tokens"]
+        self.total_tokens += counts["total_tokens"]
+        self.calls += 1
 
     def add_estimated(self, *, input_chars: int, output_chars: int) -> None:
         est_input = int(input_chars / 3.5)
