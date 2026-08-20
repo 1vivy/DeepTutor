@@ -325,10 +325,7 @@ export const bookApi = {
       { method: "POST" },
     ),
 
-  listLearningCaptures: (
-    book_id: string,
-    status?: LearningCaptureStatus,
-  ) =>
+  listLearningCaptures: (book_id: string, status?: LearningCaptureStatus) =>
     request<{ captures: LearningCapture[] }>(
       `/books/${encodeURIComponent(
         book_id,
@@ -350,10 +347,13 @@ export const bookApi = {
       status?: LearningCaptureStatus;
     },
   ) =>
-    request<{ capture: LearningCapture }>(`/books/${encodeURIComponent(book_id)}/learning-captures`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
+    request<{ capture: LearningCapture }>(
+      `/books/${encodeURIComponent(book_id)}/learning-captures`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    ),
 
   updateLearningCapture: (
     book_id: string,

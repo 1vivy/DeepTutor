@@ -142,9 +142,10 @@ function BookPageInner() {
   const [supplementingBlockId, setSupplementingBlockId] = useState<
     string | null
   >(null);
-  const [learningCaptures, setLearningCaptures] = useState<LearningCapture[]>([]);
-  const [loadingLearningCaptures, setLoadingLearningCaptures] =
-    useState(false);
+  const [learningCaptures, setLearningCaptures] = useState<LearningCapture[]>(
+    [],
+  );
+  const [loadingLearningCaptures, setLoadingLearningCaptures] = useState(false);
 
   // Phase 5 — live BookEngine progress timeline state.
   const [progress, dispatchProgress] = useReducer(
@@ -228,10 +229,13 @@ function BookPageInner() {
         setLearningCaptures(captures);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        notify(t("Could not load learning captures: {{message}}", { message: msg }), {
-          tone: "error",
-          durationMs: 6000,
-        });
+        notify(
+          t("Could not load learning captures: {{message}}", { message: msg }),
+          {
+            tone: "error",
+            durationMs: 6000,
+          },
+        );
         setLearningCaptures([]);
       } finally {
         setLoadingLearningCaptures(false);
@@ -803,15 +807,18 @@ function BookPageInner() {
     return [...captures].sort((a, b) => b.updated_at - a.updated_at);
   }, []);
 
-  const applyCapturePatch = useCallback((capture: LearningCapture) => {
-    setLearningCaptures((current) =>
-      refreshCapturesSorted(
-        current.some((item) => item.id === capture.id)
-          ? current.map((item) => (item.id === capture.id ? capture : item))
-          : [capture, ...current],
-      ),
-    );
-  }, [refreshCapturesSorted]);
+  const applyCapturePatch = useCallback(
+    (capture: LearningCapture) => {
+      setLearningCaptures((current) =>
+        refreshCapturesSorted(
+          current.some((item) => item.id === capture.id)
+            ? current.map((item) => (item.id === capture.id ? capture : item))
+            : [capture, ...current],
+        ),
+      );
+    },
+    [refreshCapturesSorted],
+  );
 
   const handleCaptureSelection = async (payload: {
     page_id: string;
@@ -977,7 +984,9 @@ function BookPageInner() {
                       void handleRegenerateBlock(block)
                     }
                     onDeleteBlock={(block) => void handleDeleteBlock(block)}
-                    onMoveBlock={(block, dir) => void handleMoveBlock(block, dir)}
+                    onMoveBlock={(block, dir) =>
+                      void handleMoveBlock(block, dir)
+                    }
                     onChangeBlockType={(block, t) =>
                       void handleChangeBlockType(block, t)
                     }
@@ -1023,10 +1032,14 @@ function BookPageInner() {
                     captures={learningCaptures}
                     loading={loadingLearningCaptures}
                     onApprove={(capture) =>
-                      void guard("Approve capture", () => handleApproveCapture(capture))
+                      void guard("Approve capture", () =>
+                        handleApproveCapture(capture),
+                      )
                     }
                     onReject={(capture) =>
-                      void guard("Reject capture", () => handleRejectCapture(capture))
+                      void guard("Reject capture", () =>
+                        handleRejectCapture(capture),
+                      )
                     }
                   />
                 </div>

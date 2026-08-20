@@ -310,6 +310,6 @@ def register(app: typer.Typer) -> None:
             return
 
         answer = result.get("answer") or result.get("content", "")
-        provider = result.get("provider", DEFAULT_PROVIDER)
+        provider = str(result.get("provider", DEFAULT_PROVIDER))
         console.print(f"[bold]Provider:[/] {provider}")
         console.print(f"[bold]Answer:[/]\n{answer}")

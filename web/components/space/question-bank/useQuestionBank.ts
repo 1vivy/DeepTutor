@@ -298,8 +298,7 @@ export function useQuestionBank(): QuestionBankController {
     async (ids: number[], categoryId: number) => {
       if (!ids.length) return false;
       return withPending(ids, async () => {
-        if (ids.length === 1)
-          await removeEntryFromCategory(ids[0], categoryId);
+        if (ids.length === 1) await removeEntryFromCategory(ids[0], categoryId);
         else await bulkLinkEntriesToCategory(ids, categoryId, false);
         await refresh();
       });
@@ -348,8 +347,8 @@ export function useQuestionBank(): QuestionBankController {
     async (id: number) => {
       return attempt(async () => {
         await deleteCategory(id);
-      // Deleting the category being viewed would otherwise leave the list
-      // filtered by an id the server no longer knows.
+        // Deleting the category being viewed would otherwise leave the list
+        // filtered by an id the server no longer knows.
         setScopeState((prev) =>
           prev.kind === "category" && prev.categoryId === id
             ? DEFAULT_SCOPE

@@ -176,7 +176,8 @@ export default function KnowledgeBaseDetail({
             </div>
             <p className="mt-1 text-[12px] text-[var(--muted-foreground)]">
               {provider}
-              {!pageIndexProvider ? ` · ${embeddingLabel}` : ""} · {t("Updated")} {updatedLabel}
+              {!pageIndexProvider ? ` · ${embeddingLabel}` : ""} ·{" "}
+              {t("Updated")} {updatedLabel}
               {lastIndexedLabel
                 ? ` · ${t("Last indexed")} ${lastIndexedLabel}`
                 : ""}

@@ -19,7 +19,10 @@ const reviewableStatuses = new Set<LearningCapture["status"]>([
   "pending_confirmation",
 ]);
 
-function statusText(status: LearningCapture["status"], t: (key: string, values?: any) => string) {
+function statusText(
+  status: LearningCapture["status"],
+  t: (key: string, values?: any) => string,
+) {
   const map: Record<string, string> = {
     captured: t("Captured"),
     drafted: t("Drafted"),
@@ -61,22 +64,24 @@ export default function LearningCapturePanel({
             onClick={() => setShowAll((current) => !current)}
             className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] px-2 py-1 text-[10px] text-[var(--muted-foreground)] hover:border-[var(--primary)]/40 hover:text-[var(--foreground)]"
             title={
-              showAll ? t("Show only reviewable captures") : t("Show all captures")
+              showAll
+                ? t("Show only reviewable captures")
+                : t("Show all captures")
             }
           >
             <ListFilter className="h-3.5 w-3.5" />
-              {showAll ? t("Review") : t("All")}
-            </button>
-          </div>
+            {showAll ? t("Review") : t("All")}
+          </button>
         </div>
+      </div>
 
       {loading && filteredCaptures.length === 0 ? (
-        <div className="text-xs text-[var(--muted-foreground)]">{t("Loading captures…")}</div>
+        <div className="text-xs text-[var(--muted-foreground)]">
+          {t("Loading captures…")}
+        </div>
       ) : filteredCaptures.length === 0 ? (
         <div className="text-xs text-[var(--muted-foreground)]">
-          {showAll
-            ? t("No captures yet.")
-            : t("No captures awaiting review.")}
+          {showAll ? t("No captures yet.") : t("No captures awaiting review.")}
         </div>
       ) : (
         <div className="max-h-52 space-y-2 overflow-y-auto pr-1">

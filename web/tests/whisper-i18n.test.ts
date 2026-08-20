@@ -93,5 +93,9 @@ test("no hardcoded Chinese copy is left in the whisper components", () => {
     const src = fs.readFileSync(path.join(WEB, rel), "utf8");
     if (/[一-鿿]/.test(src)) offenders.push(rel);
   }
-  assert.deepEqual(offenders, [], `CJK copy left in source: ${offenders.join(", ")}`);
+  assert.deepEqual(
+    offenders,
+    [],
+    `CJK copy left in source: ${offenders.join(", ")}`,
+  );
 });

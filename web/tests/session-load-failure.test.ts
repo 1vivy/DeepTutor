@@ -12,7 +12,11 @@ import {
 
 test("a plain failure on a cold open surfaces", () => {
   assert.equal(
-    shouldSurfaceLoadFailure({ aborted: false, timedOut: false, cached: false }),
+    shouldSurfaceLoadFailure({
+      aborted: false,
+      timedOut: false,
+      cached: false,
+    }),
     true,
   );
 });

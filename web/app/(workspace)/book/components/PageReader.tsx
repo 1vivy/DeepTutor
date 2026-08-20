@@ -166,7 +166,9 @@ export default function PageReader({
       anchor && anchor.nodeType === Node.TEXT_NODE
         ? anchor.parentElement
         : (anchor as HTMLElement | null);
-    const blockEl = anchorEl?.closest?.("[data-block-id]") as HTMLElement | null;
+    const blockEl = anchorEl?.closest?.(
+      "[data-block-id]",
+    ) as HTMLElement | null;
     const blockId = blockEl?.getAttribute("data-block-id") || "";
 
     const rawContext = blockEl?.textContent || selection.toString();
@@ -179,7 +181,8 @@ export default function PageReader({
       sourceEnd >= 0 ? Math.min(normalizedContext.length, sourceEnd + 120) : 0;
     const contextBefore =
       sourceStart >= 0 ? normalizedContext.slice(beforeStart, sourceStart) : "";
-    const contextAfter = sourceEnd >= 0 ? normalizedContext.slice(sourceEnd, afterEnd) : "";
+    const contextAfter =
+      sourceEnd >= 0 ? normalizedContext.slice(sourceEnd, afterEnd) : "";
 
     const sourceLocator = blockId
       ? `/book/${page.book_id}/pages/${page.id}/blocks/${blockId}`

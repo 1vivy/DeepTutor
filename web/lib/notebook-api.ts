@@ -447,10 +447,9 @@ export interface QuestionBankStats {
 }
 
 export async function getQuestionBankStats(): Promise<QuestionBankStats> {
-  const response = await apiFetch(
-    apiUrl("/api/v1/question-notebook/stats"),
-    { cache: "no-store" },
-  );
+  const response = await apiFetch(apiUrl("/api/v1/question-notebook/stats"), {
+    cache: "no-store",
+  });
   return expectJson<QuestionBankStats>(response);
 }
 

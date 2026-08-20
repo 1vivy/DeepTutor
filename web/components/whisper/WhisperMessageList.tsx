@@ -113,7 +113,9 @@ export default function WhisperMessageList({
                   {metaStage && <span>{metaStage}</span>}
                   {metaSource && <span>· {metaSource}</span>}
                   {msg.localSeat && (
-                    <span>· {t("you")} ({msg.localSeat})</span>
+                    <span>
+                      · {t("you")} ({msg.localSeat})
+                    </span>
                   )}
                 </div>
               )}

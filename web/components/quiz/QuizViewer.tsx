@@ -929,7 +929,6 @@ export default function QuizViewer({
                   ) : null;
                 })()}
               </button>
-
             </div>
           )}
         </div>

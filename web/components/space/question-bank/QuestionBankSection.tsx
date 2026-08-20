@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, ClipboardList, Inbox, Loader2, Search } from "lucide-react";
+import {
+  AlertTriangle,
+  ClipboardList,
+  Inbox,
+  Loader2,
+  Search,
+} from "lucide-react";
 import SpaceSectionHeader from "@/components/space/SpaceSectionHeader";
 import BankScopeRail from "./BankScopeRail";
 import BankSelectionBar from "./BankSelectionBar";
@@ -25,7 +31,9 @@ function EmptyState({
       <div className="mb-3 rounded-xl bg-[var(--muted)] p-2.5 text-[var(--muted-foreground)]">
         <Icon size={18} />
       </div>
-      <p className="text-[14px] font-medium text-[var(--foreground)]">{title}</p>
+      <p className="text-[14px] font-medium text-[var(--foreground)]">
+        {title}
+      </p>
       <p className="mt-1.5 max-w-xs text-[13px] text-[var(--muted-foreground)]">
         {hint}
       </p>
@@ -119,7 +127,9 @@ export default function QuestionBankSection() {
           <EmptyState
             icon={Search}
             title={t("No matching questions")}
-            hint={t("Try a different word, or clear the search to see everything.")}
+            hint={t(
+              "Try a different word, or clear the search to see everything.",
+            )}
           />
         ) : bank.scope.kind === "uncategorized" ? (
           <EmptyState
@@ -160,7 +170,9 @@ export default function QuestionBankSection() {
                   if (window.confirm(t("Delete this entry?")))
                     void bank.removeEntry(entry);
                 }}
-                onFile={(categoryId) => bank.fileEntries([entry.id], categoryId)}
+                onFile={(categoryId) =>
+                  bank.fileEntries([entry.id], categoryId)
+                }
                 onUnfile={(categoryId) =>
                   bank.unfileEntries([entry.id], categoryId)
                 }
@@ -173,10 +185,13 @@ export default function QuestionBankSection() {
 
           {bank.total > bank.items.length && (
             <p className="pt-1 text-center text-[11.5px] text-[var(--muted-foreground)]">
-              {t("Showing {{shown}} of {{total}} — narrow the view to see the rest.", {
-                shown: bank.items.length,
-                total: bank.total,
-              })}
+              {t(
+                "Showing {{shown}} of {{total}} — narrow the view to see the rest.",
+                {
+                  shown: bank.items.length,
+                  total: bank.total,
+                },
+              )}
             </p>
           )}
 

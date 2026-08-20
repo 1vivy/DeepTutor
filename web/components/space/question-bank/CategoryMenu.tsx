@@ -75,18 +75,18 @@ export default function CategoryMenu({
   // so no path can fail silently behind a closing menu.
   const run = useCallback(
     async (action: () => Promise<boolean | void> | boolean | void) => {
-    setBusy(true);
-    try {
-      // An explicit false means the caller already reported the failure.
-      return (await action()) !== false;
-    } catch (err) {
-      notify(err instanceof Error ? err.message : String(err), {
-        tone: "error",
-      });
-      return false;
-    } finally {
-      setBusy(false);
-    }
+      setBusy(true);
+      try {
+        // An explicit false means the caller already reported the failure.
+        return (await action()) !== false;
+      } catch (err) {
+        notify(err instanceof Error ? err.message : String(err), {
+          tone: "error",
+        });
+        return false;
+      } finally {
+        setBusy(false);
+      }
     },
     [],
   );

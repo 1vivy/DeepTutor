@@ -1,7 +1,13 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import { ArrowDownWideNarrow, Loader2, Search, Settings2, X } from "lucide-react";
+import {
+  ArrowDownWideNarrow,
+  Loader2,
+  Search,
+  Settings2,
+  X,
+} from "lucide-react";
 import type { BankSort } from "./useQuestionBank";
 
 interface BankToolbarProps {

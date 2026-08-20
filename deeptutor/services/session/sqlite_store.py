@@ -1730,7 +1730,7 @@ class SQLiteSessionStore:
             INNER JOIN notebook_categories c ON c.id = ec.category_id
             WHERE ec.entry_id IN ({placeholders})
             ORDER BY c.name
-            """,
+            """,  # nosec B608 - only `?` placeholders are interpolated; every value binds
             tuple(entry_ids),
         ).fetchall()
         grouped: dict[int, list[dict[str, Any]]] = {}
@@ -1753,8 +1753,11 @@ class SQLiteSessionStore:
                 n.followup_session_id, n.ai_judgment, n.created_at, n.updated_at
             FROM notebook_entries n
             LEFT JOIN sessions s ON s.id = n.session_id{join_sql}
-        """
-        count_sql = f"SELECT COUNT(*) AS cnt FROM notebook_entries n{join_sql}{where_sql}"
+        """  # nosec B608 - join_sql/where_sql are literal fragments; every value binds via ?
+        count_sql = (
+            # join_sql/where_sql are literal fragments; every value binds via ?
+            f"SELECT COUNT(*) AS cnt FROM notebook_entries n{join_sql}{where_sql}"  # nosec B608
+        )
         with self._connect() as conn:
             total_row = conn.execute(count_sql, tuple(params)).fetchone()
             total = int(total_row["cnt"]) if total_row else 0
@@ -2100,7 +2103,7 @@ class SQLiteSessionStore:
             known = [
                 int(r["id"])
                 for r in conn.execute(
-                    f"SELECT id FROM notebook_entries WHERE id IN ({placeholders})",
+                    f"SELECT id FROM notebook_entries WHERE id IN ({placeholders})",  # nosec B608 - only `?` placeholders are interpolated; every value binds
                     tuple(entry_ids),
                 ).fetchall()
             ]

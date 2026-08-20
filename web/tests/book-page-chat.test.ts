@@ -17,7 +17,10 @@ test("resolving the first Page Chat session preserves its active socket", () => 
     "initialSessionId === sessionIdRef.current",
     effectStart,
   );
-  const disconnect = source.indexOf("clientRef.current?.disconnect();", effectStart);
+  const disconnect = source.indexOf(
+    "clientRef.current?.disconnect();",
+    effectStart,
+  );
 
   assert.notEqual(effectStart, -1);
   assert.notEqual(sameSessionGuard, -1);

@@ -364,7 +364,10 @@ export default function WhisperPage() {
         </div>
       )}
 
-      <div ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      <div
+        ref={scrollerRef}
+        className="min-h-0 flex-1 overflow-y-auto px-4 py-4"
+      >
         <div className="mx-auto w-full max-w-3xl">
           <WhisperMessageList messages={visibleMessages} seat={seat} />
         </div>

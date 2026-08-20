@@ -3,13 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
-import {
-  Bookmark,
-  ExternalLink,
-  MessageSquare,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Bookmark, ExternalLink, MessageSquare, Trash2, X } from "lucide-react";
 import type { NotebookCategory, NotebookEntry } from "@/lib/notebook-api";
 import CategoryMenu from "./CategoryMenu";
 

@@ -106,9 +106,9 @@ export default function CreateKbModal({
   const [name, setName] = useState("");
   const [provider, setProvider] = useState("llamaindex");
   const [files, setFiles] = useState<File[]>([]);
-  const [pageIndexMode, setPageIndexMode] = useState<
-    "" | "flash" | "standard"
-  >("");
+  const [pageIndexMode, setPageIndexMode] = useState<"" | "flash" | "standard">(
+    "",
+  );
   // Link mode: the source is either an engine id or the Obsidian sentinel.
   const [linkSource, setLinkSource] = useState(OBSIDIAN_SOURCE);
   const [folderPath, setFolderPath] = useState("");
@@ -554,8 +554,9 @@ function NewModeFields({
   connectionForm?: ReactNode;
   t: TFn;
 }) {
-  const readinessReason = providers.find((item) => item.id === provider)
-    ?.readiness_reason;
+  const readinessReason = providers.find(
+    (item) => item.id === provider,
+  )?.readiness_reason;
   return (
     <>
       <div>
@@ -579,25 +580,25 @@ function NewModeFields({
                       : "border-[var(--border)] hover:border-[var(--ring)]"
                   }`}
                 >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[13px] font-medium text-[var(--foreground)]">
-                    {p.name}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[13px] font-medium text-[var(--foreground)]">
+                      {p.name}
+                    </span>
+                    {needsKey ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                        {t("Needs key")}
+                      </span>
+                    ) : unavailable ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--muted)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--muted-foreground)]">
+                        {t("Not installed")}
+                      </span>
+                    ) : selected ? (
+                      <Check className="h-3.5 w-3.5 text-[var(--primary)]" />
+                    ) : null}
+                  </div>
+                  <span className="text-[11.5px] leading-snug text-[var(--muted-foreground)]">
+                    {p.description}
                   </span>
-                  {needsKey ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-                      {t("Needs key")}
-                    </span>
-                  ) : unavailable ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[var(--muted)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--muted-foreground)]">
-                      {t("Not installed")}
-                    </span>
-                  ) : selected ? (
-                    <Check className="h-3.5 w-3.5 text-[var(--primary)]" />
-                  ) : null}
-                </div>
-                <span className="text-[11.5px] leading-snug text-[var(--muted-foreground)]">
-                  {p.description}
-                </span>
                 </button>
                 {p.id === "pageindex" && (
                   <a
@@ -622,7 +623,7 @@ function NewModeFields({
                 ? t(
                     "This engine needs an API key. Configure it before creating.",
                   )
-                  : t(
+                : t(
                     readinessReason ||
                       "This engine isn't ready on the server. Check its requirements before creating.",
                   )}
@@ -651,9 +652,7 @@ function NewModeFields({
           <select
             value={pageIndexMode}
             onChange={(event) =>
-              setPageIndexMode(
-                event.target.value as "" | "flash" | "standard",
-              )
+              setPageIndexMode(event.target.value as "" | "flash" | "standard")
             }
             disabled={submitting}
             className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[12.5px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--foreground)]/25 disabled:opacity-50"
@@ -678,8 +677,11 @@ function NewModeFields({
             {t("Initial documents")}
             {(isPageIndexCloud || isPageIndexOSS) && (
               <span className="ml-2 normal-case tracking-normal text-[var(--muted-foreground)]/80">
-                · {isPageIndexOSS
-                  ? t("PDF only — use PageIndex Cloud for Office, Markdown or CSV")
+                ·{" "}
+                {isPageIndexOSS
+                  ? t(
+                      "PDF only — use PageIndex Cloud for Office, Markdown or CSV",
+                    )
                   : t("PDF, Office, text and Markdown")}
               </span>
             )}
