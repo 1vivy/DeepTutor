@@ -36,13 +36,9 @@ def _resolve(context: UnifiedContext) -> dict[str, str] | None:
         meta = resolve_kb_metadata(ref)
         if not meta or meta.get("type") != MARGINNOTE4_KB_TYPE:
             continue
-        # The KB entry may carry an explicit ``db_path``; otherwise we derive
-        # one from the KB name so each connected library gets its own SQLite file.
-        db_path = str(meta.get("db_path") or "").strip()
-        if not db_path:
-            from deeptutor.capabilities.marginnote4.store import default_db_path
+        from deeptutor.capabilities.marginnote4.store import resolve_db_path
 
-            db_path = str(default_db_path(ref))
+        db_path = str(resolve_db_path(ref, metadata=meta))
         return {"name": str(meta.get("name") or ref), "db_path": db_path}
     return None
 

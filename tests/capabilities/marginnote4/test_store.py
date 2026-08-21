@@ -14,7 +14,12 @@ from deeptutor.capabilities.marginnote4.models import (
     MarginNoteObject,
     SyncBatch,
 )
-from deeptutor.capabilities.marginnote4.store import MarginNoteStore
+from deeptutor.capabilities.marginnote4.store import (
+    MarginNoteStore,
+    default_db_path,
+    resolve_db_path,
+)
+from deeptutor.services.path_service import PathService
 
 
 def _seed_objects(device_id: str = "dev1") -> list[MarginNoteObject]:
@@ -239,3 +244,32 @@ def test_cursor_advances(tmp_path: Path) -> None:
     cursor = store.get_cursor("dev1")
     assert cursor != ""
     assert cursor == result.new_cursor
+
+
+def test_resolve_db_path_prefers_a_pinned_entry(tmp_path, monkeypatch) -> None:
+    """One rule, so a paired token stays findable by the sync that presents it.
+
+    The capability binding, the pairing endpoints and the device endpoints all
+    have to land on the same file. A KB may pin ``db_path``; everything else
+    derives it from the name.
+    """
+    monkeypatch.setenv("DEEPTUTOR_HOME", str(tmp_path))
+    PathService.reset_instance()
+    try:
+        pinned = tmp_path / "elsewhere" / "lib.db"
+        assert resolve_db_path("Lib", metadata={"db_path": str(pinned)}) == pinned
+        assert resolve_db_path("Lib", metadata={}) == default_db_path("Lib")
+        # A blank pin is not a pin.
+        assert resolve_db_path("Lib", metadata={"db_path": "  "}) == default_db_path("Lib")
+    finally:
+        PathService.reset_instance()
+
+
+def test_resolve_db_path_derives_when_no_kb_is_resolvable(tmp_path, monkeypatch) -> None:
+    """No request context and no such KB must not raise — just derive."""
+    monkeypatch.setenv("DEEPTUTOR_HOME", str(tmp_path))
+    PathService.reset_instance()
+    try:
+        assert resolve_db_path("Nonexistent") == default_db_path("Nonexistent")
+    finally:
+        PathService.reset_instance()

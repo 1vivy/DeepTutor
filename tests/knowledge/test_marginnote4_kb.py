@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 from deeptutor.knowledge.manager import KnowledgeBaseManager
+from deeptutor.services.path_service import PathService
 
 
 def _seed_mn4(manager: KnowledgeBaseManager, name: str, db_path: str = "") -> None:
@@ -109,3 +110,44 @@ def test_connected_kbs_backed_by_an_index_stay_retrievable() -> None:
 
     for kb_type in ("linked", "lightrag_server", "ima"):
         assert supports_rag_retrieval({"type": kb_type}) is True
+
+
+def test_deleting_the_kb_removes_its_synced_store(tmp_path: Path, monkeypatch) -> None:
+    """The store is ours, unlike an Obsidian vault, so the delete claim holds.
+
+    Leaving it behind would also resurrect every paired device the moment a
+    library of the same name is connected again.
+    """
+    monkeypatch.setenv("DEEPTUTOR_HOME", str(tmp_path / "home"))
+    PathService.reset_instance()
+    try:
+        from deeptutor.capabilities.marginnote4.store import MarginNoteStore, resolve_db_path
+
+        manager = KnowledgeBaseManager(base_dir=str(tmp_path / "kbs"))
+        manager.register_marginnote4_kb("Lib")
+        db_path = resolve_db_path("Lib", metadata={})
+        MarginNoteStore(db_path).pair_device(device_name="iPad")
+        assert db_path.is_file()
+
+        assert manager.delete_knowledge_base("Lib", confirm=True) is True
+        assert not db_path.exists()
+        assert "Lib" not in manager.config.get("knowledge_bases", {})
+    finally:
+        PathService.reset_instance()
+
+
+def test_deleting_an_obsidian_kb_leaves_its_vault_alone(tmp_path: Path) -> None:
+    """The counter-case: an external resource the user manages is never touched."""
+    vault = tmp_path / "vault"
+    (vault / "notes").mkdir(parents=True)
+    (vault / "notes" / "a.md").write_text("hi", encoding="utf-8")
+
+    manager = KnowledgeBaseManager(base_dir=str(tmp_path / "kbs"))
+    manager.config.setdefault("knowledge_bases", {})["Vault"] = {
+        "type": "obsidian",
+        "vault_path": str(vault),
+    }
+    manager._save_config()
+
+    assert manager.delete_knowledge_base("Vault", confirm=True) is True
+    assert (vault / "notes" / "a.md").is_file()

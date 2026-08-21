@@ -107,6 +107,41 @@ def default_db_path(kb_name: str, *, path_service: Any = None) -> Path:
     return path_service.user_data_dir / "marginnote4" / f"{safe}.db"
 
 
+def resolve_db_path(
+    kb_name: str,
+    *,
+    metadata: dict[str, Any] | None = None,
+    path_service: Any = None,
+) -> Path:
+    """The store a connected MN4 library actually uses.
+
+    A KB entry may pin ``db_path``; otherwise the path is derived from the name.
+    That rule has three readers — the capability binding, the session endpoints
+    that pair and list devices, and the device endpoints that sync — and a token
+    issued against one store is invisible to a sync resolved against another, so
+    it lives here rather than at each of them.
+
+    Pass ``metadata`` when the caller already resolved the KB entry. Otherwise
+    it is looked up, and a failure (no such KB, no request context) falls
+    through to the derived path.
+    """
+    if metadata is None:
+        metadata = _kb_metadata(kb_name)
+    pinned = str((metadata or {}).get("db_path") or "").strip()
+    if pinned:
+        return Path(pinned)
+    return default_db_path(kb_name, path_service=path_service)
+
+
+def _kb_metadata(kb_name: str) -> dict[str, Any] | None:
+    try:
+        from deeptutor.multi_user.knowledge_access import resolve_kb_metadata
+
+        return resolve_kb_metadata(kb_name)
+    except Exception:  # noqa: BLE001 - unresolvable KB → derive from the name
+        return None
+
+
 class MarginNoteStore:
     """CRUD + search over synced MN4 objects backed by SQLite.
 

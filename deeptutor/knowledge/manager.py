@@ -1435,9 +1435,17 @@ class KnowledgeBaseManager:
         # reference the user's own external resource — or, for subagents, no
         # folder at all. Deleting one must only drop our pointer entry; never
         # touch what it references, and don't warn about the "missing" folder.
-        connected = is_connected_kb(config_kbs.get(name, {}))
+        entry = config_kbs.get(name, {})
+        connected = is_connected_kb(entry)
         if connected:
             dir_exists = False
+        # One connected kind does own storage we created: a MarginNote library's
+        # synced objects live in a SQLite file under our own data directory, not
+        # in an external resource the user manages. Leaving it behind would also
+        # resurrect every paired device the moment a library of the same name is
+        # connected again.
+        if entry.get("type") == MARGINNOTE4_KB_TYPE:
+            self._delete_marginnote4_store(name, entry)
 
         if not confirm:
             # Ask for confirmation in CLI
@@ -1494,6 +1502,27 @@ class KnowledgeBaseManager:
 
         self._save_config()
         return True
+
+    def _delete_marginnote4_store(self, name: str, entry: dict) -> None:
+        """Remove a MarginNote library's SQLite store, best-effort.
+
+        A failure here must not strand the config entry: leaving the KB in the
+        list is worse than an orphan file, exactly as for the index directory
+        above.
+        """
+        from deeptutor.capabilities.marginnote4.store import resolve_db_path
+
+        try:
+            db_path = resolve_db_path(name, metadata=entry)
+            db_path.unlink(missing_ok=True)
+            # SQLite's WAL companions, when the last connection left them.
+            for suffix in ("-wal", "-shm"):
+                db_path.with_name(db_path.name + suffix).unlink(missing_ok=True)
+        except Exception as exc:  # noqa: BLE001 - orphan file beats a stuck entry
+            logger.warning(
+                f"Could not remove the MarginNote store for KB '{name}': {exc}. "
+                "Continuing; the config entry is still cleaned up."
+            )
 
     def clean_rag_storage(self, name: str | None = None, backup: bool = True) -> bool:
         """

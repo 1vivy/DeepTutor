@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field
 
 from deeptutor.api.routers.auth import require_auth
 from deeptutor.capabilities.marginnote4.models import MarginNoteObject, SyncBatch
-from deeptutor.capabilities.marginnote4.store import MarginNoteStore, default_db_path
+from deeptutor.capabilities.marginnote4.store import MarginNoteStore, resolve_db_path
 from deeptutor.services.path_service import PathService
 
 logger = logging.getLogger(__name__)
@@ -57,12 +57,12 @@ def _device_db_path(kb_name: str) -> Path:
     the store pairing wrote to, and gives :func:`pair_device` something to
     check itself against.
     """
-    return default_db_path(kb_name, path_service=PathService.get_instance())
+    return resolve_db_path(kb_name, path_service=PathService.get_instance())
 
 
 def _store_for(request: Request) -> MarginNoteStore:
     """Resolve (creating if absent) the store for a session-authenticated call."""
-    return MarginNoteStore(default_db_path(_requested_kb(request)))
+    return MarginNoteStore(resolve_db_path(_requested_kb(request)))
 
 
 def _auth_device(request: Request, authorization: str | None) -> tuple[str, MarginNoteStore]:
@@ -153,7 +153,7 @@ async def pair_device(body: PairRequest, request: Request) -> PairResponse:
     Returns a one-time token the Add-on stores and presents on every sync.
     """
     kb_name = _requested_kb(request)
-    if default_db_path(kb_name) != _device_db_path(kb_name):
+    if resolve_db_path(kb_name) != _device_db_path(kb_name):
         # Pairing runs under a session and resolves the caller's own
         # workspace; /sync does not and resolves the default one. Where those
         # differ, pairing would hand out a token that 403s on every sync
