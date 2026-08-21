@@ -907,7 +907,8 @@ class KnowledgeBaseManager:
         the MarginNote capability binds to. When ``db_path`` is omitted the
         capability derives a default SQLite path from the KB name, so callers
         can leave it blank for the simple single-library case. Raises
-        ``ValueError`` on a missing name or a name clash.
+        ``ValueError`` on a missing name, a name clash, or a store already
+        claimed by another library.
         """
         name = (name or "").strip()
         if not name:
@@ -917,6 +918,18 @@ class KnowledgeBaseManager:
         knowledge_bases = self.config.setdefault("knowledge_bases", {})
         if name in knowledge_bases:
             raise ValueError(f"A knowledge base named '{name}' already exists.")
+
+        db_path = (db_path or "").strip()
+        claimed_by = self._marginnote4_store_owner(name, db_path, knowledge_bases)
+        if claimed_by:
+            # Distinct names can still derive one store: the default path keeps
+            # only alphanumerics, `-` and `_`, so "My Lib" and "My/Lib" both
+            # land on My_Lib.db. Sharing it would merge two libraries' objects
+            # and let either one's devices sync into the other.
+            raise ValueError(
+                f"Knowledge base '{claimed_by}' already uses that MarginNote store. "
+                "Pick a name that differs by more than punctuation."
+            )
 
         now = datetime.now().isoformat()
         entry: dict[str, Any] = {
@@ -928,12 +941,31 @@ class KnowledgeBaseManager:
             "created_at": now,
             "updated_at": now,
         }
-        db_path = (db_path or "").strip()
         if db_path:
             entry["db_path"] = db_path
         knowledge_bases[name] = entry
         self._save_config()
         return entry
+
+    @staticmethod
+    def _marginnote4_store_owner(
+        name: str,
+        db_path: str,
+        knowledge_bases: dict[str, Any],
+    ) -> str | None:
+        """Name of the MarginNote library already using this store, if any."""
+        from deeptutor.capabilities.marginnote4.store import resolve_db_path
+
+        def _store(kb_name: str, entry: dict) -> Path:
+            return resolve_db_path(kb_name, metadata=entry).expanduser().resolve()
+
+        wanted = _store(name, {"db_path": db_path})
+        for other_name, other in knowledge_bases.items():
+            if not isinstance(other, dict) or other.get("type") != MARGINNOTE4_KB_TYPE:
+                continue
+            if _store(other_name, other) == wanted:
+                return other_name
+        return None
 
     def register_ima_kb(
         self,

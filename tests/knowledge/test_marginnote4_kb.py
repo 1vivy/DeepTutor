@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from deeptutor.knowledge.manager import KnowledgeBaseManager
 from deeptutor.services.path_service import PathService
 
@@ -151,3 +153,42 @@ def test_deleting_an_obsidian_kb_leaves_its_vault_alone(tmp_path: Path) -> None:
 
     assert manager.delete_knowledge_base("Vault", confirm=True) is True
     assert (vault / "notes" / "a.md").is_file()
+
+
+def test_register_rejects_a_name_that_derives_an_existing_store(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Distinct names can still derive one SQLite file.
+
+    ``default_db_path`` keeps only alphanumerics, ``-`` and ``_``, so "My Lib"
+    and "My/Lib" both land on ``My_Lib.db``. Sharing it would merge two
+    libraries' objects and let either one's paired devices sync into the other.
+    """
+    monkeypatch.setenv("DEEPTUTOR_HOME", str(tmp_path / "home"))
+    PathService.reset_instance()
+    try:
+        manager = KnowledgeBaseManager(base_dir=str(tmp_path / "kbs"))
+        manager.register_marginnote4_kb("My Lib")
+
+        with pytest.raises(ValueError, match="already uses that MarginNote store"):
+            manager.register_marginnote4_kb("My/Lib")
+
+        # A name that differs by more than punctuation is fine.
+        manager.register_marginnote4_kb("Other Lib")
+        assert set(manager.config["knowledge_bases"]) == {"My Lib", "Other Lib"}
+    finally:
+        PathService.reset_instance()
+
+
+def test_register_rejects_a_pinned_path_another_library_owns(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("DEEPTUTOR_HOME", str(tmp_path / "home"))
+    PathService.reset_instance()
+    try:
+        shared = tmp_path / "stores" / "shared.db"
+        manager = KnowledgeBaseManager(base_dir=str(tmp_path / "kbs"))
+        manager.register_marginnote4_kb("First", db_path=str(shared))
+
+        with pytest.raises(ValueError, match="already uses that MarginNote store"):
+            manager.register_marginnote4_kb("Second", db_path=str(shared))
+    finally:
+        PathService.reset_instance()
