@@ -62,23 +62,21 @@ export default function KbSettingsSection({
           {!isMarginNote && (
             <Field label={t("Last indexed")}>{lastIndexed || "—"}</Field>
           )}
-          {isMarginNote ? (
-            meta.db_path && (
-              <Field label={t("Synced store")} className="sm:col-span-2">
-                <span className="font-mono text-[10.5px] text-[var(--muted-foreground)]">
-                  {meta.db_path}
-                </span>
-              </Field>
-            )
-          ) : (
-            kb.path && (
-              <Field label={t("On-disk path")} className="sm:col-span-2">
-                <span className="font-mono text-[10.5px] text-[var(--muted-foreground)]">
-                  {kb.path}
-                </span>
-              </Field>
-            )
-          )}
+          {isMarginNote
+            ? meta.db_path && (
+                <Field label={t("Synced store")} className="sm:col-span-2">
+                  <span className="font-mono text-[10.5px] text-[var(--muted-foreground)]">
+                    {meta.db_path}
+                  </span>
+                </Field>
+              )
+            : kb.path && (
+                <Field label={t("On-disk path")} className="sm:col-span-2">
+                  <span className="font-mono text-[10.5px] text-[var(--muted-foreground)]">
+                    {kb.path}
+                  </span>
+                </Field>
+              )}
         </dl>
       </section>
 

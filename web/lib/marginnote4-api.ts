@@ -72,7 +72,9 @@ export async function listMarginNote4Devices(
     cache: "no-store",
   });
   if (!res.ok) {
-    throw new Error(await readErrorDetail(res, "Failed to load paired devices"));
+    throw new Error(
+      await readErrorDetail(res, "Failed to load paired devices"),
+    );
   }
   const data = await res.json();
   return Array.isArray(data) ? (data as MarginNoteDevice[]) : [];

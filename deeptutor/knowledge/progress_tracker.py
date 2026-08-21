@@ -178,7 +178,7 @@ class ProgressTracker:
         params = message_params or {}
         if message_key and not message:
             message = render_message_template(message_key, params)
-        progress = {
+        progress: dict[str, object] = {
             "kb_name": self.kb_name,
             "task_id": self.task_id,
             "stage": stage.value,
