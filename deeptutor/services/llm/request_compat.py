@@ -25,6 +25,26 @@ def _exception_chain(exc: Exception):
             pending.append(cause)
 
 
+_MAX_LOGGED_ERROR_CHARS = 2000
+
+
+def logged_error_text(exc: Exception) -> str:
+    """``error_text`` bounded for a log line.
+
+    The compat predicates only scan this text, but a log line is different:
+    ``data/user/logs/deeptutor.jsonl`` is what a user is asked to attach to a
+    bug report, and some providers echo the rejected request back — the tool
+    schemas, occasionally the messages themselves. The parameter a provider
+    objects to is always near the front, so cap it rather than ship an
+    unbounded copy of the request into a file destined for a public issue.
+    """
+    text = error_text(exc)
+    if len(text) <= _MAX_LOGGED_ERROR_CHARS:
+        return text
+    dropped = len(text) - _MAX_LOGGED_ERROR_CHARS
+    return f"{text[:_MAX_LOGGED_ERROR_CHARS]}… (+{dropped} chars)"
+
+
 def error_text(exc: Exception) -> str:
     """Return the best available lowercase provider error body."""
     response = getattr(exc, "response", None)

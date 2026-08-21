@@ -48,11 +48,11 @@ from deeptutor.services.llm import LLMProviderTransportError, clean_thinking_tag
 from deeptutor.services.llm.capabilities import threads_session_id
 from deeptutor.services.llm.multimodal import should_degrade_to_text, strip_image_parts_inplace
 from deeptutor.services.llm.request_compat import (
-    error_text,
     is_image_input_unsupported,
     is_stream_options_unsupported,
     is_tool_schema_unsupported,
     is_transient_transport_error,
+    logged_error_text,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -879,7 +879,7 @@ class AgentLoop:
                 logger.warning(
                     "provider rejected tool schemas for model=%s; retrying without tools. error=%s",
                     kwargs.get("model"),
-                    error_text(exc),
+                    logged_error_text(exc),
                 )
                 await self.stream.progress(
                     self.pipeline._t(
