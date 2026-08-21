@@ -40,9 +40,9 @@ def _resolve(context: UnifiedContext) -> dict[str, str] | None:
         # one from the KB name so each connected library gets its own SQLite file.
         db_path = str(meta.get("db_path") or "").strip()
         if not db_path:
-            from deeptutor.capabilities.marginnote4.store import _default_db_path
+            from deeptutor.capabilities.marginnote4.store import default_db_path
 
-            db_path = str(_default_db_path(ref))
+            db_path = str(default_db_path(ref))
         return {"name": str(meta.get("name") or ref), "db_path": db_path}
     return None
 

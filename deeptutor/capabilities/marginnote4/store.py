@@ -91,12 +91,20 @@ def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def _default_db_path(kb_name: str) -> Path:
-    """Default database location under DeepTutor's data directory."""
-    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in kb_name)
-    from deeptutor.services.path_service import get_path_service
+def default_db_path(kb_name: str, *, path_service: Any = None) -> Path:
+    """Default database location under DeepTutor's data directory.
 
-    return get_path_service().user_data_dir / "marginnote4" / f"{safe}.db"
+    ``path_service`` overrides whose workspace is used. The device-token
+    endpoints carry no session, so they must name the workspace they mean
+    rather than inherit whatever the ambient request context happens to be —
+    see ``api/routers/marginnote4.py``.
+    """
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in kb_name)
+    if path_service is None:
+        from deeptutor.services.path_service import get_path_service
+
+        path_service = get_path_service()
+    return path_service.user_data_dir / "marginnote4" / f"{safe}.db"
 
 
 class MarginNoteStore:
@@ -111,6 +119,21 @@ class MarginNoteStore:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_schema()
+
+    @classmethod
+    def open_existing(cls, db_path: str | Path) -> "MarginNoteStore | None":
+        """Open an already-paired store, or ``None`` when there is none.
+
+        Constructing a store creates its directory and schema, so the
+        device-token endpoints — which are reached *before* any credential has
+        been checked — must not construct one from caller-supplied input. Use
+        this instead: no file, no store, and nothing written to disk by an
+        unauthenticated request.
+        """
+        path = Path(db_path)
+        if not path.is_file():
+            return None
+        return cls(path)
 
     # -- internal helpers ---------------------------------------------------
 

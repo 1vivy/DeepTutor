@@ -18,6 +18,7 @@ Phase 1 scope: device pairing, incremental sync, heartbeat. Write-back to MN4
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -25,36 +26,61 @@ from pydantic import BaseModel, Field
 
 from deeptutor.api.routers.auth import require_auth
 from deeptutor.capabilities.marginnote4.models import MarginNoteObject, SyncBatch
-from deeptutor.capabilities.marginnote4.store import MarginNoteStore
+from deeptutor.capabilities.marginnote4.store import MarginNoteStore, default_db_path
+from deeptutor.services.path_service import PathService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 _auth = [Depends(require_auth)]
 
+# Upper bound on objects (and tombstones) accepted from one sync request.
+MAX_SYNC_BATCH = 2000
+
+
+def _requested_kb(request: Request) -> str:
+    """The MN4 library this request addresses.
+
+    In Phase 1 a single default store serves all devices; ``X-MN4-KB`` selects
+    a dedicated database instead. The header is only a *selector* — the device
+    token is the credential, and it is checked against whichever store the
+    header names, so naming another library grants nothing.
+    """
+    return request.headers.get("x-mn4-kb", "default")
+
+
+def _device_db_path(kb_name: str) -> Path:
+    """The database the device-token endpoints address.
+
+    Those endpoints carry no session, so ``get_path_service()`` would hand them
+    whatever the ambient context happens to be — the default workspace in
+    practice. Naming it explicitly keeps the sync path from drifting away from
+    the store pairing wrote to, and gives :func:`pair_device` something to
+    check itself against.
+    """
+    return default_db_path(kb_name, path_service=PathService.get_instance())
+
 
 def _store_for(request: Request) -> MarginNoteStore:
-    """Resolve the MarginNote store from request context.
-
-    In Phase 1, a single default store serves all devices. When a KB name is
-    passed via the ``X-MN4-KB`` header, its dedicated database is used instead.
-    """
-    kb_name = request.headers.get("x-mn4-kb", "default")
-    from deeptutor.capabilities.marginnote4.store import _default_db_path
-
-    db_path = _default_db_path(kb_name)
-    return MarginNoteStore(db_path)
+    """Resolve (creating if absent) the store for a session-authenticated call."""
+    return MarginNoteStore(default_db_path(_requested_kb(request)))
 
 
 def _auth_device(request: Request, authorization: str | None) -> tuple[str, MarginNoteStore]:
-    """Validate the device token and return ``(device_id, store)``."""
+    """Validate the device token and return ``(device_id, store)``.
+
+    Reached with no session, so nothing here may create state from
+    caller-supplied input: ``open_existing`` keeps an unauthenticated request
+    from materialising a directory and a schema'd database per distinct
+    ``X-MN4-KB`` value.
+    """
     if not authorization or not authorization.startswith("MarginNote "):
         raise HTTPException(401, "Missing or malformed Authorization header.")
     raw = authorization[len("MarginNote ") :]
     if ":" not in raw:
         raise HTTPException(401, "Invalid Authorization format.")
     device_id, token = raw.split(":", 1)
-    store = _store_for(request)
-    if not store.verify_token(device_id, token):
+    store = MarginNoteStore.open_existing(_device_db_path(_requested_kb(request)))
+    if store is None or not store.verify_token(device_id, token):
         raise HTTPException(403, "Invalid device credentials.")
     store.touch_device(device_id)
     return device_id, store
@@ -64,8 +90,8 @@ def _auth_device(request: Request, authorization: str | None) -> tuple[str, Marg
 
 
 class PairRequest(BaseModel):
-    device_name: str = ""
-    device_kind: str = "macos"
+    device_name: str = Field("", max_length=128)
+    device_kind: str = Field("macos", max_length=32)
 
 
 class PairResponse(BaseModel):
@@ -93,9 +119,12 @@ class SyncObjectIn(BaseModel):
 
 
 class SyncRequest(BaseModel):
-    cursor: str = ""
-    objects: list[SyncObjectIn] = Field(default_factory=list)
-    deleted_ids: list[str] = Field(default_factory=list)
+    # One batch, not one library: the Add-on pages through its backlog, so an
+    # unbounded list only ever meant a token holder could pin the event loop
+    # and the database on a single request.
+    cursor: str = Field("", max_length=256)
+    objects: list[SyncObjectIn] = Field(default_factory=list, max_length=MAX_SYNC_BATCH)
+    deleted_ids: list[str] = Field(default_factory=list, max_length=MAX_SYNC_BATCH)
 
 
 class SyncResponse(BaseModel):
@@ -123,6 +152,17 @@ async def pair_device(body: PairRequest, request: Request) -> PairResponse:
 
     Returns a one-time token the Add-on stores and presents on every sync.
     """
+    kb_name = _requested_kb(request)
+    if default_db_path(kb_name) != _device_db_path(kb_name):
+        # Pairing runs under a session and resolves the caller's own
+        # workspace; /sync does not and resolves the default one. Where those
+        # differ, pairing would hand out a token that 403s on every sync
+        # forever, so refuse instead of issuing a dead credential.
+        raise HTTPException(
+            501,
+            "MN4 device sync is not available for this account yet: pairing and "
+            "sync would resolve different workspaces.",
+        )
     store = _store_for(request)
     device, token = store.pair_device(device_name=body.device_name, device_kind=body.device_kind)
     logger.info("Paired MN4 device %s (%s)", device.device_id, device.device_name)
