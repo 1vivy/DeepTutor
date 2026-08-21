@@ -42,7 +42,11 @@ export function uploadPolicyForProvider(
 export interface ProgressInfo {
   task_id?: string;
   stage?: string;
+  /** Rendered English. Prefer `progressMessage()`, which translates. */
   message?: string;
+  /** English `{{name}}` template the backend formatted `message` from. */
+  message_key?: string;
+  message_params?: Record<string, string | number>;
   current?: number;
   total?: number;
   percent?: number;
@@ -53,6 +57,22 @@ export interface ProgressInfo {
   error?: string;
   error_code?: string;
   retryable?: boolean;
+}
+
+/**
+ * The progress line to show, translated when the backend named its template.
+ *
+ * Indexing runs detached from any request, so the backend has no viewer
+ * language and sends the English template plus its values; `t()` is where the
+ * language is actually known. Falls back to the rendered English for progress
+ * emitted before a producer was converted.
+ */
+export function progressMessage(
+  progress: Pick<ProgressInfo, "message" | "message_key" | "message_params">,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string | undefined {
+  if (!progress.message_key) return progress.message;
+  return t(progress.message_key, progress.message_params ?? {});
 }
 
 export interface KnowledgeIndexFailure {
