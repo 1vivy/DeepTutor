@@ -1301,6 +1301,8 @@
   "Retry indexing from the documents already stored in this knowledge base.": "Retry indexing from the documents already stored in this knowledge base.",
   "Re-index": "Re-index",
   "Re-indexing…": "Re-indexing…",
+  "Connect library": "Connect library",
+  "Connect a MarginNote 4 library. Its add-on pushes your notes, excerpts, cards and mindmap nodes in — no upload, no index.": "Connect a MarginNote 4 library. Its add-on pushes your notes, excerpts, cards and mindmap nodes in — no upload, no index.",
   "Synced store": "Synced store",
   "Deleting this library removes its synced objects and unpairs every device. Nothing in MarginNote 4 itself is touched.": "Deleting this library removes its synced objects and unpairs every device. Nothing in MarginNote 4 itself is touched.",
   "MarginNote 4": "MarginNote 4",

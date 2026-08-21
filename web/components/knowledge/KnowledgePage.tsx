@@ -74,6 +74,11 @@ export default function KnowledgePage() {
     setCreatePreset({ mode: "link", source: "obsidian" });
     setCreateOpen(true);
   }, []);
+  // Same deal for a MarginNote library.
+  const openMarginNote4 = useCallback(() => {
+    setCreatePreset({ mode: "link", source: "marginnote4" });
+    setCreateOpen(true);
+  }, []);
   // Lands on the Overview console unless deep-linked to a KB or an engine.
   const [view, setView] = useState<"home" | "kb" | "engine">(
     initialEngine ? "engine" : initialKb ? "kb" : "home",
@@ -258,6 +263,7 @@ export default function KnowledgePage() {
               onOpenEngine={openEngine}
               onCreate={openCreate}
               onConnectObsidian={openObsidian}
+              onConnectMarginNote4={openMarginNote4}
             />
           ) : view === "engine" && selectedProvider ? (
             <EngineDetail
@@ -278,6 +284,7 @@ export default function KnowledgePage() {
               onOpenEngine={openEngine}
               onCreate={openCreate}
               onConnectObsidian={openObsidian}
+              onConnectMarginNote4={openMarginNote4}
             />
           ) : (
             <KnowledgeBaseDetail

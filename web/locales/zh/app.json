@@ -1421,6 +1421,8 @@
   "Retry indexing from the documents already stored in this knowledge base.": "使用此知识库中已经保存的文档重试索引。",
   "Re-index": "重建索引",
   "Re-indexing…": "正在重建索引…",
+  "Connect library": "连接库",
+  "Connect a MarginNote 4 library. Its add-on pushes your notes, excerpts, cards and mindmap nodes in — no upload, no index.": "连接一个 MarginNote 4 库。它的插件会把你的笔记、摘录、卡片和脑图节点推送进来——不上传、不索引。",
   "Synced store": "同步存储",
   "Deleting this library removes its synced objects and unpairs every device. Nothing in MarginNote 4 itself is touched.": "删除这个库会清掉已同步的条目并解除所有设备配对。MarginNote 4 里的内容不受影响。",
   "MarginNote 4": "MarginNote 4",
