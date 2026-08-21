@@ -268,6 +268,12 @@ def build_vision_model_func(*, io_bridge: OwnerLoopBridge | None = None):
                 image_data=image_data,
                 messages=messages,
                 max_retries=0,
+                # Never strip the image and answer anyway. The provider's
+                # stage-2 fallback exists to salvage a text answer from a model
+                # that turns out not to take images, but here the *whole point*
+                # of the call is the image: a description produced without it is
+                # invented, and it would be indexed as fact. Fail the image
+                # instead, and let the caller log and skip it.
                 allow_image_fallback=False,
             )
 

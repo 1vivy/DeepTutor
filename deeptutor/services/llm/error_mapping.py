@@ -129,7 +129,16 @@ _GLOBAL_RULES: list[MappingRule] = [
 
 
 def map_error(exc: Exception, provider: str | None = None) -> LLMError:
-    """Map provider-specific errors to unified internal exceptions."""
+    """Map provider-specific errors to unified internal exceptions.
+
+    An exception that is already an ``LLMError`` is returned *itself*, not a
+    replacement: re-running the rules would re-classify a precise error into a
+    vaguer one (an ``LLMTimeoutError`` fell out as a bare ``LLMAPIError``), and
+    callers such as the LightRAG adapter re-raise the terminal error and
+    compare identity. Filling in ``provider`` when the raiser did not know it is
+    therefore an in-place write on the caller's exception — deliberate, and the
+    only field this function mutates.
+    """
     if isinstance(exc, LLMError):
         if exc.provider is None:
             exc.provider = provider
