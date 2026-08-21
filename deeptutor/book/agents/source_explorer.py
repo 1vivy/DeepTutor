@@ -345,11 +345,11 @@ class SourceExplorer(BaseAgent):
         Obsidian vault (no index — its capability navigates live files), a
         MarginNote 4 library (same shape: synced objects in their own store,
         reachable only through the MN4 tools) and a connected subagent (not a
-        document collection). Sweeping those returned
-        nothing and looked identical to a source that simply had no relevant
-        content, so the reader never learned their vault contributed zero;
-        reaching them properly means driving each capability, which is separate
-        work, and naming them is the honest interim.
+        document collection). Sweeping those returned nothing and looked
+        identical to a source that simply had no relevant content, so the
+        reader never learned their vault contributed zero; reaching them
+        properly means driving each capability, which is separate work, and
+        naming them is the honest interim.
 
         Every other pointer KB *is* retrievable and is swept normally — a
         ``linked`` folder mounts an index built elsewhere, and ``lightrag_server``
