@@ -18,6 +18,8 @@ from deeptutor.reading import (
     ReadingError,
     ReadingStore,
     Rect,
+    TextPositionSelector,
+    TextQuoteSelector,
     export_material,
     parse_locators,
     render_outline,
@@ -425,6 +427,53 @@ def test_annotations_round_trip_with_generated_ids(store: ReadingStore, pdf_path
     stored = store.annotations(manifest.material_id)
     assert len(stored) == 1
     assert stored[0].rects[0].to_list() == [0.1, 0.2, 0.5, 0.25]
+
+
+def test_w3c_text_selectors_round_trip_and_can_supply_the_quote(
+    store: ReadingStore, pdf_path: Path
+) -> None:
+    manifest = store.ingest(pdf_path)
+
+    saved = store.save_annotation(
+        manifest.material_id,
+        Annotation(
+            annotation_id="",
+            locator=1,
+            selectors=(
+                TextQuoteSelector(exact="Introduction", suffix=" to attention"),
+                TextPositionSelector(start=0, end=12),
+            ),
+        ),
+    )
+
+    assert saved.quote == "Introduction"
+    assert [
+        selector.to_dict() for selector in store.annotations(manifest.material_id)[0].selectors
+    ] == [
+        {
+            "type": "TextQuoteSelector",
+            "exact": "Introduction",
+            "suffix": " to attention",
+        },
+        {"type": "TextPositionSelector", "start": 0, "end": 12},
+    ]
+
+
+def test_mismatched_quote_and_text_quote_selector_are_rejected(
+    store: ReadingStore, pdf_path: Path
+) -> None:
+    manifest = store.ingest(pdf_path)
+
+    with pytest.raises(ReadingError, match="does not match"):
+        store.save_annotation(
+            manifest.material_id,
+            Annotation(
+                annotation_id="",
+                locator=1,
+                quote="Introduction",
+                selectors=(TextQuoteSelector(exact="different text"),),
+            ),
+        )
 
 
 def test_saving_the_same_id_updates_in_place_and_keeps_created_at(

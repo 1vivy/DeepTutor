@@ -49,6 +49,7 @@ from deeptutor.reading.models import (
     ReadingPosition,
     ReadingUpgradeConflict,
     UnitReference,
+    TextQuoteSelector,
 )
 
 logger = logging.getLogger(__name__)
@@ -481,6 +482,18 @@ class ReadingStore:
             )
         if len(annotation.source_anchor) > 4096:
             raise ReadingError("source anchor is too long")
+        quote_selector = next(
+            (
+                selector
+                for selector in annotation.selectors
+                if isinstance(selector, TextQuoteSelector)
+            ),
+            None,
+        )
+        if quote_selector and annotation.quote and quote_selector.exact != annotation.quote:
+            raise ReadingError("annotation quote does not match its TextQuoteSelector")
+        if quote_selector and not annotation.quote:
+            annotation = dataclass_replace(annotation, quote=quote_selector.exact)
         with self._locked(material_id):
             existing = self.annotations(material_id)
             stored = annotation
