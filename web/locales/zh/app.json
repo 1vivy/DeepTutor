@@ -431,6 +431,7 @@
   "Continue": "继续",
   "View": "查看",
   "Close": "关闭",
+  "No speech voice is available in this browser.": "此浏览器没有可用的语音。",
   "messages": "条消息",
   "Failed to load session": "加载会话失败",
   "Added Successfully!": "保存成功！",
