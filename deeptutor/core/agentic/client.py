@@ -533,6 +533,20 @@ def build_completion_kwargs(
             reasoning_effort=reasoning_effort,
         )
     )
+    # Apply provider-spec model overrides last, mirroring
+    # OpenAICompatProvider._build_kwargs: a None value drops the parameter —
+    # e.g. Kimi models ("kimi", "k3") reject any explicit temperature.
+    spec = find_by_name(binding)
+    if spec and model:
+        model_lower = model.lower()
+        for pattern, overrides in spec.model_overrides:
+            if pattern in model_lower:
+                for key, value in overrides.items():
+                    if value is None:
+                        kwargs.pop(key, None)
+                    else:
+                        kwargs[key] = value
+                break
     return kwargs
 
 
