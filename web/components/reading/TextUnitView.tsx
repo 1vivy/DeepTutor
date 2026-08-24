@@ -1,7 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import {
+  ALargeSmall,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Minus,
+  Plus,
+  RotateCcw,
+  Rows3,
+  SunMoon,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { AnnotationItem, UnitKind } from "@/lib/reading-api";
 import { getUnitText } from "@/lib/reading-api";
@@ -16,6 +26,16 @@ const COLOR_INK: Record<string, string> = {
   pink: "250 161 199",
   purple: "199 174 250",
 };
+
+const READER_PREFS_KEY = "dt.reader.textPreferences";
+const DEFAULT_FONT_SIZE = 17;
+const MIN_FONT_SIZE = 12;
+const MAX_FONT_SIZE = 28;
+const DEFAULT_LINE_WIDTH = 84;
+const MIN_LINE_WIDTH = 48;
+const MAX_LINE_WIDTH = 104;
+const LINE_WIDTH_STEPS = [48, 64, 84, 104];
+type ReaderTheme = "auto" | "sepia" | "night";
 
 export interface TextUnitViewProps {
   materialId: string;
@@ -66,6 +86,89 @@ export function TextUnitView({
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fontSize, setFontSize] = useState(DEFAULT_FONT_SIZE);
+  const [lineWidth, setLineWidth] = useState(DEFAULT_LINE_WIDTH);
+  const [serif, setSerif] = useState(true);
+  const [readerTheme, setReaderTheme] = useState<ReaderTheme>("auto");
+
+  useEffect(() => {
+    try {
+      const value = JSON.parse(window.localStorage.getItem(READER_PREFS_KEY) || "{}");
+      if (typeof value.fontSize === "number") {
+        setFontSize(Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, value.fontSize)));
+      }
+      if (typeof value.lineWidth === "number") {
+        setLineWidth(
+          Math.min(MAX_LINE_WIDTH, Math.max(MIN_LINE_WIDTH, value.lineWidth)),
+        );
+      }
+      if (typeof value.serif === "boolean") setSerif(value.serif);
+      if (["auto", "sepia", "night"].includes(value.readerTheme)) {
+        setReaderTheme(value.readerTheme);
+      }
+    } catch {
+      // Invalid or unavailable local storage falls back to readable defaults.
+    }
+  }, []);
+
+  const updatePreferences = useCallback(
+    (next: Partial<{
+      fontSize: number;
+      lineWidth: number;
+      serif: boolean;
+      readerTheme: ReaderTheme;
+    }>) => {
+      const merged = { fontSize, lineWidth, serif, readerTheme, ...next };
+      setFontSize(merged.fontSize);
+      setLineWidth(merged.lineWidth);
+      setSerif(merged.serif);
+      setReaderTheme(merged.readerTheme);
+      try {
+        window.localStorage.setItem(READER_PREFS_KEY, JSON.stringify(merged));
+      } catch {
+        // Preferences still apply for the current session.
+      }
+    },
+    [fontSize, lineWidth, readerTheme, serif],
+  );
+
+  const changeFontSize = useCallback(
+    (next: number) => {
+      updatePreferences({
+        fontSize: Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, next)),
+      });
+    },
+    [updatePreferences],
+  );
+
+  const resetPreferences = useCallback(() => {
+    updatePreferences({
+      fontSize: DEFAULT_FONT_SIZE,
+      lineWidth: DEFAULT_LINE_WIDTH,
+    });
+  }, [updatePreferences]);
+
+  const cycleLineWidth = useCallback(() => {
+    const nextWidth =
+      LINE_WIDTH_STEPS.find((width) => width > lineWidth) ?? MIN_LINE_WIDTH;
+    updatePreferences({ lineWidth: nextWidth });
+  }, [lineWidth, updatePreferences]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.metaKey && !event.ctrlKey) return;
+      const plus = event.key === "+" || event.key === "=";
+      const minus = event.key === "-";
+      const reset = event.key === "0";
+      if (!plus && !minus && !reset) return;
+      event.preventDefault();
+      if (plus) changeFontSize(fontSize + 1);
+      if (minus) changeFontSize(fontSize - 1);
+      if (reset) resetPreferences();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [changeFontSize, fontSize, resetPreferences]);
 
   useEffect(() => {
     setLocator(1);
@@ -242,35 +345,100 @@ export function TextUnitView({
   const canNext = locator < unitCount;
 
   return (
-    <div className="flex h-full flex-col bg-[var(--background)]">
-      <div className="flex items-center justify-center gap-2 border-b border-[var(--border)] px-4 py-2">
-        <button
-          type="button"
-          disabled={!canPrev}
-          onClick={() => setLocator((current) => Math.max(1, current - 1))}
-          className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[var(--muted-foreground)] transition hover:bg-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-35 disabled:hover:bg-transparent"
-          aria-label={t("Previous")}
-        >
-          <ChevronLeft size={15} />
-        </button>
-        <span className="min-w-[120px] text-center font-mono text-[11px] tabular-nums text-[var(--muted-foreground)]">
-          {t("{{unit}} {{n}} of {{total}}", {
-            unit: t(unitLabel(unit)),
-            n: locator,
-            total: unitCount,
-          })}
-        </span>
-        <button
-          type="button"
-          disabled={!canNext}
-          onClick={() =>
-            setLocator((current) => Math.min(unitCount, current + 1))
-          }
-          className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[var(--muted-foreground)] transition hover:bg-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-35 disabled:hover:bg-transparent"
-          aria-label={t("Next")}
-        >
-          <ChevronRight size={15} />
-        </button>
+    <div
+      className="flex h-full flex-col"
+      style={
+        readerTheme === "sepia"
+          ? { background: "#f4ecd8", color: "#473c2c" }
+          : readerTheme === "night"
+            ? { background: "#16181d", color: "#e8e5df" }
+            : { background: "var(--background)" }
+      }
+    >
+      <div className="flex items-center justify-between gap-2 overflow-x-auto border-b border-[var(--border)] px-2 py-2 sm:px-3">
+        <div className="flex shrink-0 items-center gap-0.5">
+          <PreferenceButton
+            label={t("Smaller text")}
+            icon={Minus}
+            disabled={fontSize <= MIN_FONT_SIZE}
+            onClick={() => changeFontSize(fontSize - 1)}
+          />
+          <span
+            aria-live="polite"
+            className="min-w-[42px] text-center font-mono text-[11px] tabular-nums text-[var(--muted-foreground)]"
+          >
+            {Math.round((fontSize / 16) * 100)}%
+          </span>
+          <PreferenceButton
+            label={t("Larger text")}
+            icon={Plus}
+            disabled={fontSize >= MAX_FONT_SIZE}
+            onClick={() => changeFontSize(fontSize + 1)}
+          />
+          <PreferenceButton
+            label={t("Reset reading display")}
+            icon={RotateCcw}
+            onClick={resetPreferences}
+          />
+          <PreferenceButton
+            label={serif ? t("Use sans-serif font") : t("Use serif font")}
+            icon={ALargeSmall}
+            active={!serif}
+            onClick={() => updatePreferences({ serif: !serif })}
+          />
+          <PreferenceButton
+            label={t("Change line width")}
+            icon={Rows3}
+            onClick={cycleLineWidth}
+          />
+          <span className="hidden min-w-[44px] font-mono text-[11px] tabular-nums text-[var(--muted-foreground)] sm:inline">
+            {`${lineWidth}ch`}
+          </span>
+          <PreferenceButton
+            label={t("Change reading theme")}
+            icon={SunMoon}
+            active={readerTheme !== "auto"}
+            onClick={() =>
+              updatePreferences({
+                readerTheme:
+                  readerTheme === "auto"
+                    ? "sepia"
+                    : readerTheme === "sepia"
+                      ? "night"
+                      : "auto",
+              })
+            }
+          />
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            disabled={!canPrev}
+            onClick={() => setLocator((current) => Math.max(1, current - 1))}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[var(--muted-foreground)] transition hover:bg-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-35 disabled:hover:bg-transparent"
+            aria-label={t("Previous")}
+          >
+            <ChevronLeft size={15} />
+          </button>
+          <span className="min-w-[120px] text-center font-mono text-[11px] tabular-nums text-[var(--muted-foreground)]">
+            {t("{{unit}} {{n}} of {{total}}", {
+              unit: t(unitLabel(unit)),
+              n: locator,
+              total: unitCount,
+            })}
+          </span>
+          <button
+            type="button"
+            disabled={!canNext}
+            onClick={() =>
+              setLocator((current) => Math.min(unitCount, current + 1))
+            }
+            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[var(--muted-foreground)] transition hover:bg-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-35 disabled:hover:bg-transparent"
+            aria-label={t("Next")}
+          >
+            <ChevronRight size={15} />
+          </button>
+        </div>
       </div>
 
       <div
@@ -289,7 +457,14 @@ export function TextUnitView({
         ) : (
           <article
             ref={articleRef}
-            className="mx-auto max-w-[68ch] whitespace-pre-wrap font-serif text-[15px] leading-[1.75] text-[var(--foreground)] selection:bg-[var(--primary)]/20"
+            className={`mx-auto whitespace-pre-wrap leading-[1.75] selection:bg-[var(--primary)]/20 ${
+              serif ? "font-serif" : "font-sans"
+            }`}
+            style={{
+              maxWidth: `${lineWidth}ch`,
+              fontSize: `${fontSize}px`,
+              color: readerTheme === "auto" ? "var(--foreground)" : "inherit",
+            }}
           >
             {!text.trim() ? (
               <span className="text-[var(--muted-foreground)]">
@@ -302,6 +477,38 @@ export function TextUnitView({
         )}
       </div>
     </div>
+  );
+}
+
+function PreferenceButton({
+  label,
+  icon: Icon,
+  active = false,
+  disabled = false,
+  onClick,
+}: {
+  label: string;
+  icon: typeof Minus;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      disabled={disabled}
+      onClick={onClick}
+      className={`inline-flex h-7 w-7 items-center justify-center rounded-lg transition hover:bg-[var(--muted)] disabled:opacity-35 disabled:hover:bg-transparent ${
+        active
+          ? "text-[var(--foreground)]"
+          : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+      }`}
+    >
+      <Icon size={15} />
+    </button>
   );
 }
 
