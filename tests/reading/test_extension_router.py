@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -89,6 +90,23 @@ def test_selection_requirement_rejects_unverified_text(material, monkeypatch):
     assert response.status_code == 400
 
 
+def test_oversized_unit_returns_protocol_error(material, monkeypatch):
+    unit_path = ReadingStore().root / material.material_id / "units" / "0001.txt"
+    unit_path.write_text("x" * 60_001, encoding="utf-8")
+    client = _client(
+        monkeypatch,
+        _extension(lambda *_: pytest.fail("must not run")),
+    )
+
+    response = client.post(
+        f"/api/v1/reading/materials/{material.material_id}/extensions/sample/actions/open",
+        json={"locator": 1},
+    )
+
+    assert response.status_code == 422
+    assert "too large" in response.json()["detail"]
+
+
 @pytest.mark.parametrize(
     "run_action",
     [
@@ -102,5 +120,21 @@ def test_extension_failures_are_isolated(material, monkeypatch, run_action):
         f"/api/v1/reading/materials/{material.material_id}/extensions/sample/actions/open",
         json={"locator": 1},
     )
+    assert response.status_code == 503
+    assert response.json()["detail"]["recoverable"] is True
+
+
+def test_hanging_extension_action_times_out(material, monkeypatch):
+    async def run(*_args):
+        await asyncio.sleep(1)
+
+    monkeypatch.setattr(reading_extensions, "ACTION_TIMEOUT_S", 0.01)
+    client = _client(monkeypatch, _extension(run))
+
+    response = client.post(
+        f"/api/v1/reading/materials/{material.material_id}/extensions/sample/actions/open",
+        json={"locator": 1},
+    )
+
     assert response.status_code == 503
     assert response.json()["detail"]["recoverable"] is True

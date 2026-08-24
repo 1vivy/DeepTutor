@@ -48,6 +48,10 @@ class ExampleExtension:
   `feedback`, or `browser_speech`.
 - Results have a 64 KB serialized ceiling. Quiz and speech payloads receive
   additional shape and length validation.
+- Units larger than the protocol's 60,000-character context ceiling are
+  rejected with a client error instead of invoking an extension.
+- Actions have a 30-second execution timeout and return the standard
+  recoverable unavailability response when exceeded.
 - Result data is rendered as React text. Extensions cannot send JavaScript or
   raw HTML to the Reader.
 - Discovery and execution failures are isolated. A broken optional package

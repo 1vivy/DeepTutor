@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import re
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from deeptutor.reading import ReadingStore
 from deeptutor.reading.extensions import (
@@ -17,6 +18,7 @@ from deeptutor.reading.extensions import (
 )
 
 router = APIRouter()
+ACTION_TIMEOUT_S = 30
 
 
 class ActionPayload(BaseModel):
@@ -60,18 +62,27 @@ async def run_extension_action(
     selection = _verified_selection(payload.selection, unit_text)
     if "selection" in declared_action.requires and not selection:
         raise HTTPException(status_code=400, detail="Select text from the visible unit first.")
-    context = ReadingContext(
-        material_id=material_id,
-        locator=payload.locator,
-        source_anchor=payload.source_anchor,
-        locale=payload.locale,
-        selection=selection,
-        visible_text=unit_text,
-    )
     try:
-        value = extension.run_action(action, context)
+        context = ReadingContext(
+            material_id=material_id,
+            locator=payload.locator,
+            source_anchor=payload.source_anchor,
+            locale=payload.locale,
+            selection=selection,
+            visible_text=unit_text,
+        )
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="This reading unit is too large for the extension protocol.",
+        ) from exc
+    try:
+        value = await asyncio.wait_for(
+            asyncio.to_thread(extension.run_action, action, context),
+            timeout=ACTION_TIMEOUT_S,
+        )
         if inspect.isawaitable(value):
-            value = await value
+            value = await asyncio.wait_for(value, timeout=ACTION_TIMEOUT_S)
         result = (
             value
             if isinstance(value, ReadingExtensionResult)
