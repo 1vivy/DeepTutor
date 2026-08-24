@@ -364,8 +364,13 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         # this model"). Dropping the parameter (value None) lets the API apply
         # the correct fixed value per model and per thinking/non-thinking mode —
         # Moonshot's own recommendation. The tunable moonshot-v1-* series does
-        # not contain "kimi" and keeps the caller's temperature.
-        model_overrides=(("kimi", {"temperature": None}),),
+        # not contain "kimi" and keeps the caller's temperature. The Kimi
+        # coding endpoint (api.kimi.com/coding/v1) addresses these models by
+        # bare ids ("k3", ...) without the "kimi-" prefix, so match those too.
+        model_overrides=(
+            ("kimi", {"temperature": None}),
+            ("k3", {"temperature": None}),
+        ),
     ),
     # MiniMax runs two separate platforms: global (platform.minimax.io /
     # api.minimax.io) and mainland China (platform.minimaxi.com /
