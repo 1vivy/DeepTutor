@@ -231,7 +231,13 @@ class ReadingStore:
             # A repair or compatible re-ingest keeps user-owned state. EPUB
             # legacy upgrades with annotations were rejected above because
             # their old locators cannot be mapped safely to the spine.
-            for state_name in (ANNOTATIONS_NAME, POSITION_NAME):
+            state_names = (ANNOTATIONS_NAME, POSITION_NAME)
+            if existing is not None and existing.render_mode != "epub":
+                # A legacy text-reader position can point past the shorter
+                # source-faithful spine. Annotations are protected above;
+                # the viewport safely resets to chapter one.
+                state_names = (ANNOTATIONS_NAME,)
+            for state_name in state_names:
                 source_state = material_dir / state_name
                 if source_state.is_file():
                     shutil.copy2(source_state, stage_dir / state_name)

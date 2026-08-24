@@ -285,6 +285,32 @@ def test_reupload_upgrades_legacy_epub_when_it_has_no_annotations(
     assert store.raw_path(upgraded.material_id) is not None
 
 
+def test_legacy_epub_upgrade_discards_out_of_range_position(
+    store: ReadingStore, tmp_path: Path
+) -> None:
+    from deeptutor.reading import ReadingPosition
+
+    path = _write_epub(tmp_path / "book.epub")
+    first = store.ingest(path)
+    # Emulate a legacy text extraction with more units than the EPUB spine.
+    material_dir = store.root / first.material_id
+    manifest_path = material_dir / "manifest.json"
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    data["unit_count"] = 3
+    manifest_path.write_text(json.dumps(data), encoding="utf-8")
+    (material_dir / "units" / "0003.txt").write_text("Legacy split", encoding="utf-8")
+    store.save_position(
+        first.material_id, ReadingPosition(locator=3, source_anchor="old-text-anchor")
+    )
+    _downgrade_epub_manifest_to_legacy_text(store, first.material_id)
+
+    upgraded = store.ingest(path)
+
+    assert upgraded.unit_count == 2
+    assert store.position(upgraded.material_id).locator == 1
+    assert store.position(upgraded.material_id).source_anchor == ""
+
+
 def test_reupload_rejects_legacy_epub_upgrade_with_annotations(
     store: ReadingStore, tmp_path: Path
 ) -> None:
