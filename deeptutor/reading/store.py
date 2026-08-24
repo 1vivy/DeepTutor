@@ -41,6 +41,7 @@ import uuid
 
 from deeptutor.reading.extract import extract_material, synthesise_outline
 from deeptutor.reading.models import (
+    MAX_TEXT_SELECTOR_CHARS,
     Annotation,
     MaterialManifest,
     MaterialNotFound,
@@ -48,8 +49,9 @@ from deeptutor.reading.models import (
     ReadingError,
     ReadingPosition,
     ReadingUpgradeConflict,
-    UnitReference,
+    TextPositionSelector,
     TextQuoteSelector,
+    UnitReference,
 )
 
 logger = logging.getLogger(__name__)
@@ -490,10 +492,25 @@ class ReadingStore:
             ),
             None,
         )
-        if quote_selector and annotation.quote and quote_selector.exact != annotation.quote:
-            raise ReadingError("annotation quote does not match its TextQuoteSelector")
+        if annotation.selectors:
+            unit_text = self.unit_text(material_id, annotation.locator)
+        else:
+            unit_text = ""
+        if quote_selector:
+            if annotation.quote and quote_selector.exact != annotation.quote:
+                raise ReadingError("annotation quote does not match its TextQuoteSelector")
+            if re.sub(r"\s+", " ", quote_selector.exact).strip() not in re.sub(
+                r"\s+", " ", unit_text
+            ):
+                raise ReadingError("TextQuoteSelector does not occur in this reading unit")
         if quote_selector and not annotation.quote:
             annotation = dataclass_replace(annotation, quote=quote_selector.exact)
+        for selector in annotation.selectors:
+            if isinstance(selector, TextPositionSelector):
+                if selector.end > len(unit_text):
+                    raise ReadingError("TextPositionSelector extends past this reading unit")
+                if selector.end - selector.start > MAX_TEXT_SELECTOR_CHARS:
+                    raise ReadingError("TextPositionSelector span is too long")
         with self._locked(material_id):
             existing = self.annotations(material_id)
             stored = annotation

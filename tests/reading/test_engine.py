@@ -33,6 +33,7 @@ from deeptutor.reading.extract import (
     first_line_label,
     split_into_sections,
 )
+from deeptutor.reading.models import parse_text_selectors
 from deeptutor.reading.search import normalise, search_units, terms_of
 
 pymupdf = pytest.importorskip("pymupdf")
@@ -474,6 +475,52 @@ def test_mismatched_quote_and_text_quote_selector_are_rejected(
                 selectors=(TextQuoteSelector(exact="different text"),),
             ),
         )
+
+
+def test_text_quote_selector_must_occur_in_stored_unit(store: ReadingStore, pdf_path: Path) -> None:
+    manifest = store.ingest(pdf_path)
+
+    with pytest.raises(ReadingError, match="does not occur"):
+        store.save_annotation(
+            manifest.material_id,
+            Annotation(
+                annotation_id="",
+                locator=1,
+                selectors=(TextQuoteSelector(exact="not in this unit"),),
+            ),
+        )
+
+
+def test_text_position_selector_cannot_extend_past_stored_unit(
+    store: ReadingStore, pdf_path: Path
+) -> None:
+    manifest = store.ingest(pdf_path)
+    unit_length = len(store.unit_text(manifest.material_id, 1))
+
+    with pytest.raises(ReadingError, match="extends past"):
+        store.save_annotation(
+            manifest.material_id,
+            Annotation(
+                annotation_id="",
+                locator=1,
+                selectors=(TextPositionSelector(start=0, end=unit_length + 1),),
+            ),
+        )
+
+
+def test_legacy_selector_parser_trims_prefix_from_the_start() -> None:
+    parsed = parse_text_selectors(
+        [
+            {
+                "type": "TextQuoteSelector",
+                "exact": "text",
+                "prefix": "a" * 200 + "b" * 200,
+            }
+        ]
+    )
+
+    assert isinstance(parsed[0], TextQuoteSelector)
+    assert parsed[0].prefix == "a" * 128
 
 
 def test_saving_the_same_id_updates_in_place_and_keeps_created_at(

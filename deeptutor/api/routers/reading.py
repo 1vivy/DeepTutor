@@ -38,6 +38,7 @@ from deeptutor.reading import (
     export_material,
     render_outline,
 )
+from deeptutor.reading.models import MAX_TEXT_SELECTOR_CHARS
 from deeptutor.utils.document_validator import DocumentValidator
 
 logger = logging.getLogger(__name__)
@@ -117,6 +118,8 @@ class TextPositionSelectorPayload(BaseModel):
     def ordered(self) -> "TextPositionSelectorPayload":
         if self.end <= self.start:
             raise ValueError("selector end must be greater than start")
+        if self.end - self.start > MAX_TEXT_SELECTOR_CHARS:
+            raise ValueError(f"selector span must not exceed {MAX_TEXT_SELECTOR_CHARS} characters")
         return self
 
 

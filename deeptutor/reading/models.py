@@ -26,6 +26,7 @@ RenderMode = Literal["text", "pdf", "epub"]
 
 AnnotationKind = Literal["highlight", "underline", "note"]
 TextSelectorType = Literal["TextQuoteSelector", "TextPositionSelector"]
+MAX_TEXT_SELECTOR_CHARS = 2000
 
 # Palette offered by the reader toolbar. Kept server-side too so an annotation
 # arriving from an older client (or a tool call) can be validated rather than
@@ -295,7 +296,7 @@ def parse_text_selectors(value: Any) -> tuple[TextSelector, ...]:
                 parsed.append(
                     TextQuoteSelector(
                         exact=exact,
-                        prefix=str(raw.get("prefix") or "")[-128:],
+                        prefix=str(raw.get("prefix") or "")[:128],
                         suffix=str(raw.get("suffix") or "")[:128],
                     )
                 )

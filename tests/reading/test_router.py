@@ -339,6 +339,7 @@ def test_annotation_rejects_mismatched_quote_selector(client: TestClient) -> Non
     [
         {"type": "TextPositionSelector", "start": 5, "end": 5},
         {"type": "TextPositionSelector", "start": 6, "end": 5},
+        {"type": "TextPositionSelector", "start": 0, "end": 2001},
     ],
 )
 def test_annotation_rejects_invalid_text_positions(
