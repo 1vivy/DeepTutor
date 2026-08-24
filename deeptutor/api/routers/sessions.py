@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
@@ -32,6 +32,16 @@ class BranchSelectionRequest(BaseModel):
     """
 
     selected_branches: dict[str, int] = Field(default_factory=dict)
+
+
+class SessionOrganizationRequest(BaseModel):
+    """User-controlled organization metadata stored with the conversation."""
+
+    course_id: str | None = None
+    parent_session_id: str | None = None
+    session_kind: Literal["chat", "selection_tutor"] | None = None
+    pinned: bool | None = None
+    archived: bool | None = None
 
 
 class QuizResultItem(BaseModel):
@@ -150,6 +160,60 @@ async def rename_session(session_id: str, payload: SessionRenameRequest):
         raise HTTPException(status_code=404, detail="Session not found")
     session = await store.get_session(session_id)
     return {"session": session}
+
+
+@router.patch("/{session_id}/organization")
+async def update_session_organization(session_id: str, payload: SessionOrganizationRequest):
+    store = get_session_store()
+    session = await store.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    updates: dict[str, Any] = {}
+    fields = payload.model_fields_set
+    if "course_id" in fields:
+        course_id = str(payload.course_id or "").strip()
+        if course_id:
+            from deeptutor.services.courses import CourseNotFoundError, get_course_service
+
+            try:
+                get_course_service().get(course_id)
+            except CourseNotFoundError as exc:
+                raise HTTPException(status_code=404, detail="Course not found") from exc
+        updates["course_id"] = course_id
+    if "parent_session_id" in fields:
+        parent_id = str(payload.parent_session_id or "").strip()
+        if parent_id == session_id:
+            raise HTTPException(status_code=400, detail="A session cannot be its own parent")
+        if parent_id and await store.get_session(parent_id) is None:
+            raise HTTPException(status_code=404, detail="Parent session not found")
+        updates["parent_session_id"] = parent_id
+    if "session_kind" in fields:
+        updates["session_kind"] = payload.session_kind or "chat"
+    if "pinned" in fields:
+        updates["pinned"] = bool(payload.pinned)
+    if "archived" in fields:
+        updates["archived"] = bool(payload.archived)
+
+    if updates:
+        await store.update_session_preferences(session_id, updates)
+        cascade_updates = {key: updates[key] for key in ("course_id", "archived") if key in updates}
+        if cascade_updates:
+            # Selected-text tutor threads stay with their source conversation.
+            offset = 0
+            while True:
+                candidates = await store.list_sessions(limit=200, offset=offset)
+                for candidate in candidates:
+                    prefs = candidate.get("preferences") or {}
+                    if str(prefs.get("parent_session_id") or "") == session_id:
+                        await store.update_session_preferences(
+                            candidate["session_id"], cascade_updates
+                        )
+                if len(candidates) < 200:
+                    break
+                offset += len(candidates)
+    refreshed = await store.get_session(session_id)
+    return {"session": refreshed}
 
 
 @router.delete("/{session_id}")

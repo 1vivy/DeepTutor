@@ -107,6 +107,11 @@ export interface QuizFollowupTabContext {
   language: string;
   /** Short label for the tab strip, e.g. "Q1 follow-up". */
   tabLabel: string;
+  /** Present when this thread tutors a selected chat passage, not a quiz. */
+  tutorSelection?: {
+    selectedText: string;
+    parentSessionId: string | null;
+  };
 }
 
 export interface SendMessageInput {

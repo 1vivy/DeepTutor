@@ -11,7 +11,9 @@ from deeptutor.services.session.turn_runtime import (
     _extract_followup_question_context,
     _extract_memory_references,
     _extract_persist_user_message,
+    _extract_selection_tutor_context,
     _format_followup_question_context,
+    _format_selection_tutor_context,
     _narration_marker_call_id,
     _should_capture_assistant_content,
     _stamp_ask_user_content_offset,
@@ -236,6 +238,35 @@ class TestExtractFollowupQuestionContext:
         assert "A" in result["options"]
         assert "B" in result["options"]
         assert "C" not in result["options"]  # empty value excluded
+
+
+class TestSelectionTutorContext:
+    def test_extracts_and_pops_valid_context(self) -> None:
+        config = {
+            "selection_tutor_context": {
+                "selected_text": "  fork() returns in two processes.  ",
+                "parent_session_id": "main-1",
+            }
+        }
+        result = _extract_selection_tutor_context(config)
+        assert result == {
+            "selected_text": "fork() returns in two processes.",
+            "parent_session_id": "main-1",
+        }
+        assert "selection_tutor_context" not in config
+
+    def test_rejects_empty_selection(self) -> None:
+        config = {"selection_tutor_context": {"selected_text": "   "}}
+        assert _extract_selection_tutor_context(config) is None
+
+    def test_formats_bilingual_tutor_grounding(self) -> None:
+        context = {"selected_text": "fork() returns twice", "parent_session_id": "main-1"}
+        zh = _format_selection_tutor_context(context, language="zh")
+        en = _format_selection_tutor_context(context, language="en")
+        assert "小老师" in zh
+        assert "fork() returns twice" in zh
+        assert "Little Tutor" in en
+        assert "main-1" in en
 
 
 # ---------------------------------------------------------------------------

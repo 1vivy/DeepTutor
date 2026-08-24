@@ -497,6 +497,25 @@ def _extract_followup_question_context(
     }
 
 
+def _extract_selection_tutor_context(
+    config: dict[str, Any] | None,
+) -> dict[str, str] | None:
+    """Remove and normalize context for the selected-text side tutor."""
+    if not isinstance(config, dict):
+        return None
+    raw = config.pop("selection_tutor_context", None)
+    if not isinstance(raw, dict):
+        return None
+
+    selected_text = _clip_text(str(raw.get("selected_text", "") or "").strip())
+    if not selected_text:
+        return None
+    return {
+        "selected_text": selected_text,
+        "parent_session_id": str(raw.get("parent_session_id", "") or "").strip(),
+    }
+
+
 def _extract_persist_user_message(config: dict[str, Any] | None) -> bool:
     if not isinstance(config, dict):
         return True
@@ -655,6 +674,43 @@ def _format_followup_question_context(context: dict[str, Any], language: str = "
             ]
         )
     return "\n".join(lines).strip()
+
+
+def _format_selection_tutor_context(context: dict[str, str], language: str = "en") -> str:
+    selected_text = context.get("selected_text", "").strip()
+    parent_session_id = context.get("parent_session_id", "").strip() or "(none)"
+    if str(language or "en").lower().startswith("zh"):
+        return "\n".join(
+            [
+                "你是侧栏中的“小老师”，负责回答学习者对一段选中聊天内容的追问。",
+                "把选中内容当作当前问题的直接指代和首要上下文：解释概念、拆解推理、补充例子，并指出其中可能的歧义或错误。",
+                "不要读取、引用或写入全局记忆；不要把用户问题里的“这个/它/上述内容”解释成记忆系统。",
+                "如果先前回答偏离了选中内容，请明确纠正并回到选中内容本身。",
+                "回答当前问题时要简明、循序渐进；选中内容没有提供的信息不要臆造。",
+                "后续对话要保持与这段内容的连续性，但用户明确转向相关主题时也可以正常扩展。",
+                "",
+                "[选中内容]",
+                selected_text,
+                "",
+                f"来源会话：{parent_session_id}",
+            ]
+        ).strip()
+
+    return "\n".join(
+        [
+            "You are the Little Tutor in a sidebar, answering questions about selected chat text.",
+            "Treat the selected passage as the direct referent of the current question and its primary context: explain concepts, unpack reasoning, add examples, and flag ambiguity or mistakes.",
+            "Do not read, cite, or write global memory. Never reinterpret words such as 'this', 'it', or 'the above' as referring to the memory system.",
+            "If an earlier answer drifted away from the selection, correct it explicitly and return to the selected passage.",
+            "Answer the current question clearly and step by step; do not invent information absent from the passage.",
+            "Maintain continuity with this passage across later turns, while allowing explicit related-topic expansion.",
+            "",
+            "[Selected passage]",
+            selected_text,
+            "",
+            f"Source session: {parent_session_id}",
+        ]
+    ).strip()
 
 
 @dataclass
@@ -827,6 +883,8 @@ class TurnRuntimeManager:
             "_regenerated_from_message_id",
             "_superseded_turn_id",
             "followup_question_context",
+            "selection_tutor_context",
+            "_course_id",
             # Per-turn subagent consult budget (composer stepper). Not part of
             # any capability's public config schema, so it rides as a runtime
             # key — stripped before validation, merged back into the turn config
@@ -977,6 +1035,34 @@ class TurnRuntimeManager:
             "knowledge_bases": list(payload.get("knowledge_bases") or []),
             "language": str(payload.get("language") or "en"),
         }
+        requested_course_id = str(runtime_only_config.get("_course_id") or "").strip()
+        if requested_course_id:
+            from deeptutor.services.courses import (
+                CourseNotFoundError,
+                get_course_service,
+            )
+
+            try:
+                get_course_service().get(requested_course_id)
+            except CourseNotFoundError:
+                requested_course_id = ""
+        if "_course_id" in runtime_only_config:
+            preference_update["course_id"] = requested_course_id
+
+        raw_selection_context = runtime_only_config.get("selection_tutor_context")
+        if isinstance(raw_selection_context, dict):
+            parent_session_id = str(raw_selection_context.get("parent_session_id") or "").strip()
+            if parent_session_id and parent_session_id != session["id"]:
+                parent_session = await self.store.get_session(parent_session_id)
+                if parent_session is not None:
+                    parent_preferences = parent_session.get("preferences") or {}
+                    preference_update.update(
+                        {
+                            "parent_session_id": parent_session_id,
+                            "session_kind": "selection_tutor",
+                            "course_id": str(parent_preferences.get("course_id") or ""),
+                        }
+                    )
         if llm_selection:
             preference_update["llm_selection"] = llm_selection
         if persona_explicit:
@@ -1468,6 +1554,8 @@ class TurnRuntimeManager:
 
             request_config = dict(payload.get("config", {}) or {})
             followup_question_context = _extract_followup_question_context(request_config)
+            selection_tutor_context = _extract_selection_tutor_context(request_config)
+            request_config.pop("_course_id", None)
             persist_user_message = _extract_persist_user_message(request_config)
             is_regenerate = _extract_regenerate_flag(request_config)
             request_config.pop("_regenerated_from_message_id", None)
@@ -1582,20 +1670,17 @@ class TurnRuntimeManager:
                 for r in attachment_records
             ]
 
-            if followup_question_context:
-                existing_messages = await self.store.get_messages_for_context(
-                    session_id, leaf_message_id=branch_parent_id
+            sidebar_system_context = ""
+            if selection_tutor_context:
+                sidebar_system_context = _format_selection_tutor_context(
+                    selection_tutor_context,
+                    language=str(payload.get("language", "en") or "en"),
                 )
-                if not existing_messages:
-                    await self.store.add_message(
-                        session_id=session_id,
-                        role="system",
-                        content=_format_followup_question_context(
-                            followup_question_context,
-                            language=str(payload.get("language", "en") or "en"),
-                        ),
-                        capability=capability_name or "chat",
-                    )
+            elif followup_question_context:
+                sidebar_system_context = _format_followup_question_context(
+                    followup_question_context,
+                    language=str(payload.get("language", "en") or "en"),
+                )
 
             llm_config, llm_scope_token = activate_llm_selection(payload.get("llm_selection"))
             builder = ContextBuilder(self.store)
@@ -1870,6 +1955,9 @@ class TurnRuntimeManager:
                 user_message=effective_user_message,
                 conversation_history=conversation_history,
                 enabled_tools=payload.get("tools"),
+                # Selected-text tutoring must stay isolated from global
+                # memory and every other auto-mounted built-in.
+                allowed_builtin_tools=[] if selection_tutor_context else None,
                 active_capability=payload.get("capability"),
                 knowledge_bases=payload.get("knowledge_bases", []),
                 attachments=attachments,
@@ -1877,6 +1965,7 @@ class TurnRuntimeManager:
                 language=payload.get("language", "en"),
                 memory_context=memory_context,
                 persona_context=persona_context,
+                sidebar_context=sidebar_system_context,
                 skills_manifest=skills_manifest,
                 source_manifest=source_manifest_text,
                 metadata={
@@ -1886,6 +1975,7 @@ class TurnRuntimeManager:
                     "history_budget": history_result.budget,
                     "turn_id": turn_id,
                     "question_followup_context": followup_question_context or {},
+                    "selection_tutor_context": selection_tutor_context or {},
                     "notebook_references": notebook_references,
                     "history_references": history_references,
                     "question_notebook_references": question_notebook_references,
