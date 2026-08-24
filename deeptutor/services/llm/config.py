@@ -17,6 +17,7 @@ import re
 from typing import TYPE_CHECKING, TypedDict
 
 from deeptutor.services.config import resolve_llm_runtime_config
+from deeptutor.services.keypool import primary_api_key
 from deeptutor.services.provider_registry import canonical_provider_name, find_by_name
 
 from .exceptions import LLMConfigError
@@ -62,7 +63,7 @@ def _is_openai_compatible_binding(binding: str | None) -> bool:
 def _set_openai_env_vars(
     api_key: str | list[str] | None, base_url: str | None, *, source: str
 ) -> None:
-    primary_key = api_key[0] if isinstance(api_key, list) and api_key else api_key
+    primary_key = primary_api_key(api_key)
     if primary_key:
         os.environ["OPENAI_API_KEY"] = primary_key
         logger.debug("Set OPENAI_API_KEY env var (%s)", source)

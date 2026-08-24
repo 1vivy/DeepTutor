@@ -8,10 +8,7 @@ test("stripAudioMimeParameters drops MediaRecorder codec parameters", () => {
     stripAudioMimeParameters("audio/webm;codecs=opus"),
     "audio/webm",
   );
-  assert.equal(
-    stripAudioMimeParameters("audio/ogg; codecs=opus"),
-    "audio/ogg",
-  );
+  assert.equal(stripAudioMimeParameters("audio/ogg; codecs=opus"), "audio/ogg");
 });
 
 test("stripAudioMimeParameters keeps a clean type and falls back", () => {

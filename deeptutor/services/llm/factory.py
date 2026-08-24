@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from typing import Any, TypedDict
 
 from deeptutor.config.settings import settings
+from deeptutor.services.keypool import primary_api_key
 from deeptutor.services.provider_registry import (
     PROVIDERS,
     canonical_provider_name,
@@ -85,7 +86,7 @@ def _resolve_provider_spec(
     explicit = find_by_name(binding)
     gateway = find_gateway(
         provider_name=explicit.name if explicit else None,
-        api_key=(api_key[0] if isinstance(api_key, list) and api_key else api_key) or None,
+        api_key=primary_api_key(api_key),
         api_base=base_url or None,
     )
     if explicit and gateway and explicit.name == "openai":

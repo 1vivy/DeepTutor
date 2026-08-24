@@ -361,6 +361,7 @@ from deeptutor.api.routers import (
     attachments,
     auth,
     book,
+    capabilities,
     capabilities_settings,
     chat,
     co_writer,
@@ -449,6 +450,12 @@ app.include_router(
     dependencies=_auth,
 )
 app.include_router(
+    capabilities.router,
+    prefix="/api/v1/capabilities",
+    tags=["capabilities"],
+    dependencies=_auth,
+)
+app.include_router(
     sessions.router, prefix="/api/v1/sessions", tags=["sessions"], dependencies=_auth
 )
 app.include_router(
@@ -511,8 +518,13 @@ app.include_router(
 app.include_router(
     agent_config.router, prefix="/api/v1/agent-config", tags=["agent-config"], dependencies=_auth
 )
+# Partners are per-user resources now: anyone may build their own, and an admin
+# may assign theirs to others. Only ``_auth`` here — every route in the router
+# declares whether it needs *use* or *manage* rights on the partner it names
+# (see ``multi_user.partner_access``), which a blanket admin gate could not
+# express.
 app.include_router(
-    partners.router, prefix="/api/v1/partners", tags=["partners"], dependencies=_admin
+    partners.router, prefix="/api/v1/partners", tags=["partners"], dependencies=_auth
 )
 app.include_router(
     attachments.router,

@@ -669,6 +669,19 @@ class AgenticChatPipeline:
             names.extend(cap.owned_tools)
         return tuple(names)
 
+    def _capability_rebinding_tools(self, context: UnifiedContext) -> frozenset[str]:
+        """Tools that repoint the rest of the round at a different target.
+
+        Optional, like ``pre_loop``: a capability declares the tools whose
+        effect the round's other calls must see (``mastery_switch`` moves the
+        turn onto another path), and the dispatcher runs them first and
+        re-binds the rest against the result.
+        """
+        names: list[str] = []
+        for cap in self._active_loop_capabilities(context):
+            names.extend(getattr(cap, "rebinding_tools", ()) or ())
+        return frozenset(names)
+
     def _capability_system_blocks(self, context: UnifiedContext):
         blocks = []
         for cap in self._active_loop_capabilities(context):
@@ -868,6 +881,7 @@ class AgenticChatPipeline:
             iteration_index=iteration_index,
             registry=self.tool_lookup,
             kwarg_augmenter=self._augment_tool_kwargs,
+            rebinding_tools=self._capability_rebinding_tools(context),
             retrieve_meta_factory=lambda meta, tn, ta: self._retrieve_trace_metadata(
                 meta, context=context, tool_name=tn, tool_args=ta
             ),

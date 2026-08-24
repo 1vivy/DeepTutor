@@ -68,7 +68,7 @@ def _build_runtime_provider(llm_config: LLMConfig) -> LLMProvider:
         )
 
         provider = build_codebuddy_provider(
-            api_key=llm_config.api_key or None,
+            api_key=primary_api_key or None,
             default_model=llm_config.model,
         )
     elif backend == "azure_openai":
@@ -79,6 +79,7 @@ def _build_runtime_provider(llm_config: LLMConfig) -> LLMProvider:
             api_base=llm_config.effective_url or llm_config.base_url or "",
             default_model=llm_config.model,
             extra_headers=llm_config.extra_headers or None,
+            api_version=llm_config.api_version,
         )
     elif backend == "anthropic":
         from deeptutor.services.llm.provider_core.anthropic_provider import AnthropicProvider

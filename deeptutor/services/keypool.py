@@ -56,4 +56,19 @@ class KeyPool:
                 self._cooldown_until[key] = monotonic() + self._cooldown_s
 
 
-__all__ = ["KeyPool"]
+def primary_api_key(value: str | list[str] | None) -> str | None:
+    """The one key to use where a pool cannot be rotated.
+
+    A configured credential became ``str | list[str]`` when key rotation
+    landed, but most consumers take a single key: an auth header, an SDK
+    client built once, a pipeline handed a credential. Passing the list
+    through would render as ``"['sk-a', 'sk-b']"`` in an ``Authorization``
+    header — a 401 whose cause is invisible. Reduce at the boundary instead,
+    and reduce in one place so every such boundary agrees which key is first.
+    """
+    if isinstance(value, list):
+        return value[0] if value else None
+    return value or None
+
+
+__all__ = ["KeyPool", "primary_api_key"]

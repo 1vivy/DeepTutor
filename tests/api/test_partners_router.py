@@ -204,23 +204,36 @@ class TestChannelOnboarding:
         )
         assert cancelled.json()["status"] == "cancelled"
 
-    def test_onboarding_routes_inherit_the_full_partners_admin_gate(self, monkeypatch):
-        """The real app must gate the onboarding routes on *admin*, not just auth.
+    def test_onboarding_routes_carry_the_partner_manage_gate(self, monkeypatch):
+        """The real app must gate the onboarding routes on *manage*, not just auth.
 
-        The ``client`` fixture above mounts the partners router *without* the
-        admin dependency so the endpoint tests can drive it directly, so
-        nothing else in this file would notice if ``main.py`` stopped applying
-        the gate.
+        These routes write a channel bot token into the partner's config, so
+        they belong to whoever may configure the partner — its owner or an
+        admin — never to any signed-in account that knows the id. Partners
+        stopped being a blanket admin resource in v1.5.17: ``main.py`` mounts
+        the router under ``_auth`` and each route declares ``_USABLE`` or
+        ``_MANAGEABLE`` for the partner it names. That per-route declaration is
+        easy to forget on a new route, and this is what notices.
 
-        Asserted by sending a valid **non-admin** token and requiring 403,
-        rather than by inspecting ``app.routes``: FastAPI 0.141 stopped
-        flattening ``include_router`` into the parent app (it keeps the
-        sub-router nested behind ``include_context``), so every structural
-        assertion available here holds on only one side of this project's own
-        ``fastapi>=0.100.0`` range. A response code does not care how the
-        router is represented. An unauthenticated request would not do:
-        ``require_auth`` alone answers that with 401, so downgrading the
-        router from ``_admin`` to ``_auth`` would still look gated.
+        The ``client`` fixture above mounts the partners router *without* those
+        dependencies so the endpoint tests can drive it directly, so nothing
+        else in this file would notice if the gate went missing.
+
+        Asserted by sending a valid **non-admin** token, rather than by
+        inspecting ``app.routes``: FastAPI 0.141 stopped flattening
+        ``include_router`` into the parent app (it keeps the sub-router nested
+        behind ``include_context``), so every structural assertion available
+        here holds on only one side of this project's own ``fastapi>=0.100.0``
+        range. A response code does not care how the router is represented.
+
+        The body is deliberately invalid, which is what makes the assertion
+        sharp. A gated route rejects the caller in a dependency, before the
+        body is ever validated — 404 when the partner is unknown *or* invisible
+        (``usable_partner`` answers both alike so ids cannot be enumerated),
+        403 when it is visible but not theirs. An **ungated** route would reach
+        body validation and answer 422, and an unauthenticated request would
+        not discriminate at all: ``require_auth`` alone answers 401, so a route
+        that had lost its partner gate would still look protected.
         """
         from deeptutor.api import main as api_main
         from deeptutor.api.routers import auth as auth_module
@@ -232,26 +245,70 @@ class TestChannelOnboarding:
             for route in partners_module.router.routes
         )
 
-        # ``require_admin`` waves everything through when auth is disabled,
-        # which is the default in tests — turn it on so the gate is observable.
+        # The gates wave everything through when auth is disabled, which is the
+        # default in tests — turn it on so they are observable.
         monkeypatch.setattr(auth_module, "AUTH_ENABLED", True)
         # ``decode_token`` refuses every token when no secret is configured,
         # which is the state of a bare test environment — without this the
-        # request would 401 and the assertion below could not tell an
-        # admin-only route from a merely authenticated one.
+        # request would 401 and the assertion below could not tell a gated
+        # route from a merely authenticated one.
         monkeypatch.setattr(auth_service, "AUTH_SECRET", "test-secret")
         monkeypatch.setattr(auth_service, "POCKETBASE_ENABLED", False)
         token = auth_service.create_token("not-an-admin", role="user", user_id="u-1")
         # No context manager: this must not run the app's lifespan.
         client = TestClient(api_main.app)
         response = client.post(
-            "/api/v1/partners/ada/channel-onboarding/start",
+            "/api/v1/partners/no-such-partner/channel-onboarding/start",
             json={},
             headers={"Authorization": f"Bearer {token}"},
         )
-        assert response.status_code == 403, (
-            f"onboarding start is not admin-gated (a role=user token got {response.status_code})"
+        assert response.status_code in (403, 404), (
+            "onboarding start is not manage-gated (a role=user token got "
+            f"{response.status_code}; 422 means the request reached body validation, "
+            "so the route is mounted without _MANAGEABLE)"
         )
+
+    def test_every_route_naming_a_partner_declares_its_rights(self):
+        """No ``{partner_id}`` route may be left to the router's bare ``_auth``.
+
+        The test above cannot tell ``_USABLE`` from ``_MANAGEABLE``: both
+        answer an outsider with 404. This one can, and it sweeps the whole
+        router rather than the routes someone remembered to test — which is
+        the shape the mistake actually takes. When partners stopped being
+        admin-only, six credential routes kept the ``_auth``-only mount they
+        had inherited from the blanket gate, and any signed-in account could
+        write a channel bot token into anyone's partner.
+
+        Introspection is safe here because it reads the router's *own*
+        ``routes``, not the mounted app's: the FastAPI 0.141 nesting change
+        that rules out asserting against ``api_main.app`` does not touch this.
+        """
+        from deeptutor.api.routers import partners as partners_module
+
+        # Writing or reading channel credentials is configuration, so these
+        # must be manage-gated specifically; use rights are not enough.
+        manage_only = ("/channel-onboarding", "/channels/weixin/qr", "/soul", "/assets")
+
+        ungated: list[str] = []
+        under_gated: list[str] = []
+        for route in partners_module.router.routes:
+            path = getattr(route, "path", "")
+            if "{partner_id}" not in path:
+                continue
+            # The socket cannot run HTTP dependencies; it checks by hand.
+            if not getattr(route, "methods", None):
+                continue
+            names = {
+                getattr(dep.dependency, "__name__", "")
+                for dep in getattr(route, "dependencies", [])
+            }
+            if not names & {"usable_partner", "manageable_partner"}:
+                ungated.append(path)
+            elif any(part in path for part in manage_only) and "manageable_partner" not in names:
+                under_gated.append(path)
+
+        assert not ungated, f"partner routes with no use/manage gate: {ungated}"
+        assert not under_gated, f"configuration routes gated on use, not manage: {under_gated}"
 
     def test_duplicate_id_conflicts(self, client):
         assert _create(client).status_code == 200

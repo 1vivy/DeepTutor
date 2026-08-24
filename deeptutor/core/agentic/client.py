@@ -23,7 +23,7 @@ import httpx
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 
 from deeptutor.services.config import load_system_settings
-from deeptutor.services.keypool import KeyPool
+from deeptutor.services.keypool import KeyPool, primary_api_key
 from deeptutor.services.llm import get_token_limit_kwargs, supports_tools
 from deeptutor.services.llm.openai_http_client import sanitize_invalid_ssl_env
 from deeptutor.services.llm.reasoning_params import (
@@ -244,7 +244,7 @@ def _build_anthropic_adapter(config: LLMClientConfig, spec: Any) -> Any:
     from deeptutor.services.llm.provider_core import AnthropicProvider
 
     anthropic_provider = AnthropicProvider(
-        api_key=config.api_key,
+        api_key=primary_api_key(config.api_key),
         api_base=config.base_url or spec.default_api_base or None,
         default_model=config.model or "claude-sonnet-4-20250514",
         extra_headers=config.extra_headers,
@@ -278,7 +278,7 @@ def _build_codebuddy_adapter(config: LLMClientConfig, spec: Any) -> Any:
     )
 
     codebuddy_provider = build_codebuddy_provider(
-        api_key=config.api_key,
+        api_key=primary_api_key(config.api_key),
         default_model=config.model or "codebuddy/hy3",
     )
     return _ProviderOpenAIAdapter(codebuddy_provider)

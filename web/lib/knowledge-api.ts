@@ -199,7 +199,9 @@ export async function listKnowledgeBases(options?: { force?: boolean }) {
         cache: "no-store",
       });
       if (!response.ok) {
-        throw new Error(await readErrorDetail(response, "Failed to list knowledge bases"));
+        throw new Error(
+          await readErrorDetail(response, "Failed to list knowledge bases"),
+        );
       }
       const data = await response.json();
       return Array.isArray(data)
@@ -225,7 +227,9 @@ export async function listRagProviders(options?: { force?: boolean }) {
         },
       );
       if (!response.ok) {
-        throw new Error(await readErrorDetail(response, "Failed to list RAG providers"));
+        throw new Error(
+          await readErrorDetail(response, "Failed to list RAG providers"),
+        );
       }
       const data = await response.json();
       return Array.isArray(data?.providers) ? data.providers : [];
@@ -247,7 +251,9 @@ export async function getKnowledgeUploadPolicy(options?: { force?: boolean }) {
         },
       );
       if (!response.ok) {
-        throw new Error(await readErrorDetail(response, "Failed to load upload policy"));
+        throw new Error(
+          await readErrorDetail(response, "Failed to load upload policy"),
+        );
       }
       const data = await response.json();
       return normalizeUploadPolicy(data);
@@ -1134,13 +1140,14 @@ export async function listGitHubSources(
   kbName: string,
 ): Promise<GitHubSource[]> {
   const res = await apiFetch(
-    apiUrl(
-      `/api/v1/knowledge/${encodeURIComponent(kbName)}/github-sources`,
-    ),
+    apiUrl(`/api/v1/knowledge/${encodeURIComponent(kbName)}/github-sources`),
   );
   if (!res.ok) {
     throw new Error(
-      await readErrorDetail(res, `Failed to list GitHub sources (${res.status})`),
+      await readErrorDetail(
+        res,
+        `Failed to list GitHub sources (${res.status})`,
+      ),
     );
   }
   return (await res.json()) as GitHubSource[];
@@ -1151,9 +1158,7 @@ export async function addGitHubSource(
   payload: AddGitHubSourcePayload,
 ): Promise<GitHubSource> {
   const res = await apiFetch(
-    apiUrl(
-      `/api/v1/knowledge/${encodeURIComponent(kbName)}/github-source`,
-    ),
+    apiUrl(`/api/v1/knowledge/${encodeURIComponent(kbName)}/github-source`),
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1186,7 +1191,10 @@ export async function removeGitHubSource(
   );
   if (!res.ok) {
     throw new Error(
-      await readErrorDetail(res, `Failed to remove GitHub source (${res.status})`),
+      await readErrorDetail(
+        res,
+        `Failed to remove GitHub source (${res.status})`,
+      ),
     );
   }
   invalidateKnowledgeCaches();
@@ -1196,9 +1204,7 @@ export async function syncGitHubSources(
   kbName: string,
 ): Promise<GitHubSyncResult[]> {
   const res = await apiFetch(
-    apiUrl(
-      `/api/v1/knowledge/${encodeURIComponent(kbName)}/sync-github`,
-    ),
+    apiUrl(`/api/v1/knowledge/${encodeURIComponent(kbName)}/sync-github`),
     { method: "POST" },
   );
   if (!res.ok) {

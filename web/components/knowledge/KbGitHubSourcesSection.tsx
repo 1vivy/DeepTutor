@@ -2,13 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Github,
-  Loader2,
-  Plus,
-  RefreshCw,
-  Trash2,
-} from "lucide-react";
+import { Github, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import {
   addGitHubSource,
   listGitHubSources,
@@ -99,7 +93,9 @@ export default function KbGitHubSourcesSection({
       const failed = results.filter((r) => !r.ok);
       if (failed.length > 0) {
         setError(
-          failed.map((r) => `${r.repo}: ${r.error ?? "unknown error"}`).join("\n"),
+          failed
+            .map((r) => `${r.repo}: ${r.error ?? "unknown error"}`)
+            .join("\n"),
         );
       }
       await refresh();
@@ -186,7 +182,10 @@ export default function KbGitHubSourcesSection({
                 className="w-full rounded-md border border-[var(--border)] bg-[var(--card)] px-2.5 py-1.5 text-[12.5px] text-[var(--foreground)] outline-none focus:border-[var(--primary)]"
               />
             </FormField>
-            <FormField label={t("Path prefix")} help={t("e.g. docs/ — leave empty for root")}>
+            <FormField
+              label={t("Path prefix")}
+              help={t("e.g. docs/ — leave empty for root")}
+            >
               <input
                 type="text"
                 value={pathInput}
@@ -231,7 +230,7 @@ export default function KbGitHubSourcesSection({
         <div className="rounded-lg border border-dashed border-[var(--border)] py-8 text-center">
           <Github className="mx-auto mb-2 h-6 w-6 text-[var(--muted-foreground)]" />
           <p className="text-[12px] text-[var(--muted-foreground)]">
-            {t("No GitHub sources yet. Click \"Add source\" to track a repo.")}
+            {t('No GitHub sources yet. Click "Add source" to track a repo.')}
           </p>
         </div>
       ) : (
