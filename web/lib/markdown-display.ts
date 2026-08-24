@@ -151,6 +151,7 @@ const MATH_SPAN_REGEX =
 // two delimiters the author meant to pair (see repairStrongEmphasisLine).
 const MALFORMED_STRONG_EMPHASIS_REGEX =
   /(?<!\S)\*\*(?=\S)([^*\n]*?[:：])[ \t]+\*\*(?=\S)/g;
+const ESCAPED_UNICODE_RUN_REGEX = /(?:\\u[0-9a-fA-F]{4}){3,}/g;
 const INDENTED_CODE_LINE_REGEX = /^(?: {4}|\t)/;
 const PROTECTED_SPAN_REGEX = /```[\s\S]*?```|`[^`\n]*`/g;
 const PROTECTED_PLACEHOLDER_REGEX = /\u0000PROTECTED_(\d+)\u0000/g;
@@ -625,11 +626,51 @@ function linkifyCitationsOutsideCode(content: string): string {
   );
 }
 
+function decodeEscapedUnicodeRuns(content: string): string {
+  const fenced = maskProtectedSpans(
+    content,
+    FENCED_CODE_BLOCK_REGEX,
+    "UNICODE_FENCED_CODE",
+  );
+  const math = maskProtectedSpans(
+    fenced.masked,
+    MATH_SPAN_REGEX,
+    "UNICODE_MATH",
+  );
+  const inline = maskProtectedSpans(
+    math.masked,
+    INLINE_CODE_SPAN_REGEX,
+    "UNICODE_INLINE_CODE",
+  );
+  const decoded = inline.masked
+    .split("\n")
+    .map((line) =>
+      INDENTED_CODE_LINE_REGEX.test(line)
+        ? line
+        : line.replace(ESCAPED_UNICODE_RUN_REGEX, decodeEscapedUnicodeRun),
+    )
+    .join("\n");
+  return fenced.restore(math.restore(inline.restore(decoded)));
+}
+
+function decodeEscapedUnicodeRun(escaped: string): string {
+  try {
+    const value = JSON.parse(`"${escaped}"`) as string;
+    const containsNonAscii = Array.from(value).some(
+      (character) => character.charCodeAt(0) > 0x7f,
+    );
+    return containsNonAscii ? value : escaped;
+  } catch {
+    return escaped;
+  }
+}
+
 export function normalizeMarkdownForDisplay(content: string): string {
   if (!content) return "";
 
-  const normalized = stripInvisibleCharacters(String(content))
-    .replace(/\r\n/g, "\n")
+  const normalized = decodeEscapedUnicodeRuns(
+    stripInvisibleCharacters(String(content)).replace(/\r\n/g, "\n"),
+  )
     .replace(EMPTY_DETAILS_REGEX, "")
     .replace(EMPTY_SUMMARY_REGEX, "")
     .replace(EMPTY_PROGRESS_REGEX, "")
