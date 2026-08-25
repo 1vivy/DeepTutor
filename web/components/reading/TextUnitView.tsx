@@ -15,6 +15,18 @@ import {
 import { useTranslation } from "react-i18next";
 import type { AnnotationItem, UnitKind } from "@/lib/reading-api";
 import { getUnitText } from "@/lib/reading-api";
+import {
+  DEFAULT_FONT_SIZE,
+  DEFAULT_LINE_WIDTH,
+  DEFAULT_READER_DISPLAY_PREFERENCES,
+  MAX_FONT_SIZE,
+  MAX_LINE_WIDTH,
+  MIN_FONT_SIZE,
+  MIN_LINE_WIDTH,
+  normaliseReaderDisplayPreferences,
+  readerDisplayShortcut,
+  type ReaderTheme,
+} from "@/lib/reading-display-preferences";
 import { cleanQuote } from "@/lib/reading-selection";
 import { toRecogitoTextAnnotation } from "@/lib/reading-w3c-annotations";
 import type { JumpRequest, SelectionPayload } from "./PdfDocumentView";
@@ -28,14 +40,7 @@ const COLOR_INK: Record<string, string> = {
 };
 
 const READER_PREFS_KEY = "dt.reader.textPreferences";
-const DEFAULT_FONT_SIZE = 17;
-const MIN_FONT_SIZE = 12;
-const MAX_FONT_SIZE = 28;
-const DEFAULT_LINE_WIDTH = 84;
-const MIN_LINE_WIDTH = 48;
-const MAX_LINE_WIDTH = 104;
 const LINE_WIDTH_STEPS = [48, 64, 84, 104];
-type ReaderTheme = "auto" | "sepia" | "night";
 
 export interface TextUnitViewProps {
   materialId: string;
@@ -70,6 +75,7 @@ export function TextUnitView({
   onVisibleLocatorChange,
 }: TextUnitViewProps) {
   const { t } = useTranslation();
+  const readerRootRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const articleRef = useRef<HTMLElement | null>(null);
   const textSelectorToolsRef = useRef<{
@@ -93,19 +99,13 @@ export function TextUnitView({
 
   useEffect(() => {
     try {
-      const value = JSON.parse(window.localStorage.getItem(READER_PREFS_KEY) || "{}");
-      if (typeof value.fontSize === "number") {
-        setFontSize(Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, value.fontSize)));
-      }
-      if (typeof value.lineWidth === "number") {
-        setLineWidth(
-          Math.min(MAX_LINE_WIDTH, Math.max(MIN_LINE_WIDTH, value.lineWidth)),
-        );
-      }
-      if (typeof value.serif === "boolean") setSerif(value.serif);
-      if (["auto", "sepia", "night"].includes(value.readerTheme)) {
-        setReaderTheme(value.readerTheme);
-      }
+      const value = normaliseReaderDisplayPreferences(
+        JSON.parse(window.localStorage.getItem(READER_PREFS_KEY) || "{}"),
+      );
+      setFontSize(value.fontSize);
+      setLineWidth(value.lineWidth);
+      setSerif(value.serif);
+      setReaderTheme(value.readerTheme);
     } catch {
       // Invalid or unavailable local storage falls back to readable defaults.
     }
@@ -142,10 +142,7 @@ export function TextUnitView({
   );
 
   const resetPreferences = useCallback(() => {
-    updatePreferences({
-      fontSize: DEFAULT_FONT_SIZE,
-      lineWidth: DEFAULT_LINE_WIDTH,
-    });
+    updatePreferences(DEFAULT_READER_DISPLAY_PREFERENCES);
   }, [updatePreferences]);
 
   const cycleLineWidth = useCallback(() => {
@@ -156,15 +153,18 @@ export function TextUnitView({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!event.metaKey && !event.ctrlKey) return;
-      const plus = event.key === "+" || event.key === "=";
-      const minus = event.key === "-";
-      const reset = event.key === "0";
-      if (!plus && !minus && !reset) return;
+      const root = readerRootRef.current;
+      const action = readerDisplayShortcut({
+        key: event.key,
+        modifier: event.metaKey || event.ctrlKey,
+        readerHovered: root?.matches(":hover") ?? false,
+        readerFocused: Boolean(root && root.contains(document.activeElement)),
+      });
+      if (!action) return;
       event.preventDefault();
-      if (plus) changeFontSize(fontSize + 1);
-      if (minus) changeFontSize(fontSize - 1);
-      if (reset) resetPreferences();
+      if (action === "increase") changeFontSize(fontSize + 1);
+      if (action === "decrease") changeFontSize(fontSize - 1);
+      if (action === "reset") resetPreferences();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -346,6 +346,9 @@ export function TextUnitView({
 
   return (
     <div
+      ref={readerRootRef}
+      tabIndex={-1}
+      onPointerDown={() => readerRootRef.current?.focus({ preventScroll: true })}
       className="flex h-full flex-col"
       style={
         readerTheme === "sepia"
