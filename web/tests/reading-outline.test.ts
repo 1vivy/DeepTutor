@@ -5,6 +5,7 @@ import path from "node:path";
 import {
   activeReaderHeading,
   buildOutlineTree,
+  extractEpubHeadings,
   extractReaderHeadings,
   filterReaderHeadings,
   filterOutlineNodes,
@@ -62,6 +63,31 @@ test("extracts Markdown headings and skips fenced code", () => {
   ]);
 });
 
+test("extracts every EPUB heading level and preserves explicit anchors", () => {
+  const headings = extractEpubHeadings(
+    [
+      { id: "publisher-title", tagName: "h1", textContent: " Title " },
+      { tagName: "h2", textContent: "Section" },
+      { tagName: "H3", textContent: "Subsection" },
+      { tagName: "h4", textContent: "Detail" },
+      { tagName: "h5", textContent: "Fine detail" },
+      { tagName: "h6", textContent: "Notes" },
+      { tagName: "p", textContent: "Not a heading" },
+      { tagName: "h2", textContent: "   " },
+    ],
+    7,
+  );
+
+  assert.deepEqual(headings, [
+    { id: "publisher-title", title: "Title", level: 1 },
+    { id: "dt-reader-heading-7-2", title: "Section", level: 2 },
+    { id: "dt-reader-heading-7-3", title: "Subsection", level: 3 },
+    { id: "dt-reader-heading-7-4", title: "Detail", level: 4 },
+    { id: "dt-reader-heading-7-5", title: "Fine detail", level: 5 },
+    { id: "dt-reader-heading-7-6", title: "Notes", level: 6 },
+  ]);
+});
+
 test("heading anchors preserve the exact source used by annotation selectors", () => {
   const sourceText = "  # Title ##\r\nBody\n```md\n# Code\n```\n## Next\n";
   const headings = extractReaderHeadings([sourceText], 4);
@@ -99,6 +125,7 @@ test("reader outline is persistent, searchable, and wired to page headings", () 
   const outline = source("components/reading/ReaderOutline.tsx");
   const reader = source("components/reading/ReaderPane.tsx");
   const textReader = source("components/reading/TextUnitView.tsx");
+  const epubReader = source("components/reading/EpubDocumentView.tsx");
 
   assert.match(outline, /aria-label=\{t\("Contents"\)\}/);
   assert.match(outline, /Filter contents/);
@@ -108,6 +135,10 @@ test("reader outline is persistent, searchable, and wired to page headings", () 
   assert.match(reader, /dt\.reader\.outline\.\$\{material\.material_id\}/);
   assert.match(reader, /event\.key\.toLowerCase\(\) === "b"/);
   assert.match(reader, /onNavigateHeading/);
+  assert.match(epubReader, /h1,h2,h3,h4,h5,h6/);
+  assert.match(epubReader, /extractEpubHeadings/);
+  assert.match(epubReader, /section\.href\}#\$\{headingJump\.id\}/);
+  assert.match(reader, /onHeadingsChange=\{setPageHeadings\}/);
   assert.match(textReader, /data-reader-heading-id/);
   assert.match(textReader, /container\.scrollTo\(/);
   assert.match(textReader, /elementRect\.top - containerRect\.top/);

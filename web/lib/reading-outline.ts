@@ -31,6 +31,32 @@ export function readerHeadingLine(line: string): ReaderHeading | null {
   return { id: "", title, level: match[1].length };
 }
 
+export interface EpubHeadingElement {
+  id?: string | null;
+  tagName: string;
+  textContent: string | null;
+}
+
+/** Extract EPUB headings while preserving publisher-provided anchors. */
+export function extractEpubHeadings(
+  elements: EpubHeadingElement[],
+  locator: number,
+): ReaderHeading[] {
+  const headings: ReaderHeading[] = [];
+  for (const element of elements) {
+    const match = /^h([1-6])$/i.exec(element.tagName);
+    if (!match) continue;
+    const title = (element.textContent ?? "").replace(/\s+/g, " ").trim();
+    if (!title) continue;
+    headings.push({
+      id: element.id?.trim() || headingAnchor(locator, headings.length),
+      title,
+      level: Number(match[1]),
+    });
+  }
+  return headings;
+}
+
 /**
  * Attach outline entries to source lines without changing a single character.
  *

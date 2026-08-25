@@ -541,6 +541,8 @@ export function ReaderPane({ onClose }: ReaderPaneProps) {
                 setActiveAnnotationId(annotation.annotation_id)
               }
               onVisibleLocatorChange={handleVisibleLocator}
+              onHeadingsChange={setPageHeadings}
+              headingJump={headingJump}
               onError={setError}
             />
           ) : material.has_raw_view ? (
