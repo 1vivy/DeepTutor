@@ -200,19 +200,41 @@ class MasteryLoopCapability:
         reply_text: str,
         answers: list[dict[str, str]] | None,
     ) -> None:
-        """Commit the learner answer before giving it back to the LLM."""
+        """Commit the learner answer before giving it back to the LLM.
+
+        Clarifying composer text on a *choice* card (no option picked) must not
+        be persisted as the formal answer — that freezes the gate when
+        ``mastery_grade`` later refuses to map the prose onto an option (#1004).
+        Leave the interaction awaiting so a later real pick can still commit.
+        """
         path_id = str(context.metadata.get("mastery_path_id") or "").strip()
         if not path_id:
             return
+        from deeptutor.learning.pending import is_readable_choice_answer
         from deeptutor.learning.service import LearningService
 
-        await asyncio.to_thread(
-            LearningService().record_question_answer,
-            path_id,
-            _answer_from_reply(ask_user, reply_text=reply_text, answers=answers),
-            session_id=str(context.session_id or ""),
-            turn_id=str(context.metadata.get("turn_id") or ""),
-        )
+        answer = _answer_from_reply(ask_user, reply_text=reply_text, answers=answers)
+        from_card = _reply_matches_card(ask_user, answers)
+
+        def _commit() -> None:
+            service = LearningService()
+            if not from_card:
+                interaction = service.store.get_active_interaction(path_id)
+                question = interaction.question if interaction is not None else None
+                if (
+                    question is not None
+                    and question.question_type == "choice"
+                    and not is_readable_choice_answer(answer, question.options)
+                ):
+                    return
+            service.record_question_answer(
+                path_id,
+                answer,
+                session_id=str(context.session_id or ""),
+                turn_id=str(context.metadata.get("turn_id") or ""),
+            )
+
+        await asyncio.to_thread(_commit)
 
 
 def _path_binder(context: UnifiedContext) -> Callable[[str], None]:
@@ -222,6 +244,17 @@ def _path_binder(context: UnifiedContext) -> Callable[[str], None]:
         context.metadata["mastery_path_id"] = path_id
 
     return bind
+
+
+def _reply_matches_card(
+    ask_user: dict[str, Any],
+    answers: list[dict[str, str]] | None,
+) -> bool:
+    """Whether the resume carried a structured answer for this ask_user card."""
+    card_question_id = _first_question_id(ask_user)
+    if not card_question_id:
+        return False
+    return any(entry.get("questionId") == card_question_id for entry in answers or [])
 
 
 def _answer_from_reply(

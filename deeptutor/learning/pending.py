@@ -169,6 +169,18 @@ def resolve_choice_submission(answer: str, options: dict[str, str]) -> str:
     return mentioned[0] if len(mentioned) == 1 else ""
 
 
+def is_readable_choice_answer(answer: str, options: list[str] | dict[str, str]) -> bool:
+    """Whether *answer* identifies exactly one option on a choice question.
+
+    Composer text that is a clarifying question (or otherwise unmappable) must
+    not be treated as a committed pick — see mastery gate stall #1004.
+    """
+    option_map = parse_options(options) if isinstance(options, list) else options
+    if not option_map:
+        return False
+    return bool(resolve_choice_submission(answer, option_map))
+
+
 @dataclass(frozen=True, slots=True)
 class PublicPendingOption:
     """One learner-visible option; ``id`` and ``label`` are intentionally stable."""
@@ -237,6 +249,7 @@ __all__ = [
     "PublicPendingQuestion",
     "format_options",
     "has_option_bodies",
+    "is_readable_choice_answer",
     "option_label_intent",
     "parse_options",
     "positional_label",
