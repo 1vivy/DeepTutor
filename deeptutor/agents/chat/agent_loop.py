@@ -163,6 +163,8 @@ class LLMCallResult:
     visible_text: str = ""
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     finish_reason: str = ""
+    deferred_chunk_metadata: dict[str, Any] | None = None
+    deferred_completion_metadata: dict[str, Any] | None = None
 
 
 @dataclass(slots=True)
@@ -286,6 +288,7 @@ class AgentLoop:
         exploration_budget = max(1, self.pipeline.effective_max_rounds(self.context))
         settlement_started = False
         nudged_empty_finish = False
+        finish_redirect_used = False
         continued_answer_parts: list[str] = []
         while True:
             settling = state.exploration_rounds >= exploration_budget
@@ -310,6 +313,7 @@ class AgentLoop:
                     trace_role="response" if settling else "explore",
                     max_tokens=self.pipeline.loop_max_tokens,
                     tool_schemas=self.tool_schemas,
+                    defer_visible_output=self.pipeline._has_capability_finish_guard(self.context),
                 )
             except Exception as exc:
                 # A mid-loop LLM failure (timeout / transient network) must not
@@ -346,6 +350,7 @@ class AgentLoop:
                     # and ask for a continuation. The ordinary exploration /
                     # settlement counters still apply, so repeated truncation
                     # has the same hard upper bound as repeated tool calls.
+                    await self._release_deferred_output(result)
                     await self.stream.progress(
                         self.pipeline._t(
                             "notices.output_truncated",
@@ -408,6 +413,31 @@ class AgentLoop:
                         ),
                     )
                     continue
+                finish_redirect = self.pipeline._capability_finish_instruction(
+                    self.context, final_text
+                )
+                if finish_redirect:
+                    await self._discard_deferred_output(result)
+                    if not finish_redirect_used:
+                        finish_redirect_used = True
+                        if result.text:
+                            messages.append({"role": "assistant", "content": result.text})
+                        self._append_loop_instruction(messages, finish_redirect)
+                        continue
+                    await self.stream.progress(
+                        self.pipeline._t(
+                            "notices.capability_finish_rejected",
+                            default=(
+                                "The model did not complete the required interactive step. "
+                                "Please retry the turn."
+                            ),
+                        ),
+                        source="chat",
+                        stage=LOOP_STAGE,
+                        metadata={"trace_kind": "warning"},
+                    )
+                    return LoopOutcome(final_text="", completed=False)
+                await self._release_deferred_output(result)
                 # Finish: the text streamed live this round IS the answer.
                 return await self._finalize_finish(
                     final_text,
@@ -415,6 +445,7 @@ class AgentLoop:
                     continued_answer_parts=continued_answer_parts,
                 )
 
+            await self._release_deferred_output(result)
             messages.append(assistant_message_with_tool_calls(result.text, result.tool_calls))
             dispatch = await self.pipeline._dispatch_tool_calls(
                 tool_calls=result.tool_calls,
@@ -587,6 +618,42 @@ class AgentLoop:
             await self.pipeline._emit_protocol_fallback_final_response(self.stream, final_text)
         return LoopOutcome(final_text=final_text, completed=True)
 
+    async def _release_deferred_output(self, result: LLMCallResult) -> None:
+        """Publish a buffered capability round only after its protocol accepts it."""
+        if result.deferred_chunk_metadata is not None and result.visible_text:
+            await self.stream.content(
+                result.visible_text,
+                source="chat",
+                stage=LOOP_STAGE,
+                metadata=result.deferred_chunk_metadata,
+            )
+        if result.deferred_completion_metadata is not None:
+            await self.stream.progress(
+                "",
+                source="chat",
+                stage=LOOP_STAGE,
+                metadata=result.deferred_completion_metadata,
+            )
+        result.deferred_chunk_metadata = None
+        result.deferred_completion_metadata = None
+
+    async def _discard_deferred_output(self, result: LLMCallResult) -> None:
+        """Close a rejected round's trace without publishing its buffered prose."""
+        metadata = result.deferred_completion_metadata
+        if metadata is not None:
+            metadata = dict(metadata)
+            metadata["call_role"] = "narration"
+            metadata.pop("answer_visible", None)
+            metadata["finish_rejected"] = True
+            await self.stream.progress(
+                "",
+                source="chat",
+                stage=LOOP_STAGE,
+                metadata=metadata,
+            )
+        result.deferred_chunk_metadata = None
+        result.deferred_completion_metadata = None
+
     # ---- LLM call ----------------------------------------------------------
 
     async def _call_llm(
@@ -598,6 +665,7 @@ class AgentLoop:
         trace_role: str,
         max_tokens: int,
         tool_schemas: list[dict[str, Any]] | None = None,
+        defer_visible_output: bool = False,
     ) -> LLMCallResult:
         await self.pipeline._guard_context_window(messages, self.stream)
         stage = LOOP_STAGE
@@ -676,9 +744,10 @@ class AgentLoop:
                         visible_text_parts.append(segment)
                         if segment.strip():
                             answer_content_emitted = True
-                        await self.stream.content(
-                            segment, source="chat", stage=stage, metadata=chunk_meta
-                        )
+                        if not defer_visible_output:
+                            await self.stream.content(
+                                segment, source="chat", stage=stage, metadata=chunk_meta
+                            )
                     else:
                         await self.stream.thinking(
                             segment, source="chat", stage=stage, metadata=chunk_meta
@@ -840,20 +909,23 @@ class AgentLoop:
             # answer content, not an internal tool preamble.
             completion_metadata["answer_visible"] = True
 
-        await self.stream.progress(
-            "",
-            source="chat",
-            stage=stage,
-            metadata=merge_trace_metadata(
-                trace_meta,
-                completion_metadata,
-            ),
-        )
+        completion_event_metadata = merge_trace_metadata(trace_meta, completion_metadata)
+        if not defer_visible_output:
+            await self.stream.progress(
+                "",
+                source="chat",
+                stage=stage,
+                metadata=completion_event_metadata,
+            )
         return LLMCallResult(
             text=text,
             visible_text="".join(visible_text_parts),
             tool_calls=tool_calls,
             finish_reason=finish_reason,
+            deferred_chunk_metadata=chunk_meta if defer_visible_output else None,
+            deferred_completion_metadata=(
+                completion_event_metadata if defer_visible_output else None
+            ),
         )
 
     async def _create_response_stream(
