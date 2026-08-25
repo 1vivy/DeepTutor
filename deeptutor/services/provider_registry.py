@@ -52,6 +52,12 @@ class ProviderSpec:
     # explicit reasoning_effort, the provider auto-injects "high" so the
     # thinking_style flag (e.g. extra_body.thinking.type=enabled) is sent.
     reasoning_model_patterns: tuple[str, ...] = ()
+    # True when this provider's Responses API performs `web_search` on the
+    # server: the tool is declared as {"type": "web_search"} rather than a
+    # function schema, the server runs the search mid-generation, and the
+    # response carries web_search_call items plus url_citation annotations
+    # instead of a function call for the client to execute.
+    native_web_search: bool = False
 
     @property
     def mode(self) -> str:
@@ -324,6 +330,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         default_api_base="https://api.deepseek.com",
         thinking_style="thinking_type",
         reasoning_model_patterns=("deepseek-v4-pro", "deepseek-reasoner"),
+        native_web_search=True,
     ),
     ProviderSpec(
         name="gemini",

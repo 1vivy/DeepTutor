@@ -120,6 +120,13 @@ async def dispatch_tool_calls(
         tool_calls = tool_calls[:MAX_PARALLEL_TOOL_CALLS]
 
     prepared, raw_args = _prepare_tool_args(tool_calls, context, kwarg_augmenter)
+    # Calls the provider already executed server-side (native Responses
+    # web_search). They must not run the local tool again: the search happened
+    # mid-generation and the answer's citations point at its results. Each one
+    # short-circuits to a stub result that carries the server's citations as
+    # sources, keeping the tool_call/role=tool pairing intact for the next
+    # model round.
+    server_executed = _server_executed_by_id(tool_calls)
     # Collapse duplicates within this parallel batch. Models occasionally
     # emit repeated tool_calls in one assistant message. For most tools,
     # "duplicate" means same tool + same JSON-normalised args. For
@@ -172,6 +179,11 @@ async def dispatch_tool_calls(
                 tool_name=prepared[tool_index][1],
             )
         _tcid, tool_name, exec_args = prepared[tool_index]
+        if _tcid in server_executed:
+            return _server_executed_stub_result(
+                tool_name=tool_name,
+                fields=server_executed[_tcid],
+            )
         rejection = await _reject_if_args_missing(
             registry=registry,
             tool_name=tool_name,
@@ -338,6 +350,68 @@ def _duplicate_stub_result(
     return {
         "result_text": result_text,
         "sources": [],
+    }
+
+
+def _server_executed_by_id(
+    tool_calls: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Map call ids to provider fields for calls the server already executed.
+
+    Marks ride ``provider_specific_fields`` on the tool_call (see the
+    Responses parser's synthesized native web_search calls).
+    """
+    server_executed: dict[str, dict[str, Any]] = {}
+    for tc in tool_calls:
+        fields = tc.get("provider_specific_fields")
+        if not isinstance(fields, dict) or not fields.get("server_executed"):
+            continue
+        call_id = str(tc.get("id") or "").strip()
+        if call_id:
+            server_executed[call_id] = fields
+    return server_executed
+
+
+def _server_executed_stub_result(
+    *,
+    tool_name: str,
+    fields: dict[str, Any],
+) -> dict[str, Any]:
+    """Synthetic result for a provider-side executed call (native web_search).
+
+    The search ran on the server mid-generation; this stub exists so the
+    OpenAI tool-call/tool-message pairing stays intact and the citations
+    reach the frontend as sources. The text tells the model what happened so
+    it does not re-issue the search.
+    """
+    raw_citations = fields.get("citations") or []
+    citations = [
+        {"url": str(c.get("url") or ""), "title": str(c.get("title") or "")}
+        for c in raw_citations
+        if isinstance(c, dict) and str(c.get("url") or "").strip()
+    ]
+    sources = [{"type": "web", **citation} for citation in citations]
+    query = str(fields.get("query") or "")
+    result_text = json.dumps(
+        {
+            "server_executed": True,
+            "query": query,
+            "citations": citations,
+            "note": (
+                "This web search was performed server-side by the provider "
+                "during generation; cite these sources directly. Do not call "
+                "web_search again for the same query."
+            ),
+        },
+        ensure_ascii=False,
+    )
+    return {
+        "result_text": result_text,
+        "success": True,
+        "sources": sources,
+        "metadata": {"server_executed": True, "query": query, "citations": citations},
+        "terminate_turn": False,
+        "pause_for_user": None,
     }
 
 

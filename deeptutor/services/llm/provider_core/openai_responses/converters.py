@@ -40,6 +40,23 @@ def convert_messages(messages: list[dict[str, Any]]) -> tuple[str, list[dict[str
             for tool_call in msg.get("tool_calls", []) or []:
                 fn = tool_call.get("function") or {}
                 call_id, item_id = split_tool_call_id(tool_call.get("id"))
+                if _is_server_executed_tool_call(tool_call):
+                    # Replay a server-executed native search as its own output
+                    # item type. The matching role=tool message is skipped
+                    # below: a server-executed call has no function output.
+                    input_items.append(
+                        {
+                            "type": "web_search_call",
+                            "id": item_id or call_id or f"ws_{idx}",
+                            "status": "completed",
+                            **(
+                                {"action": {"type": "search", "query": fn.get("arguments")}}
+                                if isinstance(fn.get("arguments"), str) and fn.get("arguments")
+                                else {}
+                            ),
+                        }
+                    )
+                    continue
                 input_items.append(
                     {
                         "type": "function_call",
@@ -56,6 +73,16 @@ def convert_messages(messages: list[dict[str, Any]]) -> tuple[str, list[dict[str
             output_text = (
                 content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
             )
+            if any(
+                _is_server_executed_tool_call(tc) and split_tool_call_id(tc.get("id"))[0] == call_id
+                for assistant_msg in messages
+                if assistant_msg.get("role") == "assistant"
+                for tc in assistant_msg.get("tool_calls", []) or []
+            ):
+                # The function_call_output for a server-executed call does not
+                # exist on the wire — the result lives in the web_search_call
+                # item emitted above.
+                continue
             input_items.append(
                 {"type": "function_call_output", "call_id": call_id, "output": output_text}
             )
@@ -83,13 +110,28 @@ def convert_user_message(content: Any) -> dict[str, Any]:
     return {"role": "user", "content": [{"type": "input_text", "text": ""}]}
 
 
-def convert_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Convert OpenAI function calling schemas to Responses API tools."""
+def convert_tools(
+    tools: list[dict[str, Any]],
+    *,
+    native_web_search: bool = False,
+) -> list[dict[str, Any]]:
+    """Convert OpenAI function calling schemas to Responses API tools.
+
+    With ``native_web_search=True`` (providers whose Responses API performs
+    web searches server-side, e.g. DeepSeek), DeepTutor's ``web_search``
+    function tool is declared as the provider's native ``{"type":
+    "web_search"}`` tool instead of a function schema: the server runs the
+    search mid-generation and the response carries ``web_search_call`` items
+    with ``url_citation`` annotations rather than a function call.
+    """
     converted: list[dict[str, Any]] = []
     for tool in tools:
         fn = (tool.get("function") or {}) if tool.get("type") == "function" else tool
         name = fn.get("name")
         if not name:
+            continue
+        if native_web_search and name == "web_search":
+            converted.append({"type": "web_search"})
             continue
         params = fn.get("parameters") or {}
         converted.append(
@@ -101,6 +143,19 @@ def convert_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
             }
         )
     return converted
+
+
+def _is_server_executed_tool_call(tool_call: dict[str, Any]) -> bool:
+    """True for a tool_call the provider already executed server-side.
+
+    Server-executed calls (native ``web_search``) must round-trip as their
+    native output-item type, not as a ``function_call``: replaying them as
+    function calls would claim the client ran a search the server actually
+    ran. The marker rides ``provider_specific_fields`` on the persisted
+    assistant tool_call.
+    """
+    fields = tool_call.get("provider_specific_fields")
+    return bool(isinstance(fields, dict) and fields.get("server_executed"))
 
 
 def split_tool_call_id(tool_call_id: Any) -> tuple[str, str | None]:

@@ -475,7 +475,10 @@ class OpenAICompatProvider(LLMProvider):
             body["reasoning"] = {"effort": reasoning_effort}
             body["include"] = ["reasoning.encrypted_content"]
         if tools:
-            body["tools"] = convert_tools(tools)
+            body["tools"] = convert_tools(
+                tools,
+                native_web_search=bool(self._spec and self._spec.native_web_search),
+            )
             body["tool_choice"] = tool_choice or "auto"
         return body
 
