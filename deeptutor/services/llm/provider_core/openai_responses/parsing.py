@@ -35,19 +35,6 @@ def _dump_model(value: Any) -> Any:
     return dump() if callable(dump) else vars(value)
 
 
-def _web_search_query_from_item(item: dict[str, Any]) -> str:
-    """Best-effort query extraction from a web_search_call output item."""
-    action = item.get("action")
-    if isinstance(action, dict):
-        query = action.get("query")
-        if isinstance(query, str) and query.strip():
-            return query.strip()
-    query = item.get("query")
-    if isinstance(query, str) and query.strip():
-        return query.strip()
-    return ""
-
-
 def _citation_from_annotation(annotation: Any) -> dict[str, str] | None:
     """Extract {url, title} from a url_citation annotation, else None."""
     if not isinstance(annotation, dict):
@@ -74,31 +61,6 @@ def _citations_from_content_blocks(blocks: Any) -> list[dict[str, str]]:
             if citation:
                 citations.append(citation)
     return citations
-
-
-def _build_server_web_search_call(
-    *,
-    item_id: str,
-    query: str,
-    citations: list[dict[str, str]],
-) -> ToolCallRequest:
-    """Synthesize the tool_call a server-side web search reports as.
-
-    The search already ran on the provider: the call is marked
-    ``server_executed`` so the dispatcher returns a stub result (carrying the
-    citations as sources) instead of running the local ``web_search`` tool —
-    replaying the search client-side would double the work and could disagree
-    with the citations the answer text actually used.
-    """
-    fields: dict[str, Any] = {"server_executed": True, "citations": citations}
-    if query:
-        fields["query"] = query
-    return ToolCallRequest(
-        id=item_id,
-        name="web_search",
-        arguments={"query": query} if query else {},
-        provider_specific_fields=fields,
-    )
 
 
 def map_finish_reason(status: str | None) -> str:
@@ -262,13 +224,13 @@ async def iter_sse(response: httpx.Response) -> AsyncGenerator[dict[str, Any], N
 async def consume_sse(
     response: httpx.Response,
     on_content_delta: Callable[[str], Awaitable[None]] | None = None,
+    on_provider_event: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> tuple[str, list[ToolCallRequest], str]:
     """Consume a Responses API SSE stream."""
     content = ""
     tool_calls: list[ToolCallRequest] = []
     tool_call_buffers = _ToolCallBuffers()
     finish_reason = "stop"
-    web_search_citations: list[dict[str, str]] = []
     seen_web_search_items: set[str] = set()
 
     async for event in iter_sse(response):
@@ -292,8 +254,8 @@ async def consume_sse(
                 await on_content_delta(delta_text)
         elif event_type == "response.output_text.annotation.added":
             citation = _citation_from_annotation(event.get("annotation"))
-            if citation:
-                web_search_citations.append(citation)
+            if citation and on_provider_event:
+                on_provider_event("citation", citation)
         elif event_type == "response.function_call_arguments.delta":
             tool_call_buffers.append(
                 event.get("delta") or "",
@@ -312,14 +274,8 @@ async def consume_sse(
                 item_id = str(item.get("id") or "")
                 if item_id and item_id not in seen_web_search_items:
                     seen_web_search_items.add(item_id)
-                    tool_calls.append(
-                        _build_server_web_search_call(
-                            item_id=item_id,
-                            query=_web_search_query_from_item(item),
-                            citations=web_search_citations,
-                        )
-                    )
-                    web_search_citations = []
+                    if on_provider_event:
+                        on_provider_event("output_item", dict(item))
                 continue
             if item.get("type") == "function_call":
                 call_id = item.get("call_id")
@@ -344,40 +300,7 @@ async def consume_sse(
         elif event_type in {"error", "response.failed"}:
             raise RuntimeError(f"Response failed: {_response_error_detail(event)[:500]}")
 
-    # Annotations usually stream with the answer text, i.e. AFTER the
-    # web_search_call item completes. Whatever is still unattached here
-    # belongs to the most recent search — merge it in rather than drop it.
-    if web_search_citations:
-        _merge_or_append_citations(
-            tool_calls,
-            citations=web_search_citations,
-            fallback_id=f"ws_tail_{len(tool_calls)}",
-        )
-
     return content, tool_calls, finish_reason
-
-
-def _merge_or_append_citations(
-    tool_calls: list[ToolCallRequest],
-    *,
-    citations: list[dict[str, str]],
-    fallback_id: str,
-) -> None:
-    """Attach citations to the latest server-executed call, else synthesize one."""
-    existing = next(
-        (
-            tc
-            for tc in reversed(tool_calls)
-            if tc.provider_specific_fields and tc.provider_specific_fields.get("server_executed")
-        ),
-        None,
-    )
-    if existing is not None:
-        existing.provider_specific_fields["citations"].extend(citations)
-    else:
-        tool_calls.append(
-            _build_server_web_search_call(item_id=fallback_id, query="", citations=citations)
-        )
 
 
 def parse_response_output(response: Any) -> LLMResponse:
@@ -390,6 +313,8 @@ def parse_response_output(response: Any) -> LLMResponse:
     content_parts: list[str] = []
     tool_calls: list[ToolCallRequest] = []
     reasoning_content: str | None = None
+    native_output_items: list[dict[str, Any]] = []
+    native_citations: list[dict[str, str]] = []
 
     for item in output:
         item = _dump_model(item)
@@ -404,17 +329,7 @@ def parse_response_output(response: Any) -> LLMResponse:
                     continue
                 if block.get("type") == "output_text":
                     content_parts.append(block.get("text") or "")
-                    block_citations = _citations_from_content_blocks([block])
-                    if block_citations:
-                        # Annotations cite searches the server ran. Merge into
-                        # the latest synthesized call when one exists (several
-                        # message items can annotate one search), else
-                        # synthesize one.
-                        _merge_or_append_citations(
-                            tool_calls,
-                            citations=block_citations,
-                            fallback_id=str(item.get("id") or f"ws_annot_{len(tool_calls)}"),
-                        )
+                    native_citations.extend(_citations_from_content_blocks([block]))
         elif item_type == "reasoning":
             for summary in item.get("summary") or []:
                 summary = _dump_model(summary)
@@ -423,14 +338,12 @@ def parse_response_output(response: Any) -> LLMResponse:
                 if summary.get("type") == "summary_text" and summary.get("text"):
                     reasoning_content = (reasoning_content or "") + summary["text"]
         elif item_type in _WEB_SEARCH_ITEM_TYPES:
-            item_id = str(item.get("id") or f"ws_{len(tool_calls)}")
-            tool_calls.append(
-                _build_server_web_search_call(
-                    item_id=item_id,
-                    query=_web_search_query_from_item(item),
-                    citations=_citations_from_content_blocks(item.get("results")),
-                )
-            )
+            # This action already ran inside the provider and accompanies a
+            # terminal answer. Preserve it verbatim as provider metadata; do
+            # not synthesize a local ToolCallRequest and trigger a fake second
+            # agent-loop round.
+            native_output_items.append(dict(item))
+            native_citations.extend(_citations_from_content_blocks(item.get("results")))
         elif item_type == "function_call":
             call_id = item.get("call_id") or ""
             item_id = item.get("id") or _ToolCallBuffers.PLACEHOLDER_ITEM_ID
@@ -448,12 +361,19 @@ def parse_response_output(response: Any) -> LLMResponse:
     usage = token_counts(response.get("usage"), prompt="input_tokens", completion="output_tokens")
 
     finish_reason = map_finish_reason(response.get("status"))
+    provider_specific_fields: dict[str, Any] = {}
+    if native_output_items or native_citations:
+        provider_specific_fields = {
+            "native_output_items": native_output_items,
+            "citations": native_citations,
+        }
     return LLMResponse(
         content="".join(content_parts) or None,
         tool_calls=tool_calls,
         finish_reason=finish_reason,
         usage=usage,
         reasoning_content=reasoning_content if isinstance(reasoning_content, str) else None,
+        provider_specific_fields=provider_specific_fields,
     )
 
 
@@ -461,6 +381,7 @@ async def consume_sdk_stream(
     stream: Any,
     on_content_delta: Callable[[str], Awaitable[None]] | None = None,
     on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
+    on_provider_event: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> tuple[str, list[ToolCallRequest], str, dict[str, int], str | None]:
     """Consume an SDK async stream from client.responses.create(stream=True)."""
     content = ""
@@ -469,7 +390,6 @@ async def consume_sdk_stream(
     finish_reason = "stop"
     usage: dict[str, int] = {}
     reasoning_content: str | None = None
-    web_search_citations: list[dict[str, str]] = []
     seen_web_search_items: set[str] = set()
 
     async for event in stream:
@@ -493,8 +413,8 @@ async def consume_sdk_stream(
                 await on_content_delta(delta_text)
         elif event_type == "response.output_text.annotation.added":
             citation = _citation_from_annotation(getattr(event, "annotation", None))
-            if citation:
-                web_search_citations.append(citation)
+            if citation and on_provider_event:
+                on_provider_event("citation", citation)
         elif event_type == "response.function_call_arguments.delta":
             tool_call_buffers.append(
                 getattr(event, "delta", "") or "",
@@ -514,14 +434,8 @@ async def consume_sdk_stream(
                 item_id = str(item_dict.get("id") or "")
                 if item_id and item_id not in seen_web_search_items:
                     seen_web_search_items.add(item_id)
-                    tool_calls.append(
-                        _build_server_web_search_call(
-                            item_id=item_id,
-                            query=_web_search_query_from_item(item_dict),
-                            citations=web_search_citations,
-                        )
-                    )
-                    web_search_citations = []
+                    if on_provider_event:
+                        on_provider_event("output_item", dict(item_dict))
                 continue
             if item and getattr(item, "type", None) == "function_call":
                 call_id = getattr(item, "call_id", None)
@@ -555,14 +469,5 @@ async def consume_sdk_stream(
             )
         elif event_type in {"error", "response.failed"}:
             raise RuntimeError(f"Response failed: {_response_error_detail(event)[:500]}")
-
-    # Same tail-merge as the SSE path: annotations stream after the search
-    # item completes, so attach whatever is still unattached.
-    if web_search_citations:
-        _merge_or_append_citations(
-            tool_calls,
-            citations=web_search_citations,
-            fallback_id=f"ws_tail_{len(tool_calls)}",
-        )
 
     return content, tool_calls, finish_reason, usage, reasoning_content

@@ -1,33 +1,35 @@
 """Tests for native server-side web_search support (#846).
 
-Covers the three seams a native web search crosses:
+Covers the four seams a native web search crosses:
 
 * ``convert_tools`` — DeepTutor's ``web_search`` function tool declared as the
   provider's native ``{"type": "web_search"}`` tool.
-* history replay — a server-executed call round-trips as a ``web_search_call``
-  output item (not a function_call), with no function_call_output.
-* parsing — ``web_search_call`` output items and ``url_citation`` annotations
-  synthesize a marked ``web_search`` ToolCallRequest instead of a dispatchable
-  local function call.
+* provider gating — only DeepSeek's supported Responses model takes this path.
+* parsing — ``web_search_call`` remains provider metadata and the answer is
+  terminal; no fake local tool call is synthesized.
+* streaming — the provider's complete action object and citations are retained.
 """
 
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
-from deeptutor.core.agentic.tool_dispatch import dispatch_tool_calls
-from deeptutor.core.context import UnifiedContext
-from deeptutor.core.stream_bus import StreamBus
+from deeptutor.core.agentic import client as client_module
+from deeptutor.core.agentic.client import LLMClientConfig
+from deeptutor.services.llm.provider_core.openai_compat_provider import (
+    OpenAICompatProvider,
+)
 from deeptutor.services.llm.provider_core.openai_responses import (
     consume_sse,
-    convert_messages,
     convert_tools,
 )
 from deeptutor.services.llm.provider_core.openai_responses.parsing import (
     parse_response_output,
 )
+from deeptutor.services.provider_registry import find_by_name
 
 
 class _SSEFixture:
@@ -40,42 +42,25 @@ class _SSEFixture:
             yield ""
 
 
-class _ExecutedWebSearchTool:
-    """A local web_search stand-in that fails the test if executed."""
+class _SDKStream:
+    def __init__(self, events: list[SimpleNamespace]) -> None:
+        self._events = events
 
-    def get_definition(self):
-        class _Def:
-            name = "web_search"
+    def __aiter__(self):
+        return self
 
-        return _Def()
-
-    async def execute(self, **kwargs):
-        raise AssertionError("server-executed web_search must not run locally")
-
-
-class _Registry:
-    def __init__(self, tool):
-        self._tool = tool
-
-    def get(self, name):
-        if name == "web_search":
-            return self._tool
-        raise KeyError(name)
-
-    async def execute(self, name, **kwargs):
-        tool = self.get(name)
-        return await tool.execute(**kwargs)
+    async def __anext__(self):
+        if not self._events:
+            raise StopAsyncIteration
+        return self._events.pop(0)
 
 
-class _Stream:
-    def __init__(self):
-        self.events: list[dict] = []
-
-    def __getattr__(self, name):
-        async def _emit(*args, **kwargs):
-            self.events.append({"event": name, **kwargs})
-
-        return _emit
+_TOOLS = [
+    {
+        "type": "function",
+        "function": {"name": "web_search", "parameters": {"type": "object"}},
+    }
+]
 
 
 # ---------------------------------------------------------------------------
@@ -104,56 +89,133 @@ class TestConvertToolsNativeWebSearch:
 
 
 # ---------------------------------------------------------------------------
-# convert_messages: server-executed history replay
+# provider and adapter gating
 # ---------------------------------------------------------------------------
 
 
-class TestConvertMessagesServerExecutedReplay:
-    def test_server_executed_call_replays_as_web_search_item(self) -> None:
-        marker = {"server_executed": True, "citations": [{"url": "https://x", "title": "X"}]}
-        messages = [
-            {"role": "user", "content": "hi"},
-            {
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [
-                    {
-                        "id": "ws_1",
-                        "type": "function",
-                        "function": {"name": "web_search", "arguments": "fft"},
-                        "provider_specific_fields": marker,
-                    }
-                ],
-            },
-            {"role": "tool", "tool_call_id": "ws_1", "name": "web_search", "content": "{}"},
-        ]
-        _, items = convert_messages(messages)
-        types = [item.get("type") for item in items]
-        assert "web_search_call" in types
-        assert "function_call" not in types
-        # The stub role=tool message must not produce a function_call_output.
-        assert "function_call_output" not in types
-        ws_item = next(item for item in items if item.get("type") == "web_search_call")
-        assert ws_item["id"] == "ws_1"
-        assert ws_item["status"] == "completed"
+def _provider(model: str) -> OpenAICompatProvider:
+    return OpenAICompatProvider(
+        api_key="test-key",
+        api_base="https://api.deepseek.com",
+        default_model=model,
+        spec=find_by_name("deepseek"),
+        provider_name="deepseek",
+    )
 
-    def test_regular_calls_keep_function_pairing(self) -> None:
-        messages = [
-            {
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [
-                    {
-                        "id": "call_1",
-                        "type": "function",
-                        "function": {"name": "rag", "arguments": "{}"},
-                    }
-                ],
-            },
-            {"role": "tool", "tool_call_id": "call_1", "name": "rag", "content": "ok"},
-        ]
-        _, items = convert_messages(messages)
-        assert [item["type"] for item in items] == ["function_call", "function_call_output"]
+
+def test_only_supported_deepseek_model_uses_responses_for_native_search() -> None:
+    assert _provider("deepseek-v4-flash")._should_use_responses_api(
+        "deepseek-v4-flash", None, _TOOLS
+    )
+    assert not _provider("deepseek-v4-pro")._should_use_responses_api(
+        "deepseek-v4-pro", None, _TOOLS
+    )
+    assert not _provider("deepseek-v4-flash")._should_use_responses_api(
+        "deepseek-v4-flash", None, None
+    )
+
+
+def test_native_mapping_is_model_scoped() -> None:
+    flash_body = _provider("deepseek-v4-flash")._build_responses_body(
+        [{"role": "user", "content": "latest news"}],
+        _TOOLS,
+        "deepseek-v4-flash",
+        256,
+        0.7,
+        None,
+        None,
+    )
+    pro_body = _provider("deepseek-v4-pro")._build_responses_body(
+        [{"role": "user", "content": "latest news"}],
+        _TOOLS,
+        "deepseek-v4-pro",
+        256,
+        0.7,
+        None,
+        None,
+    )
+    assert flash_body["tools"] == [{"type": "web_search"}]
+    assert pro_body["tools"][0]["type"] == "function"
+
+
+def test_agent_client_routes_only_supported_model_through_provider_adapter(monkeypatch) -> None:
+    sentinel = object()
+    monkeypatch.setattr(
+        client_module,
+        "_build_direct_openai_adapter",
+        lambda *_args, **_kwargs: sentinel,
+    )
+    spec = find_by_name("deepseek")
+    assert spec is not None
+    flash = LLMClientConfig(
+        binding="deepseek",
+        model="deepseek-v4-flash",
+        api_key="k",
+        base_url="https://api.deepseek.com",
+    )
+    pro = LLMClientConfig(
+        binding="deepseek",
+        model="deepseek-v4-pro",
+        api_key="k",
+        base_url="https://api.deepseek.com",
+    )
+    assert client_module._build_native_provider_adapter(flash, spec) is sentinel
+    assert client_module._build_native_provider_adapter(pro, spec) is None
+
+
+@pytest.mark.asyncio
+async def test_provider_stream_returns_native_search_as_terminal_metadata() -> None:
+    provider = _provider("deepseek-v4-flash")
+    action = {"type": "open_page", "url": "https://example.com/current"}
+    events = [
+        SimpleNamespace(
+            type="response.output_item.done",
+            item=SimpleNamespace(
+                type="web_search_call",
+                id="ws_1",
+                status="completed",
+                action=action,
+            ),
+        ),
+        SimpleNamespace(type="response.output_text.delta", delta="Current answer."),
+        SimpleNamespace(
+            type="response.completed",
+            response=SimpleNamespace(
+                status="completed",
+                usage={"input_tokens": 4, "output_tokens": 2},
+            ),
+        ),
+    ]
+    captured_body: dict = {}
+
+    async def create(**body):
+        captured_body.update(body)
+        return _SDKStream(events)
+
+    provider._client = SimpleNamespace(
+        responses=SimpleNamespace(create=create),
+        chat=SimpleNamespace(completions=SimpleNamespace()),
+    )
+
+    result = await provider.chat_stream(
+        messages=[{"role": "user", "content": "What changed today?"}],
+        tools=_TOOLS,
+        model="deepseek-v4-flash",
+        max_tokens=256,
+    )
+
+    assert captured_body["tools"] == [{"type": "web_search"}]
+    assert result.content == "Current answer."
+    assert result.finish_reason == "stop"
+    assert result.tool_calls == []
+    assert result.provider_specific_fields["native_output_items"] == [
+        {
+            "type": "web_search_call",
+            "id": "ws_1",
+            "status": "completed",
+            "action": action,
+        }
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -162,14 +224,17 @@ class TestConvertMessagesServerExecutedReplay:
 
 
 class TestParseServerExecutedWebSearch:
-    def test_parse_response_output_synthesizes_marked_call(self) -> None:
+    def test_parse_response_output_preserves_action_without_tool_loop(self) -> None:
         response = {
             "output": [
                 {
                     "type": "web_search_call",
                     "id": "ws_abc",
                     "status": "completed",
-                    "action": {"type": "search", "query": "cooley tukey fft"},
+                    "action": {
+                        "type": "open_page",
+                        "url": "https://example.com/paper",
+                    },
                 },
                 {
                     "type": "message",
@@ -194,12 +259,9 @@ class TestParseServerExecutedWebSearch:
         }
         result = parse_response_output(response)
         assert result.content == "FFT is O(N log N)."
-        assert len(result.tool_calls) == 1
-        call = result.tool_calls[0]
-        assert call.name == "web_search"
-        assert call.arguments == {"query": "cooley tukey fft"}
-        fields = call.provider_specific_fields or {}
-        assert fields["server_executed"] is True
+        assert result.tool_calls == []
+        fields = result.provider_specific_fields
+        assert fields["native_output_items"] == [response["output"][0]]
         assert fields["citations"] == [
             {"url": "https://example.com/paper", "title": "Cooley-Tukey"}
         ]
@@ -226,16 +288,19 @@ class TestParseServerExecutedWebSearch:
                     "type": "web_search_call",
                     "id": "ws_1",
                     "status": "completed",
-                    "action": {"query": "test"},
+                    "action": {"type": "find_in_page", "pattern": "FFT"},
                 },
             },
         ]
-        content, tool_calls, _ = await consume_sse(_SSEFixture(events))
+        provider_events: list[tuple[str, dict]] = []
+        content, tool_calls, _ = await consume_sse(
+            _SSEFixture(events),
+            on_provider_event=lambda kind, payload: provider_events.append((kind, payload)),
+        )
         assert content == "hello"
-        assert len(tool_calls) == 1
-        fields = tool_calls[0].provider_specific_fields or {}
-        assert fields["server_executed"] is True
-        assert fields["citations"] == [
+        assert tool_calls == []
+        assert provider_events[-1] == ("output_item", events[-1]["item"])
+        assert [payload for kind, payload in provider_events if kind == "citation"] == [
             {"url": "https://a", "title": "A"},
             {"url": "https://b", "title": "B"},
         ]
@@ -252,14 +317,18 @@ class TestParseServerExecutedWebSearch:
                 "item": {"type": "web_search_call", "id": "ws_1", "status": "completed"},
             },
         ]
-        _, tool_calls, _ = await consume_sse(_SSEFixture(events))
-        assert len(tool_calls) == 1
+        provider_events: list[tuple[str, dict]] = []
+        _, tool_calls, _ = await consume_sse(
+            _SSEFixture(events),
+            on_provider_event=lambda kind, payload: provider_events.append((kind, payload)),
+        )
+        assert tool_calls == []
+        assert len(provider_events) == 1
 
     @pytest.mark.asyncio
     async def test_sse_annotations_after_item_done_are_kept(self) -> None:
         # Realistic ordering: the search item completes first, then the answer
-        # text streams with its citations. The tail annotations must merge
-        # into the search's call, not be dropped.
+        # text streams with its citations. Both remain provider metadata.
         events = [
             {
                 "type": "response.output_item.done",
@@ -276,50 +345,13 @@ class TestParseServerExecutedWebSearch:
                 "annotation": {"type": "url_citation", "url": "https://a", "title": "A"},
             },
         ]
-        _, tool_calls, _ = await consume_sse(_SSEFixture(events))
-        assert len(tool_calls) == 1
-        call = tool_calls[0]
-        assert call.arguments == {"query": "fft"}
-        assert call.provider_specific_fields["citations"] == [{"url": "https://a", "title": "A"}]
-
-
-# ---------------------------------------------------------------------------
-# dispatch: server-executed calls never run the local tool
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_dispatch_short_circuits_server_executed_call() -> None:
-    tool_calls = [
-        {
-            "id": "ws_1",
-            "name": "web_search",
-            "arguments": json.dumps({"query": "fft"}),
-            "provider_specific_fields": {
-                "server_executed": True,
-                "query": "fft",
-                "citations": [{"url": "https://example.com", "title": "Example"}],
-            },
-        }
-    ]
-    stream = _Stream()
-    context = UnifiedContext(user_message="q", session_id="s", attachments=[])
-    outcome = await dispatch_tool_calls(
-        tool_calls=tool_calls,
-        context=context,
-        stream=stream,
-        source="chat",
-        stage="responding",
-        iteration_index=0,
-        registry=_Registry(_ExecutedWebSearchTool()),
-    )
-
-    # The local tool never ran (it raises AssertionError on execute).
-    assert len(outcome.tool_messages) == 1
-    message = outcome.tool_messages[0]
-    assert message["role"] == "tool"
-    assert message["tool_call_id"] == "ws_1"
-    payload = json.loads(message["content"])
-    assert payload["server_executed"] is True
-    assert payload["citations"] == [{"url": "https://example.com", "title": "Example"}]
-    assert outcome.sources == [{"type": "web", "url": "https://example.com", "title": "Example"}]
+        provider_events: list[tuple[str, dict]] = []
+        _, tool_calls, _ = await consume_sse(
+            _SSEFixture(events),
+            on_provider_event=lambda kind, payload: provider_events.append((kind, payload)),
+        )
+        assert tool_calls == []
+        assert provider_events == [
+            ("output_item", events[0]["item"]),
+            ("citation", {"url": "https://a", "title": "A"}),
+        ]
