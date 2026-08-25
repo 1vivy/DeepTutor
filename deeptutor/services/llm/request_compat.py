@@ -85,7 +85,7 @@ def is_tool_schema_unsupported(exc: Exception) -> bool:
     rejections; ``logged_error_text`` already captures unknowns for follow-up.
     """
     text = error_text(exc)
-    return any(
+    rejected_schema = any(
         marker in text
         for marker in (
             "function_declaration",
@@ -93,8 +93,6 @@ def is_tool_schema_unsupported(exc: Exception) -> bool:
             "function_declarations",
             "tool_choice",
             "parameters.properties",
-            "404_not_found",
-            "404 not_found",
             "unsupported parameter: tools",
             "unknown parameter: tools",
             "unknown parameter 'tools'",
@@ -107,6 +105,21 @@ def is_tool_schema_unsupported(exc: Exception) -> bool:
             "function calling is not supported",
             "tool use is not supported",
             "tool calling is not supported",
+        )
+    )
+    if rejected_schema:
+        return True
+    not_found = "404_not_found" in text or "404 not_found" in text
+    return not_found and any(
+        marker in text
+        for marker in (
+            "tool schema",
+            "function schema",
+            "function declaration",
+            "function_declaration",
+            "function calling",
+            "tool calling",
+            "tool_choice",
         )
     )
 
