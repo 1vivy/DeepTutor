@@ -122,6 +122,29 @@ export interface SupportedFormats {
   raw_view_extensions: string[];
 }
 
+export interface ReadingExtensionAction {
+  id: string;
+  label: string;
+  trigger: "toolbar";
+  requires: Array<"selection" | "visible_text">;
+}
+
+export interface ReadingExtensionManifest {
+  id: string;
+  version: string;
+  name: string;
+  protocol_version: "1";
+  actions: ReadingExtensionAction[];
+  result_types: Array<"card" | "quiz" | "feedback" | "browser_speech">;
+}
+
+export interface ReadingExtensionResult {
+  type: "card" | "quiz" | "feedback" | "browser_speech";
+  title: string;
+  message: string;
+  payload: Record<string, unknown>;
+}
+
 const BASE = "/api/v1/reading";
 
 /** Surface the server's own message — it explains what the user can do next. */
@@ -131,6 +154,13 @@ async function unwrap<T>(response: Response): Promise<T> {
   try {
     const body = (await response.json()) as { detail?: unknown };
     if (typeof body?.detail === "string" && body.detail) detail = body.detail;
+    else if (
+      typeof body?.detail === "object" &&
+      body.detail !== null &&
+      "message" in body.detail
+    ) {
+      detail = String((body.detail as { message: unknown }).message);
+    }
   } catch {
     // Non-JSON error body (a proxy page, say) — keep the status line.
   }
@@ -179,6 +209,38 @@ export async function getUnitText(
     await apiFetch(apiUrl(`${BASE}/materials/${materialId}/units/${locator}`), {
       cache: "no-store",
     }),
+  );
+}
+
+export async function listReadingExtensions(): Promise<
+  ReadingExtensionManifest[]
+> {
+  return unwrap(
+    await apiFetch(apiUrl(`${BASE}/extensions`), { cache: "no-store" }),
+  );
+}
+
+export async function runReadingExtension(
+  materialId: string,
+  extensionId: string,
+  action: string,
+  context: {
+    locator: number;
+    selection?: string;
+    locale?: string;
+  },
+): Promise<ReadingExtensionResult> {
+  return unwrap(
+    await apiFetch(
+      apiUrl(
+        `${BASE}/materials/${materialId}/extensions/${extensionId}/actions/${action}`,
+      ),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(context),
+      },
+    ),
   );
 }
 

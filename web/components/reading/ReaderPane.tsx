@@ -34,6 +34,7 @@ import {
   type SelectionPayload,
 } from "./PdfDocumentView";
 import { ReaderResizeHandle } from "./ReaderResizeHandle";
+import { ReadingExtensionBar } from "./ReadingExtensionBar";
 import { TextUnitView, unitLabel } from "./TextUnitView";
 
 /** Event the reader dispatches to prefill the composer from a selection. */
@@ -405,6 +406,15 @@ export function ReaderPane({ onClose }: ReaderPaneProps) {
             <X size={12} />
           </button>
         </div>
+      )}
+
+      {material && (
+        <ReadingExtensionBar
+          materialId={material.material_id}
+          locator={currentLocator}
+          selection={selection?.quote}
+          onError={setError}
+        />
       )}
 
       {showOutline && material && outlineRows.length > 0 && (
