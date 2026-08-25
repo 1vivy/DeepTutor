@@ -374,16 +374,18 @@ _SERPLY_BODIES: dict[str, dict[str, Any]] = {
         "related_searches": [{"query": "transformer paper"}],
     },
     "news": {
-        "entries": [
-            {
-                "title": f"Story {i}",
-                "link": f"https://news.example/{i}",
-                "summary": "<a href='x'>Genuine</a> attention &amp; chatbots",
-                "published": "Mon, 25 Aug 2026 09:00:00 GMT",
-                "source": {"title": "Example Times"},
-            }
-            for i in range(10)
-        ]
+        "feed": {
+            "entries": [
+                {
+                    "title": f"Story {i}",
+                    "link": f"https://news.example/{i}",
+                    "summary": "<a href='x'>Genuine</a> attention &amp; chatbots",
+                    "published": "Mon, 25 Aug 2026 09:00:00 GMT",
+                    "source": "Example Times",
+                }
+                for i in range(10)
+            ]
+        }
     },
     "scholar": {
         "articles": [
@@ -408,7 +410,7 @@ def serply_calls(monkeypatch):
 
     def _get(url: str, **kwargs: Any) -> _FakeResponse:
         captured.append({"method": "GET", "url": url, **kwargs})
-        mode = url.rstrip("/").rsplit("/", 1)[-1]
+        mode = url.rsplit("/", 2)[-2]
         return _FakeResponse(_SERPLY_BODIES[mode])
 
     class _FakeRequests:
@@ -422,11 +424,11 @@ def test_serply_carries_max_results_proxy_and_base_url_root(serply_calls) -> Non
     from deeptutor.services.search.providers.serply import SerplyProvider
 
     provider = SerplyProvider(api_key="k", proxy=PROXY)
-    provider.search("q", max_results=3, base_url="https://gateway.example/v1/")
+    provider.search("attention & focus", max_results=3, base_url="https://gateway.example/v1/")
 
     call = serply_calls[-1]
-    assert call["url"] == "https://gateway.example/v1/search/"
-    assert call["params"] == {"q": "q", "num": 3}
+    assert call["url"] == ("https://gateway.example/v1/search/q=attention+%26+focus&num=3")
+    assert "params" not in call
     assert call["headers"]["X-Api-Key"] == "k"
     assert call["proxies"] == {"http": PROXY, "https": PROXY}
 
@@ -464,7 +466,7 @@ def test_serply_news_trims_client_side_and_strips_html(serply_calls) -> None:
 
     response = SerplyProvider(api_key="k").search("chatbots", mode="news", max_results=4)
 
-    assert serply_calls[-1]["url"].endswith("/news/")
+    assert "/news/q=chatbots&num=4" in serply_calls[-1]["url"]
     assert len(response.search_results) == 4
     assert response.search_results[0].snippet == "Genuine attention & chatbots"
     assert response.search_results[0].source == "Example Times"

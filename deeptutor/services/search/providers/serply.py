@@ -2,7 +2,7 @@
 
 API: https://serply.io
 Docs: https://serply.io/docs
-Endpoints: https://api.serply.io/v1/{search,news,scholar}/
+Endpoints: https://api.serply.io/v1/{search,news,scholar}/q=<encoded query>
 
 Serply serves live Google SERP rows plus the Google News and Google Scholar
 verticals behind one key, so a study session can go from "what is X" to
@@ -17,6 +17,7 @@ from datetime import datetime
 import html
 import re
 from typing import Any
+from urllib.parse import urlencode
 
 import requests
 
@@ -24,11 +25,11 @@ from ..base import BaseSearchProvider
 from ..types import Citation, SearchResult, WebSearchResponse
 from . import register_provider
 
-# mode -> (URL path segment, key that holds the result rows)
-_MODES: dict[str, tuple[str, str]] = {
-    "search": ("search", "results"),
-    "news": ("news", "entries"),
-    "scholar": ("scholar", "articles"),
+# mode -> URL path segment
+_MODES: dict[str, str] = {
+    "search": "search",
+    "news": "news",
+    "scholar": "scholar",
 }
 _TAG = re.compile(r"<[^>]+>")
 
@@ -59,14 +60,14 @@ class SerplyProvider(BaseSearchProvider):
                 news feed ignores it server-side, so rows are also cut here.
             timeout: Request timeout in seconds.
             **kwargs: Additional options, including ``base_url``, the API root
-                (``/search/`` etc. is appended) for a self-hosted gateway.
+                (``/search/q=...`` etc. is appended) for a self-hosted gateway.
 
         Returns:
             WebSearchResponse: Standardized search response.
         """
         if mode not in _MODES:
             raise ValueError(f"Serply mode must be one of {sorted(_MODES)}, got {mode!r}.")
-        path, rows_key = _MODES[mode]
+        path = _MODES[mode]
         root = str(kwargs.get("base_url") or self.BASE_URL).rstrip("/")
         num = max(1, min(int(max_results), 100))
         headers = {
@@ -74,14 +75,15 @@ class SerplyProvider(BaseSearchProvider):
             "Accept": "application/json",
             "User-Agent": "deeptutor",
         }
-        request_kwargs: dict[str, Any] = {"headers": headers, "params": {"q": query, "num": num}}
+        request_kwargs: dict[str, Any] = {"headers": headers}
         if self.proxy:
             request_kwargs["proxies"] = {"http": self.proxy, "https": self.proxy}
-        resp = requests.get(f"{root}/{path}/", timeout=timeout, **request_kwargs)
+        encoded_query = urlencode({"q": query, "num": num})
+        resp = requests.get(f"{root}/{path}/{encoded_query}", timeout=timeout, **request_kwargs)
         if resp.status_code != 200:
             raise Exception(f"Serply API error: {resp.status_code} - {resp.text}")
         payload = resp.json()
-        rows = (payload.get(rows_key) or [])[:num]
+        rows = _result_rows(mode, payload)[:num]
 
         citations: list[Citation] = []
         search_results: list[SearchResult] = []
@@ -123,7 +125,10 @@ def _parse_row(mode: str, row: dict[str, Any]) -> SearchResult:
     title = str(row.get("title", ""))
     url = str(row.get("link", ""))
     if mode == "news":
-        source = (row.get("source") or {}).get("title") or "Google News"
+        raw_source = row.get("source")
+        source = (
+            raw_source.get("title") if isinstance(raw_source, dict) else raw_source
+        ) or "Google News"
         return SearchResult(
             title=title,
             url=url,
@@ -157,3 +162,13 @@ def _parse_row(mode: str, row: dict[str, Any]) -> SearchResult:
         snippet=str(row.get("description", "") or ""),
         source=str(display_url or "Serply"),
     )
+
+
+def _result_rows(mode: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Read each vertical's documented response envelope."""
+    if mode == "news":
+        feed = payload.get("feed")
+        rows = feed.get("entries") if isinstance(feed, dict) else None
+    else:
+        rows = payload.get("articles" if mode == "scholar" else "results")
+    return [row for row in rows or [] if isinstance(row, dict)]
