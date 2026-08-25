@@ -58,32 +58,37 @@ export function resolveTextSelectors(
     positionSelector?.type === "TextPositionSelector" &&
     positionSelector.start >= 0 &&
     positionSelector.end <= text.length &&
-    text.slice(positionSelector.start, positionSelector.end) === exact
+    normalise(text.slice(positionSelector.start, positionSelector.end)) ===
+      normalise(exact)
   ) {
+    const canonicalExact = text.slice(
+      positionSelector.start,
+      positionSelector.end,
+    );
     return [
-      quoteSelector?.type === "TextQuoteSelector"
-        ? quoteSelector
-        : quoteAt(text, exact, positionSelector.start),
+      quoteAt(text, canonicalExact, positionSelector.start),
       positionSelector,
     ];
   }
 
   const candidates = occurrences(text, exact);
-  const contextual = candidates.filter((start) => {
+  const contextual = candidates.filter(({ start, end }) => {
     if (quoteSelector?.type !== "TextQuoteSelector") return true;
     const prefixMatches =
-      !quoteSelector.prefix || text.slice(0, start).endsWith(quoteSelector.prefix);
+      !quoteSelector.prefix ||
+      normalise(text.slice(0, start)).endsWith(normalise(quoteSelector.prefix));
     const suffixMatches =
       !quoteSelector.suffix ||
-      text.slice(start + exact.length).startsWith(quoteSelector.suffix);
+      normalise(text.slice(end)).startsWith(normalise(quoteSelector.suffix));
     return prefixMatches && suffixMatches;
   });
   const matches = contextual.length ? contextual : candidates;
   if (matches.length !== 1) return null;
-  const start = matches[0];
+  const { start, end } = matches[0];
+  const canonicalExact = text.slice(start, end);
   return [
-    quoteAt(text, exact, start),
-    { type: "TextPositionSelector", start, end: start + exact.length },
+    quoteAt(text, canonicalExact, start),
+    { type: "TextPositionSelector", start, end },
   ];
 }
 
@@ -152,14 +157,23 @@ function quoteAt(text: string, exact: string, start: number): ReadingTextSelecto
   };
 }
 
-function occurrences(text: string, quote: string): number[] {
-  const found: number[] = [];
-  let start = 0;
-  while (start <= text.length - quote.length) {
-    const match = text.indexOf(quote, start);
-    if (match < 0) break;
-    found.push(match);
-    start = match + Math.max(1, quote.length);
-  }
-  return found;
+function normalise(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function occurrences(
+  text: string,
+  quote: string,
+): Array<{ start: number; end: number }> {
+  const words = quote.match(/\S+/g);
+  if (!words?.length) return [];
+  const pattern = new RegExp(words.map(escapeRegExp).join("\\s+"), "g");
+  return [...text.matchAll(pattern)].map((match) => ({
+    start: match.index,
+    end: match.index + match[0].length,
+  }));
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

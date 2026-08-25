@@ -9,6 +9,7 @@ import {
 } from "@/lib/reading-w3c-annotations";
 
 function annotation(overrides: Partial<AnnotationItem> = {}): AnnotationItem {
+  const { source_anchor = "", ...rest } = overrides;
   return {
     annotation_id: "mark-1",
     locator: 1,
@@ -17,10 +18,11 @@ function annotation(overrides: Partial<AnnotationItem> = {}): AnnotationItem {
     quote: "portable quote",
     note: "",
     rects: [],
+    source_anchor,
     author: "user",
     created_at: 1,
     updated_at: 1,
-    ...overrides,
+    ...rest,
   };
 }
 
@@ -81,6 +83,28 @@ test("prefix and suffix disambiguate repeated Chinese text", () => {
     start: 8,
     end: 12,
   });
+});
+
+test("whitespace-normalised selectors resolve to the rendered text", () => {
+  const selectors = resolveTextSelectors(
+    "Start portable\n\nquote end",
+    annotation({
+      selectors: [
+        { type: "TextQuoteSelector", exact: "portable quote" },
+        { type: "TextPositionSelector", start: 6, end: 21 },
+      ],
+    }),
+  );
+
+  assert.deepEqual(selectors, [
+    {
+      type: "TextQuoteSelector",
+      exact: "portable\n\nquote",
+      prefix: "Start ",
+      suffix: " end",
+    },
+    { type: "TextPositionSelector", start: 6, end: 21 },
+  ]);
 });
 
 test("an ambiguous legacy quote stays unresolved instead of marking the wrong text", () => {

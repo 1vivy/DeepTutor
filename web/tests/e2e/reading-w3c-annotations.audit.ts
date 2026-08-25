@@ -101,6 +101,10 @@ test("a rich text annotation reflows and activates its sidebar entry", async ({
   await expect(highlight).toBeVisible();
   await expect(page.getByText("Light can behave like a wave")).toBeVisible();
 
+  await page.setViewportSize({ width: 1100, height: 700 });
+  await expect(highlight).toBeVisible();
+  await expect(highlight).toHaveAttribute("data-annotation", "annotation-1");
+
   const sidebarEntry = page.getByRole("button").filter({ hasText: "Wave behavior" });
   await expect(sidebarEntry).toBeVisible();
   const article = page.locator("article.r6o-annotatable");
