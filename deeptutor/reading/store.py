@@ -479,7 +479,12 @@ class ReadingStore:
             return False
         with self._locked(material_id):
             shutil.rmtree(material_dir, ignore_errors=True)
-        return not material_dir.exists()
+        removed = not material_dir.exists()
+        if removed:
+            from deeptutor.reading.epub_bilingual import delete_epub_pairings_for_material
+
+            delete_epub_pairings_for_material(self, material_id)
+        return removed
 
     # -- annotations ------------------------------------------------------
 
