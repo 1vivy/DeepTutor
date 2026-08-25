@@ -25,7 +25,7 @@ const annotation = {
   note: "Wave behavior",
   rects: [],
   selectors: [
-    { type: "TextPositionSelector", start: 10, end: 28 },
+    { type: "TextPositionSelector", start: 12, end: 30 },
     { type: "TextQuoteSelector", exact: "behave like a wave" },
   ],
   author: "user",
@@ -50,6 +50,9 @@ test.beforeEach(async ({ page }) => {
       });
     }
     if (path === "/api/v1/settings/ui") return json({ language: "en" });
+    if (path === "/api/v1/dashboard/suggestions") {
+      return json({ suggestions: [], stale: false });
+    }
     if (path === "/api/v1/settings/llm-options") {
       return json({
         active: { profile_id: "p", model_id: "m" },
@@ -69,6 +72,7 @@ test.beforeEach(async ({ page }) => {
     if (path === "/api/v1/reading/supported-formats") {
       return json({ extensions: [".txt"], max_bytes: 1024, raw_view_extensions: [] });
     }
+    if (path === "/api/v1/reading/extensions") return json([]);
     if (path === "/api/v1/reading/materials") return json([material]);
     if (path === "/api/v1/reading/materials/w3c-material") {
       return json(material);
@@ -80,7 +84,7 @@ test.beforeEach(async ({ page }) => {
       return json({
         locator: 1,
         unit: "section",
-        text: "Light can behave like a wave and sometimes like a particle.",
+        text: "# Light can behave like a wave\n\nand sometimes like a particle.",
       });
     }
     return json({});
@@ -99,7 +103,12 @@ test("a rich text annotation reflows and activates its sidebar entry", async ({
 
   const highlight = page.locator(".r6o-annotation").first();
   await expect(highlight).toBeVisible();
-  await expect(page.getByText("Light can behave like a wave")).toBeVisible();
+  const heading = page.locator('[data-reader-heading-id="dt-reader-heading-1-1"]');
+  await expect(heading).toBeVisible();
+  await expect(heading).toContainText("# Light can behave like a wave");
+  await expect(page.locator("article.r6o-annotatable")).toHaveText(
+    "# Light can behave like a wave\n\nand sometimes like a particle.",
+  );
 
   await page.setViewportSize({ width: 1100, height: 700 });
   await expect(highlight).toBeVisible();

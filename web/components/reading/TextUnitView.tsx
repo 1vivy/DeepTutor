@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ALargeSmall,
   ChevronLeft,
@@ -27,6 +34,12 @@ import {
   readerDisplayShortcut,
   type ReaderTheme,
 } from "@/lib/reading-display-preferences";
+import {
+  activeReaderHeading,
+  extractReaderHeadings,
+  readerLinesWithHeadings,
+  type ReaderHeading,
+} from "@/lib/reading-outline";
 import { cleanQuote } from "@/lib/reading-selection";
 import { toRecogitoTextAnnotation } from "@/lib/reading-w3c-annotations";
 import type { JumpRequest, SelectionPayload } from "./PdfDocumentView";
@@ -52,6 +65,9 @@ export interface TextUnitViewProps {
   onSelection: (payload: SelectionPayload | null) => void;
   onAnnotationClick?: (annotation: AnnotationItem) => void;
   onVisibleLocatorChange?: (locator: number) => void;
+  onHeadingsChange?: (headings: ReaderHeading[]) => void;
+  onActiveHeadingChange?: (headingId: string | null) => void;
+  headingJump?: { id: string; nonce: number } | null;
 }
 
 /**
@@ -73,6 +89,9 @@ export function TextUnitView({
   onSelection,
   onAnnotationClick,
   onVisibleLocatorChange,
+  onHeadingsChange,
+  onActiveHeadingChange,
+  headingJump,
 }: TextUnitViewProps) {
   const { t } = useTranslation();
   const readerRootRef = useRef<HTMLDivElement | null>(null);
@@ -169,6 +188,13 @@ export function TextUnitView({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [changeFontSize, fontSize, resetPreferences]);
+  const headingsChangeRef = useRef(onHeadingsChange);
+  const activeHeadingChangeRef = useRef(onActiveHeadingChange);
+
+  useEffect(() => {
+    headingsChangeRef.current = onHeadingsChange;
+    activeHeadingChangeRef.current = onActiveHeadingChange;
+  }, [onActiveHeadingChange, onHeadingsChange]);
 
   useEffect(() => {
     setLocator(1);
@@ -291,6 +317,49 @@ export function TextUnitView({
     onAnnotationClick,
     text,
   ]);
+
+  const pageHeadings = useMemo(
+    () => extractReaderHeadings([text], locator),
+    [locator, text],
+  );
+
+  useEffect(() => {
+    headingsChangeRef.current?.(pageHeadings);
+    return () => headingsChangeRef.current?.([]);
+  }, [pageHeadings]);
+
+  useEffect(() => {
+    if (!headingJump) return;
+    const container = containerRef.current;
+    const element = container?.querySelector<HTMLElement>(
+      `[data-reader-heading-id="${CSS.escape(headingJump.id)}"]`,
+    );
+    if (!container || !element) return;
+    const containerRect = container.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+    container.scrollTo({
+      top: Math.max(
+        0,
+        container.scrollTop + elementRect.top - containerRect.top - 24,
+      ),
+    });
+    activeHeadingChangeRef.current?.(headingJump.id);
+  }, [headingJump]);
+
+  const handleContainerScroll = useCallback(() => {
+    const container = containerRef.current;
+    if (!container || pageHeadings.length === 0) return;
+    const containerRect = container.getBoundingClientRect();
+    activeHeadingChangeRef.current?.(
+      activeReaderHeading(pageHeadings, (heading) => {
+        const element = container.querySelector<HTMLElement>(
+          `[data-reader-heading-id="${CSS.escape(heading.id)}"]`,
+        );
+        if (!element) return null;
+        return element.getBoundingClientRect().top - containerRect.top;
+      }),
+    );
+  }, [pageHeadings]);
 
   const handlePointerUp = useCallback(() => {
     const selection = window.getSelection();
@@ -448,6 +517,7 @@ export function TextUnitView({
         ref={containerRef}
         data-reader-unit={locator}
         onMouseUp={handlePointerUp}
+        onScroll={handleContainerScroll}
         className="dt-reader-scroll flex-1 overflow-y-auto overscroll-contain px-8 py-7"
       >
         {loading ? (
@@ -474,7 +544,7 @@ export function TextUnitView({
                 {t("This section has no extractable text.")}
               </span>
             ) : (
-              text
+              <TextWithHeadings text={text} headings={pageHeadings} />
             )}
           </article>
         )}
@@ -512,6 +582,46 @@ function PreferenceButton({
     >
       <Icon size={15} />
     </button>
+  );
+}
+
+function TextWithHeadings({
+  text,
+  headings,
+}: {
+  text: string;
+  headings: ReaderHeading[];
+}) {
+  const lines = useMemo(() => readerLinesWithHeadings(text, headings), [headings, text]);
+
+  return (
+    <>
+      {lines.map((line, lineIndex) => {
+        const key = `line-${lineIndex}`;
+        if (line.heading) {
+          const Heading = `h${line.heading.level}` as
+            "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+          return (
+            <Fragment key={key}>
+              {lineIndex > 0 && "\n"}
+              <Heading
+                id={line.heading.id}
+                data-reader-heading-id={line.heading.id}
+                className="mt-5 mb-2 font-serif text-[var(--foreground)] first:mt-0"
+              >
+                {line.text}
+              </Heading>
+            </Fragment>
+          );
+        }
+        return (
+          <Fragment key={key}>
+            {lineIndex > 0 && "\n"}
+            {line.text}
+          </Fragment>
+        );
+      })}
+    </>
   );
 }
 
