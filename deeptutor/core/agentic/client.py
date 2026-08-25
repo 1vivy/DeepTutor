@@ -29,7 +29,7 @@ from deeptutor.services.llm.openai_http_client import sanitize_invalid_ssl_env
 from deeptutor.services.llm.reasoning_params import (
     build_openai_compatible_reasoning_kwargs,
 )
-from deeptutor.services.provider_registry import find_by_name
+from deeptutor.services.provider_registry import find_by_name, model_overrides_for
 
 # Providers that don't reliably support OpenAI function-calling. The loop
 # still runs without tool schemas — the model just produces prose.
@@ -533,20 +533,14 @@ def build_completion_kwargs(
             reasoning_effort=reasoning_effort,
         )
     )
-    # Apply provider-spec model overrides last, mirroring
-    # OpenAICompatProvider._build_kwargs: a None value drops the parameter —
-    # e.g. Kimi models ("kimi", "k3") reject any explicit temperature.
+    # Apply model-intrinsic overrides last, matching OpenAICompatProvider. A
+    # None value drops the parameter instead of serialising JSON null.
     spec = find_by_name(binding)
-    if spec and model:
-        model_lower = model.lower()
-        for pattern, overrides in spec.model_overrides:
-            if pattern in model_lower:
-                for key, value in overrides.items():
-                    if value is None:
-                        kwargs.pop(key, None)
-                    else:
-                        kwargs[key] = value
-                break
+    for key, value in model_overrides_for(model, spec).items():
+        if value is None:
+            kwargs.pop(key, None)
+        else:
+            kwargs[key] = value
     return kwargs
 
 

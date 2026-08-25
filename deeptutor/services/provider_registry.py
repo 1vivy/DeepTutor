@@ -44,6 +44,8 @@ class ProviderSpec:
     supports_prompt_caching: bool = False
     supports_stream_options: bool = True
     model_overrides: tuple[tuple[str, dict[str, Any]], ...] = ()
+    # Bare model ids too short or generic for substring-based vendor detection.
+    exact_model_ids: tuple[str, ...] = ()
     is_oauth: bool = False
     is_direct: bool = False
     thinking_style: str = ""
@@ -369,8 +371,9 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         # bare ids ("k3", ...) without the "kimi-" prefix, so match those too.
         model_overrides=(
             ("kimi", {"temperature": None}),
-            ("k3", {"temperature": None}),
+            ("=k3", {"temperature": None}),
         ),
+        exact_model_ids=("k3",),
     ),
     # MiniMax runs two separate platforms: global (platform.minimax.io /
     # api.minimax.io) and mainland China (platform.minimaxi.com /
@@ -536,6 +539,9 @@ def find_by_model(model: str | None) -> ProviderSpec | None:
         if model_prefix and normalized_prefix == spec.name:
             return spec
     for spec in standard_specs:
+        if model_lower in spec.exact_model_ids:
+            return spec
+    for spec in standard_specs:
         if any(
             kw in model_lower or kw.replace("-", "_") in model_normalized for kw in spec.keywords
         ):
@@ -545,7 +551,12 @@ def find_by_model(model: str | None) -> ProviderSpec | None:
 
 def _matching_overrides(spec: ProviderSpec, model_lower: str) -> dict[str, Any]:
     for pattern, overrides in spec.model_overrides:
-        if pattern in model_lower:
+        # ``=name`` is an exact bare model id. Most historical patterns are
+        # vendor-family substrings, but a short id such as ``k3`` must not also
+        # match unrelated ids like ``sk3`` or ``k30``.
+        if (pattern.startswith("=") and model_lower == pattern[1:]) or (
+            not pattern.startswith("=") and pattern in model_lower
+        ):
             return dict(overrides)
     return {}
 
