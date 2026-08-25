@@ -14,7 +14,10 @@ from deeptutor.services.llm.context_window import (
     resolve_effective_context_window,
 )
 
-from .ask_user_trace import extract_ask_user_clarifications
+from .ask_user_trace import (
+    extract_ask_user_clarification_blocks,
+    extract_ask_user_clarifications,
+)
 from .protocol import SessionStoreProtocol
 
 #: When the summarizer's output lands within this fraction of its hard token
@@ -57,6 +60,29 @@ def trim_incomplete_tail(text: str) -> str:
     return text.rstrip()
 
 
+def expand_message_context(message: dict[str, Any]) -> list[dict[str, str]]:
+    """Expand one stored row into its true assistant/user chronology."""
+    role = str(message.get("role", "user"))
+    content = str(message.get("content", "") or "")
+    blocks = extract_ask_user_clarification_blocks(message)
+    if role != "assistant" or not blocks:
+        return [{"role": role, "content": content}] if content.strip() else []
+
+    expanded: list[dict[str, str]] = []
+    cursor = 0
+    for raw_offset, clarification in blocks:
+        offset = min(len(content), max(cursor, raw_offset))
+        prefix = content[cursor:offset]
+        if prefix.strip():
+            expanded.append({"role": "assistant", "content": prefix})
+        expanded.append({"role": "user", "content": clarification})
+        cursor = offset
+    suffix = content[cursor:]
+    if suffix.strip():
+        expanded.append({"role": "assistant", "content": suffix})
+    return expanded
+
+
 def format_messages_as_transcript(messages: list[dict[str, Any]]) -> str:
     lines: list[str] = []
     role_map = {
@@ -65,14 +91,9 @@ def format_messages_as_transcript(messages: list[dict[str, Any]]) -> str:
         "system": "System",
     }
     for item in messages:
-        # User clarifications answered an ask_user card *before* the assistant
-        # answer was produced, so render them before the row's own content.
-        clarification = extract_ask_user_clarifications(item)
-        if clarification:
-            lines.append(f"User: {clarification}")
-        content = str(item.get("content", "") or "").strip()
-        if content:
-            role = role_map.get(str(item.get("role", "user")), "User")
+        for expanded in expand_message_context(item):
+            content = expanded["content"].strip()
+            role = role_map.get(expanded["role"], "User")
             lines.append(f"{role}: {content}")
     return "\n\n".join(lines)
 
@@ -173,18 +194,9 @@ class ContextBuilder:
         if cleaned_summary:
             history.append({"role": "system", "content": cleaned_summary})
         for item in messages:
-            role = item.get("role")
-            content = str(item.get("content", "") or "")
-            # Resolved ask_user clarifications happened *before* the assistant
-            # produced this row's answer, so they must precede the row's own
-            # content in history. Otherwise later turns see the answer first
-            # and the user's clarification second, and the model wrongly
-            # assumes the answer came before the user supplied the context.
-            clarification = extract_ask_user_clarifications(item)
-            if clarification:
-                history.append({"role": "user", "content": clarification})
-            if role in {"user", "assistant"} and content.strip():
-                history.append({"role": role, "content": content})
+            for expanded in expand_message_context(item):
+                if expanded["role"] in {"user", "assistant"}:
+                    history.append(expanded)
         return history
 
     async def _append_event(

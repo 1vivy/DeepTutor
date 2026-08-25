@@ -276,7 +276,6 @@ const CAPABILITIES: CapabilityDef[] = [
       "videogen",
     ],
     defaultTools: [],
-    loopEngine: true,
   },
   {
     value: "deep_question",

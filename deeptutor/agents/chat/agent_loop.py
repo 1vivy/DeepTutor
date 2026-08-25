@@ -30,6 +30,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import suppress
 from dataclasses import dataclass, field
+import json
 import logging
 import re
 from typing import TYPE_CHECKING, Any
@@ -907,6 +908,37 @@ class AgentLoop:
                 tool_calls = dsml_calls
             text = cleaned_text
 
+        if forced_tool_choice and tool_choice == "ask_user" and not tool_calls:
+            # A few OpenAI-compatible providers either reject tool schemas or
+            # accept ``tool_choice`` and then ignore it. Ask Questions is an
+            # explicit UI mode, so preserve its contract by turning the
+            # model's buffered question into a local ask_user card instead of
+            # silently degrading to an ordinary prose answer.
+            question = clean_thinking_tags(text, self.pipeline.binding, self.pipeline.model).strip()
+            if not question:
+                question = self.pipeline._t(
+                    "notices.ask_questions_fallback_prompt",
+                    default="What is the most important goal or constraint I should account for?",
+                )
+            tool_calls = [
+                {
+                    "id": new_call_id("ask-user-fallback"),
+                    "name": "ask_user",
+                    "arguments": json.dumps(
+                        {
+                            "questions": [
+                                {
+                                    "id": "clarification",
+                                    "prompt": question,
+                                    "allow_free_text": True,
+                                }
+                            ]
+                        },
+                        ensure_ascii=False,
+                    ),
+                }
+            ]
+
         truncated_round = call_kind == "agent_loop_round" and _finish_was_truncated(finish_reason)
         completion_metadata: dict[str, Any] = {
             "trace_kind": "call_status",
@@ -963,10 +995,6 @@ class AgentLoop:
         try:
             return await self.client.chat.completions.create(**kwargs)
         except Exception as exc:
-            if "stream_options" in kwargs and is_stream_options_unsupported(exc):
-                retry_kwargs = dict(kwargs)
-                retry_kwargs.pop("stream_options", None)
-                return await self.client.chat.completions.create(**retry_kwargs)
             if kwargs.get("tools") and is_tool_schema_unsupported(exc):
                 # Capture the provider's raw rejection body. Without it there is
                 # no way to tell *which* parameter/shape a new model family
@@ -995,6 +1023,10 @@ class AgentLoop:
                 retry_kwargs.pop("tools", None)
                 retry_kwargs.pop("tool_choice", None)
                 self.tool_schemas = None
+                return await self.client.chat.completions.create(**retry_kwargs)
+            if "stream_options" in kwargs and is_stream_options_unsupported(exc):
+                retry_kwargs = dict(kwargs)
+                retry_kwargs.pop("stream_options", None)
                 return await self.client.chat.completions.create(**retry_kwargs)
             if is_image_input_unsupported(exc) and should_degrade_to_text(
                 self.pipeline.binding,
