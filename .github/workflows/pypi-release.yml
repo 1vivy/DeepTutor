@@ -38,7 +38,13 @@ jobs:
           import re
 
           tag = os.environ["RELEASE_TAG"]
-          pattern = r"^v\d+\.\d+\.\d+(?:[0-9A-Za-z._+-]*)?$"
+          pattern = (
+              r"^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+              r"(?:(?:a|b|rc)(?:0|[1-9]\d*))?"
+              r"(?:\.post(?:0|[1-9]\d*))?"
+              r"(?:\.dev(?:0|[1-9]\d*))?"
+              r"(?:\+[0-9A-Za-z]+(?:[._-][0-9A-Za-z]+)*)?$"
+          )
           if not re.fullmatch(pattern, tag):
               raise SystemExit(
                   f"Release tag {tag!r} is not a package version tag "
