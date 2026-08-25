@@ -434,6 +434,8 @@ def test_w3c_text_selectors_round_trip_and_can_supply_the_quote(
     store: ReadingStore, pdf_path: Path
 ) -> None:
     manifest = store.ingest(pdf_path)
+    unit_text = store.unit_text(manifest.material_id, 1)
+    start = unit_text.index("Introduction")
 
     saved = store.save_annotation(
         manifest.material_id,
@@ -441,8 +443,8 @@ def test_w3c_text_selectors_round_trip_and_can_supply_the_quote(
             annotation_id="",
             locator=1,
             selectors=(
-                TextQuoteSelector(exact="Introduction", suffix=" to attention"),
-                TextPositionSelector(start=0, end=12),
+                TextQuoteSelector(exact="Introduction", suffix=" to sequence"),
+                TextPositionSelector(start=start, end=start + 12),
             ),
         ),
     )
@@ -454,9 +456,9 @@ def test_w3c_text_selectors_round_trip_and_can_supply_the_quote(
         {
             "type": "TextQuoteSelector",
             "exact": "Introduction",
-            "suffix": " to attention",
+            "suffix": " to sequence",
         },
-        {"type": "TextPositionSelector", "start": 0, "end": 12},
+        {"type": "TextPositionSelector", "start": start, "end": start + 12},
     ]
 
 
@@ -508,7 +510,7 @@ def test_text_position_selector_cannot_extend_past_stored_unit(
         )
 
 
-def test_legacy_selector_parser_trims_prefix_from_the_start() -> None:
+def test_legacy_selector_parser_keeps_prefix_tail_nearest_the_quote() -> None:
     parsed = parse_text_selectors(
         [
             {
@@ -520,7 +522,47 @@ def test_legacy_selector_parser_trims_prefix_from_the_start() -> None:
     )
 
     assert isinstance(parsed[0], TextQuoteSelector)
-    assert parsed[0].prefix == "a" * 128
+    assert parsed[0].prefix == "b" * 128
+
+
+def test_selector_whitespace_is_canonicalised_to_stored_unit(
+    store: ReadingStore, pdf_path: Path
+) -> None:
+    manifest = store.ingest(pdf_path)
+    unit_path = store.root / manifest.material_id / "units" / "0001.txt"
+    unit_path.write_text("Before Sequence\n\nmodels after", encoding="utf-8")
+
+    saved = store.save_annotation(
+        manifest.material_id,
+        Annotation(
+            annotation_id="",
+            locator=1,
+            quote="Sequence models",
+            selectors=(TextQuoteSelector(exact="Sequence models", prefix="Before"),),
+        ),
+    )
+
+    assert saved.quote == "Sequence\n\nmodels"
+    assert saved.selectors[0].to_dict()["exact"] == "Sequence\n\nmodels"
+
+
+def test_quote_and_position_selectors_must_identify_the_same_text(
+    store: ReadingStore, pdf_path: Path
+) -> None:
+    manifest = store.ingest(pdf_path)
+
+    with pytest.raises(ReadingError, match="different text"):
+        store.save_annotation(
+            manifest.material_id,
+            Annotation(
+                annotation_id="",
+                locator=1,
+                selectors=(
+                    TextQuoteSelector(exact="Introduction"),
+                    TextPositionSelector(start=0, end=7),
+                ),
+            ),
+        )
 
 
 def test_saving_the_same_id_updates_in_place_and_keeps_created_at(

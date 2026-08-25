@@ -299,21 +299,23 @@ def test_annotation_round_trips_w3c_text_selectors(client: TestClient) -> None:
                 {
                     "type": "TextQuoteSelector",
                     "exact": "Sequence models",
-                    "suffix": " are",
+                    "prefix": "Chapter one. ",
+                    "suffix": " read",
                 },
-                {"type": "TextPositionSelector", "start": 0, "end": 15},
+                {"type": "TextPositionSelector", "start": 13, "end": 28},
             ],
         },
     )
 
-    assert created.status_code == 200
+    assert created.status_code == 200, created.text
     assert created.json()["selectors"] == [
         {
             "type": "TextQuoteSelector",
             "exact": "Sequence models",
-            "suffix": " are",
+            "prefix": "Chapter one. ",
+            "suffix": " read",
         },
-        {"type": "TextPositionSelector", "start": 0, "end": 15},
+        {"type": "TextPositionSelector", "start": 13, "end": 28},
     ]
 
 

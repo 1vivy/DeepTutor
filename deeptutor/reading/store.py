@@ -75,6 +75,38 @@ _ID_LENGTH = 16
 MAX_READ_CHARS = 60_000
 
 
+def _normalise_selector_text(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _find_quote_span(text: str, selector: TextQuoteSelector) -> tuple[int, int] | None:
+    """Resolve a quote while preserving offsets into the unnormalised source."""
+
+    words = re.findall(r"\S+", selector.exact)
+    if not words:
+        return None
+    pattern = re.compile(r"\s+".join(re.escape(word) for word in words))
+    for match in pattern.finditer(text):
+        span = (match.start(), match.end())
+        if _quote_context_matches(text, span, selector):
+            return span
+    return None
+
+
+def _quote_context_matches(
+    text: str,
+    span: tuple[int, int],
+    selector: TextQuoteSelector,
+) -> bool:
+    wanted_prefix = _normalise_selector_text(selector.prefix)
+    wanted_suffix = _normalise_selector_text(selector.suffix)
+    preceding = _normalise_selector_text(text[: span[0]])
+    following = _normalise_selector_text(text[span[1] :])
+    return (not wanted_prefix or preceding.endswith(wanted_prefix)) and (
+        not wanted_suffix or following.startswith(wanted_suffix)
+    )
+
+
 def _atomic_write(path: Path, payload: str) -> None:
     """Write *payload* to *path* atomically within the same directory."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -484,33 +516,65 @@ class ReadingStore:
             )
         if len(annotation.source_anchor) > 4096:
             raise ReadingError("source anchor is too long")
-        quote_selector = next(
-            (
-                selector
-                for selector in annotation.selectors
-                if isinstance(selector, TextQuoteSelector)
-            ),
-            None,
-        )
+        quote_selectors = [
+            selector for selector in annotation.selectors if isinstance(selector, TextQuoteSelector)
+        ]
+        position_selectors = [
+            selector
+            for selector in annotation.selectors
+            if isinstance(selector, TextPositionSelector)
+        ]
+        if len(quote_selectors) > 1 or len(position_selectors) > 1:
+            raise ReadingError("annotations may contain at most one selector of each type")
+        quote_selector = quote_selectors[0] if quote_selectors else None
+        position_selector = position_selectors[0] if position_selectors else None
         if annotation.selectors:
             unit_text = self.unit_text(material_id, annotation.locator)
         else:
             unit_text = ""
+        position_text = ""
+        if position_selector:
+            if position_selector.end > len(unit_text):
+                raise ReadingError("TextPositionSelector extends past this reading unit")
+            if position_selector.end - position_selector.start > MAX_TEXT_SELECTOR_CHARS:
+                raise ReadingError("TextPositionSelector span is too long")
+            position_text = unit_text[position_selector.start : position_selector.end]
         if quote_selector:
-            if annotation.quote and quote_selector.exact != annotation.quote:
+            normalised_exact = _normalise_selector_text(quote_selector.exact)
+            if not normalised_exact:
+                raise ReadingError("TextQuoteSelector exact text is empty")
+            if annotation.quote and _normalise_selector_text(annotation.quote) != normalised_exact:
                 raise ReadingError("annotation quote does not match its TextQuoteSelector")
-            if re.sub(r"\s+", " ", quote_selector.exact).strip() not in re.sub(
-                r"\s+", " ", unit_text
-            ):
-                raise ReadingError("TextQuoteSelector does not occur in this reading unit")
-        if quote_selector and not annotation.quote:
-            annotation = dataclass_replace(annotation, quote=quote_selector.exact)
-        for selector in annotation.selectors:
-            if isinstance(selector, TextPositionSelector):
-                if selector.end > len(unit_text):
-                    raise ReadingError("TextPositionSelector extends past this reading unit")
-                if selector.end - selector.start > MAX_TEXT_SELECTOR_CHARS:
-                    raise ReadingError("TextPositionSelector span is too long")
+            if position_selector:
+                if _normalise_selector_text(position_text) != normalised_exact:
+                    raise ReadingError("text quote and position selectors describe different text")
+                if not _quote_context_matches(
+                    unit_text,
+                    (position_selector.start, position_selector.end),
+                    quote_selector,
+                ):
+                    raise ReadingError("TextQuoteSelector context does not match this reading unit")
+                canonical_exact = position_text
+            else:
+                span = _find_quote_span(unit_text, quote_selector)
+                if span is None:
+                    raise ReadingError("TextQuoteSelector does not occur in this reading unit")
+                canonical_exact = unit_text[slice(*span)]
+            canonical_quote = dataclass_replace(quote_selector, exact=canonical_exact)
+            annotation = dataclass_replace(
+                annotation,
+                quote=canonical_exact,
+                selectors=tuple(
+                    canonical_quote if selector is quote_selector else selector
+                    for selector in annotation.selectors
+                ),
+            )
+        elif position_selector:
+            if annotation.quote and _normalise_selector_text(
+                annotation.quote
+            ) != _normalise_selector_text(position_text):
+                raise ReadingError("annotation quote does not match its TextPositionSelector")
+            annotation = dataclass_replace(annotation, quote=position_text)
         with self._locked(material_id):
             existing = self.annotations(material_id)
             stored = annotation

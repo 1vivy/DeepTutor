@@ -296,7 +296,10 @@ def parse_text_selectors(value: Any) -> tuple[TextSelector, ...]:
                 parsed.append(
                     TextQuoteSelector(
                         exact=exact,
-                        prefix=str(raw.get("prefix") or "")[:128],
+                        # W3C prefix is the text immediately before ``exact``;
+                        # when legacy data exceeds the bound, its tail is the
+                        # part that still touches the selection.
+                        prefix=str(raw.get("prefix") or "")[-128:],
                         suffix=str(raw.get("suffix") or "")[:128],
                     )
                 )
