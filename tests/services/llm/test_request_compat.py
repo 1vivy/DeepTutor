@@ -28,6 +28,8 @@ def test_error_text_prefers_provider_response_body() -> None:
 def test_request_compatibility_classifiers_match_known_provider_errors() -> None:
     assert is_stream_options_unsupported(ValueError("unknown parameter: stream_options"))
     assert is_tool_schema_unsupported(ValueError("function_declaration is unsupported"))
+    assert is_tool_schema_unsupported(ValueError("unsupported parameter: tools"))
+    assert is_tool_schema_unsupported(ValueError("unknown parameter: tools"))
     assert is_image_input_unsupported(ValueError("content must be a string"))
 
 
@@ -37,6 +39,17 @@ def test_request_compatibility_classifiers_ignore_unrelated_errors() -> None:
     assert not is_stream_options_unsupported(error)
     assert not is_tool_schema_unsupported(error)
     assert not is_image_input_unsupported(error)
+
+
+def test_tool_schema_classifier_ignores_errors_that_only_mention_tool() -> None:
+    """Bare ``tool`` must not strip schemas — that silently disabled tools (#708)."""
+    # A temperature / max_tokens rejection that happens to echo the tools list.
+    echoed = ValueError(
+        "unsupported parameter: temperature. request included tools=[web_search]"
+    )
+    assert not is_tool_schema_unsupported(echoed)
+    assert not is_tool_schema_unsupported(RuntimeError("tool call timed out"))
+    assert not is_tool_schema_unsupported(ValueError("failed while invoking tool web_search"))
 
 
 def test_transient_transport_classifier_walks_wrapped_causes() -> None:
