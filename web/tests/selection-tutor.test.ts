@@ -14,22 +14,31 @@ test("normalizes selected chat text without flattening paragraphs", () => {
 });
 
 test("selection tutor keys are stable per passage and parent session", () => {
-  const a = selectionTutorKey("fork() returns twice", "session-a");
-  assert.equal(a, selectionTutorKey("fork() returns twice", "session-a"));
-  assert.notEqual(a, selectionTutorKey("fork() returns twice", "session-b"));
-  assert.notEqual(a, selectionTutorKey("wait() blocks", "session-a"));
+  const a = selectionTutorKey("rc", "session-a", 42);
+  assert.equal(a, selectionTutorKey("rc", "session-a", 42));
+  assert.notEqual(a, selectionTutorKey("rc", "session-b", 42));
+  assert.notEqual(a, selectionTutorKey("rc", "session-a", 43));
+  assert.notEqual(a, selectionTutorKey("wait() blocks", "session-a", 42));
 });
 
-test("builds runtime-only selected text context", () => {
+test("builds selected text context with its containing message", () => {
   assert.deepEqual(
     buildSelectionTutorConfig({
-      selectedText: "  selected   passage ",
+      selectedText: "  rc ",
       parentSessionId: "parent-1",
+      sourceMessageId: 42,
+      sourceMessageText:
+        "int rc = fork();\n父进程中的 rc 是子进程 PID，子进程中的 rc 是 0。",
+      sourceMessageRole: "assistant",
     }),
     {
       selection_tutor_context: {
-        selected_text: "selected passage",
+        selected_text: "rc",
         parent_session_id: "parent-1",
+        source_message_id: 42,
+        source_message_text:
+          "int rc = fork();\n父进程中的 rc 是子进程 PID，子进程中的 rc 是 0。",
+        source_message_role: "assistant",
       },
     },
   );

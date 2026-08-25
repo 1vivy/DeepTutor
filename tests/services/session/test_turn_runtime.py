@@ -15,6 +15,7 @@ from deeptutor.services.session.turn_runtime import (
     _format_followup_question_context,
     _format_selection_tutor_context,
     _narration_marker_call_id,
+    _resolve_selection_tutor_context,
     _should_capture_assistant_content,
     _stamp_ask_user_content_offset,
 )
@@ -258,6 +259,39 @@ class TestSelectionTutorContext:
     def test_rejects_empty_selection(self) -> None:
         config = {"selection_tutor_context": {"selected_text": "   "}}
         assert _extract_selection_tutor_context(config) is None
+
+    @pytest.mark.asyncio
+    async def test_resolves_short_selection_against_its_source_message(self) -> None:
+        class FakeStore:
+            async def get_messages_for_context(self, session_id, leaf_message_id):
+                assert session_id == "main-1"
+                assert leaf_message_id == 42
+                return [
+                    {
+                        "id": 42,
+                        "role": "assistant",
+                        "content": (
+                            "int rc = fork();\n"
+                            "父进程中的 rc 是子进程 PID，子进程中的 rc 是 0。"
+                        ),
+                    }
+                ]
+
+        context = {
+            "selected_text": "rc",
+            "parent_session_id": "main-1",
+            "source_message_id": 42,
+            "source_message_text": "rc",
+            "source_message_role": "assistant",
+        }
+        resolved = await _resolve_selection_tutor_context(FakeStore(), context)
+        assert resolved["selected_text"] == "rc"
+        assert "int rc = fork()" in resolved["source_message_text"]
+
+        prompt = _format_selection_tutor_context(resolved, language="zh")
+        assert "[原消息上下文]" in prompt
+        assert "[用户精确选中的内容]" in prompt
+        assert "父进程中的 rc 是子进程 PID" in prompt
 
     def test_formats_bilingual_tutor_grounding(self) -> None:
         context = {"selected_text": "fork() returns twice", "parent_session_id": "main-1"}

@@ -499,7 +499,7 @@ def _extract_followup_question_context(
 
 def _extract_selection_tutor_context(
     config: dict[str, Any] | None,
-) -> dict[str, str] | None:
+) -> dict[str, Any] | None:
     """Remove and normalize context for the selected-text side tutor."""
     if not isinstance(config, dict):
         return None
@@ -510,10 +510,99 @@ def _extract_selection_tutor_context(
     selected_text = _clip_text(str(raw.get("selected_text", "") or "").strip())
     if not selected_text:
         return None
-    return {
+    context: dict[str, Any] = {
         "selected_text": selected_text,
         "parent_session_id": str(raw.get("parent_session_id", "") or "").strip(),
     }
+    raw_source_message_id = raw.get("source_message_id")
+    if isinstance(raw_source_message_id, int) and not isinstance(raw_source_message_id, bool):
+        context["source_message_id"] = raw_source_message_id
+    elif str(raw_source_message_id or "").strip().isdigit():
+        context["source_message_id"] = int(str(raw_source_message_id).strip())
+
+    source_message_text = str(raw.get("source_message_text", "") or "").strip()
+    if source_message_text:
+        context["source_message_text"] = source_message_text
+    source_message_role = str(raw.get("source_message_role", "") or "").strip()
+    if source_message_role in {"user", "assistant", "system"}:
+        context["source_message_role"] = source_message_role
+    return context
+
+
+def _selection_source_excerpt(
+    source_text: str,
+    selected_text: str,
+    *,
+    limit: int = 12_000,
+) -> str:
+    """Bound a source message while keeping the selected passage in view."""
+    text = str(source_text or "").strip()
+    if len(text) <= limit:
+        return text
+
+    needle = str(selected_text or "").strip()
+    selection_start = text.find(needle) if needle else -1
+    if selection_start < 0:
+        return _clip_text(text, limit=limit)
+
+    before = max(1_000, (limit - len(needle)) // 2)
+    start = max(0, selection_start - before)
+    end = min(len(text), start + limit)
+    start = max(0, end - limit)
+    excerpt = text[start:end]
+    if start > 0:
+        excerpt = "[earlier content omitted]\n" + excerpt
+    if end < len(text):
+        excerpt += "\n[later content omitted]"
+    return excerpt
+
+
+async def _resolve_selection_tutor_context(
+    store: Any,
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    """Resolve the selected passage's containing message from its parent chat."""
+    resolved = dict(context)
+    parent_session_id = str(resolved.get("parent_session_id") or "").strip()
+    source_message_id = resolved.get("source_message_id")
+
+    if parent_session_id and isinstance(source_message_id, int) and source_message_id > 0:
+        try:
+            path = await store.get_messages_for_context(
+                parent_session_id,
+                source_message_id,
+            )
+        except Exception:
+            logger.warning(
+                "Failed to resolve selection tutor source message %s in session %s",
+                source_message_id,
+                parent_session_id,
+                exc_info=True,
+            )
+        else:
+            source_message = next(
+                (
+                    message
+                    for message in reversed(path)
+                    if str(message.get("id")) == str(source_message_id)
+                ),
+                None,
+            )
+            if source_message is not None:
+                resolved["source_message_text"] = str(
+                    source_message.get("content") or ""
+                ).strip()
+                role = str(source_message.get("role") or "").strip()
+                if role in {"user", "assistant", "system"}:
+                    resolved["source_message_role"] = role
+
+    source_text = str(resolved.get("source_message_text") or "").strip()
+    if source_text:
+        resolved["source_message_text"] = _selection_source_excerpt(
+            source_text,
+            str(resolved.get("selected_text") or ""),
+        )
+    return resolved
 
 
 def _extract_persist_user_message(config: dict[str, Any] | None) -> bool:
@@ -676,41 +765,63 @@ def _format_followup_question_context(context: dict[str, Any], language: str = "
     return "\n".join(lines).strip()
 
 
-def _format_selection_tutor_context(context: dict[str, str], language: str = "en") -> str:
+def _format_selection_tutor_context(context: dict[str, Any], language: str = "en") -> str:
     selected_text = context.get("selected_text", "").strip()
     parent_session_id = context.get("parent_session_id", "").strip() or "(none)"
+    source_message_text = str(context.get("source_message_text") or "").strip()
+    source_message_role = str(context.get("source_message_role") or "").strip()
     if str(language or "en").lower().startswith("zh"):
-        return "\n".join(
-            [
-                "你是侧栏中的“小老师”，负责回答学习者对一段选中聊天内容的追问。",
-                "把选中内容当作当前问题的直接指代和首要上下文：解释概念、拆解推理、补充例子，并指出其中可能的歧义或错误。",
-                "不要读取、引用或写入全局记忆；不要把用户问题里的“这个/它/上述内容”解释成记忆系统。",
-                "如果先前回答偏离了选中内容，请明确纠正并回到选中内容本身。",
-                "回答当前问题时要简明、循序渐进；选中内容没有提供的信息不要臆造。",
-                "后续对话要保持与这段内容的连续性，但用户明确转向相关主题时也可以正常扩展。",
-                "",
-                "[选中内容]",
-                selected_text,
-                "",
-                f"来源会话：{parent_session_id}",
-            ]
-        ).strip()
-
-    return "\n".join(
-        [
-            "You are the Little Tutor in a sidebar, answering questions about selected chat text.",
-            "Treat the selected passage as the direct referent of the current question and its primary context: explain concepts, unpack reasoning, add examples, and flag ambiguity or mistakes.",
-            "Do not read, cite, or write global memory. Never reinterpret words such as 'this', 'it', or 'the above' as referring to the memory system.",
-            "If an earlier answer drifted away from the selection, correct it explicitly and return to the selected passage.",
-            "Answer the current question clearly and step by step; do not invent information absent from the passage.",
-            "Maintain continuity with this passage across later turns, while allowing explicit related-topic expansion.",
-            "",
-            "[Selected passage]",
-            selected_text,
-            "",
-            f"Source session: {parent_session_id}",
+        lines = [
+            "你是侧栏中的“小老师”，负责回答学习者对聊天内容的局部追问。",
+            "用户精确选中的文字是当前问题的直接指代；原消息上下文只用于解释该选中内容在此处的具体含义。",
+            "优先依据原消息中的定义、代码、前后句和符号关系回答，不要把短变量名脱离上下文解释成其他缩写。",
+            "不要读取、引用或写入全局记忆；不要把用户问题里的“这个/它/上述内容”解释成记忆系统。",
+            "如果先前回答偏离了选中内容，请明确纠正并回到选中内容本身。",
+            "回答当前问题时要简明、循序渐进；原消息没有提供的信息不要臆造。",
         ]
-    ).strip()
+        if source_message_text:
+            role_label = source_message_role or "unknown"
+            lines.extend(
+                [
+                    "",
+                    "[原消息上下文]",
+                    f"消息角色：{role_label}",
+                    source_message_text,
+                    "",
+                    "[用户精确选中的内容]",
+                    selected_text,
+                ]
+            )
+        else:
+            lines.extend(["", "[选中内容]", selected_text])
+        lines.extend(["", f"来源会话：{parent_session_id}"])
+        return "\n".join(lines).strip()
+
+    lines = [
+        "You are the Little Tutor in a sidebar, answering local questions about chat content.",
+        "The learner's exact selection is the direct referent of the question; use the containing message only to determine what that selection means here.",
+        "Prioritize definitions, code, surrounding sentences, and symbol relationships in the source message. Do not reinterpret a short identifier as an unrelated abbreviation.",
+        "Do not read, cite, or write global memory. Never reinterpret words such as 'this', 'it', or 'the above' as referring to the memory system.",
+        "If an earlier answer drifted away from the selection, correct it explicitly and return to the selection.",
+        "Answer clearly and step by step; do not invent information absent from the source message.",
+    ]
+    if source_message_text:
+        role_label = source_message_role or "unknown"
+        lines.extend(
+            [
+                "",
+                "[Containing message]",
+                f"Message role: {role_label}",
+                source_message_text,
+                "",
+                "[Learner's exact selection]",
+                selected_text,
+            ]
+        )
+    else:
+        lines.extend(["", "[Selected passage]", selected_text])
+    lines.extend(["", f"Source session: {parent_session_id}"])
+    return "\n".join(lines).strip()
 
 
 @dataclass
@@ -1555,6 +1666,11 @@ class TurnRuntimeManager:
             request_config = dict(payload.get("config", {}) or {})
             followup_question_context = _extract_followup_question_context(request_config)
             selection_tutor_context = _extract_selection_tutor_context(request_config)
+            if selection_tutor_context:
+                selection_tutor_context = await _resolve_selection_tutor_context(
+                    self.store,
+                    selection_tutor_context,
+                )
             request_config.pop("_course_id", None)
             persist_user_message = _extract_persist_user_message(request_config)
             is_regenerate = _extract_regenerate_flag(request_config)

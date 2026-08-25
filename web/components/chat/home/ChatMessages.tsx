@@ -1403,18 +1403,24 @@ export const ChatMessageList = memo(function ChatMessageList({
           const sib =
             msg.id !== undefined ? siblingsByMessageId.get(msg.id) : undefined;
           return (
-            <UserMessage
+            <div
               key={`${msg.role}-${i}`}
-              msg={msg}
-              index={i}
-              onPreviewAttachment={onPreviewAttachment}
-              onCopy={onCopyAssistantMessage}
-              onEdit={onEditMessage}
-              editDisabled={isStreaming}
-              siblingInfo={sib}
-              onSwitchBranch={onSwitchBranch}
-              availableKbNames={availableKbNames}
-            />
+              className="w-full"
+              data-chat-message-id={msg.id}
+              data-chat-message-role={msg.role}
+            >
+              <UserMessage
+                msg={msg}
+                index={i}
+                onPreviewAttachment={onPreviewAttachment}
+                onCopy={onCopyAssistantMessage}
+                onEdit={onEditMessage}
+                editDisabled={isStreaming}
+                siblingInfo={sib}
+                onSwitchBranch={onSwitchBranch}
+                availableKbNames={availableKbNames}
+              />
+            </div>
           );
         }
 
@@ -1455,7 +1461,12 @@ export const ChatMessageList = memo(function ChatMessageList({
         })();
 
         return (
-          <div key={`${msg.role}-${i}`} className="w-full">
+          <div
+            key={`${msg.role}-${i}`}
+            className="w-full"
+            data-chat-message-id={msg.id}
+            data-chat-message-role={msg.role}
+          >
             <InlineFileCardProvider
               attachments={msg.attachments ?? []}
               events={msg.events}

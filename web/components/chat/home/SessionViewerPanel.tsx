@@ -60,6 +60,7 @@ import type { StreamEvent } from "@/lib/unified-ws";
 import {
   normalizeSelectedText,
   selectionTutorKey,
+  type SelectionTutorContext,
 } from "@/lib/selection-tutor";
 
 const PdfPreview = dynamic(
@@ -166,7 +167,7 @@ export interface SessionViewerPanelHandle {
   /** Opens (or focuses) the follow-up chat tab for a quiz question. */
   openQuizFollowupTab(context: QuizFollowupTabContext): void;
   /** Opens an independent Little Tutor thread grounded in selected chat text. */
-  openSelectionTutorTab(selectedText: string, language: string): void;
+  openSelectionTutorTab(selection: SelectionTutorContext, language: string): void;
   /** Opens (or focuses) an interactive GeoGebra applet tab. */
   openGeogebraTab(payload: GeogebraTabPayload): void;
   /** Opens (first time) or live-updates a connected subagent's run tab. */
@@ -393,10 +394,14 @@ function SessionViewerPanelInner(
   );
 
   const openSelectionTutorTab = useCallback(
-    (rawSelectedText: string, language: string) => {
-      const selectedText = normalizeSelectedText(rawSelectedText);
+    (selection: SelectionTutorContext, language: string) => {
+      const selectedText = normalizeSelectedText(selection.selectedText);
       if (!selectedText) return;
-      const questionKey = selectionTutorKey(selectedText, sessionId);
+      const questionKey = selectionTutorKey(
+        selectedText,
+        sessionId,
+        selection.sourceMessageId,
+      );
       const id = selectionTutorTabIdFor(questionKey);
       const context: QuizFollowupTabContext = {
         questionKey,
@@ -419,6 +424,9 @@ function SessionViewerPanelInner(
         tutorSelection: {
           selectedText,
           parentSessionId: sessionId,
+          sourceMessageId: selection.sourceMessageId,
+          sourceMessageText: selection.sourceMessageText,
+          sourceMessageRole: selection.sourceMessageRole,
         },
       };
 

@@ -123,7 +123,10 @@ import {
   selectedBooksToPayload,
   type SelectedBookReference,
 } from "@/lib/book-references";
-import { normalizeSelectedText } from "@/lib/selection-tutor";
+import {
+  normalizeSelectedText,
+  type SelectionTutorContext,
+} from "@/lib/selection-tutor";
 
 const NotebookRecordPicker = dynamic(
   () => import("@/components/notebook/NotebookRecordPicker"),
@@ -487,6 +490,9 @@ export default function ChatPage() {
   const [viewerPanelOpen, setViewerPanelOpen] = useState(false);
   const [selectionTutorPrompt, setSelectionTutorPrompt] = useState<{
     text: string;
+    sourceMessageId: number;
+    sourceMessageText: string;
+    sourceMessageRole: SelectionTutorContext["sourceMessageRole"];
     left: number;
     top: number;
   } | null>(null);
@@ -1695,6 +1701,26 @@ export default function ChatPage() {
       return;
     }
 
+    const messageElementForNode = (node: Node | null): HTMLElement | null => {
+      const element =
+        node instanceof HTMLElement ? node : node?.parentElement ?? null;
+      return element?.closest<HTMLElement>("[data-chat-message-id]") ?? null;
+    };
+    const anchorMessage = messageElementForNode(selection.anchorNode);
+    const focusMessage = messageElementForNode(selection.focusNode);
+    if (!anchorMessage || anchorMessage !== focusMessage) {
+      setSelectionTutorPrompt(null);
+      return;
+    }
+    const sourceMessageId = Number(anchorMessage.dataset.chatMessageId);
+    const sourceMessage = state.messages.find(
+      (message) => message.id === sourceMessageId,
+    );
+    if (!Number.isInteger(sourceMessageId) || !sourceMessage) {
+      setSelectionTutorPrompt(null);
+      return;
+    }
+
     const rects = range.getClientRects();
     const rect =
       rects.length > 0
@@ -1711,16 +1737,31 @@ export default function ChatPage() {
       below + buttonHeight <= window.innerHeight - 12
         ? below
         : Math.max(12, rect.top - buttonHeight - 8);
-    setSelectionTutorPrompt({ text, left, top });
-  }, [messagesContainerRef]);
+    setSelectionTutorPrompt({
+      text,
+      sourceMessageId,
+      sourceMessageText: sourceMessage.content,
+      sourceMessageRole: sourceMessage.role,
+      left,
+      top,
+    });
+  }, [messagesContainerRef, state.messages]);
 
   const openSelectionTutor = useCallback(() => {
-    const selectedText = selectionTutorPrompt?.text;
-    if (!selectedText) return;
-    viewerPanelRef.current?.openSelectionTutorTab(selectedText, state.language);
+    if (!selectionTutorPrompt) return;
+    viewerPanelRef.current?.openSelectionTutorTab(
+      {
+        selectedText: selectionTutorPrompt.text,
+        parentSessionId: state.sessionId,
+        sourceMessageId: selectionTutorPrompt.sourceMessageId,
+        sourceMessageText: selectionTutorPrompt.sourceMessageText,
+        sourceMessageRole: selectionTutorPrompt.sourceMessageRole,
+      },
+      state.language,
+    );
     setSelectionTutorPrompt(null);
     window.getSelection()?.removeAllRanges();
-  }, [selectionTutorPrompt, state.language]);
+  }, [selectionTutorPrompt, state.language, state.sessionId]);
 
   const handleClosePreview = useCallback(() => {
     setPreviewSource(null);
