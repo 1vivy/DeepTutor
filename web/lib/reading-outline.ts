@@ -11,6 +11,16 @@ export interface ReaderHeading {
   level: number;
 }
 
+export interface ReaderTextPart<T> {
+  text: string;
+  mark: T | null;
+}
+
+export interface ReaderDisplayLine<T> {
+  parts: ReaderTextPart<T>[];
+  heading: ReaderHeading | null;
+}
+
 export function headingAnchor(locator: number, index: number): string {
   return `dt-reader-heading-${locator}-${index + 1}`;
 }
@@ -23,6 +33,84 @@ export function readerHeadingLine(line: string): ReaderHeading | null {
   const title = match[2].replace(/\s+#+$/, "").trim();
   if (!title) return null;
   return { id: "", title, level: match[1].length };
+}
+
+function headingTextRange(
+  line: string,
+): { heading: ReaderHeading; start: number; end: number } | null {
+  const leading = line.search(/\S/);
+  if (leading < 0) return null;
+  const trimmed = line.trim();
+  const prefix = /^(#{1,6})\s+/.exec(trimmed);
+  const heading = readerHeadingLine(line);
+  if (!prefix || !heading) return null;
+  const start = leading + prefix[0].length;
+  return { heading, start, end: start + heading.title.length };
+}
+
+function sliceParts<T>(
+  parts: ReaderTextPart<T>[],
+  start: number,
+  end: number,
+): ReaderTextPart<T>[] {
+  const selected: ReaderTextPart<T>[] = [];
+  let offset = 0;
+  for (const part of parts) {
+    const partEnd = offset + part.text.length;
+    const from = Math.max(start, offset);
+    const to = Math.min(end, partEnd);
+    if (from < to) {
+      selected.push({
+        text: part.text.slice(from - offset, to - offset),
+        mark: part.mark,
+      });
+    }
+    offset = partEnd;
+  }
+  return selected;
+}
+
+/** Rebuild logical lines after annotation segmentation, then attach headings. */
+export function readerLinesWithHeadings<T>(
+  runs: ReaderTextPart<T>[],
+  headings: ReaderHeading[],
+): ReaderDisplayLine<T>[] {
+  const lines: ReaderTextPart<T>[][] = [[]];
+  for (const run of runs) {
+    const chunks = run.text.split("\n");
+    chunks.forEach((chunk, index) => {
+      if (chunk) lines[lines.length - 1].push({ text: chunk, mark: run.mark });
+      if (index < chunks.length - 1) lines.push([]);
+    });
+  }
+
+  let fence: string | null = null;
+  let headingIndex = 0;
+  return lines.map((parts) => {
+    const text = parts.map((part) => part.text).join("");
+    const fenceMatch = /^\s*(`{3,}|~{3,})/.exec(text);
+    if (fenceMatch) {
+      if (!fence) fence = fenceMatch[1];
+      else if (text.trim().startsWith(fence)) fence = null;
+      return { parts, heading: null };
+    }
+    if (fence) return { parts, heading: null };
+
+    const details = headingTextRange(text);
+    if (!details) return { parts, heading: null };
+    const expected = headings[headingIndex++];
+    if (
+      !expected ||
+      expected.title !== details.heading.title ||
+      expected.level !== details.heading.level
+    ) {
+      return { parts, heading: null };
+    }
+    return {
+      parts: sliceParts(parts, details.start, details.end),
+      heading: expected,
+    };
+  });
 }
 
 /** Extract Markdown headings while ignoring fenced code blocks. */

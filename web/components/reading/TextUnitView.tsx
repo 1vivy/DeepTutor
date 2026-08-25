@@ -37,7 +37,7 @@ import {
 import {
   activeReaderHeading,
   extractReaderHeadings,
-  readerHeadingLine,
+  readerLinesWithHeadings,
   type ReaderHeading,
 } from "@/lib/reading-outline";
 import { segmentTextByQuotes } from "@/lib/reading-quote-locator";
@@ -611,88 +611,86 @@ function RunsWithHeadings({
   highlightedAnnotationId?: string | null;
   onAnnotationClick?: (annotation: AnnotationItem) => void;
 }) {
-  const headingAnchors = useMemo(() => {
-    const anchors = new Map<string, ReaderHeading>();
-    let headingIndex = 0;
-    runs.forEach((run, runIndex) => {
-      run.text.split("\n").forEach((line, lineIndex) => {
-        const heading = run.mark ? null : readerHeadingLine(line);
-        const expected = heading ? headings[headingIndex] : undefined;
-        if (
-          heading &&
-          expected &&
-          expected.title === heading.title &&
-          expected.level === heading.level
-        ) {
-          anchors.set(`${runIndex}-${lineIndex}`, expected);
-          headingIndex += 1;
-        }
-      });
-    });
-    return anchors;
-  }, [headings, runs]);
+  const lines = useMemo(
+    () => readerLinesWithHeadings(runs, headings),
+    [headings, runs],
+  );
 
   return (
     <>
-      {runs.map((run, runIndex) =>
-        run.text.split("\n").map((line, lineIndex) => {
-          const key = `${runIndex}-${lineIndex}`;
-          const heading = run.mark ? null : readerHeadingLine(line);
-          const expected = headingAnchors.get(key);
-          if (heading && expected) {
-            const Heading = `h${expected.level}` as
-              | "h1"
-              | "h2"
-              | "h3"
-              | "h4"
-              | "h5"
-              | "h6";
-            return (
-              <Fragment key={key}>
-                {lineIndex > 0 && <br />}
-                <Heading
-                  id={expected.id}
-                  data-reader-heading-id={expected.id}
-                  className="mt-5 mb-2 font-serif text-[var(--foreground)] first:mt-0"
-                >
-                  {expected.title}
-                </Heading>
-              </Fragment>
-            );
-          }
-          if (run.mark) {
-            return (
-              <mark
-                key={key}
-                title={run.mark.note || undefined}
-                onClick={() =>
-                  onAnnotationClick?.(run.mark as AnnotationItem)
-                }
-                className={`cursor-pointer rounded-[2px] px-[1px] text-[var(--foreground)] ${
-                  run.mark.annotation_id === highlightedAnnotationId
-                    ? "ring-2 ring-[var(--ring)]"
-                    : ""
-                }`}
-                style={{
-                  background:
-                    run.mark.kind === "underline"
-                      ? "transparent"
-                      : `rgb(${COLOR_INK[run.mark.color] ?? COLOR_INK.yellow} / 0.55)`,
-                  borderBottom:
-                    run.mark.kind === "underline"
-                      ? `2px solid rgb(${COLOR_INK[run.mark.color] ?? COLOR_INK.yellow})`
-                      : undefined,
-                }}
+      {lines.map((line, lineIndex) => {
+        const key = `line-${lineIndex}`;
+        if (line.heading) {
+          const Heading = `h${line.heading.level}` as
+            "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+          return (
+            <Fragment key={key}>
+              {lineIndex > 0 && <br />}
+              <Heading
+                id={line.heading.id}
+                data-reader-heading-id={line.heading.id}
+                className="mt-5 mb-2 font-serif text-[var(--foreground)] first:mt-0"
               >
-                {lineIndex > 0 ? `\n${line}` : line}
-              </mark>
-            );
-          }
-          return <span key={key}>{lineIndex > 0 ? `\n${line}` : line}</span>;
-        }),
-      )}
+                <RunParts
+                  parts={line.parts}
+                  highlightedAnnotationId={highlightedAnnotationId}
+                  onAnnotationClick={onAnnotationClick}
+                />
+              </Heading>
+            </Fragment>
+          );
+        }
+        return (
+          <Fragment key={key}>
+            {lineIndex > 0 && <br />}
+            <RunParts
+              parts={line.parts}
+              highlightedAnnotationId={highlightedAnnotationId}
+              onAnnotationClick={onAnnotationClick}
+            />
+          </Fragment>
+        );
+      })}
     </>
   );
+}
+
+function RunParts({
+  parts,
+  highlightedAnnotationId,
+  onAnnotationClick,
+}: {
+  parts: Array<{ text: string; mark: AnnotationItem | null }>;
+  highlightedAnnotationId?: string | null;
+  onAnnotationClick?: (annotation: AnnotationItem) => void;
+}) {
+  return parts.map((part, index) => {
+    if (!part.mark) return <span key={index}>{part.text}</span>;
+    return (
+      <mark
+        key={index}
+        title={part.mark.note || undefined}
+        onClick={() => onAnnotationClick?.(part.mark as AnnotationItem)}
+        className={`cursor-pointer rounded-[2px] px-[1px] text-[var(--foreground)] ${
+          part.mark.annotation_id === highlightedAnnotationId
+            ? "ring-2 ring-[var(--ring)]"
+            : ""
+        }`}
+        style={{
+          background:
+            part.mark.kind === "underline"
+              ? "transparent"
+              : `rgb(${COLOR_INK[part.mark.color] ?? COLOR_INK.yellow} / 0.55)`,
+          borderBottom:
+            part.mark.kind === "underline"
+              ? `2px solid rgb(${COLOR_INK[part.mark.color] ?? COLOR_INK.yellow})`
+              : undefined,
+        }}
+      >
+        {part.text}
+      </mark>
+    );
+  });
 }
 
 /** Translatable label for a unit kind. Keys are literal so i18n can find them. */

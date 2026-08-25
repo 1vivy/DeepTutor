@@ -8,6 +8,7 @@ import {
   extractReaderHeadings,
   filterReaderHeadings,
   filterOutlineNodes,
+  readerLinesWithHeadings,
 } from "../lib/reading-outline";
 
 function source(relativePath: string): string {
@@ -21,10 +22,14 @@ test("builds a nested outline without inventing impossible levels", () => {
     { locator: 3, title: "Nested", level: 3, synthesised: false },
   ]);
 
-  assert.deepEqual(tree.map((node) => node.row.title), ["Part"]);
-  assert.deepEqual(tree[0].children.map((node) => node.row.title), [
-    "Suddenly deep",
-  ]);
+  assert.deepEqual(
+    tree.map((node) => node.row.title),
+    ["Part"],
+  );
+  assert.deepEqual(
+    tree[0].children.map((node) => node.row.title),
+    ["Suddenly deep"],
+  );
   assert.deepEqual(
     tree[0].children[0].children.map((node) => node.row.title),
     ["Nested"],
@@ -57,14 +62,46 @@ test("extracts Markdown headings and skips fenced code", () => {
   ]);
 });
 
+test("heading anchors survive annotation run boundaries", () => {
+  const headings = extractReaderHeadings(["# Title\nBody\n## Next"], 4);
+  const mark = { id: "annotation" };
+  const lines = readerLinesWithHeadings(
+    [
+      { text: "# Ti", mark: null },
+      { text: "tle", mark },
+      { text: "\nBody\n## Next", mark: null },
+    ],
+    headings,
+  );
+
+  assert.equal(lines[0].heading?.id, "dt-reader-heading-4-1");
+  assert.deepEqual(lines[0].parts, [
+    { text: "Ti", mark: null },
+    { text: "tle", mark },
+  ]);
+  assert.equal(lines[2].heading?.id, "dt-reader-heading-4-2");
+});
+
+test("a fully highlighted heading cannot hide later anchors", () => {
+  const headings = extractReaderHeadings(["# First\n## Second"], 2);
+  const mark = { id: "annotation" };
+  const lines = readerLinesWithHeadings(
+    [
+      { text: "# First\n", mark },
+      { text: "## Second", mark: null },
+    ],
+    headings,
+  );
+
+  assert.equal(lines[0].heading?.id, "dt-reader-heading-2-1");
+  assert.equal(lines[0].parts[0].mark, mark);
+  assert.equal(lines[1].heading?.id, "dt-reader-heading-2-2");
+});
+
 test("active heading follows the reading container", () => {
   const headings = extractReaderHeadings(["# One\n## Two\n### Three"], 1);
   const active = activeReaderHeading(headings, (heading) =>
-    heading.title === "One"
-      ? -20
-      : heading.title === "Two"
-        ? 12
-        : 80,
+    heading.title === "One" ? -20 : heading.title === "Two" ? 12 : 80,
   );
 
   assert.equal(active, "dt-reader-heading-1-2");
