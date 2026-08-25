@@ -15,6 +15,7 @@ from deeptutor.services.session.context_builder import (
     ContextBuildResult,
     build_history_text,
     count_tokens,
+    extract_ask_user_clarifications,
     format_messages_as_transcript,
     trim_incomplete_tail,
 )
@@ -257,6 +258,53 @@ class TestBuildHistory:
             ],
         )
         assert len(history) == 1
+
+    def test_resolved_ask_user_answers_are_rehydrated_as_user_context(self) -> None:
+        before = "I can help, but one detail matters."
+        after = "I adapted the explanation."
+        message = {
+            "role": "assistant",
+            "content": before + after,
+            "events": [
+                {
+                    "type": "tool_result",
+                    "metadata": {
+                        "tool_metadata": {
+                            "ask_user": {
+                                "questions": [
+                                    {"id": "level", "prompt": "What have you studied?"},
+                                    {"id": "goal", "prompt": "What is your goal?"},
+                                ]
+                            }
+                        }
+                    },
+                },
+                {
+                    "type": "progress",
+                    "metadata": {
+                        "ask_user_resolved": True,
+                        "assistant_content_offset": len(before),
+                        "answers": [
+                            {"questionId": "level", "text": "High-school calculus"},
+                            {"questionId": "goal", "text": "Understand the intuition"},
+                        ],
+                    },
+                },
+            ],
+        }
+
+        clarification = extract_ask_user_clarifications(message)
+        assert "What have you studied?" in clarification
+        assert "High-school calculus" in clarification
+
+        history = ContextBuilder(store=MagicMock())._build_history("", [message])
+        assert history == [
+            {"role": "assistant", "content": before},
+            {"role": "user", "content": clarification},
+            {"role": "assistant", "content": after},
+        ]
+        transcript = format_messages_as_transcript([message])
+        assert transcript.index(before) < transcript.index(clarification) < transcript.index(after)
 
 
 # ---------------------------------------------------------------------------
