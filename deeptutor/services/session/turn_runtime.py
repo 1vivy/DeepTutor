@@ -1835,11 +1835,25 @@ class TurnRuntimeManager:
                     selection_tutor_context,
                     language=str(payload.get("language", "en") or "en"),
                 )
-            elif followup_question_context:
-                sidebar_system_context = _format_followup_question_context(
-                    followup_question_context,
-                    language=str(payload.get("language", "en") or "en"),
+
+            # Quiz follow-up context is part of the child session's durable
+            # history and is inserted exactly once. Selection tutoring is
+            # intentionally different: its source passage remains a per-turn
+            # sidebar context and must not be copied into chat history.
+            if followup_question_context:
+                existing_messages = await self.store.get_messages_for_context(
+                    session_id, leaf_message_id=branch_parent_id
                 )
+                if not existing_messages:
+                    await self.store.add_message(
+                        session_id=session_id,
+                        role="system",
+                        content=_format_followup_question_context(
+                            followup_question_context,
+                            language=str(payload.get("language", "en") or "en"),
+                        ),
+                        capability=capability_name or "chat",
+                    )
 
             llm_config, llm_scope_token = activate_llm_selection(payload.get("llm_selection"))
             builder = ContextBuilder(self.store)
