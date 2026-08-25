@@ -50,6 +50,9 @@ test.beforeEach(async ({ page }) => {
       });
     }
     if (path === "/api/v1/settings/ui") return json({ language: "en" });
+    if (path === "/api/v1/dashboard/suggestions") {
+      return json({ suggestions: [], stale: false });
+    }
     if (path === "/api/v1/settings/llm-options") {
       return json({
         active: { profile_id: "p", model_id: "m" },
@@ -69,6 +72,7 @@ test.beforeEach(async ({ page }) => {
     if (path === "/api/v1/reading/supported-formats") {
       return json({ extensions: [".txt"], max_bytes: 1024, raw_view_extensions: [] });
     }
+    if (path === "/api/v1/reading/extensions") return json([]);
     if (path === "/api/v1/reading/materials") return json([material]);
     if (path === "/api/v1/reading/materials/w3c-material") {
       return json(material);

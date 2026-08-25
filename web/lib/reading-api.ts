@@ -215,8 +215,16 @@ export async function getUnitText(
 export async function listReadingExtensions(): Promise<
   ReadingExtensionManifest[]
 > {
-  return unwrap(
+  const payload: unknown = await unwrap(
     await apiFetch(apiUrl(`${BASE}/extensions`), { cache: "no-store" }),
+  );
+  if (!Array.isArray(payload)) return [];
+  return payload.filter(
+    (row): row is ReadingExtensionManifest =>
+      Boolean(row) &&
+      typeof row === "object" &&
+      typeof (row as ReadingExtensionManifest).id === "string" &&
+      Array.isArray((row as ReadingExtensionManifest).actions),
   );
 }
 
