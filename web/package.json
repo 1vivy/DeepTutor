@@ -21,6 +21,7 @@
     "build:brand-icons": "tsx ./scripts/build-brand-icons.mts"
   },
   "dependencies": {
+    "@recogito/text-annotator": "4.2.5",
     "chart.js": "^4.5.1",
     "clsx": "^2.1.1",
     "cytoscape": "^3.33.1",

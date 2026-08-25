@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { AnnotationItem, UnitKind } from "@/lib/reading-api";
 import { getUnitText } from "@/lib/reading-api";
-import { segmentTextByQuotes } from "@/lib/reading-quote-locator";
 import { cleanQuote } from "@/lib/reading-selection";
+import { toRecogitoTextAnnotation } from "@/lib/reading-w3c-annotations";
 import type { JumpRequest, SelectionPayload } from "./PdfDocumentView";
 
 const COLOR_INK: Record<string, string> = {
@@ -51,6 +51,17 @@ export function TextUnitView({
 }: TextUnitViewProps) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const articleRef = useRef<HTMLElement | null>(null);
+  const textSelectorToolsRef = useRef<{
+    rangeToSelector: (
+      range: Range,
+      container: HTMLElement,
+    ) => { quote: string; start: number; end: number };
+    getQuoteContext: (
+      range: Range,
+      container: HTMLElement,
+    ) => { prefix: string; suffix: string };
+  } | null>(null);
   const [locator, setLocator] = useState(1);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
@@ -103,14 +114,80 @@ export function TextUnitView({
     if (containerRef.current) containerRef.current.scrollTop = 0;
   }, [jump, unitCount]);
 
-  const runs = useMemo(
-    () =>
-      segmentTextByQuotes(
-        text,
-        annotations.filter((a) => a.locator === locator),
-      ),
-    [text, annotations, locator],
-  );
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!article || loading || error) return;
+    let cancelled = false;
+    let annotator: { destroy: () => void } | null = null;
+
+    void import("@recogito/text-annotator")
+      .then((module) => {
+        if (cancelled) return;
+        textSelectorToolsRef.current = {
+          rangeToSelector: module.rangeToSelector,
+          getQuoteContext: module.getQuoteContext,
+        };
+        const instance = module.createTextAnnotator(article, {
+          annotatingEnabled: false,
+          renderer: "SPANS",
+          style: (annotation) => {
+            const properties = annotation.properties as
+              | { annotationId?: string; color?: string; kind?: string }
+              | undefined;
+            const color = COLOR_INK[properties?.color ?? ""] ?? COLOR_INK.yellow;
+            if (properties?.kind === "underline") {
+              return {
+                fill: "transparent",
+                underlineColor: `rgb(${color})`,
+                underlineThickness: 2,
+              };
+            }
+            return {
+              fill: `rgb(${color})`,
+              fillOpacity:
+                properties?.annotationId === highlightedAnnotationId ? 0.8 : 0.55,
+            };
+          },
+        });
+        annotator = instance;
+        const rows = annotations
+          .filter((annotation) => annotation.locator === locator)
+          .map((annotation) =>
+            toRecogitoTextAnnotation(annotation, article.textContent ?? ""),
+          )
+          .filter((annotation) => annotation !== null);
+        instance.setAnnotations(rows);
+        instance.on("clickAnnotation", (selected) => {
+          const id = selected.id;
+          const annotation = annotations.find((row) => row.annotation_id === id);
+          if (annotation) onAnnotationClick?.(annotation);
+        });
+        if (highlightedAnnotationId) {
+          instance.scrollIntoView(
+            highlightedAnnotationId,
+            containerRef.current ?? article,
+          );
+        }
+      })
+      .catch(() => {
+        // The text remains readable and selection falls back to legacy quotes.
+        if (!cancelled) textSelectorToolsRef.current = null;
+      });
+
+    return () => {
+      cancelled = true;
+      annotator?.destroy();
+      textSelectorToolsRef.current = null;
+    };
+  }, [
+    annotations,
+    error,
+    highlightedAnnotationId,
+    loading,
+    locator,
+    onAnnotationClick,
+    text,
+  ]);
 
   const handlePointerUp = useCallback(() => {
     const selection = window.getSelection();
@@ -119,11 +196,16 @@ export function TextUnitView({
       return;
     }
     const range = selection.getRangeAt(0);
-    if (!containerRef.current?.contains(range.commonAncestorContainer)) {
+    if (!text.trim() || !articleRef.current?.contains(range.commonAncestorContainer)) {
       onSelection(null);
       return;
     }
-    const quote = cleanQuote(selection.toString());
+    const tools = textSelectorToolsRef.current;
+    const selector = tools?.rangeToSelector(range, articleRef.current);
+    const quote =
+      selector && selector.quote.length <= 2000
+        ? selector.quote
+        : cleanQuote(selection.toString());
     if (!quote) {
       onSelection(null);
       return;
@@ -135,11 +217,26 @@ export function TextUnitView({
       quote,
       // No geometry: a reflowing text view has none worth storing.
       rects: [],
+      selectors:
+        selector && selector.quote === quote
+          ? [
+              {
+                type: "TextQuoteSelector",
+                exact: selector.quote,
+                ...tools?.getQuoteContext(range, articleRef.current),
+              },
+              {
+                type: "TextPositionSelector",
+                start: selector.start,
+                end: selector.end,
+              },
+            ]
+          : [],
       anchor: last
         ? { x: last.left + last.width / 2, y: last.top }
         : { x: 0, y: 0 },
     });
-  }, [locator, onSelection]);
+  }, [locator, onSelection, text]);
 
   const canPrev = locator > 1;
   const canNext = locator < unitCount;
@@ -190,42 +287,16 @@ export function TextUnitView({
         ) : error ? (
           <p className="text-[12px] text-[var(--muted-foreground)]">{error}</p>
         ) : (
-          <article className="mx-auto max-w-[68ch] whitespace-pre-wrap font-serif text-[15px] leading-[1.75] text-[var(--foreground)] selection:bg-[var(--primary)]/20">
-            {runs.length === 0 ? (
+          <article
+            ref={articleRef}
+            className="mx-auto max-w-[68ch] whitespace-pre-wrap font-serif text-[15px] leading-[1.75] text-[var(--foreground)] selection:bg-[var(--primary)]/20"
+          >
+            {!text.trim() ? (
               <span className="text-[var(--muted-foreground)]">
                 {t("This section has no extractable text.")}
               </span>
             ) : (
-              runs.map((run, index) =>
-                run.mark ? (
-                  <mark
-                    key={index}
-                    title={run.mark.note || undefined}
-                    onClick={() =>
-                      onAnnotationClick?.(run.mark as AnnotationItem)
-                    }
-                    className={`cursor-pointer rounded-[2px] px-[1px] text-[var(--foreground)] ${
-                      run.mark.annotation_id === highlightedAnnotationId
-                        ? "ring-2 ring-[var(--ring)]"
-                        : ""
-                    }`}
-                    style={{
-                      background:
-                        run.mark.kind === "underline"
-                          ? "transparent"
-                          : `rgb(${COLOR_INK[run.mark.color] ?? COLOR_INK.yellow} / 0.55)`,
-                      borderBottom:
-                        run.mark.kind === "underline"
-                          ? `2px solid rgb(${COLOR_INK[run.mark.color] ?? COLOR_INK.yellow})`
-                          : undefined,
-                    }}
-                  >
-                    {run.text}
-                  </mark>
-                ) : (
-                  <span key={index}>{run.text}</span>
-                ),
-              )
+              text
             )}
           </article>
         )}
