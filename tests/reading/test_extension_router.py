@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+import threading
 from types import SimpleNamespace
 
 from fastapi import FastAPI
@@ -16,6 +17,7 @@ from deeptutor.reading.extensions import (
     ReadingExtensionRegistry,
     ReadingExtensionResult,
 )
+from deeptutor.reading.models import ReadingPosition
 from deeptutor.services.path_service import PathService
 
 
@@ -78,6 +80,27 @@ def test_action_receives_only_server_verified_visible_text(material, monkeypatch
     assert captured["visible_text"] == "Visible passage with a verified phrase."
 
 
+def test_source_anchor_is_loaded_from_server_position(material, monkeypatch):
+    ReadingStore().save_position(
+        material.material_id,
+        ReadingPosition(locator=1, source_anchor="server-anchor"),
+    )
+    captured = {}
+
+    def run(_action, context):
+        captured.update(context.model_dump())
+        return ReadingExtensionResult(type="card")
+
+    client = _client(monkeypatch, _extension(run))
+    response = client.post(
+        f"/api/v1/reading/materials/{material.material_id}/extensions/sample/actions/open",
+        json={"locator": 1, "source_anchor": "forged-anchor"},
+    )
+
+    assert response.status_code == 200, response.text
+    assert captured["source_anchor"] == "server-anchor"
+
+
 def test_selection_requirement_rejects_unverified_text(material, monkeypatch):
     client = _client(
         monkeypatch,
@@ -138,3 +161,33 @@ def test_hanging_extension_action_times_out(material, monkeypatch):
 
     assert response.status_code == 503
     assert response.json()["detail"]["recoverable"] is True
+
+
+def test_timed_out_sync_extension_opens_circuit_without_queueing(material, monkeypatch):
+    release = threading.Event()
+    calls = 0
+
+    def run(*_args):
+        nonlocal calls
+        calls += 1
+        release.wait(timeout=1)
+        return ReadingExtensionResult(type="card")
+
+    monkeypatch.setattr(reading_extensions, "ACTION_TIMEOUT_S", 0.01)
+    client = _client(monkeypatch, _extension(run))
+
+    try:
+        first = client.post(
+            f"/api/v1/reading/materials/{material.material_id}/extensions/sample/actions/open",
+            json={"locator": 1},
+        )
+        second = client.post(
+            f"/api/v1/reading/materials/{material.material_id}/extensions/sample/actions/open",
+            json={"locator": 1},
+        )
+
+        assert first.status_code == 503
+        assert second.status_code == 503
+        assert calls == 1
+    finally:
+        release.set()

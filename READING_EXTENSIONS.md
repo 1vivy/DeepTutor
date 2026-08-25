@@ -41,8 +41,8 @@ class ExampleExtension:
 ## Security boundary
 
 - The global Reading API authentication policy protects extension routes.
-- The server resolves the material and locator and supplies the stored unit
-  text; the browser cannot replace it with arbitrary text.
+- The server resolves the material, locator, saved source anchor, and stored
+  unit text; the browser cannot replace them with arbitrary values.
 - A selection is forwarded only when it occurs verbatim in the stored unit.
 - Extensions return one of four validated result types: `card`, `quiz`,
   `feedback`, or `browser_speech`.
@@ -51,7 +51,11 @@ class ExampleExtension:
 - Units larger than the protocol's 60,000-character context ceiling are
   rejected with a client error instead of invoking an extension.
 - Actions have a 30-second execution timeout and return the standard
-  recoverable unavailability response when exceeded.
+  recoverable unavailability response when exceeded. A synchronous Python
+  handler already running in a thread cannot be killed safely, so each
+  extension has one private worker and its circuit remains open after a timeout;
+  later calls fail fast instead of consuming or queueing work on the process-wide
+  thread pool. Restart DeepTutor after fixing or removing the stuck extension.
 - Result data is rendered as React text. Extensions cannot send JavaScript or
   raw HTML to the Reader.
 - Discovery and execution failures are isolated. A broken optional package

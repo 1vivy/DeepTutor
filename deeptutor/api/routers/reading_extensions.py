@@ -23,7 +23,6 @@ ACTION_TIMEOUT_S = 30
 
 class ActionPayload(BaseModel):
     locator: int = Field(ge=1)
-    source_anchor: str = Field(default="", max_length=4096)
     selection: str = Field(default="", max_length=10_000)
     locale: str = Field(default="en", max_length=32)
 
@@ -49,14 +48,17 @@ async def run_extension_action(
     action: str,
     payload: ActionPayload,
 ) -> dict[str, Any]:
-    extension = get_reading_extension_registry().get(extension_id)
+    registry = get_reading_extension_registry()
+    extension = registry.get(extension_id)
     if extension is None:
         raise HTTPException(status_code=404, detail="Reading extension not found.")
     declared_action = next((row for row in extension.manifest.actions if row.id == action), None)
     if declared_action is None:
         raise HTTPException(status_code=404, detail="Reading extension action not found.")
+    store = ReadingStore()
     try:
-        unit_text = ReadingStore().unit_text(material_id, payload.locator)
+        unit_text = store.unit_text(material_id, payload.locator)
+        position = store.position(material_id)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     selection = _verified_selection(payload.selection, unit_text)
@@ -66,7 +68,7 @@ async def run_extension_action(
         context = ReadingContext(
             material_id=material_id,
             locator=payload.locator,
-            source_anchor=payload.source_anchor,
+            source_anchor=(position.source_anchor if position.locator == payload.locator else ""),
             locale=payload.locale,
             selection=selection,
             visible_text=unit_text,
@@ -76,13 +78,25 @@ async def run_extension_action(
             status_code=422,
             detail="This reading unit is too large for the extension protocol.",
         ) from exc
-    try:
-        value = await asyncio.wait_for(
-            asyncio.to_thread(extension.run_action, action, context),
-            timeout=ACTION_TIMEOUT_S,
+    if not registry.begin_action(extension_id):
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "This reading action is temporarily unavailable.",
+                "recoverable": True,
+            },
         )
-        if inspect.isawaitable(value):
-            value = await asyncio.wait_for(value, timeout=ACTION_TIMEOUT_S)
+    try:
+        async with asyncio.timeout(ACTION_TIMEOUT_S):
+            loop = asyncio.get_running_loop()
+            value = await loop.run_in_executor(
+                registry.executor_for(extension_id),
+                extension.run_action,
+                action,
+                context,
+            )
+            if inspect.isawaitable(value):
+                value = await value
         result = (
             value
             if isinstance(value, ReadingExtensionResult)
@@ -91,6 +105,15 @@ async def run_extension_action(
         if result.type not in extension.manifest.result_types:
             raise ValueError(f"Extension returned undeclared result type {result.type!r}.")
         return result.model_dump()
+    except TimeoutError as exc:
+        registry.mark_timed_out(extension_id)
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "This reading action is temporarily unavailable.",
+                "recoverable": True,
+            },
+        ) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=503,
@@ -99,6 +122,8 @@ async def run_extension_action(
                 "recoverable": True,
             },
         ) from exc
+    finally:
+        registry.finish_action(extension_id)
 
 
 __all__ = ["router"]

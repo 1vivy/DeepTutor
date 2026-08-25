@@ -8,8 +8,10 @@ the reader or any other extension.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
+import threading
 from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, Field, model_validator
@@ -114,6 +116,10 @@ class ReadingExtensionRegistry:
         self._extensions: dict[str, ReadingExtension] = {}
         for row in rows:
             self._extensions.setdefault(row.manifest.id, row)
+        self._execution_lock = threading.Lock()
+        self._executors: dict[str, ThreadPoolExecutor] = {}
+        self._active: set[str] = set()
+        self._timed_out: set[str] = set()
 
     def all(self) -> list[ReadingExtension]:
         return sorted(self._extensions.values(), key=lambda row: row.manifest.id)
@@ -121,13 +127,53 @@ class ReadingExtensionRegistry:
     def get(self, extension_id: str) -> ReadingExtension | None:
         return self._extensions.get(extension_id)
 
+    def begin_action(self, extension_id: str) -> bool:
+        """Reserve one extension worker unless it is busy or circuit-broken."""
+        with self._execution_lock:
+            if extension_id in self._active or extension_id in self._timed_out:
+                return False
+            self._active.add(extension_id)
+            return True
+
+    def finish_action(self, extension_id: str) -> None:
+        with self._execution_lock:
+            self._active.discard(extension_id)
+
+    def mark_timed_out(self, extension_id: str) -> None:
+        """Open the circuit: Python cannot safely kill a stuck sync handler."""
+        with self._execution_lock:
+            self._timed_out.add(extension_id)
+
+    def executor_for(self, extension_id: str) -> ThreadPoolExecutor:
+        """Return the extension's private single worker, never the global pool."""
+        with self._execution_lock:
+            executor = self._executors.get(extension_id)
+            if executor is None:
+                executor = ThreadPoolExecutor(
+                    max_workers=1,
+                    thread_name_prefix=f"reading-extension-{extension_id}",
+                )
+                self._executors[extension_id] = executor
+            return executor
+
+    def close(self) -> None:
+        """Discard queued calls without waiting for an uncooperative handler."""
+        with self._execution_lock:
+            executors = list(self._executors.values())
+            self._executors.clear()
+        for executor in executors:
+            executor.shutdown(wait=False, cancel_futures=True)
+
 
 _registry: ReadingExtensionRegistry | None = None
 
 
 def get_reading_extension_registry(*, refresh: bool = False) -> ReadingExtensionRegistry:
     global _registry
-    if _registry is None or refresh:
+    if refresh and _registry is not None:
+        _registry.close()
+        _registry = None
+    if _registry is None:
         _registry = ReadingExtensionRegistry()
     return _registry
 

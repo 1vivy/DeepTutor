@@ -226,7 +226,6 @@ export async function runReadingExtension(
   action: string,
   context: {
     locator: number;
-    source_anchor?: string;
     selection?: string;
     locale?: string;
   },
