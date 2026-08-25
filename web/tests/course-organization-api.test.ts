@@ -2,6 +2,25 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { listAllSessions, updateSessionOrganization } from "../lib/session-api";
+import { organizeSessionTree } from "../lib/session-organization";
+import type { SessionSummary } from "../lib/session-api";
+
+function session(
+  id: string,
+  parentSessionId = "",
+  updatedAt = 1,
+): SessionSummary {
+  return {
+    id,
+    session_id: id,
+    title: id,
+    created_at: 1,
+    updated_at: updatedAt,
+    message_count: 0,
+    last_message: "",
+    preferences: { parent_session_id: parentSessionId },
+  };
+}
 
 test("course organization fetches every session page", async () => {
   const original = globalThis.fetch;
@@ -66,4 +85,17 @@ test("course organization patch sends only the requested metadata", async () => 
   } finally {
     (globalThis as { fetch: typeof fetch }).fetch = original;
   }
+});
+
+test("cyclic legacy parents remain renderable instead of recursing", () => {
+  const organized = organizeSessionTree(
+    [session("a", "b", 3), session("b", "a", 2), session("child", "a", 1)],
+    true,
+  );
+
+  assert.deepEqual(
+    organized.roots.map((row) => row.session_id),
+    ["a", "b", "child"],
+  );
+  assert.equal(organized.childrenByParent.size, 0);
 });

@@ -12,6 +12,7 @@ from deeptutor.services.courses import (
     get_course_service,
 )
 from deeptutor.services.session import get_session_store
+from deeptutor.services.session.organization import list_all_sessions_snapshot
 
 router = APIRouter()
 
@@ -73,15 +74,10 @@ async def delete_course(course_id: str) -> dict[str, object]:
 
     # Course deletion is non-destructive: conversations become unclassified.
     store = get_session_store()
-    offset = 0
-    while True:
-        sessions = await store.list_sessions(limit=200, offset=offset)
-        for session in sessions:
-            preferences = session.get("preferences") or {}
-            if str(preferences.get("course_id") or "") == course_id:
-                await store.update_session_preferences(session["session_id"], {"course_id": ""})
-        if len(sessions) < 200:
-            break
-        offset += len(sessions)
+    sessions = await list_all_sessions_snapshot(store)
+    for session in sessions:
+        preferences = session.get("preferences") or {}
+        if str(preferences.get("course_id") or "") == course_id:
+            await store.update_session_preferences(session["session_id"], {"course_id": ""})
     service.delete(course_id)
     return {"deleted": True, "course_id": course_id}

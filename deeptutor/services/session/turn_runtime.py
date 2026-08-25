@@ -557,6 +557,22 @@ def _selection_source_excerpt(
     return excerpt
 
 
+def _selection_is_grounded(source_text: str, selected_text: str) -> bool:
+    """Whether the claimed selection occurs in its containing message."""
+    source = str(source_text or "")
+    selected = str(selected_text or "").strip()
+    if not source or not selected:
+        return False
+    if selected in source:
+        return True
+    # Browser selections collapse rendered whitespace while the stored source
+    # preserves Markdown/code layout. Permit that representational difference,
+    # but never accept text that is absent from the authoritative message.
+    normalized_source = " ".join(source.split())
+    normalized_selected = " ".join(selected.split())
+    return bool(normalized_selected and normalized_selected in normalized_source)
+
+
 async def _resolve_selection_tutor_context(
     store: Any,
     context: dict[str, Any],
@@ -566,19 +582,18 @@ async def _resolve_selection_tutor_context(
     parent_session_id = str(resolved.get("parent_session_id") or "").strip()
     source_message_id = resolved.get("source_message_id")
 
-    if parent_session_id and isinstance(source_message_id, int) and source_message_id > 0:
+    authoritative_source_required = bool(
+        parent_session_id and isinstance(source_message_id, int) and source_message_id > 0
+    )
+    source_message = None
+    if authoritative_source_required:
         try:
             path = await store.get_messages_for_context(
                 parent_session_id,
                 source_message_id,
             )
         except Exception:
-            logger.warning(
-                "Failed to resolve selection tutor source message %s in session %s",
-                source_message_id,
-                parent_session_id,
-                exc_info=True,
-            )
+            raise ValueError("Could not resolve the selected text's source message") from None
         else:
             source_message = next(
                 (
@@ -588,20 +603,22 @@ async def _resolve_selection_tutor_context(
                 ),
                 None,
             )
-            if source_message is not None:
-                resolved["source_message_text"] = str(
-                    source_message.get("content") or ""
-                ).strip()
-                role = str(source_message.get("role") or "").strip()
-                if role in {"user", "assistant", "system"}:
-                    resolved["source_message_role"] = role
+            if source_message is None:
+                raise ValueError("The selected text's source message was not found")
+            resolved["source_message_text"] = str(source_message.get("content") or "").strip()
+            role = str(source_message.get("role") or "").strip()
+            if role in {"user", "assistant", "system"}:
+                resolved["source_message_role"] = role
 
     source_text = str(resolved.get("source_message_text") or "").strip()
-    if source_text:
-        resolved["source_message_text"] = _selection_source_excerpt(
-            source_text,
-            str(resolved.get("selected_text") or ""),
-        )
+    selected_text = str(resolved.get("selected_text") or "")
+    if not _selection_is_grounded(source_text, selected_text):
+        qualifier = "authoritative " if authoritative_source_required else ""
+        raise ValueError(f"Selected text was not found in the {qualifier}source message")
+    resolved["source_message_text"] = _selection_source_excerpt(
+        source_text,
+        selected_text,
+    )
     return resolved
 
 
@@ -1162,18 +1179,44 @@ class TurnRuntimeManager:
 
         raw_selection_context = runtime_only_config.get("selection_tutor_context")
         if isinstance(raw_selection_context, dict):
-            parent_session_id = str(raw_selection_context.get("parent_session_id") or "").strip()
-            if parent_session_id and parent_session_id != session["id"]:
-                parent_session = await self.store.get_session(parent_session_id)
-                if parent_session is not None:
-                    parent_preferences = parent_session.get("preferences") or {}
-                    preference_update.update(
-                        {
-                            "parent_session_id": parent_session_id,
-                            "session_kind": "selection_tutor",
-                            "course_id": str(parent_preferences.get("course_id") or ""),
-                        }
+            selection_tutor_context = _extract_selection_tutor_context(
+                {"selection_tutor_context": dict(raw_selection_context)}
+            )
+            if selection_tutor_context is None:
+                raise RuntimeError("Selection tutor context requires selected text")
+            try:
+                selection_tutor_context = await _resolve_selection_tutor_context(
+                    self.store,
+                    selection_tutor_context,
+                )
+            except ValueError as exc:
+                raise RuntimeError(str(exc)) from exc
+            runtime_only_config["selection_tutor_context"] = selection_tutor_context
+            payload["config"]["selection_tutor_context"] = selection_tutor_context
+            parent_session_id = str(selection_tutor_context.get("parent_session_id") or "").strip()
+            if parent_session_id == session["id"]:
+                raise RuntimeError("A selection tutor session cannot parent itself")
+            if parent_session_id:
+                from deeptutor.services.session.organization import (
+                    validate_parent_assignment,
+                )
+
+                try:
+                    parent_session = await validate_parent_assignment(
+                        self.store,
+                        session_id=session["id"],
+                        parent_session_id=parent_session_id,
                     )
+                except (LookupError, ValueError) as exc:
+                    raise RuntimeError(str(exc)) from exc
+                parent_preferences = parent_session.get("preferences") or {}
+                preference_update.update(
+                    {
+                        "parent_session_id": parent_session_id,
+                        "session_kind": "selection_tutor",
+                        "course_id": str(parent_preferences.get("course_id") or ""),
+                    }
+                )
         if llm_selection:
             preference_update["llm_selection"] = llm_selection
         if persona_explicit:

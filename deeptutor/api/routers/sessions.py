@@ -13,6 +13,10 @@ from pydantic import BaseModel, Field, field_validator
 
 from deeptutor.learning.storage import LearningStore
 from deeptutor.services.session import get_session_store, get_sqlite_session_store
+from deeptutor.services.session.organization import (
+    list_all_sessions_snapshot,
+    validate_parent_assignment,
+)
 from deeptutor.services.storage.attachment_store import get_attachment_store
 
 logger = logging.getLogger(__name__)
@@ -185,8 +189,17 @@ async def update_session_organization(session_id: str, payload: SessionOrganizat
         parent_id = str(payload.parent_session_id or "").strip()
         if parent_id == session_id:
             raise HTTPException(status_code=400, detail="A session cannot be its own parent")
-        if parent_id and await store.get_session(parent_id) is None:
-            raise HTTPException(status_code=404, detail="Parent session not found")
+        if parent_id:
+            try:
+                await validate_parent_assignment(
+                    store,
+                    session_id=session_id,
+                    parent_session_id=parent_id,
+                )
+            except LookupError as exc:
+                raise HTTPException(status_code=404, detail="Parent session not found") from exc
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
         updates["parent_session_id"] = parent_id
     if "session_kind" in fields:
         updates["session_kind"] = payload.session_kind or "chat"
@@ -200,18 +213,11 @@ async def update_session_organization(session_id: str, payload: SessionOrganizat
         cascade_updates = {key: updates[key] for key in ("course_id", "archived") if key in updates}
         if cascade_updates:
             # Selected-text tutor threads stay with their source conversation.
-            offset = 0
-            while True:
-                candidates = await store.list_sessions(limit=200, offset=offset)
-                for candidate in candidates:
-                    prefs = candidate.get("preferences") or {}
-                    if str(prefs.get("parent_session_id") or "") == session_id:
-                        await store.update_session_preferences(
-                            candidate["session_id"], cascade_updates
-                        )
-                if len(candidates) < 200:
-                    break
-                offset += len(candidates)
+            candidates = await list_all_sessions_snapshot(store)
+            for candidate in candidates:
+                prefs = candidate.get("preferences") or {}
+                if str(prefs.get("parent_session_id") or "") == session_id:
+                    await store.update_session_preferences(candidate["session_id"], cascade_updates)
     refreshed = await store.get_session(session_id)
     return {"session": refreshed}
 

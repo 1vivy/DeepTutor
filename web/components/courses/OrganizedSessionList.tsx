@@ -21,6 +21,7 @@ import type {
   SessionOrganizationPatch,
   SessionSummary,
 } from "@/lib/session-api";
+import { organizeSessionTree } from "@/lib/session-organization";
 import { isPlaceholderSessionTitle } from "@/lib/session-title";
 
 interface OrganizedSessionListProps {
@@ -76,13 +77,6 @@ function placeMenu(anchor: DOMRect): FloatingMenuPosition {
   return { left, top, maxHeight, openUpward };
 }
 
-function byPriority(a: SessionSummary, b: SessionSummary): number {
-  const pinned =
-    Number(Boolean(b.preferences?.pinned)) -
-    Number(Boolean(a.preferences?.pinned));
-  return pinned || b.updated_at - a.updated_at;
-}
-
 export default function OrganizedSessionList({
   sessions,
   courses,
@@ -107,24 +101,10 @@ export default function OrganizedSessionList({
   const menuRootRef = useRef<HTMLDivElement>(null);
   const menuAnchorRef = useRef<HTMLButtonElement | null>(null);
 
-  const { roots, childrenByParent } = useMemo(() => {
-    const ids = new Set(sessions.map((session) => session.session_id));
-    const childMap = new Map<string, SessionSummary[]>();
-    const rootRows: SessionSummary[] = [];
-    for (const session of sessions) {
-      const parentId = String(session.preferences?.parent_session_id || "");
-      if (nested && parentId && ids.has(parentId)) {
-        const children = childMap.get(parentId) ?? [];
-        children.push(session);
-        childMap.set(parentId, children);
-      } else {
-        rootRows.push(session);
-      }
-    }
-    rootRows.sort(byPriority);
-    for (const children of childMap.values()) children.sort(byPriority);
-    return { roots: rootRows, childrenByParent: childMap };
-  }, [nested, sessions]);
+  const { roots, childrenByParent } = useMemo(
+    () => organizeSessionTree(sessions, nested),
+    [nested, sessions],
+  );
 
   useEffect(() => {
     if (!openMenuId) return;

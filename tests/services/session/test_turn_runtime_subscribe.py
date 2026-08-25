@@ -190,9 +190,18 @@ async def test_start_turn_preserves_selection_tutor_runtime_context(
 
     monkeypatch.setattr(runtime, "_run_turn", _noop_run_turn)
 
+    parent = await store.ensure_session(None)
+    source_text = "系统会把代码和静态数据加载进内存。"
+    source_message_id = await store.add_message(
+        parent["id"],
+        "assistant",
+        source_text,
+    )
     selected_context = {
         "selected_text": "把代码和静态数据加载进内存",
-        "parent_session_id": "main-session",
+        "parent_session_id": parent["id"],
+        "source_message_id": source_message_id,
+        "source_message_text": "untrusted client fallback",
     }
     _, turn = await runtime.start_turn(
         {
@@ -209,7 +218,9 @@ async def test_start_turn_preserves_selection_tutor_runtime_context(
     )
 
     execution = runtime._executions[turn["id"]]
-    assert execution.payload["config"]["selection_tutor_context"] == selected_context
+    resolved = execution.payload["config"]["selection_tutor_context"]
+    assert resolved["selected_text"] == selected_context["selected_text"]
+    assert resolved["source_message_text"] == source_text
 
 
 @pytest.mark.asyncio
@@ -257,6 +268,8 @@ async def test_selection_tutor_inherits_parent_course(
     course = course_service.create(name="Operating Systems")
     parent = await store.ensure_session(None)
     await store.update_session_preferences(parent["id"], {"course_id": course.id})
+    source_text = "Load code and static data into memory before execution."
+    source_message_id = await store.add_message(parent["id"], "assistant", source_text)
 
     monkeypatch.setattr("deeptutor.services.courses.get_course_service", lambda: course_service)
 
@@ -279,6 +292,8 @@ async def test_selection_tutor_inherits_parent_course(
                 "selection_tutor_context": {
                     "selected_text": "Load code and static data into memory",
                     "parent_session_id": parent["id"],
+                    "source_message_id": source_message_id,
+                    "source_message_text": "forged fallback",
                 }
             },
         }
