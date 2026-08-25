@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from deeptutor.knowledge.add_documents import DEFAULT_BASE_DIR
-from deeptutor.services.web_source.crawler import crawl_and_diff
+from deeptutor.services.web_source.crawler import _contained_path, crawl_and_diff
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +73,27 @@ def _record_sync_failure(
         logger.exception("Failed to persist web-source sync failure state")
 
 
+async def _rebuild_index_after_removal(
+    kb_name: str,
+    raw_dir: Path,
+    base_dir: str,
+) -> int:
+    """Rebuild the bound provider so removed pages cannot remain retrievable."""
+    from deeptutor.services.rag.file_routing import FileTypeRouter
+    from deeptutor.services.rag.service import RAGService
+
+    files = FileTypeRouter.collect_supported_files(raw_dir, recursive=True)
+    if not files:
+        raise RuntimeError("No source files remain after removing deleted web pages")
+    success = await RAGService(kb_base_dir=base_dir).initialize(
+        kb_name=kb_name,
+        file_paths=[str(path) for path in files],
+    )
+    if not success:
+        raise RuntimeError("The knowledge-base index rebuild produced no documents")
+    return len(files)
+
+
 async def sync_source(
     kb_name: str,
     source: dict[str, Any],
@@ -108,10 +129,35 @@ async def sync_source(
         _record_sync_failure(kb_name, source["id"], base_dir, diff.error)
         return WebSyncResult(ok=False, error=diff.error)
 
-    # Index changed files via the standard KB pipeline (legacy per-file).
-    indexed = 0
-    if diff.changed_paths:
+    # Remove deleted raw pages and their file-hash records first. A full
+    # provider rebuild below is required because most providers do not expose
+    # a reliable per-document vector deletion operation.
+    removed_count = 0
+    removal_errors: list[str] = []
+    for fname in diff.pages_removed:
+        target = _contained_path(raw_dir, fname)
+        if target is None:
+            removal_errors.append(f"{fname}: path escapes the knowledge base")
+            continue
         try:
+            from deeptutor.knowledge.add_documents import remove_raw_document
+
+            remove_raw_document(kb_dir, target)
+            removed_count += 1
+        except Exception as exc:
+            logger.warning("Failed to remove %s: %s", fname, exc)
+            removal_errors.append(f"{fname}: {exc}")
+
+    if removal_errors:
+        error = "Failed to remove deleted pages: " + "; ".join(removal_errors)
+        _record_sync_failure(kb_name, source["id"], base_dir, error)
+        return WebSyncResult(ok=False, error=error)
+
+    indexed = 0
+    try:
+        if diff.pages_removed:
+            indexed = await _rebuild_index_after_removal(kb_name, raw_dir, base_dir)
+        elif diff.changed_paths:
             from deeptutor.knowledge.add_documents import add_documents
 
             indexed = await add_documents(
@@ -120,29 +166,9 @@ async def sync_source(
                 base_dir=base_dir,
                 allow_duplicates=False,
             )
-        except Exception as exc:
-            logger.warning("Indexing failed for web source files: %s", exc)
-            error = f"Indexing failed: {exc}"
-            _record_sync_failure(kb_name, source["id"], base_dir, error)
-            return WebSyncResult(ok=False, error=error)
-
-    # Remove deleted pages from index (legacy per-file removal).
-    removed_count = 0
-    removal_errors: list[str] = []
-    for fname in diff.pages_removed:
-        target = raw_dir / fname
-        if target.exists():
-            try:
-                from deeptutor.knowledge.add_documents import remove_raw_document
-
-                remove_raw_document(kb_dir, target)
-                removed_count += 1
-            except Exception as exc:
-                logger.warning("Failed to remove %s: %s", fname, exc)
-                removal_errors.append(f"{fname}: {exc}")
-
-    if removal_errors:
-        error = "Failed to remove deleted pages: " + "; ".join(removal_errors)
+    except Exception as exc:
+        logger.warning("Indexing failed for web source files: %s", exc)
+        error = f"Indexing failed: {exc}"
         _record_sync_failure(kb_name, source["id"], base_dir, error)
         return WebSyncResult(ok=False, error=error)
 

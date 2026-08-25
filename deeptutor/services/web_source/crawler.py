@@ -21,7 +21,7 @@ import hashlib
 import logging
 from pathlib import Path
 import re
-from urllib.parse import urldefrag, urljoin, urlparse
+from urllib.parse import quote, unquote, urldefrag, urljoin, urlparse
 
 import httpx
 
@@ -43,6 +43,7 @@ DEFAULT_MAX_PAGES = 200
 MAX_CRAWL_DEPTH = 5
 MAX_CRAWL_PAGES = DEFAULT_MAX_PAGES
 DEFAULT_CONCURRENCY = 8
+MAX_REDIRECTS = 5
 
 
 @dataclass(frozen=True)
@@ -137,10 +138,45 @@ def _to_filename(url: str, base_path_prefix: str) -> str:
     parsed = urlparse(url)
     path = parsed.path.strip("/")
     if not path:
-        return "index.md"
-    # Preserve full path structure to avoid cross-source filename collisions
-    segments = [s for s in path.split("/") if s]
-    return "/".join(segments) + ".md"
+        filename = "index"
+    else:
+        # Decode one URL component at a time, then quote it back into one
+        # filesystem-safe component. Encoded slashes and dot segments must
+        # never turn into traversal below the KB's ``raw/`` directory.
+        segments: list[str] = []
+        for raw_segment in path.split("/"):
+            if not raw_segment:
+                continue
+            decoded = unquote(raw_segment)
+            safe = quote(decoded, safe="-_.~")
+            if decoded in {".", ".."} or safe in {".", ".."}:
+                safe = f"segment-{hashlib.sha256(raw_segment.encode()).hexdigest()[:10]}"
+            segments.append(safe or "segment")
+        filename = "/".join(segments) or "index"
+
+    # Query-backed documentation routes may share a path while rendering
+    # different pages. Keep them distinct without exposing raw query data.
+    if parsed.query:
+        filename += f"-q-{hashlib.sha256(parsed.query.encode()).hexdigest()[:10]}"
+    return filename + ".md"
+
+
+def _source_filename(source: dict, page_url: str, base_path_prefix: str) -> str:
+    """Namespace a page so independent web sources cannot overwrite it."""
+    identity = str(source.get("url") or source.get("id") or "")
+    namespace = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
+    return f"_web/{namespace}/{_to_filename(page_url, base_path_prefix)}"
+
+
+def _contained_path(root: Path, relative: str) -> Path | None:
+    """Resolve *relative* below *root*, rejecting legacy traversal metadata."""
+    root_resolved = root.resolve()
+    candidate = (root_resolved / relative).resolve()
+    try:
+        candidate.relative_to(root_resolved)
+    except ValueError:
+        return None
+    return candidate
 
 
 # Status codes worth retrying (transient server/infrastructure issues).
@@ -158,22 +194,45 @@ async def _fetch_page(
     Retries up to ``_MAX_RETRIES`` times on transient status codes (429,
     5xx) and network errors, with exponential backoff.
     """
-    last_error = None
-    for attempt in range(_MAX_RETRIES + 1):
+    current_url = url
+    redirects = 0
+    attempt = 0
+    while True:
+        parsed = urlparse(current_url)
+        host = (parsed.hostname or "").strip()
+        if parsed.scheme.lower() not in ("http", "https") or not host:
+            logger.warning("Crawl: redirect to invalid URL %s blocked", current_url)
+            return None
+        # Validate every redirect hop before sending its request. Automatic
+        # redirects followed by a final-host check have already contacted a
+        # private target by the time they can be rejected.
+        if _is_disallowed_host(host):
+            logger.warning("Crawl: request to disallowed host %s blocked", host)
+            return None
         try:
             async with client.stream(
                 "GET",
-                url,
+                current_url,
                 headers={
                     "User-Agent": DEFAULT_USER_AGENT,
                     "Accept": "text/html,application/xhtml+xml,*/*;q=0.5",
                 },
-                follow_redirects=True,
+                follow_redirects=False,
             ) as response:
+                if response.status_code in {301, 302, 303, 307, 308}:
+                    location = response.headers.get("location", "").strip()
+                    if not location or redirects >= MAX_REDIRECTS:
+                        logger.warning("Crawl: invalid or excessive redirects for %s", url)
+                        return None
+                    current_url = urljoin(current_url, location)
+                    redirects += 1
+                    attempt = 0
+                    continue
+
                 final_url = str(response.url)
                 final_host = (urlparse(final_url).hostname or "").strip()
-                if final_host and _is_disallowed_host(final_host):
-                    logger.warning("Crawl: redirect to disallowed host %s blocked", final_host)
+                if not final_host or _is_disallowed_host(final_host):
+                    logger.warning("Crawl: response from disallowed host %s blocked", final_host)
                     return None
 
                 if response.status_code in _RETRY_STATUS and attempt < _MAX_RETRIES:
@@ -181,32 +240,34 @@ async def _fetch_page(
                     logger.debug(
                         "Crawl: HTTP %d for %s, retrying in %.1fs",
                         response.status_code,
-                        url,
+                        current_url,
                         backoff,
                     )
                     await asyncio.sleep(backoff)
+                    attempt += 1
                     continue
 
                 if response.status_code >= 400:
-                    logger.debug("Crawl: HTTP %d for %s", response.status_code, url)
+                    logger.debug("Crawl: HTTP %d for %s", response.status_code, current_url)
                     return None
 
                 html = await _bounded_read(response, MAX_RESPONSE_BYTES)
                 return html, final_url
 
         except httpx.HTTPError as exc:
-            last_error = exc
             if attempt < _MAX_RETRIES:
                 backoff = 0.5 * (2**attempt)
                 logger.debug(
-                    "Crawl: network error for %s: %s, retrying in %.1fs", url, exc, backoff
+                    "Crawl: network error for %s: %s, retrying in %.1fs",
+                    current_url,
+                    exc,
+                    backoff,
                 )
                 await asyncio.sleep(backoff)
+                attempt += 1
                 continue
-            logger.debug("Crawl: network error for %s: %s (giving up)", url, exc)
+            logger.debug("Crawl: network error for %s: %s (giving up)", current_url, exc)
             return None
-
-    return None
 
 
 async def _process_page(
@@ -479,7 +540,7 @@ async def crawl_and_diff(
     2. Build ``{filename: content_hash}`` for every page.
     3. Compare with ``source["page_hashes"]`` to compute added/updated/removed.
     4. Write new/changed pages to ``raw_dir``.
-    5. Remove deleted pages from ``raw_dir``.
+    5. Report deleted pages for the caller to remove from raw storage and index.
     6. Build a navigation manifest.
 
     The caller is responsible for indexing and metadata persistence.
@@ -512,7 +573,7 @@ async def crawl_and_diff(
     page_files: list[str] = []
 
     for page in result.pages:
-        fname = _to_filename(page.url, base_path_prefix)
+        fname = _source_filename(source, page.url, base_path_prefix)
         current[fname] = page.content_hash
         page_contents[fname] = page.markdown
         page_urls[fname] = page.url
@@ -531,7 +592,13 @@ async def crawl_and_diff(
         elif old != chash:
             updated.append(fname)
         else:
-            unchanged.append(fname)
+            target = _contained_path(raw_dir, fname)
+            if target is not None and target.is_file():
+                unchanged.append(fname)
+            else:
+                # Metadata can outlive a manually removed/corrupt raw file.
+                # Re-stage it even though the remote content hash is stable.
+                updated.append(fname)
 
     for fname in old_hashes:
         if fname not in current:
@@ -543,18 +610,15 @@ async def crawl_and_diff(
         content = page_contents.get(fname, "")
         page_url = page_urls.get(fname, "")
         full_content = f"<!-- source: {page_url} -->\n\n{content}"
-        dest = raw_dir / fname
+        dest = _contained_path(raw_dir, fname)
+        if dest is None:
+            return CrawlDiff(ok=False, error=f"Unsafe page filename: {fname}", url=url)
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(full_content, encoding="utf-8")
         changed_paths.append(str(dest))
 
-    # 5. Remove deleted pages
-    for fname in removed:
-        target = raw_dir / fname
-        if target.exists():
-            target.unlink()
-
-    # 6. Build navigation manifest
+    # 5. Build navigation manifest. Deletions are deliberately left to the
+    # caller, which must purge both the raw file and the retrieval index.
     nav_manifest = build_navigation_manifest(
         result.navigation_links,
         result.navigation_kind,

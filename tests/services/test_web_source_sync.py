@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 
 from deeptutor.services.web_source.crawler import (
     CrawledPage,
     CrawlResult,
+    _fetch_page,
     _is_internal,
     _normalise_link,
+    _source_filename,
     _to_filename,
+    crawl_and_diff,
 )
 from deeptutor.services.web_source.sync import WebSyncResult, sync_source
 
@@ -56,6 +61,33 @@ def test_to_filename_no_prefix_collision():
     assert en == "docs/intro.md"
     assert zh == "zh-cn/docs/intro.md"
     assert en != zh
+
+
+def test_to_filename_contains_traversal_and_distinguishes_queries():
+    traversal = _to_filename("https://a.com/../../outside", "/")
+    assert ".." not in Path(traversal).parts
+    first = _to_filename("https://a.com/docs/search?q=alpha", "/docs")
+    second = _to_filename("https://a.com/docs/search?q=beta", "/docs")
+    assert first != second
+
+
+@pytest.mark.asyncio
+async def test_fetch_page_blocks_private_redirect_before_request():
+    requested: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested.append(str(request.url))
+        return httpx.Response(302, headers={"location": "http://127.0.0.1/private"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with patch(
+            "deeptutor.services.web_source.crawler._is_disallowed_host",
+            side_effect=lambda host: host == "127.0.0.1",
+        ):
+            result = await _fetch_page("https://docs.example.com/start", client=client)
+
+    assert result is None
+    assert requested == ["https://docs.example.com/start"]
 
 
 def _make_kb(tmp_path: Path, kb_name: str = "kb") -> tuple[str, Path]:
@@ -109,8 +141,8 @@ async def test_sync_source_first_run(tmp_path: Path):
     # (no prefix stripping) so multiple web sources sharing one KB
     # never collide.
     raw = kb_dir / "raw"
-    assert (raw / "docs.md").exists()
-    assert (raw / "docs" / "intro.md").exists()
+    assert len(list(raw.rglob("docs.md"))) == 1
+    assert len(list(raw.rglob("intro.md"))) == 1
 
 
 @pytest.mark.asyncio
@@ -121,7 +153,11 @@ async def test_sync_source_unchanged_pages(tmp_path: Path):
     mgr = KnowledgeBaseManager(base_dir=base_dir)
     source = mgr.add_web_source("kb", "https://example.com/docs/")
     # Pre-populate hashes to simulate prior sync
-    source["page_hashes"] = {"docs.md": "aaa"}
+    filename = _source_filename(source, "https://example.com/docs/", "/docs/")
+    source["page_hashes"] = {filename: "aaa"}
+    unchanged_path = kb_dir / "raw" / filename
+    unchanged_path.parent.mkdir(parents=True, exist_ok=True)
+    unchanged_path.write_text("# Home", encoding="utf-8")
 
     mock_result = CrawlResult(
         pages=[
@@ -173,7 +209,8 @@ async def test_sync_source_indexing_failure_keeps_previous_hashes(tmp_path: Path
 
     manager = KnowledgeBaseManager(base_dir=base_dir)
     source = manager.add_web_source("kb", "https://example.com/docs/")
-    source["page_hashes"] = {"docs.md": "old"}
+    filename = _source_filename(source, "https://example.com/docs/", "/docs/")
+    source["page_hashes"] = {filename: "old"}
     manager.update_web_source_state("kb", source["id"], page_hashes=source["page_hashes"])
     result = CrawlResult(
         pages=[
@@ -201,7 +238,79 @@ async def test_sync_source_indexing_failure_keeps_previous_hashes(tmp_path: Path
     state = manager.get_web_sources("kb")[0]
     assert state["last_sync_status"] == "error"
     assert "index unavailable" in state["last_sync_error"]
-    assert state["page_hashes"] == {"docs.md": "old"}
+    assert state["page_hashes"] == {filename: "old"}
+
+
+@pytest.mark.asyncio
+async def test_sources_with_same_page_path_use_distinct_raw_files(tmp_path: Path):
+    raw_dir = tmp_path / "raw"
+    source_a = {"id": "a", "url": "https://a.example/docs", "page_hashes": {}}
+    source_b = {"id": "b", "url": "https://b.example/docs", "page_hashes": {}}
+    crawls = [
+        CrawlResult(pages=[CrawledPage("https://a.example/docs/intro", "A", "body A", "a")]),
+        CrawlResult(pages=[CrawledPage("https://b.example/docs/intro", "B", "body B", "b")]),
+    ]
+
+    with patch(
+        "deeptutor.services.web_source.crawler.crawl_docs_site",
+        new_callable=AsyncMock,
+    ) as mock_crawl:
+        mock_crawl.side_effect = crawls
+        first = await crawl_and_diff(source_a, raw_dir)
+        second = await crawl_and_diff(source_b, raw_dir)
+
+    assert first.changed_paths != second.changed_paths
+    assert all(Path(path).exists() for path in first.changed_paths + second.changed_paths)
+
+
+@pytest.mark.asyncio
+async def test_removed_page_is_purged_before_full_index_rebuild(tmp_path: Path):
+    base_dir, kb_dir = _make_kb(tmp_path)
+    from deeptutor.knowledge.manager import KnowledgeBaseManager
+
+    manager = KnowledgeBaseManager(base_dir=base_dir)
+    source = manager.add_web_source("kb", "https://example.com/docs/")
+    old_name = _source_filename(source, "https://example.com/docs/old", "/docs/")
+    source["page_hashes"] = {old_name: "old"}
+    manager.update_web_source_state("kb", source["id"], page_hashes=source["page_hashes"])
+    old_path = kb_dir / "raw" / old_name
+    old_path.parent.mkdir(parents=True, exist_ok=True)
+    old_path.write_text("old page", encoding="utf-8")
+    metadata_path = kb_dir / "metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["file_hashes"] = {old_name: "old"}
+    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+
+    crawl = CrawlResult(
+        pages=[
+            CrawledPage(
+                "https://example.com/docs/current",
+                "Current",
+                "current page",
+                "current",
+            )
+        ]
+    )
+    with patch(
+        "deeptutor.services.web_source.crawler.crawl_docs_site",
+        new_callable=AsyncMock,
+        return_value=crawl,
+    ):
+        with patch(
+            "deeptutor.services.rag.service.RAGService.initialize",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as rebuild:
+            outcome = await sync_source("kb", source, base_dir=base_dir)
+
+    assert outcome.ok is True
+    assert outcome.pages_removed == 1
+    assert not old_path.exists()
+    assert rebuild.await_count == 1
+    rebuilt_paths = rebuild.await_args.kwargs["file_paths"]
+    assert all(old_name not in path for path in rebuilt_paths)
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert old_name not in metadata.get("file_hashes", {})
 
 
 # ── Navigation extraction tests ──────────────────────────────────────
