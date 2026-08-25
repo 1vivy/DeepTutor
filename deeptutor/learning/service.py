@@ -478,10 +478,9 @@ class LearningService:
 
                 stored = str(interaction.user_answer or "")
                 incoming = str(answer or "")
-                if (
-                    not is_readable_choice_answer(stored, interaction.question.options)
-                    and is_readable_choice_answer(incoming, interaction.question.options)
-                ):
+                if not is_readable_choice_answer(
+                    stored, interaction.question.options
+                ) and is_readable_choice_answer(incoming, interaction.question.options):
                     interaction.user_answer = incoming
                     interaction.session_id = session_id or interaction.session_id
                     interaction.turn_id = turn_id or interaction.turn_id

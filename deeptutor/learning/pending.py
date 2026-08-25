@@ -178,7 +178,41 @@ def is_readable_choice_answer(answer: str, options: list[str] | dict[str, str]) 
     option_map = parse_options(options) if isinstance(options, list) else options
     if not option_map:
         return False
-    return bool(resolve_choice_submission(answer, option_map))
+    candidate = str(answer or "").strip()
+    resolved = resolve_choice_submission(candidate, option_map)
+    if not resolved:
+        return False
+
+    # Exact labels (optionally followed by declarative punctuation), labelled
+    # answers, and exact option bodies are unambiguous without extra wording.
+    if re.fullmatch(rf"{re.escape(resolved)}[。.!！]?", candidate, re.IGNORECASE):
+        return True
+    prefix_match = OPTION_PREFIX_RE.match(candidate)
+    if prefix_match and prefix_match.group(1).upper() == resolved:
+        return True
+    if _squeezed(candidate) == _squeezed(option_map[resolved]):
+        return True
+
+    # Merely mentioning one label is not an answer. In particular, questions
+    # such as "why is B wrong?" used to resolve to B and freeze the gate.
+    if re.search(
+        r"[?？]|\b(?:why|what|how|can|could|would|explain)\b|"
+        r"(?:为什么|为何|怎么|如何|什么|解释一下|请解释)",
+        candidate,
+        re.IGNORECASE,
+    ):
+        return False
+
+    label = re.escape(resolved)
+    return bool(
+        re.search(
+            rf"(?:\b(?:answer(?:\s+is)?|choose|pick|select|"
+            rf"think(?:\s+it(?:'s|\s+is))?|go\s+with)\s*(?:option\s*)?{label}\b|"
+            rf"(?:答案(?:是|为)?|我?选(?:择)?|应该是|我觉得是)\s*{label})",
+            candidate,
+            re.IGNORECASE,
+        )
+    )
 
 
 @dataclass(frozen=True, slots=True)

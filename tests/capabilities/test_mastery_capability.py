@@ -193,7 +193,7 @@ async def test_choice_clarifying_composer_text_does_not_commit_answer(tmp_path, 
     await capability.on_user_resume(
         _context(),
         ask_user,
-        reply_text="先告诉我三角恒等式是什么？",
+        reply_text="为什么 B 不是正确答案？",
         answers=None,
     )
 
@@ -226,9 +226,7 @@ async def test_choice_composer_option_label_still_commits(tmp_path, monkeypatch)
     capability = MasteryLoopCapability()
 
     await capability.on_user_pause(_context(), ask_user)
-    await capability.on_user_resume(
-        _context(), ask_user, reply_text="选B", answers=None
-    )
+    await capability.on_user_resume(_context(), ask_user, reply_text="选B", answers=None)
 
     answered = LearningStore().get_interaction("path-1", "stable-question")
     assert answered is not None
