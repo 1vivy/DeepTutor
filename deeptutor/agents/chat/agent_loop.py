@@ -315,9 +315,7 @@ class AgentLoop:
                     max_tokens=self.pipeline.loop_max_tokens,
                     tool_schemas=self.tool_schemas,
                     defer_visible_output=self.pipeline._has_capability_finish_guard(self.context),
-                    tool_choice=(
-                        self.pipeline.initial_tool_choice if state.rounds == 0 else None
-                    ),
+                    tool_choice=(self.pipeline.initial_tool_choice if state.rounds == 0 else None),
                 )
             except Exception as exc:
                 # A mid-loop LLM failure (timeout / transient network) must not
