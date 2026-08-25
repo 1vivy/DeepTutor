@@ -286,6 +286,7 @@ class AgentLoop:
         exploration_budget = max(1, self.pipeline.effective_max_rounds(self.context))
         settlement_started = False
         nudged_empty_finish = False
+        finish_redirect_used = False
         continued_answer_parts: list[str] = []
         while True:
             settling = state.exploration_rounds >= exploration_budget
@@ -407,6 +408,15 @@ class AgentLoop:
                             ),
                         ),
                     )
+                    continue
+                finish_redirect = self.pipeline._capability_finish_instruction(
+                    self.context, final_text
+                )
+                if finish_redirect and not finish_redirect_used:
+                    finish_redirect_used = True
+                    if result.text:
+                        messages.append({"role": "assistant", "content": result.text})
+                    self._append_loop_instruction(messages, finish_redirect)
                     continue
                 # Finish: the text streamed live this round IS the answer.
                 return await self._finalize_finish(

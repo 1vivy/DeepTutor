@@ -529,6 +529,16 @@ async def test_mastery_tool_round_keeps_teaching_markdown_visible(
             )
             return schemas
 
+        async def execute(self, name: str, **kwargs):
+            if name == "ask_user":
+                self.executed.append({"name": name, "kwargs": kwargs})
+                return ToolResult(
+                    content="Asked the learner.",
+                    success=True,
+                    pause_for_user={"questions": kwargs["questions"]},
+                )
+            return await super().execute(name, **kwargs)
+
     explanation = (
         "### Binary addition\n\n"
         "| Carry | Sum |\n"
@@ -552,6 +562,19 @@ async def test_mastery_tool_round_keeps_teaching_markdown_visible(
                 ),
             ],
             [_llm_chunk(content="Choose the answer when you are ready.")],
+            [
+                _llm_chunk(
+                    tool_calls=[
+                        {
+                            "id": "ask-1",
+                            "name": "ask_user",
+                            "arguments": json.dumps(
+                                {"questions": [{"id": "q1", "prompt": "Which sum?"}]}
+                            ),
+                        }
+                    ]
+                )
+            ],
         ]
     )
     pipeline = AgenticChatPipeline(language="en")
@@ -559,7 +582,7 @@ async def test_mastery_tool_round_keeps_teaching_markdown_visible(
     monkeypatch.setattr(
         pipeline,
         "_compose_enabled_tools",
-        lambda _context: ["mastery_quiz"],
+        lambda _context: ["mastery_quiz", "ask_user"],
     )
     monkeypatch.setattr(pipeline, "_build_openai_client", lambda: client)
 
@@ -569,7 +592,7 @@ async def test_mastery_tool_round_keeps_teaching_markdown_visible(
             session_id="s1",
             user_message="Teach me binary addition",
             enabled_tools=["mastery_quiz"],
-            metadata={"mastery_mode": True, "mastery_path_id": "path-1"},
+            metadata={"mastery_mode": True, "mastery_path_id": ""},
         ),
     )
 
@@ -582,7 +605,130 @@ async def test_mastery_tool_round_keeps_teaching_markdown_visible(
     ]
     assert markers[0]["call_role"] == "narration"
     assert markers[0]["answer_visible"] is True
-    assert "".join(_contents(events)) == explanation + "Choose the answer when you are ready."
+    joined_content = "".join(_contents(events))
+    assert joined_content.startswith(explanation + "Choose the answer when you are ready.")
+    assert "Which sum?" in joined_content
+    assert client.call_count == 3
+    assert [row["name"] for row in registry.executed] == ["mastery_quiz", "ask_user"]
+    redirect = client.calls[2]["messages"][-1]
+    assert redirect["role"] == "user"
+    assert "mastery_quiz" in redirect["content"]
+    assert "ask_user" in redirect["content"]
+    result = _result(events)
+    assert result.metadata["completed"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "plain_quiz",
+    [
+        (
+            "Which expression builds a dictionary?\n\n"
+            "- A. `{w: words.count(w) for w in words}`\n"
+            "- B. `[w: words.count(w) for w in words]`\n"
+            "- C. `{w for w in words}`\n"
+            "- D. `(w: words.count(w) for w in words)`"
+        ),
+        (
+            "请选择正确的字典推导式：\n\n"
+            "- A. `{w: words.count(w) for w in words}`\n"
+            "- B. `[w: words.count(w) for w in words]`\n"
+            "- C. `{w for w in words}`\n"
+            "- D. `(w: words.count(w) for w in words)`"
+        ),
+    ],
+)
+async def test_mastery_plain_choice_finish_gets_one_protocol_redirect(
+    plain_quiz: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A prose A-D quiz cannot bypass the registered-card assessment flow."""
+
+    class _MasteryCardRegistry(_Registry):
+        async def execute(self, name: str, **kwargs):
+            if name == "ask_user":
+                self.executed.append({"name": name, "kwargs": kwargs})
+                return ToolResult(
+                    content="Asked the learner.",
+                    success=True,
+                    pause_for_user={"questions": kwargs["questions"]},
+                )
+            return await super().execute(name, **kwargs)
+
+    registry = _MasteryCardRegistry()
+    client = _ScriptedChatClient(
+        [
+            [_llm_chunk(content=plain_quiz)],
+            [
+                _llm_chunk(
+                    tool_calls=[
+                        {
+                            "id": "ask-1",
+                            "name": "ask_user",
+                            "arguments": json.dumps(
+                                {"questions": [{"id": "q1", "prompt": "Which expression?"}]}
+                            ),
+                        }
+                    ]
+                )
+            ],
+        ]
+    )
+    pipeline = AgenticChatPipeline(language="en")
+    pipeline.registry = registry
+    monkeypatch.setattr(pipeline, "_compose_enabled_tools", lambda _context: ["ask_user"])
+    monkeypatch.setattr(pipeline, "_build_openai_client", lambda: client)
+
+    events = await _run(
+        pipeline,
+        UnifiedContext(
+            session_id="s1",
+            user_message="Continue",
+            enabled_tools=["ask_user"],
+            metadata={"mastery_mode": True, "mastery_path_id": ""},
+        ),
+    )
+
+    assert client.call_count == 2
+    assert [row["name"] for row in registry.executed] == ["ask_user"]
+    redirect = client.calls[1]["messages"][-1]
+    assert redirect["role"] == "user"
+    assert "plain text" in redirect["content"]
+    assert "mastery_quiz" in redirect["content"]
+    assert "ask_user" in redirect["content"]
+    assert _result(events).metadata["completed"] is False
+
+
+@pytest.mark.asyncio
+async def test_mastery_labelled_teaching_examples_stay_direct(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A labelled teaching list is not itself an assessment prompt."""
+    registry = _Registry()
+    teaching = (
+        "Here are container spellings to remember:\n\n"
+        "- A. lists use brackets.\n"
+        "- B. dictionaries answer key lookups with braces and a colon.\n"
+        "- C. sets use braces without a colon."
+    )
+    client = _ScriptedChatClient([[_llm_chunk(content=teaching)]])
+    pipeline = AgenticChatPipeline(language="en")
+    pipeline.registry = registry
+    monkeypatch.setattr(pipeline, "_compose_enabled_tools", lambda _context: [])
+    monkeypatch.setattr(pipeline, "_build_openai_client", lambda: client)
+
+    events = await _run(
+        pipeline,
+        UnifiedContext(
+            session_id="s1",
+            user_message="Teach me Python containers",
+            metadata={"mastery_mode": True, "mastery_path_id": ""},
+        ),
+    )
+
+    assert client.call_count == 1
+    assert "".join(_contents(events)) == teaching
+    assert _result(events).metadata["completed"] is True
 
 
 @pytest.mark.asyncio

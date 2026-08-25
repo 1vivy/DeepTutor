@@ -40,6 +40,14 @@ _RECOMMENDATION_SUFFIX = re.compile(
     r"[\s　]*[（(]\s*(?:推荐|建议|recommended|recommend)\s*[)）][\s　]*$",
     re.IGNORECASE,
 )
+_PLAIN_CHOICE_OPTION_RE = re.compile(
+    r"^(?:[-*+]\s*)?(?:\*\*)?([A-D])(?:\*\*)?\s*[.、):：-]\s*(\S.*)$",
+    re.IGNORECASE,
+)
+_PLAIN_QUIZ_PROMPT_RE = re.compile(
+    r"\b(?:which|choose|select|answer)\b|选择|选哪个|请选择|请回答|答案",
+    re.IGNORECASE,
+)
 
 
 def _without_recommendation(text: Any) -> Any:
@@ -78,6 +86,26 @@ def _strip_answer_hints(kwargs: dict[str, Any]) -> dict[str, Any]:
             }
         )
     return {**kwargs, "questions": cleaned_questions}
+
+
+def _looks_like_plain_choice_quiz(text: str) -> bool:
+    """Recognise a rendered A-D option list with high precision.
+
+    The model may discuss labelled options while teaching. Requiring both an
+    assessment prompt and at least three distinct labelled answer bodies keeps
+    ordinary prose, headings, and option-like vocabulary examples out of this
+    protocol guard.
+    """
+    labels: set[str] = set()
+    prompt_lines: list[str] = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        match = _PLAIN_CHOICE_OPTION_RE.match(line)
+        if match:
+            labels.add(match.group(1).upper())
+        else:
+            prompt_lines.append(line)
+    return len(labels) >= 3 and any(_PLAIN_QUIZ_PROMPT_RE.search(line) for line in prompt_lines)
 
 
 def _bind_pending_ask_user_args(kwargs: dict[str, Any], path_id: str) -> dict[str, Any]:
@@ -152,11 +180,16 @@ class MasteryLoopCapability:
             return kwargs
         path_id = str(context.metadata.get("mastery_path_id") or "").strip()
         if tool_name == "ask_user":
+            context.metadata["_mastery_quiz_needs_card"] = False
             # Strip hints last, so a card rebound from persisted state is
             # cleaned too — the persisted options were model-authored as well.
             return _strip_answer_hints(_bind_pending_ask_user_args(kwargs, path_id))
         if tool_name in MASTERY_TOOL_NAMES:
             updated = dict(kwargs)
+            if tool_name == "mastery_quiz":
+                context.metadata["_mastery_quiz_needs_card"] = True
+            elif tool_name == "mastery_grade":
+                context.metadata["_mastery_quiz_needs_card"] = False
             updated["_mastery_path_id"] = path_id
             updated["_session_id"] = str(context.session_id or "").strip()
             updated["_turn_id"] = str(context.metadata.get("turn_id") or "").strip()
@@ -168,6 +201,26 @@ class MasteryLoopCapability:
                 updated["_bind_active_path"] = _path_binder(context)
             return updated
         return kwargs
+
+    def finish_instruction(self, context: UnifiedContext, final_text: str) -> str | None:
+        """Redirect a quantitative assessment away from a plain-text finish."""
+        if not self.is_active(context):
+            return None
+        if context.metadata.get("_mastery_plain_quiz_guard_used"):
+            return None
+
+        needs_card = bool(context.metadata.get("_mastery_quiz_needs_card"))
+        if not needs_card and not _looks_like_plain_choice_quiz(final_text):
+            return None
+
+        context.metadata["_mastery_plain_quiz_guard_used"] = True
+        return (
+            "The previous reply tried to finish a mastery assessment as plain text. "
+            "Do not repeat the question in prose. First ensure the question and its "
+            "answer are registered with mastery_quiz (retry it if the previous call "
+            "failed), then present the persisted question with ask_user and stop for "
+            "the learner's answer."
+        )
 
     def pre_loop_seed(self, context: UnifiedContext) -> str:
         _ = context
