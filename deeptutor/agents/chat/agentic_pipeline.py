@@ -727,6 +727,13 @@ class AgenticChatPipeline:
                 return content
         return ""
 
+    def _has_capability_finish_guard(self, context: UnifiedContext) -> bool:
+        """Whether a capability may need to inspect a tool-less finish first."""
+        return any(
+            callable(getattr(cap, "finish_instruction", None))
+            for cap in self._active_loop_capabilities(context)
+        )
+
     async def _capability_pre_loop_briefings(
         self,
         context: UnifiedContext,

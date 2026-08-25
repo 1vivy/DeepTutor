@@ -606,7 +606,8 @@ async def test_mastery_tool_round_keeps_teaching_markdown_visible(
     assert markers[0]["call_role"] == "narration"
     assert markers[0]["answer_visible"] is True
     joined_content = "".join(_contents(events))
-    assert joined_content.startswith(explanation + "Choose the answer when you are ready.")
+    assert joined_content.startswith(explanation)
+    assert "Choose the answer when you are ready." not in joined_content
     assert "Which sum?" in joined_content
     assert client.call_count == 3
     assert [row["name"] for row in registry.executed] == ["mastery_quiz", "ask_user"]
@@ -697,6 +698,46 @@ async def test_mastery_plain_choice_finish_gets_one_protocol_redirect(
     assert "mastery_quiz" in redirect["content"]
     assert "ask_user" in redirect["content"]
     assert _result(events).metadata["completed"] is False
+    assert plain_quiz not in "".join(_contents(events))
+
+
+@pytest.mark.asyncio
+async def test_repeated_plain_choice_failure_is_never_published_as_a_finish(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One retry is bounded, but its second invalid quiz still cannot finish."""
+    plain_quiz = "Which value is correct?\n\nA. one\nB. two\nC. three\nD. four"
+    client = _ScriptedChatClient(
+        [[_llm_chunk(content=plain_quiz)], [_llm_chunk(content=plain_quiz)]]
+    )
+    pipeline = AgenticChatPipeline(language="en")
+    pipeline.registry = _Registry()
+    monkeypatch.setattr(pipeline, "_compose_enabled_tools", lambda _context: ["ask_user"])
+    monkeypatch.setattr(pipeline, "_build_openai_client", lambda: client)
+
+    events = await _run(
+        pipeline,
+        UnifiedContext(
+            session_id="s1",
+            user_message="Continue",
+            enabled_tools=["ask_user"],
+            metadata={"mastery_mode": True, "mastery_path_id": ""},
+        ),
+    )
+
+    assert client.call_count == 2
+    assert plain_quiz not in "".join(_contents(events))
+    rejected_calls = [
+        event.metadata
+        for event in events
+        if event.type == StreamEventType.PROGRESS and event.metadata.get("finish_rejected") is True
+    ]
+    assert len(rejected_calls) == 2
+    assert all(metadata["call_state"] == "complete" for metadata in rejected_calls)
+    assert all(metadata["call_role"] == "narration" for metadata in rejected_calls)
+    result = _result(events)
+    assert result.metadata["completed"] is False
+    assert result.metadata["response"] == ""
 
 
 @pytest.mark.asyncio

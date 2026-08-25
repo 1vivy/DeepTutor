@@ -206,14 +206,10 @@ class MasteryLoopCapability:
         """Redirect a quantitative assessment away from a plain-text finish."""
         if not self.is_active(context):
             return None
-        if context.metadata.get("_mastery_plain_quiz_guard_used"):
-            return None
-
         needs_card = bool(context.metadata.get("_mastery_quiz_needs_card"))
         if not needs_card and not _looks_like_plain_choice_quiz(final_text):
             return None
 
-        context.metadata["_mastery_plain_quiz_guard_used"] = True
         return (
             "The previous reply tried to finish a mastery assessment as plain text. "
             "Do not repeat the question in prose. First ensure the question and its "
