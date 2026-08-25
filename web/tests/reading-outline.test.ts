@@ -62,40 +62,19 @@ test("extracts Markdown headings and skips fenced code", () => {
   ]);
 });
 
-test("heading anchors survive annotation run boundaries", () => {
-  const headings = extractReaderHeadings(["# Title\nBody\n## Next"], 4);
-  const mark = { id: "annotation" };
-  const lines = readerLinesWithHeadings(
-    [
-      { text: "# Ti", mark: null },
-      { text: "tle", mark },
-      { text: "\nBody\n## Next", mark: null },
-    ],
-    headings,
-  );
+test("heading anchors preserve the exact source used by annotation selectors", () => {
+  const sourceText = "  # Title ##\r\nBody\n```md\n# Code\n```\n## Next\n";
+  const headings = extractReaderHeadings([sourceText], 4);
+  const lines = readerLinesWithHeadings(sourceText, headings);
 
   assert.equal(lines[0].heading?.id, "dt-reader-heading-4-1");
-  assert.deepEqual(lines[0].parts, [
-    { text: "Ti", mark: null },
-    { text: "tle", mark },
-  ]);
-  assert.equal(lines[2].heading?.id, "dt-reader-heading-4-2");
-});
-
-test("a fully highlighted heading cannot hide later anchors", () => {
-  const headings = extractReaderHeadings(["# First\n## Second"], 2);
-  const mark = { id: "annotation" };
-  const lines = readerLinesWithHeadings(
-    [
-      { text: "# First\n", mark },
-      { text: "## Second", mark: null },
-    ],
-    headings,
+  assert.equal(lines[3].heading, null);
+  assert.equal(lines[5].heading?.id, "dt-reader-heading-4-2");
+  assert.equal(
+    lines.map((line) => line.text).join("\n"),
+    sourceText,
+    "DOM text must retain Markdown markers, CRLF characters, and final newline",
   );
-
-  assert.equal(lines[0].heading?.id, "dt-reader-heading-2-1");
-  assert.equal(lines[0].parts[0].mark, mark);
-  assert.equal(lines[1].heading?.id, "dt-reader-heading-2-2");
 });
 
 test("active heading follows the reading container", () => {
@@ -133,4 +112,5 @@ test("reader outline is persistent, searchable, and wired to page headings", () 
   assert.match(textReader, /container\.scrollTo\(/);
   assert.match(textReader, /elementRect\.top - containerRect\.top/);
   assert.doesNotMatch(textReader, /element\.offsetTop - 72/);
+  assert.doesNotMatch(textReader, /segmentTextByQuotes|<mark/);
 });

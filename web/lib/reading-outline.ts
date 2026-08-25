@@ -11,13 +11,9 @@ export interface ReaderHeading {
   level: number;
 }
 
-export interface ReaderTextPart<T> {
+export interface ReaderDisplayLine {
+  /** The original source line, including Markdown heading markers. */
   text: string;
-  mark: T | null;
-}
-
-export interface ReaderDisplayLine<T> {
-  parts: ReaderTextPart<T>[];
   heading: ReaderHeading | null;
 }
 
@@ -35,81 +31,39 @@ export function readerHeadingLine(line: string): ReaderHeading | null {
   return { id: "", title, level: match[1].length };
 }
 
-function headingTextRange(
-  line: string,
-): { heading: ReaderHeading; start: number; end: number } | null {
-  const leading = line.search(/\S/);
-  if (leading < 0) return null;
-  const trimmed = line.trim();
-  const prefix = /^(#{1,6})\s+/.exec(trimmed);
-  const heading = readerHeadingLine(line);
-  if (!prefix || !heading) return null;
-  const start = leading + prefix[0].length;
-  return { heading, start, end: start + heading.title.length };
-}
-
-function sliceParts<T>(
-  parts: ReaderTextPart<T>[],
-  start: number,
-  end: number,
-): ReaderTextPart<T>[] {
-  const selected: ReaderTextPart<T>[] = [];
-  let offset = 0;
-  for (const part of parts) {
-    const partEnd = offset + part.text.length;
-    const from = Math.max(start, offset);
-    const to = Math.min(end, partEnd);
-    if (from < to) {
-      selected.push({
-        text: part.text.slice(from - offset, to - offset),
-        mark: part.mark,
-      });
-    }
-    offset = partEnd;
-  }
-  return selected;
-}
-
-/** Rebuild logical lines after annotation segmentation, then attach headings. */
-export function readerLinesWithHeadings<T>(
-  runs: ReaderTextPart<T>[],
+/**
+ * Attach outline entries to source lines without changing a single character.
+ *
+ * Recogito's TextPosition selectors resolve against ``article.textContent``.
+ * Keeping the Markdown markers and the original newline text nodes here makes
+ * that DOM text exactly equal to the text used when an annotation was saved.
+ */
+export function readerLinesWithHeadings(
+  text: string,
   headings: ReaderHeading[],
-): ReaderDisplayLine<T>[] {
-  const lines: ReaderTextPart<T>[][] = [[]];
-  for (const run of runs) {
-    const chunks = run.text.split("\n");
-    chunks.forEach((chunk, index) => {
-      if (chunk) lines[lines.length - 1].push({ text: chunk, mark: run.mark });
-      if (index < chunks.length - 1) lines.push([]);
-    });
-  }
-
+): ReaderDisplayLine[] {
   let fence: string | null = null;
   let headingIndex = 0;
-  return lines.map((parts) => {
-    const text = parts.map((part) => part.text).join("");
-    const fenceMatch = /^\s*(`{3,}|~{3,})/.exec(text);
+  return text.split("\n").map((line) => {
+    const fenceMatch = /^\s*(`{3,}|~{3,})/.exec(line);
     if (fenceMatch) {
       if (!fence) fence = fenceMatch[1];
-      else if (text.trim().startsWith(fence)) fence = null;
-      return { parts, heading: null };
+      else if (line.trim().startsWith(fence)) fence = null;
+      return { text: line, heading: null };
     }
-    if (fence) return { parts, heading: null };
+    if (fence) return { text: line, heading: null };
 
-    const details = headingTextRange(text);
-    if (!details) return { parts, heading: null };
+    const parsed = readerHeadingLine(line);
+    if (!parsed) return { text: line, heading: null };
     const expected = headings[headingIndex++];
     if (
       !expected ||
-      expected.title !== details.heading.title ||
-      expected.level !== details.heading.level
+      expected.title !== parsed.title ||
+      expected.level !== parsed.level
     ) {
-      return { parts, heading: null };
+      return { text: line, heading: null };
     }
-    return {
-      parts: sliceParts(parts, details.start, details.end),
-      heading: expected,
-    };
+    return { text: line, heading: expected };
   });
 }
 

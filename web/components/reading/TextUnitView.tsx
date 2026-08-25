@@ -40,7 +40,6 @@ import {
   readerLinesWithHeadings,
   type ReaderHeading,
 } from "@/lib/reading-outline";
-import { segmentTextByQuotes } from "@/lib/reading-quote-locator";
 import { cleanQuote } from "@/lib/reading-selection";
 import { toRecogitoTextAnnotation } from "@/lib/reading-w3c-annotations";
 import type { JumpRequest, SelectionPayload } from "./PdfDocumentView";
@@ -319,15 +318,6 @@ export function TextUnitView({
     text,
   ]);
 
-  const runs = useMemo(
-    () =>
-      segmentTextByQuotes(
-        text,
-        annotations.filter((annotation) => annotation.locator === locator),
-      ),
-    [annotations, locator, text],
-  );
-
   const pageHeadings = useMemo(
     () => extractReaderHeadings([text], locator),
     [locator, text],
@@ -554,12 +544,7 @@ export function TextUnitView({
                 {t("This section has no extractable text.")}
               </span>
             ) : (
-              <RunsWithHeadings
-                runs={runs}
-                headings={pageHeadings}
-                highlightedAnnotationId={highlightedAnnotationId}
-                onAnnotationClick={onAnnotationClick}
-              />
+              <TextWithHeadings text={text} headings={pageHeadings} />
             )}
           </article>
         )}
@@ -600,21 +585,14 @@ function PreferenceButton({
   );
 }
 
-function RunsWithHeadings({
-  runs,
+function TextWithHeadings({
+  text,
   headings,
-  highlightedAnnotationId,
-  onAnnotationClick,
 }: {
-  runs: Array<{ text: string; mark: AnnotationItem | null }>;
+  text: string;
   headings: ReaderHeading[];
-  highlightedAnnotationId?: string | null;
-  onAnnotationClick?: (annotation: AnnotationItem) => void;
 }) {
-  const lines = useMemo(
-    () => readerLinesWithHeadings(runs, headings),
-    [headings, runs],
-  );
+  const lines = useMemo(() => readerLinesWithHeadings(text, headings), [headings, text]);
 
   return (
     <>
@@ -625,72 +603,26 @@ function RunsWithHeadings({
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
           return (
             <Fragment key={key}>
-              {lineIndex > 0 && <br />}
+              {lineIndex > 0 && "\n"}
               <Heading
                 id={line.heading.id}
                 data-reader-heading-id={line.heading.id}
                 className="mt-5 mb-2 font-serif text-[var(--foreground)] first:mt-0"
               >
-                <RunParts
-                  parts={line.parts}
-                  highlightedAnnotationId={highlightedAnnotationId}
-                  onAnnotationClick={onAnnotationClick}
-                />
+                {line.text}
               </Heading>
             </Fragment>
           );
         }
         return (
           <Fragment key={key}>
-            {lineIndex > 0 && <br />}
-            <RunParts
-              parts={line.parts}
-              highlightedAnnotationId={highlightedAnnotationId}
-              onAnnotationClick={onAnnotationClick}
-            />
+            {lineIndex > 0 && "\n"}
+            {line.text}
           </Fragment>
         );
       })}
     </>
   );
-}
-
-function RunParts({
-  parts,
-  highlightedAnnotationId,
-  onAnnotationClick,
-}: {
-  parts: Array<{ text: string; mark: AnnotationItem | null }>;
-  highlightedAnnotationId?: string | null;
-  onAnnotationClick?: (annotation: AnnotationItem) => void;
-}) {
-  return parts.map((part, index) => {
-    if (!part.mark) return <span key={index}>{part.text}</span>;
-    return (
-      <mark
-        key={index}
-        title={part.mark.note || undefined}
-        onClick={() => onAnnotationClick?.(part.mark as AnnotationItem)}
-        className={`cursor-pointer rounded-[2px] px-[1px] text-[var(--foreground)] ${
-          part.mark.annotation_id === highlightedAnnotationId
-            ? "ring-2 ring-[var(--ring)]"
-            : ""
-        }`}
-        style={{
-          background:
-            part.mark.kind === "underline"
-              ? "transparent"
-              : `rgb(${COLOR_INK[part.mark.color] ?? COLOR_INK.yellow} / 0.55)`,
-          borderBottom:
-            part.mark.kind === "underline"
-              ? `2px solid rgb(${COLOR_INK[part.mark.color] ?? COLOR_INK.yellow})`
-              : undefined,
-        }}
-      >
-        {part.text}
-      </mark>
-    );
-  });
 }
 
 /** Translatable label for a unit kind. Keys are literal so i18n can find them. */
