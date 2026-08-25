@@ -12,16 +12,18 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import threading
-from typing import Any
+from typing import TYPE_CHECKING, Any
 import uuid
 import xml.etree.ElementTree as ET
 import zipfile
 
 from deeptutor.reading.models import MaterialManifest, ReadingError
-from deeptutor.reading.store import ReadingStore
+
+if TYPE_CHECKING:
+    from deeptutor.reading.store import ReadingStore
 
 PAIRINGS_NAME = "_epub_pairings.json"
 _PAIRING_WRITE_LOCK = threading.Lock()
@@ -35,9 +37,17 @@ def _metadata(epub: Path) -> dict[str, str]:
     """Read enough OPF metadata to rank, never to pair automatically."""
     try:
         with zipfile.ZipFile(epub) as archive:
-            opf_name = next(name for name in archive.namelist() if name.casefold().endswith(".opf"))
+            container = ET.fromstring(archive.read("META-INF/container.xml"))
+            rootfile = next(
+                element
+                for element in container.iter()
+                if _local_name(element.tag) == "rootfile" and element.get("full-path")
+            )
+            opf_name = str(PurePosixPath(rootfile.attrib["full-path"]))
+            if opf_name.startswith("/") or ".." in PurePosixPath(opf_name).parts:
+                return {}
             root = ET.fromstring(archive.read(opf_name))
-    except (OSError, StopIteration, zipfile.BadZipFile, ET.ParseError):
+    except (KeyError, OSError, StopIteration, zipfile.BadZipFile, ET.ParseError):
         return {}
 
     wanted = ("title", "creator", "identifier", "language")
@@ -93,8 +103,8 @@ def recommend_epub_candidates(store: ReadingStore, material_id: str) -> list[dic
             and source_meta.get("identifier") == metadata.get("identifier")
         )
         author_match = bool(
-            source_meta.get("author")
-            and source_meta.get("author").casefold() == metadata.get("creator", "").casefold()
+            source_meta.get("creator")
+            and source_meta.get("creator", "").casefold() == metadata.get("creator", "").casefold()
         )
         candidate_language = _language(metadata.get("language") or "")
         language_bonus = float(
@@ -177,8 +187,10 @@ def create_epub_pairing(
     chinese_path = _raw_epub(store, chinese.material_id, "The Chinese EPUB is unavailable.")
     english_language = _language(_metadata(english_path).get("language") or "")
     chinese_language = _language(_metadata(chinese_path).get("language") or "")
-    if english_language == chinese_language:
-        raise ReadingError("Pair an English EPUB with a different-language edition.")
+    if english_language != "en":
+        raise ReadingError("The English pairing source must declare an English language.")
+    if chinese_language != "zh":
+        raise ReadingError("The Chinese pairing source must declare a Chinese language.")
 
     pairing_id = hashlib.sha256(
         f"{english.material_id}\0{chinese.material_id}".encode("utf-8")
@@ -203,8 +215,8 @@ def create_epub_pairing(
 
 def delete_epub_pairing(store: ReadingStore, pairing_id: str) -> bool:
     """Remove the pairing record while preserving both source materials."""
-    rows = list_epub_pairings(store)
     with _PAIRING_WRITE_LOCK:
+        rows = list_epub_pairings(store)
         remaining = [row for row in rows if row.get("pairing_id") != pairing_id]
         if len(remaining) == len(rows):
             return False
@@ -212,9 +224,27 @@ def delete_epub_pairing(store: ReadingStore, pairing_id: str) -> bool:
         return True
 
 
+def delete_epub_pairings_for_material(store: ReadingStore, material_id: str) -> int:
+    """Remove every pairing that would dangle after a material is deleted."""
+
+    with _PAIRING_WRITE_LOCK:
+        rows = list_epub_pairings(store)
+        remaining = [
+            row
+            for row in rows
+            if row.get("english_material_id") != material_id
+            and row.get("chinese_material_id") != material_id
+        ]
+        removed = len(rows) - len(remaining)
+        if removed:
+            _atomic_write(_pairing_path(store), json.dumps(remaining, ensure_ascii=False, indent=2))
+        return removed
+
+
 __all__ = [
     "create_epub_pairing",
     "delete_epub_pairing",
+    "delete_epub_pairings_for_material",
     "list_epub_pairings",
     "recommend_epub_candidates",
 ]
