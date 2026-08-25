@@ -52,6 +52,10 @@ class ProviderSpec:
     # explicit reasoning_effort, the provider auto-injects "high" so the
     # thinking_style flag (e.g. extra_body.thinking.type=enabled) is sent.
     reasoning_model_patterns: tuple[str, ...] = ()
+    # Exact model ids whose Responses API executes `web_search` server-side.
+    # Exact matching is intentional: providers often expose Responses only on
+    # one model even when sibling models share the same family prefix.
+    native_web_search_models: tuple[str, ...] = ()
 
     @property
     def mode(self) -> str:
@@ -324,6 +328,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         default_api_base="https://api.deepseek.com",
         thinking_style="thinking_type",
         reasoning_model_patterns=("deepseek-v4-pro", "deepseek-reasoner"),
+        native_web_search_models=("deepseek-v4-flash",),
     ),
     ProviderSpec(
         name="gemini",
