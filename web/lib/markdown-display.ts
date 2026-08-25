@@ -1,6 +1,7 @@
 "use client";
 
-const ZERO_WIDTH_REGEX = /[\u200B-\u200D\uFEFF]/g;
+const INVISIBLE_CONTROL_REGEX =
+  /[\u200B-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/g;
 const EMPTY_DETAILS_REGEX =
   /<details(?:\s[^>]*)?>\s*(<summary(?:\s[^>]*)?>\s*(?:&nbsp;|\s|<br\s*\/?>)*\s*<\/summary>\s*)?<\/details>/gi;
 const EMPTY_SUMMARY_REGEX =
@@ -16,7 +17,7 @@ const EMPTY_HTML_BLOCK_REGEX =
 const HTML_TABLE_REGEX = /<table(?:\s[^>]*)?>[\s\S]*?<\/table>/gi;
 
 function stripInvisibleCharacters(value: string): string {
-  return value.replace(ZERO_WIDTH_REGEX, "");
+  return value.replace(INVISIBLE_CONTROL_REGEX, "");
 }
 
 // Tags that the renderer (rehype-raw + react-markdown) is allowed to render
@@ -668,8 +669,8 @@ function decodeEscapedUnicodeRun(escaped: string): string {
 export function normalizeMarkdownForDisplay(content: string): string {
   if (!content) return "";
 
-  const normalized = decodeEscapedUnicodeRuns(
-    stripInvisibleCharacters(String(content)).replace(/\r\n/g, "\n"),
+  const normalized = stripInvisibleCharacters(
+    decodeEscapedUnicodeRuns(String(content).replace(/\r\n/g, "\n")),
   )
     .replace(EMPTY_DETAILS_REGEX, "")
     .replace(EMPTY_SUMMARY_REGEX, "")
