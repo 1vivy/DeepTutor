@@ -441,6 +441,9 @@ export async function fetchMasteryTopics(
     init,
     "load topics",
   );
+  if (!Array.isArray(result.topics)) {
+    throw new Error("Failed to load topics: the server returned an invalid response");
+  }
   return result.topics;
 }
 
@@ -527,5 +530,10 @@ export async function fetchMasteryTopicSessions(
     init,
     "load topic sessions",
   );
+  if (!Array.isArray(result.sessions)) {
+    throw new Error(
+      "Failed to load topic sessions: the server returned an invalid response",
+    );
+  }
   return result.sessions;
 }

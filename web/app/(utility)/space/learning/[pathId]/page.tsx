@@ -20,7 +20,10 @@ import {
 
 import { AdventureMap } from "@/components/space/learning/AdventureMap";
 import { EditTopicRouteDialog } from "@/components/space/learning/EditTopicRouteDialog";
-import type { Translate } from "@/components/space/learning/format";
+import {
+  topicDisplayName,
+  type Translate,
+} from "@/components/space/learning/format";
 import { ReviewTrail } from "@/components/space/learning/ReviewTrail";
 import { SessionCamp } from "@/components/space/learning/SessionCamp";
 import { useMasteryPathActivity } from "@/hooks/useMasteryPathActivity";
@@ -97,6 +100,7 @@ export default function MasteryTopicPage() {
     () => topic?.sources.filter((source) => source.kind !== "goal").slice(0, 5) ?? [],
     [topic],
   );
+  const displayName = topic ? topicDisplayName(topic, tr) : "";
 
   const refresh = async () => {
     await Promise.all([loadTopic(), loadSessions()]);
@@ -223,7 +227,7 @@ export default function MasteryTopicPage() {
               </span>
               <div className="min-w-0">
                 <h1 className="truncate text-3xl font-semibold tracking-[-0.035em] text-[var(--foreground)] sm:text-[36px]">
-                  {topic.name}
+                  {displayName}
                 </h1>
                 <p className="mt-1 max-w-3xl text-sm text-[var(--muted-foreground)]">
                   {topic.metadata.description || topic.metadata.goal}

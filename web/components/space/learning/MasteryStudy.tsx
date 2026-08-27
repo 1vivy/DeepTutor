@@ -31,7 +31,7 @@ import { fetchMasteryTopic, type MasteryTopic } from "@/lib/learning-api";
 import { shouldSubmitOnEnter } from "@/lib/composer-keyboard";
 import { useImeComposing } from "@/lib/use-ime-composing";
 
-import type { Translate } from "./format";
+import { topicDisplayName, type Translate } from "./format";
 
 const STARTERS = [
   {
@@ -51,7 +51,7 @@ const STARTERS = [
   },
 ] as const;
 
-function currentWaypoint(topic: MasteryTopic) {
+function currentWaypoint(topic: MasteryTopic, fallback: string) {
   if (topic.next.knowledge_point_name) return topic.next.knowledge_point_name;
   for (const region of topic.map.modules) {
     const point = region.knowledge_points.find(
@@ -59,7 +59,7 @@ function currentWaypoint(topic: MasteryTopic) {
     );
     if (point) return point.name;
   }
-  return topic.map.complete ? "Journey complete" : topic.name;
+  return topic.map.complete ? "Journey complete" : fallback;
 }
 
 export function MasteryStudy({
@@ -267,7 +267,8 @@ export function MasteryStudy({
     );
   }
 
-  const waypoint = currentWaypoint(topic);
+  const displayName = topicDisplayName(topic, tr);
+  const waypoint = currentWaypoint(topic, displayName);
   const completed = topic.map.counts.mastered;
   const total = topic.map.counts.total;
   const progress = total ? Math.round((completed / total) * 100) : 0;
@@ -289,7 +290,7 @@ export function MasteryStudy({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="truncate text-sm font-semibold text-[var(--foreground)]">
-              {topic.name}
+              {displayName}
             </h1>
             <span className="hidden rounded-full bg-[var(--mastery-route)]/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.13em] text-[var(--mastery-route)] sm:inline">
               {tr("半引导学习", "Guided trail")}

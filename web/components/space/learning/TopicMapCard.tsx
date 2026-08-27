@@ -12,7 +12,7 @@ import {
 
 import type { MasteryTopic } from "@/lib/learning-api";
 
-import type { Translate } from "./format";
+import { topicDisplayName, type Translate } from "./format";
 
 const ACCENTS = ["#6f7f58", "#567e7a", "#9a6b4d", "#76688a", "#8a7650"];
 
@@ -49,13 +49,14 @@ export function TopicMapCard({
   const travelled = Math.max(0, Math.min(points.length - 1, Math.floor(progress * points.length)));
   const accent = ACCENTS[metadata.map_seed % ACCENTS.length];
   const due = topic.reviews.filter((review) => review.due).length;
+  const displayName = topicDisplayName(topic, tr);
 
   return (
     <Link
       href={`/space/learning/${encodeURIComponent(topic.path_id)}`}
       aria-label={tr(
-        `打开 ${topic.name}，已完成 ${mastered}/${total} 个关卡`,
-        `Open ${topic.name}, ${mastered} of ${total} waypoints complete`,
+        `打开 ${displayName}，已完成 ${mastered}/${total} 个关卡`,
+        `Open ${displayName}, ${mastered} of ${total} waypoints complete`,
       )}
       className="mastery-map-card group block overflow-hidden rounded-[22px] border border-[var(--border)] bg-[var(--card)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
     >
@@ -143,7 +144,7 @@ export function TopicMapCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="truncate text-[17px] font-semibold tracking-[-0.01em] text-[var(--foreground)]">
-              {topic.name}
+              {displayName}
             </h2>
             <p className="mt-1 line-clamp-2 min-h-10 text-[13px] leading-5 text-[var(--muted-foreground)]">
               {metadata.description || metadata.goal}

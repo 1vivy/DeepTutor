@@ -121,7 +121,10 @@ export class ReconnectingWebSocket {
     if (this.stopped) return;
     this.stopped = true;
     this.clearRetry();
-    this.releaseSocket();
+    // Closing a browser WebSocket while it is still CONNECTING emits a noisy
+    // console warning. Let that one finish its handshake, then close it without
+    // allowing any application callbacks to run.
+    this.releaseSocket(true);
     this.retryAttempt = 0;
   }
 
@@ -186,14 +189,18 @@ export class ReconnectingWebSocket {
     this.retryHandle = null;
   }
 
-  private releaseSocket(): void {
+  private releaseSocket(deferConnectingClose = false): void {
     const socket = this.socket;
     this.socket = null;
     if (!socket) return;
-    socket.onopen = null;
     socket.onmessage = null;
     socket.onerror = null;
     socket.onclose = null;
+    if (deferConnectingClose && socket.readyState === CONNECTING) {
+      socket.onopen = () => socket.close();
+      return;
+    }
+    socket.onopen = null;
     if (socket.readyState <= OPEN) socket.close();
   }
 }
