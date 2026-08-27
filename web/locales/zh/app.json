@@ -3402,5 +3402,10 @@
   "Tutor threads": "小老师追问",
   "Filter by archive status": "按归档状态筛选",
   "Active and archived": "进行中与已归档",
-  "Loading conversations": "正在加载聊天"
+  "Loading conversations": "正在加载聊天",
+  "Reranking": "重排序",
+  "Applies on the next query": "在下次查询时生效",
+  "Reranker model": "重排序模型",
+  "Leave empty to disable. Example: BAAI/bge-reranker-base. Requires the optional rag-rerank extra.": "留空表示禁用。示例：BAAI/bge-reranker-base。需要可选的 rag-rerank 依赖。",
+  "Rerank candidates": "重排序候选数"
 }

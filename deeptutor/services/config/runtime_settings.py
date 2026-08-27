@@ -251,6 +251,8 @@ DEFAULT_IMA_SETTINGS: dict[str, Any] = {
 # * ``top_k`` — default number of chunks a query returns.
 # * ``vector_top_k_multiplier`` / ``bm25_top_k_multiplier`` — how many extra
 #   candidates each child retriever fetches before fusion re-ranks to ``top_k``.
+# * ``reranker_model`` / ``rerank_top_k`` — optional cross-encoder refinement.
+#   An empty model keeps the exact existing embedding-only ranking.
 # * ``chunk_size`` / ``chunk_overlap`` — indexing chunk geometry; changes apply
 #   on the next (re-)index, not retroactively.
 # * ``image_description_concurrency`` / ``image_description_timeout_seconds`` —
@@ -269,6 +271,8 @@ DEFAULT_LLAMAINDEX_SETTINGS: dict[str, Any] = {
     "top_k": 5,
     "vector_top_k_multiplier": 2,
     "bm25_top_k_multiplier": 2,
+    "reranker_model": "",
+    "rerank_top_k": 50,
     "chunk_size": 512,
     "chunk_overlap": 50,
     "image_description_concurrency": 4,
@@ -829,6 +833,8 @@ class RuntimeSettingsService:
             "bm25_top_k_multiplier": _coerce_clamped_int(
                 settings.get("bm25_top_k_multiplier"), 2, 1, 10
             ),
+            "reranker_model": _string(settings.get("reranker_model"))[:200],
+            "rerank_top_k": _coerce_clamped_int(settings.get("rerank_top_k"), 50, 1, 100),
             "chunk_size": chunk_size,
             "chunk_overlap": chunk_overlap,
             "image_description_concurrency": _coerce_clamped_int(

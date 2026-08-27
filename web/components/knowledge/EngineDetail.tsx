@@ -263,6 +263,38 @@ function NumberField({
   );
 }
 
+function TextField({
+  label,
+  hint,
+  value,
+  maxLength,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: string;
+  maxLength: number;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[12px] font-medium text-[var(--foreground)]">
+        {label}
+      </span>
+      <input
+        type="text"
+        value={value}
+        maxLength={maxLength}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 text-[13px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--foreground)]/25"
+      />
+      {hint && (
+        <span className="text-[11px] text-[var(--muted-foreground)]">{hint}</span>
+      )}
+    </label>
+  );
+}
+
 /* ----------------------------- Mode selector ----------------------------- */
 
 function ModeSelector({
@@ -389,6 +421,8 @@ function LlamaIndexForm({
         top_k: form.top_k,
         vector_top_k_multiplier: form.vector_top_k_multiplier,
         bm25_top_k_multiplier: form.bm25_top_k_multiplier,
+        reranker_model: form.reranker_model,
+        rerank_top_k: form.rerank_top_k,
         chunk_size: form.chunk_size,
         chunk_overlap: form.chunk_overlap,
         image_description_concurrency: form.image_description_concurrency,
@@ -485,6 +519,36 @@ function LlamaIndexForm({
           disabled={!isHybrid}
           onChange={(v) => set({ bm25_top_k_multiplier: v })}
         />
+      </div>
+
+      {/* Reranking */}
+      <div>
+        <div className="mb-2 flex items-baseline justify-between gap-2">
+          <span className="text-[12px] font-medium text-[var(--foreground)]">
+            {t("Reranking")}
+          </span>
+          <span className="text-[11px] text-[var(--muted-foreground)]">
+            {t("Applies on the next query")}
+          </span>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[2fr_1fr]">
+          <TextField
+            label={t("Reranker model")}
+            hint={t(
+              "Leave empty to disable. Example: BAAI/bge-reranker-base. Requires the optional rag-rerank extra."
+            )}
+            value={form.reranker_model}
+            maxLength={200}
+            onChange={(v) => set({ reranker_model: v })}
+          />
+          <NumberField
+            label={t("Rerank candidates")}
+            value={form.rerank_top_k}
+            min={1}
+            max={100}
+            onChange={(v) => set({ rerank_top_k: v })}
+          />
+        </div>
       </div>
 
       {/* Chunking */}

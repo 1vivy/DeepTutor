@@ -58,6 +58,10 @@ export interface LlamaIndexConfig {
   top_k: number;
   vector_top_k_multiplier: number;
   bm25_top_k_multiplier: number;
+  /** Optional Hugging Face cross-encoder model; empty disables reranking. */
+  reranker_model: string;
+  /** First-stage candidates scored by the optional cross-encoder. */
+  rerank_top_k: number;
   /** Chunk geometry — applies to documents indexed after the change. */
   chunk_size: number;
   chunk_overlap: number;

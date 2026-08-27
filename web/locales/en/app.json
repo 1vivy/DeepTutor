@@ -3402,5 +3402,10 @@
   "Tutor threads": "Tutor threads",
   "Filter by archive status": "Filter by archive status",
   "Active and archived": "Active and archived",
-  "Loading conversations": "Loading conversations"
+  "Loading conversations": "Loading conversations",
+  "Reranking": "Reranking",
+  "Applies on the next query": "Applies on the next query",
+  "Reranker model": "Reranker model",
+  "Leave empty to disable. Example: BAAI/bge-reranker-base. Requires the optional rag-rerank extra.": "Leave empty to disable. Example: BAAI/bge-reranker-base. Requires the optional rag-rerank extra.",
+  "Rerank candidates": "Rerank candidates"
 }

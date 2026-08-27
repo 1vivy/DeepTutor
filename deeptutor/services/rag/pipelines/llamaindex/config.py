@@ -32,11 +32,20 @@ class RetrievalConfig:
     vector_top_k_multiplier: int = 2
     bm25_top_k_multiplier: int = 2
     fusion_num_queries: int = 1
+    reranker_model: str = ""
+    rerank_top_k: int = 50
 
     def candidate_top_k(self, top_k: int, multiplier: int) -> int:
         """Return the number of candidates to ask a child retriever for."""
         requested = max(1, int(top_k))
         return max(requested, requested * max(1, int(multiplier)))
+
+    def rerank_candidate_top_k(self, top_k: int) -> int:
+        """Return the first-stage candidate count before optional reranking."""
+        requested = max(1, int(top_k))
+        if not self.reranker_model:
+            return requested
+        return max(requested, min(100, max(1, int(self.rerank_top_k))))
 
 
 def normalize_retrieval_profile(value: str | None) -> str:
@@ -45,6 +54,11 @@ def normalize_retrieval_profile(value: str | None) -> str:
     if profile in SUPPORTED_RETRIEVAL_PROFILES:
         return profile
     return HYBRID_PROFILE
+
+
+def normalize_reranker_model(value: str | None) -> str:
+    """Return a bounded Hugging Face model identifier (empty disables rerank)."""
+    return (value or "").strip()[:200]
 
 
 def retrieval_config_from_env() -> RetrievalConfig:
@@ -85,6 +99,8 @@ def retrieval_config_from_settings() -> RetrievalConfig:
         profile=normalize_retrieval_profile(settings.get("retrieval_profile")),
         vector_top_k_multiplier=int(settings.get("vector_top_k_multiplier", 2) or 2),
         bm25_top_k_multiplier=int(settings.get("bm25_top_k_multiplier", 2) or 2),
+        reranker_model=normalize_reranker_model(settings.get("reranker_model")),
+        rerank_top_k=int(settings.get("rerank_top_k", 50) or 50),
     )
 
 
@@ -129,6 +145,7 @@ __all__ = [
     "default_top_k",
     "image_description_limits",
     "normalize_retrieval_profile",
+    "normalize_reranker_model",
     "retrieval_config_from_env",
     "retrieval_config_from_settings",
 ]

@@ -1297,6 +1297,8 @@ class LlamaIndexConfigUpdate(BaseModel):
     top_k: int | None = None
     vector_top_k_multiplier: int | None = None
     bm25_top_k_multiplier: int | None = None
+    reranker_model: str | None = None
+    rerank_top_k: int | None = None
     chunk_size: int | None = None
     chunk_overlap: int | None = None
     image_description_concurrency: int | None = None
