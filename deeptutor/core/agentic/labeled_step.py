@@ -100,6 +100,15 @@ class LabeledStepResult:
     label: str  # one of allowed_labels, or LABEL_UNKNOWN on protocol failure
     text: str  # post-label content with provider <think> tags cleaned
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    # ``finish_reason`` is authoritative when the provider sends it. Report
+    # writers use it to reject token-limit truncation instead of persisting a
+    # visibly cut-off section as a successful result.
+    finish_reason: str | None = None
+    # Some OpenAI-compatible gateways stop yielding chunks without closing
+    # the SSE response. The generic labeled-step reader keeps its bounded idle
+    # escape hatch, but exposes that fact so strict callers can retry rather
+    # than treating the partial text as complete.
+    stream_idle_timeout: bool = False
 
 
 async def run_labeled_step(
@@ -177,6 +186,7 @@ async def run_labeled_step(
     output_chars_seen = 0
     finish_reason_seen: str | None = None
     usage_trailer_waited = False
+    stream_idle_timeout = False
 
     async def _open_sub_trace() -> None:
         nonlocal sub_trace_opened
@@ -446,6 +456,8 @@ async def run_labeled_step(
                 # final-label answer (or an explicit finish_reason), but the
                 # gateway is holding the connection open.
                 if finish_reason_seen or label in final_labels:
+                    if not finish_reason_seen:
+                        stream_idle_timeout = True
                     break
                 raise
             if getattr(chunk, "usage", None):
@@ -552,4 +564,10 @@ async def run_labeled_step(
         text = clean_thinking_tags(text, binding, model)
     ordered_tool_calls = tc_acc.ordered()
     ordered_tool_calls = [tc for tc in ordered_tool_calls if tc.get("name")]
-    return LabeledStepResult(label=label, text=text, tool_calls=ordered_tool_calls)
+    return LabeledStepResult(
+        label=label,
+        text=text,
+        tool_calls=ordered_tool_calls,
+        finish_reason=finish_reason_seen,
+        stream_idle_timeout=stream_idle_timeout,
+    )

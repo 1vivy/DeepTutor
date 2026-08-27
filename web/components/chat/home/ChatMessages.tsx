@@ -70,6 +70,11 @@ import ContextReferenceTree, {
 import { AssistantActivity, NestedTraceFlow } from "./TracePanels";
 import { agentGlyph } from "@/components/agents/agent-icons";
 import { useConnectedAgentKinds } from "@/hooks/useConnectedAgentKinds";
+import {
+  authoritativeResearchReport,
+  isConfirmedResearchFollowup,
+  researchFollowupStatus,
+} from "@/lib/deep-research-report";
 
 const MathAnimatorViewer = dynamic(
   () => import("@/components/math-animator/MathAnimatorViewer"),
@@ -294,7 +299,7 @@ const AssistantMessage = memo(function AssistantMessage({
 }: {
   msg: { content: string; capability?: string; events?: StreamEvent[] };
   isStreaming?: boolean;
-  outlineStatus?: "editing" | "researching" | "done";
+  outlineStatus?: "editing" | "researching" | "done" | "failed";
   sessionId?: string | null;
   language?: string;
   researchRequestSnapshot?: MessageRequestSnapshot | null;
@@ -418,7 +423,9 @@ const AssistantMessage = memo(function AssistantMessage({
   );
 
   const researchInProgress =
-    outlineStatus === "researching" || outlineStatus === "done";
+    outlineStatus === "researching" ||
+    outlineStatus === "done" ||
+    outlineStatus === "failed";
   const showResearchBody =
     Boolean(outlinePreview) && researchInProgress && Boolean(msg.content);
 
@@ -1278,16 +1285,20 @@ export const ChatMessageList = memo(function ChatMessageList({
       const resultEv = msg.events?.find((e) => e.type === "result");
       const meta = resultEv?.metadata as Record<string, unknown> | undefined;
       if (!meta?.outline_preview) continue;
-      const followupIdx = visibleMessages
+      const nextResearchAssistantIdx = visibleMessages
         .slice(i + 1)
         .findIndex(
           (m) => m.role === "assistant" && m.capability === "deep_research",
         );
-      if (followupIdx === -1) continue;
-      const absoluteFollowupIdx = i + 1 + followupIdx;
+      if (nextResearchAssistantIdx === -1) continue;
+      const absoluteFollowupIdx = i + 1 + nextResearchAssistantIdx;
       const followup = visibleMessages[absoluteFollowupIdx];
+      if (!isConfirmedResearchFollowup(followup.events)) continue;
       const mergedEvents = [...(msg.events ?? []), ...(followup.events ?? [])];
-      const mergedContent = followup.content || msg.content;
+      const mergedContent = authoritativeResearchReport(
+        followup.events,
+        followup.content || msg.content,
+      );
       map.set(i, { mergedEvents, mergedContent });
       followupIndices.add(absoluteFollowupIdx);
     }
@@ -1295,7 +1306,10 @@ export const ChatMessageList = memo(function ChatMessageList({
   }, [visibleMessages]);
 
   const outlineStatusByIndex = useMemo(() => {
-    const map = new Map<number, "editing" | "researching" | "done">();
+    const map = new Map<
+      number,
+      "editing" | "researching" | "done" | "failed"
+    >();
     for (let i = 0; i < visibleMessages.length; i++) {
       const msg = visibleMessages[i];
       if (msg.role !== "assistant" || msg.capability !== "deep_research")
@@ -1308,11 +1322,8 @@ export const ChatMessageList = memo(function ChatMessageList({
         .find(
           (m) => m.role === "assistant" && m.capability === "deep_research",
         );
-      if (followup) {
-        const followupResult = followup.events?.find(
-          (e) => e.type === "result",
-        );
-        map.set(i, followupResult ? "done" : "researching");
+      if (followup && isConfirmedResearchFollowup(followup.events)) {
+        map.set(i, researchFollowupStatus(followup.events));
       } else {
         // The first deep_research turn only plans/rephrases/decomposes and
         // returns an outline preview. While that turn is still flushing

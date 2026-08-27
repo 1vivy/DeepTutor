@@ -41,6 +41,7 @@ import { hasPendingAskUserInMessages } from "@/lib/ask-user-state";
 import { notify } from "@/lib/notifications";
 import { forwardReaderAction } from "@/lib/reading-reader-action";
 import { readingTurnFields } from "@/lib/reading-turn-state";
+import { decideIdleTurnRecovery } from "@/lib/chat-idle-recovery";
 import i18n from "i18next";
 import {
   normalizeBookReferences,
@@ -222,6 +223,7 @@ type Action =
   | { type: "POP_LAST_ASSISTANT"; key: string }
   | { type: "RESTORE_ASSISTANT"; key: string; message: MessageItem }
   | { type: "STREAM_START"; key: string }
+  | { type: "STREAM_TOUCH"; key: string }
   | { type: "STREAM_EVENT"; key: string; event: StreamEvent }
   | {
       type: "STREAM_END";
@@ -497,6 +499,17 @@ function reducer(state: ProviderState, action: Action): ProviderState {
             ],
             updatedAt: Date.now(),
           },
+        },
+      };
+    }
+    case "STREAM_TOUCH": {
+      const session = state.sessions[action.key];
+      if (!session) return state;
+      return {
+        ...state,
+        sessions: {
+          ...state.sessions,
+          [action.key]: { ...session, updatedAt: Date.now() },
         },
       };
     }
@@ -1499,9 +1512,11 @@ export function UnifiedChatProvider({
     dispatch({ type: "ENSURE_DRAFT_SESSION", key: makeDraftKey() });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Idle timeout: if a streaming session receives no events for the configured
-  // window (default 180s, set in Settings > Network), auto-fail it. Read per
-  // tick so a settings change applies without remounting.
+  // Idle recovery: if a streaming session receives no events for the
+  // configured window (default 180s, set in Settings > Network), re-subscribe
+  // from the last sequence. A quiet stream is not terminal: long research
+  // calls can emit nothing for minutes, while a dropped browser connection
+  // leaves the backend turn alive with replayable events.
   useEffect(() => {
     const CHECK_INTERVAL_MS = 10_000;
 
@@ -1510,13 +1525,27 @@ export function UnifiedChatProvider({
       const idleTimeoutMs = timeoutSeconds * 1000;
       const current = stateRef.current;
       for (const [key, session] of Object.entries(current.sessions)) {
-        if (!session.isStreaming) continue;
-        if (
-          hasPendingAskUserInMessages(session.messages, session.activeTurnId)
-        ) {
+        const decision = decideIdleTurnRecovery({
+          isStreaming: session.isStreaming,
+          hasPendingUserInput: hasPendingAskUserInMessages(
+            session.messages,
+            session.activeTurnId,
+          ),
+          activeTurnId: session.activeTurnId,
+          lastSeq: session.lastSeq,
+          updatedAt: session.updatedAt,
+          now: Date.now(),
+          idleTimeoutMs,
+        });
+        if (decision.kind === "none") continue;
+
+        if (decision.kind === "resume") {
+          // Avoid retrying on every watchdog tick while the re-subscription is
+          // opening. The next event will replace this timestamp naturally.
+          dispatch({ type: "STREAM_TOUCH", key });
+          sendThroughRunner(key, decision.message);
           continue;
         }
-        if (Date.now() - session.updatedAt <= idleTimeoutMs) continue;
 
         dispatch({
           type: "STREAM_EVENT",
@@ -1541,7 +1570,7 @@ export function UnifiedChatProvider({
     }, CHECK_INTERVAL_MS);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [sendThroughRunner]);
 
   const sendMessage = useCallback(
     (

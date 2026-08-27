@@ -6,11 +6,15 @@
  *
  * Features:
  * - Client-side heartbeat (30s ping / 45s dead-connection detection)
- * - Auto-reconnect with exponential backoff (max 5 attempts)
+ * - Auto-reconnect with exponential backoff (active turns keep retrying)
  * - resume_from after reconnection to continue a streaming turn
  */
 
 import { wsUrl } from "./api";
+import {
+  reconnectDelayMs,
+  shouldStopReconnecting,
+} from "./unified-ws-recovery";
 
 // ---- StreamEvent types (mirror Python StreamEventType) ----
 
@@ -162,8 +166,6 @@ export type EventHandler = (event: StreamEvent) => void;
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const HEARTBEAT_TIMEOUT_MS = 45_000;
-const MAX_RECONNECT_ATTEMPTS = 5;
-const BASE_RECONNECT_DELAY_MS = 200;
 
 export class UnifiedWSClient {
   private ws: WebSocket | null = null;
@@ -301,13 +303,21 @@ export class UnifiedWSClient {
   // ---- Reconnect ----
 
   private attemptReconnect(): void {
-    if (this.reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+    if (
+      shouldStopReconnecting({
+        attempt: this.reconnectAttempt,
+        activeTurnId: this.activeTurnId,
+      })
+    ) {
       this.resetResumeState();
       this.onClose?.();
       return;
     }
 
-    const delay = BASE_RECONNECT_DELAY_MS * Math.pow(2, this.reconnectAttempt);
+    // A live turn continues on the backend even while the browser is offline.
+    // Keep retrying at a capped delay so ``onopen`` can issue ``resume_from``
+    // and replay everything after ``lastSeq`` when the network returns.
+    const delay = reconnectDelayMs(this.reconnectAttempt);
     this.reconnectAttempt += 1;
 
     this.reconnectTimer = setTimeout(() => {
