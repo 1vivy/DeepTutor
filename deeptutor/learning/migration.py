@@ -147,9 +147,7 @@ def prepare_mastery_v2_root(learning_root: Path) -> Path:
         if has_legacy_json:
             archived_json_dir = archive_dir / "legacy-json"
             shutil.copytree(legacy_json_dir, archived_json_dir)
-            legacy_json_count = sum(
-                1 for path in archived_json_dir.rglob("*") if path.is_file()
-            )
+            legacy_json_count = sum(1 for path in archived_json_dir.rglob("*") if path.is_file())
 
         manifest = {
             "format_version": 2,
@@ -178,4 +176,3 @@ def prepare_mastery_v2_root(learning_root: Path) -> Path:
 
 
 __all__ = ["prepare_mastery_v2_root"]
-

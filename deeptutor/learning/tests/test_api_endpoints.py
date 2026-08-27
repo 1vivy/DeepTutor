@@ -120,6 +120,55 @@ class TestListProgress:
 
 
 class TestTopicProductApi:
+    def test_topic_sessions_include_message_count_and_latest_preview(self, client, monkeypatch):
+        created = client.post(
+            "/api/v1/learning/topics",
+            json={
+                "name": "Calculus",
+                "goal": "Understand rates of change",
+                "sources": [],
+                "modules": [_module_payload("m1", "kp1")],
+            },
+        ).json()
+        path_id = created["path_id"]
+        LearningStore(root=client.app.state.learning_root).bind_session(path_id, "session-1")
+        session_store = AsyncMock()
+        session_store.get_session_with_messages.return_value = {
+            "session_id": "session-1",
+            "title": "Limits expedition",
+            "created_at": 10,
+            "updated_at": 20,
+            "status": "idle",
+            "preferences": {"pinned": True, "archived": False},
+            "messages": [
+                {"role": "system", "content": "hidden"},
+                {"role": "user", "content": "Why is this limit finite?"},
+                {"role": "assistant", "content": "Look at the local slope."},
+            ],
+        }
+        monkeypatch.setattr(
+            "deeptutor.services.session.get_session_store",
+            lambda: session_store,
+        )
+
+        response = client.get(f"/api/v1/learning/topics/{path_id}/sessions")
+
+        assert response.status_code == 200
+        assert response.json()["sessions"] == [
+            {
+                "session_id": "session-1",
+                "title": "Limits expedition",
+                "created_at": 10,
+                "updated_at": 20,
+                "status": "idle",
+                "active_turn_id": "",
+                "message_count": 2,
+                "last_message": "Look at the local slope.",
+                "pinned": True,
+                "archived": False,
+            }
+        ]
+
     def test_generate_mixed_source_draft_without_persisting(self, client):
         response_json = json.dumps(
             {
@@ -233,9 +282,7 @@ class TestTopicProductApi:
         kp_id = created["map"]["modules"][0]["knowledge_points"][0]["id"]
 
         with client.websocket_connect("/api/v1/learning/ws") as socket:
-            socket.send_json(
-                {"type": "subscribe", "path_id": path_id, "after_revision": 0}
-            )
+            socket.send_json({"type": "subscribe", "path_id": path_id, "after_revision": 0})
             subscribed = socket.receive_json()
             assert subscribed["type"] == "subscribed"
             assert subscribed["events"]
@@ -277,9 +324,7 @@ class TestTopicProductApi:
 
             # A cursor beyond the durable head is clamped instead of causing
             # every subsequent revision to be silently ignored.
-            socket.send_json(
-                {"type": "subscribe", "path_id": path_id, "after_revision": 999_999}
-            )
+            socket.send_json({"type": "subscribe", "path_id": path_id, "after_revision": 999_999})
             subscribed = socket.receive_json()
             assert subscribed["type"] == "subscribed"
             assert subscribed["revision"] == created["path_revision"]
@@ -292,9 +337,7 @@ class TestTopicProductApi:
             assert response.status_code == 200
             pushed = socket.receive_json()
             assert pushed["revision"] == response.json()["path_revision"]
-            assert [event["event_type"] for event in pushed["events"]] == [
-                "mastery.overridden"
-            ]
+            assert [event["event_type"] for event in pushed["events"]] == ["mastery.overridden"]
 
 
 # -- POST /progress/{book_id}/init-modules --------------------------------

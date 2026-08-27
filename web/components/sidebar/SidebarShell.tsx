@@ -20,6 +20,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   PenLine,
+  Route,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -87,6 +88,13 @@ const PRIMARY_NAV: NavEntry[] = [
     requires: "llm",
   },
   {
+    href: "/space/learning",
+    label: "Mastery Path",
+    icon: Route,
+    tooltipKey: "Learn through a living mastery map",
+    requires: "llm",
+  },
+  {
     href: "/space",
     label: "Learning Space",
     icon: LayoutGrid,
@@ -118,6 +126,16 @@ const SECONDARY_NAV: NavEntry[] = [
 const GITHUB_REPO_URL = "https://github.com/HKUDS/DeepTutor";
 const DOCS_URL = "https://deeptutor.info/";
 const RECENTS_COLLAPSED_KEY = "deeptutor.sidebar.recentsCollapsed";
+
+function isNavActive(pathname: string, href: string) {
+  if (href === "/space") {
+    return (
+      (pathname === "/space" || pathname.startsWith("/space/")) &&
+      !pathname.startsWith("/space/learning")
+    );
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 interface SidebarShellProps {
   sessions?: SessionSummary[];
@@ -252,7 +270,7 @@ export function SidebarShell({
         {/* Primary nav */}
         <nav className="mt-1 flex w-full flex-col items-center gap-1 px-1.5">
           {PRIMARY_NAV.map((item) => {
-            const active = pathname.startsWith(item.href);
+            const active = isNavActive(pathname, item.href);
             const locked = navLocked(item);
             const description = locked
               ? lockedTooltip
@@ -312,7 +330,7 @@ export function SidebarShell({
         <div className="flex w-full flex-col items-center gap-1 px-1.5">
           <div className="my-1 h-px w-7 bg-[var(--border)]/40" />
           {SECONDARY_NAV.map((item) => {
-            const active = pathname.startsWith(item.href);
+            const active = isNavActive(pathname, item.href);
             return (
               <Link
                 key={item.href}
@@ -392,7 +410,7 @@ export function SidebarShell({
       <nav className="px-2 pt-1">
         <div className="space-y-px">
           {PRIMARY_NAV.map((item) => {
-            const active = pathname.startsWith(item.href);
+            const active = isNavActive(pathname, item.href);
             const locked = navLocked(item);
             if (locked) {
               return (
@@ -517,7 +535,7 @@ export function SidebarShell({
       {/* Secondary nav + footer */}
       <div className="border-t border-[var(--border)]/40 px-2 py-2">
         {SECONDARY_NAV.map((item) => {
-          const active = pathname.startsWith(item.href);
+          const active = isNavActive(pathname, item.href);
           return (
             <Link
               key={item.href}

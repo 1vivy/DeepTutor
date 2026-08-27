@@ -1,0 +1,144 @@
+.mastery-shell {
+  --mastery-ink: #2b342f;
+  --mastery-paper: #f3ead7;
+  --mastery-paper-raised: #fbf6ea;
+  --mastery-route: #8c5d3b;
+  --mastery-moss: #58725e;
+  --mastery-complete: #58725e;
+  --mastery-water: #6c8b91;
+  --mastery-gold: #b77b2f;
+  background: var(--background);
+}
+
+.mastery-map-paper {
+  background-color: var(--mastery-paper);
+  color: var(--mastery-ink);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.65) inset,
+    0 18px 45px rgba(74, 54, 34, 0.1);
+}
+
+.mastery-map-paper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.22;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90' viewBox='0 0 90 90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.08'/%3E%3C/svg%3E");
+}
+
+.mastery-map-grid {
+  background-image:
+    linear-gradient(rgba(91, 88, 71, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(91, 88, 71, 0.07) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.mastery-route-line {
+  fill: none;
+  stroke: var(--mastery-route);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 1 8;
+}
+
+.mastery-route-travelled {
+  fill: none;
+  stroke: var(--mastery-moss);
+  stroke-width: 3.4;
+  stroke-linecap: round;
+}
+
+.mastery-map-card {
+  transform: translateZ(0);
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease,
+    border-color 220ms ease;
+}
+
+.mastery-map-card:hover {
+  transform: translateY(-3px) rotate(-0.15deg);
+  box-shadow: 0 22px 55px rgba(66, 47, 29, 0.16);
+}
+
+.mastery-waypoint {
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
+}
+
+.mastery-waypoint:hover,
+.mastery-waypoint:focus-visible {
+  transform: translate(-50%, -50%) scale(1.08);
+}
+
+.mastery-waypoint[data-current="true"] {
+  animation: mastery-pulse 2.4s ease-in-out infinite;
+}
+
+.mastery-campfire {
+  animation: mastery-fire 1.8s ease-in-out infinite alternate;
+  transform-origin: center bottom;
+}
+
+@keyframes mastery-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px rgba(183, 123, 47, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 9px rgba(183, 123, 47, 0.05);
+  }
+}
+
+@keyframes mastery-fire {
+  from {
+    transform: scaleY(0.94) rotate(-1deg);
+  }
+  to {
+    transform: scaleY(1.04) rotate(1deg);
+  }
+}
+
+.dark .mastery-shell,
+.theme-glass .mastery-shell {
+  --mastery-ink: #e8e3d7;
+  --mastery-paper: #202823;
+  --mastery-paper-raised: #28312b;
+  --mastery-route: #cf9569;
+  --mastery-moss: #8ba58f;
+  --mastery-complete: #8ba58f;
+  --mastery-water: #7e9da4;
+  --mastery-gold: #d5a052;
+}
+
+.dark .mastery-map-paper,
+.theme-glass .mastery-map-paper {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 18px 45px rgba(0, 0, 0, 0.25);
+}
+
+.dark .mastery-map-paper::after,
+.theme-glass .mastery-map-paper::after {
+  mix-blend-mode: screen;
+  opacity: 0.08;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mastery-map-card,
+  .mastery-waypoint,
+  .mastery-campfire {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .mastery-map-card:hover,
+  .mastery-waypoint:hover,
+  .mastery-waypoint:focus-visible {
+    transform: none;
+  }
+}

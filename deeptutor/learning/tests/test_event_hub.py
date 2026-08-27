@@ -37,4 +37,3 @@ async def test_topic_hub_isolated_by_path_and_unsubscribes_cleanly() -> None:
     assert signal.path_id == "second"
     assert signal.sequence >= 1
     assert first.queue.empty()
-

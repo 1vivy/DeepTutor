@@ -408,6 +408,8 @@ export interface TopicSession {
   updated_at: number;
   status: string;
   active_turn_id: string;
+  message_count: number;
+  last_message: string;
   pinned: boolean;
   archived: boolean;
 }

@@ -45,7 +45,6 @@ import {
   shouldSurfaceLoadFailure,
 } from "@/lib/session-load";
 import StarterSuggestions from "@/components/chat/home/StarterSuggestions";
-import MasteryPathStrip from "@/components/chat/home/MasteryPathStrip";
 // Imported eagerly so the drawer shell is always mounted off-screen —
 // clicking a chip becomes a single CSS class flip, no chunk fetch + double
 // render. The heavy renderers inside still load lazily.
@@ -314,17 +313,6 @@ const CAPABILITIES: CapabilityDef[] = [
     defaultTools: [],
   },
   {
-    value: "mastery_path",
-    label: "Mastery Path",
-    description: "Mastery-based tutoring with a hard gate",
-    icon: GraduationCap,
-    // The mastery tools (status/quiz/grade/assess/build) auto-mount server-side
-    // when this capability is active; rag auto-mounts when a KB is attached.
-    // These are only the extra optional tools the tutor may also reach for.
-    allowedTools: ["web_search", "code_execution"],
-    defaultTools: [],
-  },
-  {
     value: "immersive_reading",
     label: "Immersive Reading",
     description: "Read a document with the assistant, cited line by line",
@@ -413,7 +401,6 @@ export default function ChatPage() {
     setCapability,
     setKBs,
     setLLMSelection,
-    setMasteryPathId,
     setPersonaSelection,
     sendMessage,
     cancelStreamingTurn,
@@ -1347,7 +1334,16 @@ export default function ChatPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const intent = readChatLaunchIntent(window.location.search);
-    if (intent.masteryPathId) setMasteryPathId(intent.masteryPathId);
+    // Mastery Path now owns a dedicated product surface. Preserve old launch
+    // links by forwarding them to the topic map instead of silently exposing
+    // the retired generic-chat mode. Historical /home/:session transcripts
+    // remain readable because they carry no launch query.
+    if (intent.masteryPathId) {
+      router.replace(
+        `/space/learning/${encodeURIComponent(intent.masteryPathId)}`,
+      );
+      return;
+    }
     if (intent.capability !== null) handleSelectCapability(intent.capability);
     else if (intent.tools.length) {
       const valid = intent.tools.filter((t): t is ToolName =>
@@ -2423,14 +2419,6 @@ export default function ChatPage() {
                   />
                 </div>
               )}
-
-              {/* Anchors the conversation to the path it is advancing. Only when
-                the mastery capability is actually driving this turn — a stale
-                path id on a plain chat would be a lie. */}
-              {state.activeCapability === "mastery_path" &&
-                state.masteryPathId && (
-                  <MasteryPathStrip pathId={state.masteryPathId} />
-                )}
 
               <ChatComposer
                 composerRef={composerRef}

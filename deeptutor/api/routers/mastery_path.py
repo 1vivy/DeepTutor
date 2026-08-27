@@ -215,9 +215,7 @@ def _topic_sources(items: list[TopicSourceRequest]) -> list[TopicSource]:
 
 
 def _review_queue(progress) -> list[dict]:
-    names = {
-        kp.id: kp.name for module in progress.modules for kp in module.knowledge_points
-    }
+    names = {kp.id: kp.name for module in progress.modules for kp in module.knowledge_points}
     return [
         {
             "id": task.id,
@@ -384,10 +382,22 @@ async def list_topic_sessions(path_id: str):
     session_store = get_session_store()
     sessions = []
     for session_id in session_ids:
-        session = await session_store.get_session(session_id)
+        session = await session_store.get_session_with_messages(session_id)
         if session is None:
             continue
         preferences = session.get("preferences") or {}
+        messages = session.get("messages") or []
+        visible_messages = [
+            message for message in messages if str(message.get("role") or "") != "system"
+        ]
+        last_message = next(
+            (
+                str(message.get("content") or "").strip()
+                for message in reversed(visible_messages)
+                if str(message.get("content") or "").strip()
+            ),
+            "",
+        )
         sessions.append(
             {
                 "session_id": session.get("session_id") or session.get("id") or session_id,
@@ -396,6 +406,8 @@ async def list_topic_sessions(path_id: str):
                 "updated_at": session.get("updated_at") or 0,
                 "status": session.get("status") or "idle",
                 "active_turn_id": session.get("active_turn_id") or "",
+                "message_count": len(visible_messages),
+                "last_message": last_message[:240],
                 "pinned": bool(preferences.get("pinned")),
                 "archived": bool(preferences.get("archived")),
             }

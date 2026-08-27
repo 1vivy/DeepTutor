@@ -113,7 +113,7 @@ export function ObjectiveDetail({
         <p className="text-xs text-[var(--muted-foreground)]">
           {tr(
             "还没有作答记录。在对话里继续辅导后，这里会出现题目、你的回答和判分。",
-            "No attempts yet. Once you tutor this in Chat, the questions, your answers, and the grading show up here.",
+            "No attempts yet. Once you work through this waypoint, its questions, your answers, and the grading evidence will appear here.",
           )}
         </p>
       )}

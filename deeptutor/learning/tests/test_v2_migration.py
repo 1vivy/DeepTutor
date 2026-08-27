@@ -96,4 +96,3 @@ def test_empty_workspace_uses_v2_directory_without_creating_archive(tmp_path: Pa
 
     assert store.db_path == learning_root / "mastery" / "mastery.sqlite3"
     assert not (learning_root / "archive").exists()
-

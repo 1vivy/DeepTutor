@@ -78,6 +78,8 @@ const MathAnimatorViewer = dynamic(
 const QuizViewer = dynamic(() => import("@/components/quiz/QuizViewer"), {
   ssr: false,
 });
+
+export type ChatSurfaceVariant = "default" | "mastery";
 const ResearchOutlineEditor = dynamic(
   () => import("@/components/research/ResearchOutlineEditor"),
   { ssr: false },
@@ -291,6 +293,7 @@ const AssistantMessage = memo(function AssistantMessage({
   onConfirmOutline,
   onSubmitUserReply,
   researchRequestSnapshot,
+  variant = "default",
 }: {
   msg: { content: string; capability?: string; events?: StreamEvent[] };
   isStreaming?: boolean;
@@ -298,6 +301,7 @@ const AssistantMessage = memo(function AssistantMessage({
   sessionId?: string | null;
   language?: string;
   researchRequestSnapshot?: MessageRequestSnapshot | null;
+  variant?: ChatSurfaceVariant;
   onConfirmOutline?: (
     outline: Array<{ title: string; overview: string }>,
     topic: string,
@@ -454,6 +458,7 @@ const AssistantMessage = memo(function AssistantMessage({
               }}
               collapsible={researchInProgress}
               defaultCollapsed={researchInProgress}
+              variant={variant}
             />
           ) : null}
           <ResearchOutlineEditor
@@ -532,6 +537,7 @@ const AssistantMessage = memo(function AssistantMessage({
                 if (!onSubmitUserReply) return;
                 onSubmitUserReply(reply);
               }}
+              variant={variant}
             />
           ),
         )
@@ -549,6 +555,7 @@ const AssistantMessage = memo(function AssistantMessage({
             if (!onSubmitUserReply) return;
             onSubmitUserReply(reply);
           }}
+          variant={variant}
         />
       ) : null}
       {/* Credential hand-off sits below whichever body branch rendered: it
@@ -1196,6 +1203,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   onSwitchBranch,
   availableKbNames,
   onSubmitUserReply,
+  variant = "default",
 }: {
   messages: ChatMessageItem[];
   isStreaming: boolean;
@@ -1233,6 +1241,8 @@ export const ChatMessageList = memo(function ChatMessageList({
   ) => void;
   /** Names of KBs confirmed to exist. Omitted when the KB list is unavailable. */
   availableKbNames?: Set<string>;
+  /** Mastery uses a tactile challenge-card treatment for ask_user turns. */
+  variant?: ChatSurfaceVariant;
 }) {
   const { t } = useTranslation();
   // Visible path: when no branching has happened the result is identical
@@ -1483,6 +1493,7 @@ export const ChatMessageList = memo(function ChatMessageList({
                 researchRequestSnapshot={
                   pairedUserMessage?.requestSnapshot ?? null
                 }
+                variant={variant}
               />
             </InlineFileCardProvider>
             <GeneratedFileCards

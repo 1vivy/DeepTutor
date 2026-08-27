@@ -333,9 +333,7 @@ class LearningProgress(BaseModel):
     # A learner may explicitly claim prior mastery.  Policy exposes this as a
     # separate provenance (``mastery_source=learner``); assessed mastery and
     # its evidence remain untouched and can take over later.
-    learner_mastery_overrides: dict[str, LearnerMasteryOverride] = Field(
-        default_factory=dict
-    )
+    learner_mastery_overrides: dict[str, LearnerMasteryOverride] = Field(default_factory=dict)
     # A single outstanding question; grading reads its expected answer so the
     # model never has to recall it across turns.
     pending_question: PendingQuestion | None = None
