@@ -9,8 +9,8 @@ from fastapi.responses import FileResponse
 
 from deeptutor.api.routers.auth import require_auth
 from deeptutor.multi_user.context import get_current_user_or_none
-from deeptutor.multi_user.paths import get_path_service_for_scope
 from deeptutor.multi_user.partner_access import visible_partners
+from deeptutor.multi_user.paths import get_path_service_for_scope
 from deeptutor.services.auth import TokenPayload
 from deeptutor.services.partners.scope import partner_scope
 from deeptutor.services.path_service import PathService
