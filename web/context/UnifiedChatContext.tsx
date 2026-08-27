@@ -41,6 +41,7 @@ import { hasPendingAskUserInMessages } from "@/lib/ask-user-state";
 import { notify } from "@/lib/notifications";
 import { forwardReaderAction } from "@/lib/reading-reader-action";
 import { readingTurnFields } from "@/lib/reading-turn-state";
+import { watchingTurnFields } from "@/lib/watching-turn-state";
 import i18n from "i18next";
 import {
   normalizeBookReferences,
@@ -145,6 +146,7 @@ export interface MessageRequestSnapshot {
   questionNotebookReferences?: QuestionNotebookReferencePayload;
   bookReferences?: BookReferencePayload[];
   masteryPathId?: string;
+  timedMediaId?: string;
   persona?: string;
   memoryReferences?: MemoryReferencePayload;
   llmSelection?: LLMSelection | null;
@@ -1013,6 +1015,10 @@ function hydrateRequestSnapshot(
     typeof (stored.masteryPathId ?? stored.mastery_path_id) === "string"
       ? String(stored.masteryPathId ?? stored.mastery_path_id).trim()
       : "";
+  const timedMediaId =
+    typeof (stored.timedMediaId ?? stored.timed_media_id) === "string"
+      ? String(stored.timedMediaId ?? stored.timed_media_id).trim()
+      : "";
 
   if (config && Object.keys(config).length) snapshot.config = config;
   if (notebookReferences.length)
@@ -1026,6 +1032,7 @@ function hydrateRequestSnapshot(
   if (memoryReferences.length) snapshot.memoryReferences = memoryReferences;
   if (llmSelection) snapshot.llmSelection = llmSelection;
   if (masteryPathId) snapshot.masteryPathId = masteryPathId;
+  if (timedMediaId) snapshot.timedMediaId = timedMediaId;
   return snapshot;
 }
 
@@ -1321,7 +1328,10 @@ export function UnifiedChatProvider({
                 i18n.t(
                   "Connection lost while generating. Please retry your message.",
                 ),
-                { tone: "error", durationMs: 6000 },
+                {
+                  tone: "error",
+                  durationMs: 6000,
+                },
               );
             }
           },
@@ -1352,7 +1362,10 @@ export function UnifiedChatProvider({
             i18n.t(
               "Couldn't reach the server. Please check your connection and retry.",
             ),
-            { tone: "error", durationMs: 6000 },
+            {
+              tone: "error",
+              durationMs: 6000,
+            },
           );
           return;
         }
@@ -1717,6 +1730,7 @@ export function UnifiedChatProvider({
         // Read from a module cell rather than context state so scrolling the
         // reader never re-renders the chat.
         ...readingTurnFields(effectiveCapability),
+        ...watchingTurnFields(effectiveCapability),
         // Always sent (possibly ""): an explicit key is the backend's signal
         // to persist the value into session.preferences — "" clears back to
         // Default. Omitting the key would make the backend fall back to the

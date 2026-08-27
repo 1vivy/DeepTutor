@@ -219,6 +219,7 @@ _READING_ID_RE = re.compile(r"^[0-9a-f]{8,64}$")
 # reader has no reason to send more, and a runaway selection must not eat the
 # turn's context budget.
 READING_SELECTION_MAX_CHARS = 2000
+_TIMED_MEDIA_ID_RE = re.compile(r"^[0-9a-f]{16,64}$")
 
 
 def _reading_material_id(value: Any) -> str:
@@ -248,6 +249,21 @@ def _reading_viewport(value: Any) -> dict[str, Any]:
     if selection:
         viewport["selection"] = selection[:READING_SELECTION_MAX_CHARS]
     return viewport
+
+
+def _timed_media_id(value: Any) -> str:
+    candidate = str(value or "").strip().lower()
+    return candidate if _TIMED_MEDIA_ID_RE.fullmatch(candidate) else ""
+
+
+def _timed_media_viewport(value: Any) -> dict[str, float]:
+    if not isinstance(value, dict):
+        return {}
+    try:
+        seconds = float(value.get("time_seconds") or 0)
+    except (TypeError, ValueError):
+        return {}
+    return {"time_seconds": min(24 * 60 * 60, max(0.0, seconds))}
 
 
 def _llm_selection_dict(value: Any) -> dict[str, str] | None:
@@ -301,6 +317,9 @@ def _request_snapshot_metadata(
     reading_material_id = _reading_material_id(payload.get("reading_material_id"))
     if reading_material_id:
         snapshot["readingMaterialId"] = reading_material_id
+    timed_media_id = _timed_media_id(payload.get("timed_media_id"))
+    if timed_media_id:
+        snapshot["timedMediaId"] = timed_media_id
     if persona:
         snapshot["persona"] = persona
     if memory_references:
@@ -1431,6 +1450,11 @@ class TurnRuntimeManager:
                 if "reading_material_id" in overrides
                 else snapshot.get("readingMaterialId")
             ),
+            "timed_media_id": _timed_media_id(
+                overrides.get("timed_media_id")
+                if "timed_media_id" in overrides
+                else snapshot.get("timedMediaId")
+            ),
             "config": config,
         }
         if llm_selection:
@@ -2160,6 +2184,10 @@ class TurnRuntimeManager:
                     # model where the user is actually looking.
                     "reading_material_id": _reading_material_id(payload.get("reading_material_id")),
                     "reading_viewport": _reading_viewport(payload.get("reading_viewport")),
+                    "timed_media_id": _timed_media_id(payload.get("timed_media_id")),
+                    "timed_media_viewport": _timed_media_viewport(
+                        payload.get("timed_media_viewport")
+                    ),
                     "book_context": book_context,
                     "book_context_warnings": book_context_result.warnings,
                     "memory_references": memory_references,

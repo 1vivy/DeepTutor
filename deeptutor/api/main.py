@@ -391,6 +391,7 @@ from deeptutor.api.routers import (
     subagents,
     system,
     unified_ws,
+    video_learning,
     voice,
 )
 from deeptutor.api.routers import (
@@ -486,6 +487,12 @@ app.include_router(
     settings.router, prefix="/api/v1/settings", tags=["settings"], dependencies=_auth
 )
 app.include_router(
+    video_learning.settings_router,
+    prefix="/api/v1/settings/video-learning",
+    tags=["video-learning-settings"],
+    dependencies=_admin,
+)
+app.include_router(
     mcp_settings.router,
     prefix="/api/v1/settings/mcp",
     tags=["mcp-settings"],
@@ -521,6 +528,12 @@ app.include_router(
 app.include_router(tools_router.router, prefix="/api/v1/tools", tags=["tools"], dependencies=_auth)
 app.include_router(system.router, prefix="/api/v1/system", tags=["system"], dependencies=_auth)
 app.include_router(voice.router, prefix="/api/v1/voice", tags=["voice"], dependencies=_auth)
+app.include_router(
+    video_learning.router,
+    prefix="/api/v1/video-learning",
+    tags=["video-learning"],
+    dependencies=_auth,
+)
 app.include_router(
     plugins_api.router, prefix="/api/v1/plugins", tags=["plugins"], dependencies=_auth
 )

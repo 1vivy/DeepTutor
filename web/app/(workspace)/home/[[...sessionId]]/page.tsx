@@ -29,6 +29,7 @@ import {
   Microscope,
   PenLine,
   Sparkles,
+  Youtube,
   type LucideIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -72,6 +73,10 @@ import {
 import { useAppShell } from "@/context/AppShellContext";
 
 import { READER_ASK_EVENT, ReaderPane } from "@/components/reading/ReaderPane";
+import {
+  WATCHING_ASK_EVENT,
+  WatchingPane,
+} from "@/components/watching/WatchingPane";
 import type { FilePreviewSource } from "@/components/chat/preview/previewerFor";
 import type { LLMSelection, StreamEvent } from "@/lib/unified-ws";
 import {
@@ -331,6 +336,14 @@ const CAPABILITIES: CapabilityDef[] = [
     icon: BookOpenText,
     // The five reading tools auto-mount server-side once a document is open;
     // these are the extra tools the assistant may also reach for while reading.
+    allowedTools: ["web_search", "code_execution", "reason"],
+    defaultTools: [],
+  },
+  {
+    value: "immersive_watching",
+    label: "Immersive Watching",
+    description: "Learn from YouTube with timestamp-grounded tutoring",
+    icon: Youtube,
     allowedTools: ["web_search", "code_execution", "reason"],
     defaultTools: [],
   },
@@ -728,6 +741,28 @@ export default function ChatPage() {
     return () => window.removeEventListener(READER_ASK_EVENT, onReaderAsk);
   }, [handlePrefillComposer, t]);
 
+  useEffect(() => {
+    const onWatchingAsk = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{ timeSeconds?: number; text?: string }>
+      ).detail;
+      const text = (detail?.text || "").trim();
+      if (!text) return;
+      const total = Math.max(0, Math.floor(Number(detail?.timeSeconds) || 0));
+      const hours = Math.floor(total / 3600);
+      const minutes = Math.floor((total % 3600) / 60);
+      const seconds = total % 60;
+      const timestamp = hours
+        ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+        : `${minutes}:${String(seconds).padStart(2, "0")}`;
+      handlePrefillComposer(
+        `> [${timestamp}] ${text}\n\n${t("Explain this part of the video")}: `,
+      );
+    };
+    window.addEventListener(WATCHING_ASK_EVENT, onWatchingAsk);
+    return () => window.removeEventListener(WATCHING_ASK_EVENT, onWatchingAsk);
+  }, [handlePrefillComposer, t]);
+
   const activeCap = useMemo(
     () => getCapability(state.activeCapability),
     [state.activeCapability],
@@ -736,6 +771,7 @@ export default function ChatPage() {
   const isVisualizeMode = activeCap.value === "visualize";
   const isResearchMode = activeCap.value === "deep_research";
   const isReadingMode = activeCap.value === "immersive_reading";
+  const isWatchingMode = activeCap.value === "immersive_watching";
   const capabilityNeedsConfig = isQuizMode || isVisualizeMode || isResearchMode;
 
   // Edit-invalidates-confirm wrappers — flipping any field after the user
@@ -2215,10 +2251,15 @@ export default function ChatPage() {
             a remount would refetch every piece of session metadata and stall the
             UI for seconds (the regression behind the slow session-open bug). */}
           <div
-            data-reader-open={isReadingMode ? "true" : "false"}
+            data-reader-open={
+              isReadingMode || isWatchingMode ? "true" : "false"
+            }
             className="dt-reader-shell"
           >
             {isReadingMode && <ReaderPane onClose={() => setCapability("")} />}
+            {isWatchingMode && (
+              <WatchingPane onClose={() => setCapability("")} />
+            )}
           </div>
           <div
             // When the preview drawer is open AND the viewport is wide enough,
@@ -2230,7 +2271,9 @@ export default function ChatPage() {
             // hand-tune it without fighting Tailwind's arbitrary-value parser.
             data-preview-open={previewSource ? "true" : "false"}
             data-viewer-open={viewerPanelOpen ? "true" : "false"}
-            data-reader-open={isReadingMode ? "true" : "false"}
+            data-reader-open={
+              isReadingMode || isWatchingMode ? "true" : "false"
+            }
             className="chat-preview-shell flex h-full flex-col overflow-hidden bg-[var(--background)]"
           >
             <div className="mx-auto flex w-full max-w-[960px] flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-6 pt-3 pb-0">
