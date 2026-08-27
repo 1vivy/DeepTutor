@@ -447,6 +447,33 @@ class LearningStore:
                         ON mastery_topic_sources(path_id, position);
                     """
                 )
+                # V2 metadata is a persisted part of every topic, not a
+                # runtime-only fallback. Existing V1 paths receive neutral,
+                # deterministic metadata during schema initialization; their
+                # learning state and session bindings remain untouched.
+                legacy_topics = conn.execute(
+                    """
+                    SELECT path_id, created_at, updated_at
+                    FROM mastery_paths
+                    WHERE path_id NOT IN (SELECT path_id FROM mastery_topic_meta)
+                    """
+                ).fetchall()
+                for row in legacy_topics:
+                    path_id = str(row["path_id"])
+                    conn.execute(
+                        """
+                        INSERT INTO mastery_topic_meta (
+                            path_id, goal, description, emoji, map_seed, status,
+                            created_at, updated_at
+                        ) VALUES (?, '', '', '🧭', ?, 'active', ?, ?)
+                        """,
+                        (
+                            path_id,
+                            self._default_map_seed(path_id),
+                            float(row["created_at"]),
+                            float(row["updated_at"]),
+                        ),
+                    )
                 conn.commit()
             self._initialized = True
             _initialized_db_paths.add(db_path)

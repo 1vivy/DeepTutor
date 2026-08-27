@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import sqlite3
 
 from deeptutor.learning.migration import prepare_mastery_v2_root
 from deeptutor.learning.models import LearningProgress, MasteryInteraction, PendingQuestion
@@ -70,6 +71,12 @@ def test_workspace_v1_is_archived_then_copied_into_v2_store(tmp_path: Path) -> N
     assert migrated.load("topic-one").name == "Calculus"
     assert migrated.list_session_ids("topic-one") == ["session-one"]
     assert migrated.get_interaction("topic-one", "q-one") is not None
+    migrated_topic = migrated.get_topic("topic-one")
+    assert migrated_topic is not None
+    assert migrated_topic.metadata.status == "active"
+    assert migrated_topic.metadata.map_seed > 0
+    with sqlite3.connect(migrated.db_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM mastery_topic_meta").fetchone()[0] == 1
 
 
 def test_v2_initialization_is_idempotent_and_never_reads_archive(tmp_path: Path) -> None:
