@@ -251,6 +251,8 @@ DEFAULT_IMA_SETTINGS: dict[str, Any] = {
 # * ``top_k`` — default number of chunks a query returns.
 # * ``vector_top_k_multiplier`` / ``bm25_top_k_multiplier`` — how many extra
 #   candidates each child retriever fetches before fusion re-ranks to ``top_k``.
+# * ``vector_index_type`` — FAISS index type for the next full index build.
+#   HNSW is opt-in and trades exact recall for sub-linear search at scale.
 # * ``chunk_size`` / ``chunk_overlap`` — indexing chunk geometry; changes apply
 #   on the next (re-)index, not retroactively.
 # * ``image_description_concurrency`` / ``image_description_timeout_seconds`` —
@@ -262,6 +264,11 @@ DEFAULT_IMA_SETTINGS: dict[str, Any] = {
 LLAMAINDEX_VECTOR_PROFILE = "vector"
 LLAMAINDEX_HYBRID_PROFILE = "hybrid"
 _LLAMAINDEX_PROFILES = frozenset({LLAMAINDEX_VECTOR_PROFILE, LLAMAINDEX_HYBRID_PROFILE})
+LLAMAINDEX_FLAT_VECTOR_INDEX = "flat"
+LLAMAINDEX_HNSW_VECTOR_INDEX = "hnsw"
+_LLAMAINDEX_VECTOR_INDEX_TYPES = frozenset(
+    {LLAMAINDEX_FLAT_VECTOR_INDEX, LLAMAINDEX_HNSW_VECTOR_INDEX}
+)
 
 DEFAULT_LLAMAINDEX_SETTINGS: dict[str, Any] = {
     "version": 1,
@@ -269,6 +276,10 @@ DEFAULT_LLAMAINDEX_SETTINGS: dict[str, Any] = {
     "top_k": 5,
     "vector_top_k_multiplier": 2,
     "bm25_top_k_multiplier": 2,
+    "vector_index_type": LLAMAINDEX_FLAT_VECTOR_INDEX,
+    "hnsw_m": 32,
+    "hnsw_ef_construction": 200,
+    "hnsw_ef_search": 64,
     "chunk_size": 512,
     "chunk_overlap": 50,
     "image_description_concurrency": 4,
@@ -814,6 +825,9 @@ class RuntimeSettingsService:
         profile = _string(settings.get("retrieval_profile")).lower()
         if profile not in _LLAMAINDEX_PROFILES:
             profile = LLAMAINDEX_HYBRID_PROFILE
+        vector_index_type = _string(settings.get("vector_index_type")).lower()
+        if vector_index_type not in _LLAMAINDEX_VECTOR_INDEX_TYPES:
+            vector_index_type = LLAMAINDEX_FLAT_VECTOR_INDEX
         chunk_size = _coerce_clamped_int(settings.get("chunk_size"), 512, 64, 8192)
         # Overlap must stay below the chunk size or chunking degenerates.
         chunk_overlap = _coerce_clamped_int(
@@ -829,6 +843,12 @@ class RuntimeSettingsService:
             "bm25_top_k_multiplier": _coerce_clamped_int(
                 settings.get("bm25_top_k_multiplier"), 2, 1, 10
             ),
+            "vector_index_type": vector_index_type,
+            "hnsw_m": _coerce_clamped_int(settings.get("hnsw_m"), 32, 4, 64),
+            "hnsw_ef_construction": _coerce_clamped_int(
+                settings.get("hnsw_ef_construction"), 200, 16, 512
+            ),
+            "hnsw_ef_search": _coerce_clamped_int(settings.get("hnsw_ef_search"), 64, 1, 512),
             "chunk_size": chunk_size,
             "chunk_overlap": chunk_overlap,
             "image_description_concurrency": _coerce_clamped_int(

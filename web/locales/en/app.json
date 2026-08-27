@@ -3402,5 +3402,12 @@
   "Tutor threads": "Tutor threads",
   "Filter by archive status": "Filter by archive status",
   "Active and archived": "Active and archived",
-  "Loading conversations": "Loading conversations"
+  "Loading conversations": "Loading conversations",
+  "Vector index": "Vector index",
+  "Applies on the next full re-index": "Applies on the next full re-index",
+  "Exact nearest-neighbor search. Best for small and medium knowledge bases.": "Exact nearest-neighbor search. Best for small and medium knowledge bases.",
+  "Approximate graph search for large knowledge bases. Faster at scale with a small recall trade-off.": "Approximate graph search for large knowledge bases. Faster at scale with a small recall trade-off.",
+  "HNSW graph degree": "HNSW graph degree",
+  "HNSW construction candidates": "HNSW construction candidates",
+  "HNSW search candidates": "HNSW search candidates"
 }

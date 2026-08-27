@@ -1927,3 +1927,40 @@ def test_lightrag_config_endpoint_round_trips_the_indexing_knobs(
     assert again["max_concurrent_files"] == 4
     assert again["entity_extract_max_gleaning"] == 2
     assert again["top_k"] == 42
+
+
+def test_llamaindex_config_endpoint_round_trips_vector_index_knobs(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """The vector-index form depends on every field surviving a save/reload."""
+    from deeptutor.services.config.runtime_settings import RuntimeSettingsService
+
+    service = RuntimeSettingsService(tmp_path, process_env={})
+    monkeypatch.setattr(
+        "deeptutor.services.config.get_runtime_settings_service",
+        lambda: service,
+    )
+
+    client = TestClient(_build_app())
+    initial = client.get("/api/v1/knowledge/rag-pipelines/llamaindex/config")
+    assert initial.status_code == 200
+    assert initial.json()["vector_index_type"] == "flat"
+
+    saved = client.put(
+        "/api/v1/knowledge/rag-pipelines/llamaindex/config",
+        json={
+            "vector_index_type": "hnsw",
+            "hnsw_m": 24,
+            "hnsw_ef_construction": 128,
+            "hnsw_ef_search": 48,
+        },
+    )
+    assert saved.status_code == 200
+    assert saved.json()["vector_index_type"] == "hnsw"
+    assert saved.json()["hnsw_m"] == 24
+    assert saved.json()["hnsw_ef_construction"] == 128
+    assert saved.json()["hnsw_ef_search"] == 48
+
+    again = client.get("/api/v1/knowledge/rag-pipelines/llamaindex/config").json()
+    assert again["vector_index_type"] == "hnsw"
+    assert again["hnsw_ef_search"] == 48

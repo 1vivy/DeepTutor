@@ -3402,5 +3402,12 @@
   "Tutor threads": "小老师追问",
   "Filter by archive status": "按归档状态筛选",
   "Active and archived": "进行中与已归档",
-  "Loading conversations": "正在加载聊天"
+  "Loading conversations": "正在加载聊天",
+  "Vector index": "向量索引",
+  "Applies on the next full re-index": "在下次完整重建索引时生效",
+  "Exact nearest-neighbor search. Best for small and medium knowledge bases.": "精确最近邻搜索，适合中小型知识库。",
+  "Approximate graph search for large knowledge bases. Faster at scale with a small recall trade-off.": "面向大型知识库的近似图搜索，规模更大时更快，但会有少量召回损失。",
+  "HNSW graph degree": "HNSW 图连接度",
+  "HNSW construction candidates": "HNSW 构建候选数",
+  "HNSW search candidates": "HNSW 搜索候选数"
 }

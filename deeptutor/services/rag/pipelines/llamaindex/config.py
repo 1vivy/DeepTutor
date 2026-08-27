@@ -9,6 +9,9 @@ import sys
 VECTOR_PROFILE = "vector"
 HYBRID_PROFILE = "hybrid"
 SUPPORTED_RETRIEVAL_PROFILES = {VECTOR_PROFILE, HYBRID_PROFILE}
+FLAT_VECTOR_INDEX = "flat"
+HNSW_VECTOR_INDEX = "hnsw"
+SUPPORTED_VECTOR_INDEX_TYPES = {FLAT_VECTOR_INDEX, HNSW_VECTOR_INDEX}
 
 
 def should_show_progress() -> bool:
@@ -39,12 +42,30 @@ class RetrievalConfig:
         return max(requested, requested * max(1, int(multiplier)))
 
 
+@dataclass(frozen=True)
+class VectorIndexConfig:
+    """FAISS construction knobs for the next full index build."""
+
+    type: str = FLAT_VECTOR_INDEX
+    hnsw_m: int = 32
+    hnsw_ef_construction: int = 200
+    hnsw_ef_search: int = 64
+
+
 def normalize_retrieval_profile(value: str | None) -> str:
     """Return a supported retrieval profile, defaulting to hybrid."""
     profile = (value or "").strip().lower()
     if profile in SUPPORTED_RETRIEVAL_PROFILES:
         return profile
     return HYBRID_PROFILE
+
+
+def normalize_vector_index_type(value: str | None) -> str:
+    """Return a supported vector index type, defaulting to exact flat search."""
+    index_type = (value or "").strip().lower()
+    if index_type in SUPPORTED_VECTOR_INDEX_TYPES:
+        return index_type
+    return FLAT_VECTOR_INDEX
 
 
 def retrieval_config_from_env() -> RetrievalConfig:
@@ -88,6 +109,20 @@ def retrieval_config_from_settings() -> RetrievalConfig:
     )
 
 
+def vector_index_config_from_settings() -> VectorIndexConfig:
+    """Build FAISS construction settings, retaining the exact flat default."""
+    try:
+        settings = _load_runtime_settings()
+    except Exception:
+        return VectorIndexConfig()
+    return VectorIndexConfig(
+        type=normalize_vector_index_type(settings.get("vector_index_type")),
+        hnsw_m=int(settings.get("hnsw_m", 32) or 32),
+        hnsw_ef_construction=int(settings.get("hnsw_ef_construction", 200) or 200),
+        hnsw_ef_search=int(settings.get("hnsw_ef_search", 64) or 64),
+    )
+
+
 def default_top_k() -> int:
     """The configured default number of chunks a retrieval returns."""
     try:
@@ -124,11 +159,15 @@ __all__ = [
     "HYBRID_PROFILE",
     "RetrievalConfig",
     "SUPPORTED_RETRIEVAL_PROFILES",
+    "SUPPORTED_VECTOR_INDEX_TYPES",
     "VECTOR_PROFILE",
+    "FLAT_VECTOR_INDEX",
+    "HNSW_VECTOR_INDEX",
     "chunk_geometry",
     "default_top_k",
     "image_description_limits",
     "normalize_retrieval_profile",
     "retrieval_config_from_env",
     "retrieval_config_from_settings",
+    "vector_index_config_from_settings",
 ]
