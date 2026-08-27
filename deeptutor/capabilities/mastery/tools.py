@@ -68,6 +68,7 @@ MASTERY_TOOL_NAMES: tuple[str, ...] = (
     "mastery_status",
     "mastery_quiz",
     "mastery_grade",
+    "mastery_skip_question",
     "mastery_assess",
     "mastery_build",
     "mastery_paths",
@@ -814,6 +815,51 @@ class MasteryAssessTool(BaseTool):
         return _json_result(payload, meta_key="mastery_assess")
 
 
+class MasterySkipQuestionTool(BaseTool):
+    """Abandon the open question without inventing a graded result."""
+
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="mastery_skip_question",
+            description=(
+                "Abandon the currently open mastery question without grading "
+                "it. This keeps every attempt and mastery level already earned, "
+                "but gives no credit for the abandoned question. Use it only "
+                "when the learner explicitly asks to skip this question or the "
+                "question is unrecoverably stuck; if mastery_status reports an "
+                "answered interaction, retry mastery_grade first."
+            ),
+            parameters=[],
+        )
+
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        path_id = _resolve_path_id(kwargs)
+        if not path_id:
+            return _no_path_result()
+
+        service = _new_service()
+        if _load_path(service, path_id) is None:
+            return _no_built_path_result("mastery_skip_question")
+
+        interaction = service.store.get_active_interaction(path_id)
+        progress, skipped = service.abandon_active_question(path_id)
+        payload = {
+            "status": "skipped" if skipped else "no_pending_question",
+            "skipped": skipped,
+            "path_revision": progress.version,
+            "question_id": interaction.interaction_id if interaction is not None else "",
+            "next": next_objective(progress).to_dict(),
+            "instruction": (
+                "The question was abandoned without an attempt or mastery credit. "
+                "Continue the objective from mastery_status.next and register a "
+                "different question with mastery_quiz."
+                if skipped
+                else "No question was open; follow mastery_status.next."
+            ),
+        }
+        return _json_result(payload, meta_key="mastery_skip_question")
+
+
 class MasteryBuildTool(BaseTool):
     """Create / extend the skill map from objectives the tutor designed."""
 
@@ -1118,6 +1164,7 @@ MASTERY_TOOL_TYPES: tuple[type[BaseTool], ...] = (
     MasteryStatusTool,
     MasteryQuizTool,
     MasteryGradeTool,
+    MasterySkipQuestionTool,
     MasteryAssessTool,
     MasteryBuildTool,
     MasteryPathsTool,
@@ -1135,6 +1182,7 @@ __all__ = [
     "MasteryLeaveTool",
     "MasteryPathsTool",
     "MasteryQuizTool",
+    "MasterySkipQuestionTool",
     "MasteryStatusTool",
     "MasterySwitchTool",
 ]
