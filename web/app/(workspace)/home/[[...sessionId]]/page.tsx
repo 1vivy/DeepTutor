@@ -27,6 +27,7 @@ import {
   Lightbulb,
   MessageSquare,
   Microscope,
+  NotebookPen,
   PenLine,
   Sparkles,
   type LucideIcon,
@@ -2291,6 +2292,14 @@ export default function ChatPage() {
                   icon={Download}
                   label={t("Download Markdown")}
                   title={t("Download chat history as Markdown")}
+                />
+                <HeaderActionButton
+                  onClick={() =>
+                    viewerPanelRef.current?.openMarkdownNoteTab()
+                  }
+                  icon={NotebookPen}
+                  label={t("Markdown note")}
+                  title={t("Write Markdown in chat")}
                 />
                 <HeaderActionButton
                   onClick={toggleViewerPanel}

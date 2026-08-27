@@ -37,6 +37,7 @@ import {
   GraduationCap,
   Loader2,
   MessageSquarePlus,
+  NotebookPen,
   Paperclip,
   X,
 } from "lucide-react";
@@ -90,6 +91,10 @@ const OfficeTextPreview = dynamic(
 const FallbackPreview = dynamic(
   () => import("@/components/chat/preview/previewers/FallbackPreview"),
 );
+const ChatMarkdownNoteTabBody = dynamic(
+  () => import("@/components/chat/home/ChatMarkdownNoteTab"),
+  { ssr: false },
+);
 const Geogebra = dynamic(() => import("@/components/Geogebra"), {
   ssr: false,
 });
@@ -135,6 +140,7 @@ function readStoredViewerWidth(): number {
 type ViewerTab =
   | { kind: "file"; id: string; label: string; source: FilePreviewSource }
   | { kind: "web"; id: string; label: string; url: string }
+  | { kind: "markdown-note"; id: string; label: string }
   | {
       kind: "quiz-followup";
       id: string;
@@ -164,6 +170,8 @@ type ViewerTab =
 export interface SessionViewerPanelHandle {
   openFileTab(a: MessageAttachment): void;
   openWebTab(url: string): void;
+  /** Opens the session-scoped inline Markdown editor tab. */
+  openMarkdownNoteTab(): void;
   /** Opens (or focuses) the follow-up chat tab for a quiz question. */
   openQuizFollowupTab(context: QuizFollowupTabContext): void;
   /** Opens an independent Little Tutor thread grounded in selected chat text. */
@@ -198,6 +206,8 @@ function fileTabIdFor(a: MessageAttachment, fallback: number): string {
 function webTabIdFor(url: string): string {
   return `web:${url}`;
 }
+
+const markdownNoteTabId = "markdown-note";
 
 function quizFollowupTabIdFor(questionKey: string): string {
   return `quiz-followup:${questionKey}`;
@@ -361,6 +371,26 @@ function SessionViewerPanelInner(
     },
     [onAutoOpen],
   );
+
+  const openMarkdownNoteTab = useCallback(() => {
+    setTabs((prev) => {
+      const existingIdx = prev.findIndex(
+        (tab) => tab.id === markdownNoteTabId,
+      );
+      if (existingIdx >= 0) {
+        setActiveTabId(markdownNoteTabId);
+        return prev;
+      }
+      const next: ViewerTab = {
+        kind: "markdown-note",
+        id: markdownNoteTabId,
+        label: t("Markdown note"),
+      };
+      setActiveTabId(markdownNoteTabId);
+      return [...prev, next];
+    });
+    onAutoOpen();
+  }, [onAutoOpen, t]);
 
   const openQuizFollowupTab = useCallback(
     (context: QuizFollowupTabContext) => {
@@ -527,6 +557,7 @@ function SessionViewerPanelInner(
     () => ({
       openFileTab,
       openWebTab,
+      openMarkdownNoteTab,
       openQuizFollowupTab,
       openSelectionTutorTab,
       openGeogebraTab,
@@ -536,6 +567,7 @@ function SessionViewerPanelInner(
     [
       openFileTab,
       openWebTab,
+      openMarkdownNoteTab,
       openQuizFollowupTab,
       openSelectionTutorTab,
       openGeogebraTab,
@@ -648,6 +680,11 @@ function SessionViewerPanelInner(
           <FileTabBody source={activeTab.source} />
         ) : activeTab?.kind === "web" ? (
           <WebTabBody key={activeTab.url} url={activeTab.url} />
+        ) : activeTab?.kind === "markdown-note" ? (
+          <ChatMarkdownNoteTabBody
+            key={`${activeTab.id}:${sessionId ?? "pending"}`}
+            sessionId={sessionId}
+          />
         ) : activeTab?.kind === "quiz-followup" ? (
           <QuizFollowupTabBody
             key={activeTab.context.questionKey}
@@ -737,7 +774,9 @@ function TabBar({
           const Icon =
             tab.kind === "web"
               ? Globe
-              : tab.kind === "selection-tutor"
+              : tab.kind === "markdown-note"
+                ? NotebookPen
+                : tab.kind === "selection-tutor"
                 ? GraduationCap
                 : tab.kind === "quiz-followup"
                   ? MessageSquarePlus
