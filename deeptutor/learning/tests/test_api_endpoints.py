@@ -119,6 +119,184 @@ class TestListProgress:
             pytest.fail("empty_mods book not found in progress list")
 
 
+class TestTopicProductApi:
+    def test_generate_mixed_source_draft_without_persisting(self, client):
+        response_json = json.dumps(
+            {
+                "description": "A route from vectors to eigenvalues.",
+                "modules": [
+                    {
+                        "name": "Vector Valley",
+                        "knowledge_points": [
+                            {"name": "Vector spaces", "type": "concept"},
+                            {"name": "Basis changes", "type": "procedure"},
+                        ],
+                    }
+                ],
+            }
+        )
+        with patch(
+            "deeptutor.learning.topic_generation.complete",
+            new=AsyncMock(return_value=response_json),
+        ):
+            response = client.post(
+                "/api/v1/learning/topics/draft",
+                json={
+                    "name": "Linear Algebra",
+                    "goal": "Understand transformations visually",
+                    "sources": [
+                        {
+                            "kind": "book",
+                            "source_id": "book-1",
+                            "label": "Course book",
+                            "excerpt": "Vectors, matrices, eigenvalues",
+                        },
+                        {
+                            "kind": "knowledge_base",
+                            "source_id": "kb-1",
+                            "label": "Lecture KB",
+                        },
+                    ],
+                },
+            )
+
+        assert response.status_code == 200
+        assert response.json()["modules"][0]["name"] == "Vector Valley"
+        assert client.get("/api/v1/learning/topics").json()["topics"] == []
+
+    def test_confirm_topic_returns_map_sources_and_metadata(self, client):
+        response = client.post(
+            "/api/v1/learning/topics",
+            json={
+                "name": "Linear Algebra",
+                "goal": "Understand transformations visually",
+                "description": "A route from vectors to eigenvalues.",
+                "emoji": "🗺️",
+                "sources": [
+                    {
+                        "kind": "notebook",
+                        "source_id": "notes-1",
+                        "label": "Week 1 notes",
+                    }
+                ],
+                "modules": [_module_payload("draft_m0", "draft_kp0")],
+            },
+        )
+
+        assert response.status_code == 200
+        topic = response.json()
+        assert topic["path_id"].startswith("topic_")
+        assert topic["name"] == "Linear Algebra"
+        assert topic["metadata"]["goal"] == "Understand transformations visually"
+        assert topic["metadata"]["emoji"] == "🗺️"
+        assert topic["sources"][0]["kind"] == "notebook"
+        assert topic["map"]["counts"]["total"] == 1
+
+        listed = client.get("/api/v1/learning/topics").json()["topics"]
+        assert [item["path_id"] for item in listed] == [topic["path_id"]]
+
+    def test_learner_override_advances_with_provenance(self, client):
+        created = client.post(
+            "/api/v1/learning/topics",
+            json={
+                "name": "Physics",
+                "goal": "Master mechanics",
+                "sources": [],
+                "modules": [_module_payload("m1", "kp1")],
+            },
+        ).json()
+        path_id = created["path_id"]
+        kp_id = created["map"]["modules"][0]["knowledge_points"][0]["id"]
+
+        response = client.post(
+            f"/api/v1/learning/topics/{path_id}/objectives/{kp_id}/override",
+            json={"mastered": True, "note": "Already studied this"},
+        )
+
+        assert response.status_code == 200
+        waypoint = response.json()["map"]["modules"][0]["knowledge_points"][0]
+        assert waypoint["status"] == "mastered"
+        assert waypoint["mastery_source"] == "learner"
+        assert waypoint["override_note"] == "Already studied this"
+
+    def test_topic_websocket_replays_then_streams_committed_changes(self, client):
+        created = client.post(
+            "/api/v1/learning/topics",
+            json={
+                "name": "Chemistry",
+                "goal": "Understand reactions",
+                "sources": [],
+                "modules": [_module_payload("m1", "kp1")],
+            },
+        ).json()
+        path_id = created["path_id"]
+        kp_id = created["map"]["modules"][0]["knowledge_points"][0]["id"]
+
+        with client.websocket_connect("/api/v1/learning/ws") as socket:
+            socket.send_json(
+                {"type": "subscribe", "path_id": path_id, "after_revision": 0}
+            )
+            subscribed = socket.receive_json()
+            assert subscribed["type"] == "subscribed"
+            assert subscribed["events"]
+
+            response = client.post(
+                f"/api/v1/learning/topics/{path_id}/objectives/{kp_id}/override",
+                json={"mastered": True, "note": "Prior course"},
+            )
+            assert response.status_code == 200
+
+            pushed = socket.receive_json()
+            assert pushed["type"] == "topic_event"
+            assert pushed["reason"] == "mastery.overridden"
+            assert pushed["revision"] > subscribed["revision"]
+            assert pushed["events"][-1]["event_type"] == "mastery.overridden"
+
+    def test_topic_websocket_reconnects_from_cursor_and_rejects_invalid_topics(self, client):
+        created = client.post(
+            "/api/v1/learning/topics",
+            json={
+                "name": "Geometry",
+                "goal": "Reason with shapes",
+                "sources": [],
+                "modules": [_module_payload("m1", "kp1")],
+            },
+        ).json()
+        path_id = created["path_id"]
+        kp_id = created["map"]["modules"][0]["knowledge_points"][0]["id"]
+
+        with client.websocket_connect("/api/v1/learning/ws") as socket:
+            socket.send_json({"type": "subscribe", "path_id": "../archive"})
+            assert socket.receive_json() == {"type": "error", "content": "Invalid path_id"}
+
+            socket.send_json({"type": "subscribe", "path_id": "missing-topic"})
+            assert socket.receive_json() == {
+                "type": "error",
+                "content": "Mastery topic not found",
+            }
+
+            # A cursor beyond the durable head is clamped instead of causing
+            # every subsequent revision to be silently ignored.
+            socket.send_json(
+                {"type": "subscribe", "path_id": path_id, "after_revision": 999_999}
+            )
+            subscribed = socket.receive_json()
+            assert subscribed["type"] == "subscribed"
+            assert subscribed["revision"] == created["path_revision"]
+            assert subscribed["events"] == []
+
+            response = client.post(
+                f"/api/v1/learning/topics/{path_id}/objectives/{kp_id}/override",
+                json={"mastered": True, "note": "Placed out"},
+            )
+            assert response.status_code == 200
+            pushed = socket.receive_json()
+            assert pushed["revision"] == response.json()["path_revision"]
+            assert [event["event_type"] for event in pushed["events"]] == [
+                "mastery.overridden"
+            ]
+
+
 # -- POST /progress/{book_id}/init-modules --------------------------------
 
 

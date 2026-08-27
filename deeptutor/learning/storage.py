@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+import hashlib
 import json
 from pathlib import Path
 import sqlite3
@@ -29,6 +30,9 @@ from deeptutor.learning.models import (
     MasteryEvent,
     MasteryInteraction,
     MasteryPathLease,
+    MasteryTopic,
+    TopicMetadata,
+    TopicSource,
 )
 from deeptutor.services.file_io import atomic_write_text as _atomic_write_text
 from deeptutor.services.path_service import get_path_service
@@ -242,6 +246,69 @@ class LearningTransaction:
             self.touch()
         return int(cursor.rowcount)
 
+    def put_topic(self, metadata: TopicMetadata, sources: list[TopicSource]) -> None:
+        """Persist product metadata and the ordered source set in this unit."""
+
+        if metadata.path_id != self.progress.book_id:
+            raise ValueError("topic metadata path_id does not match transaction path")
+        now = time.time()
+        metadata.updated_at = now
+        self._conn.execute(
+            """
+            INSERT INTO mastery_topic_meta (
+                path_id, goal, description, emoji, map_seed, status,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(path_id) DO UPDATE SET
+                goal = excluded.goal,
+                description = excluded.description,
+                emoji = excluded.emoji,
+                map_seed = excluded.map_seed,
+                status = excluded.status,
+                updated_at = excluded.updated_at
+            """,
+            (
+                metadata.path_id,
+                metadata.goal,
+                metadata.description,
+                metadata.emoji,
+                int(metadata.map_seed),
+                metadata.status,
+                metadata.created_at,
+                now,
+            ),
+        )
+        self._conn.execute(
+            "DELETE FROM mastery_topic_sources WHERE path_id = ?",
+            (metadata.path_id,),
+        )
+        for position, source in enumerate(sorted(sources, key=lambda item: item.position)):
+            self._conn.execute(
+                """
+                INSERT INTO mastery_topic_sources (
+                    source_id, path_id, kind, external_id, label, excerpt,
+                    position, available, metadata_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    source.id,
+                    metadata.path_id,
+                    source.kind.value,
+                    source.source_id,
+                    source.label,
+                    source.excerpt,
+                    position,
+                    int(source.available),
+                    json.dumps(source.metadata, ensure_ascii=False),
+                    source.created_at,
+                ),
+            )
+        self.touch()
+        self.emit(
+            "topic.updated",
+            {"source_count": len(sources), "status": metadata.status},
+        )
+
 
 class LearningStore:
     """Workspace-scoped transactional store for Mastery Path state."""
@@ -249,7 +316,16 @@ class LearningStore:
     _DB_FILENAME = "mastery.sqlite3"
 
     def __init__(self, root: Path | None = None) -> None:
-        self._root = root or (get_path_service().get_workspace_dir() / "learning")
+        if root is None:
+            # Explicit roots are used by tests and SDK callers as direct store
+            # directories.  The app-owned default is the only location that
+            # participates in the one-way workspace V1 → V2 migration.
+            from deeptutor.learning.migration import prepare_mastery_v2_root
+
+            learning_root = get_path_service().get_workspace_dir() / "learning"
+            self._root = prepare_mastery_v2_root(learning_root)
+        else:
+            self._root = Path(root)
         self._root.mkdir(parents=True, exist_ok=True)
         self._initialized = False
         self._ensure_initialized()
@@ -343,6 +419,32 @@ class LearningStore:
                         turn_id TEXT NOT NULL UNIQUE,
                         acquired_at REAL NOT NULL
                     );
+
+                    CREATE TABLE IF NOT EXISTS mastery_topic_meta (
+                        path_id TEXT PRIMARY KEY REFERENCES mastery_paths(path_id) ON DELETE CASCADE,
+                        goal TEXT NOT NULL DEFAULT '',
+                        description TEXT NOT NULL DEFAULT '',
+                        emoji TEXT NOT NULL DEFAULT '🧭',
+                        map_seed INTEGER NOT NULL DEFAULT 0,
+                        status TEXT NOT NULL DEFAULT 'active',
+                        created_at REAL NOT NULL,
+                        updated_at REAL NOT NULL
+                    );
+
+                    CREATE TABLE IF NOT EXISTS mastery_topic_sources (
+                        source_id TEXT PRIMARY KEY,
+                        path_id TEXT NOT NULL REFERENCES mastery_paths(path_id) ON DELETE CASCADE,
+                        kind TEXT NOT NULL,
+                        external_id TEXT NOT NULL DEFAULT '',
+                        label TEXT NOT NULL,
+                        excerpt TEXT NOT NULL DEFAULT '',
+                        position INTEGER NOT NULL DEFAULT 0,
+                        available INTEGER NOT NULL DEFAULT 1,
+                        metadata_json TEXT NOT NULL DEFAULT '{}',
+                        created_at REAL NOT NULL
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_mastery_topic_sources_path
+                        ON mastery_topic_sources(path_id, position);
                     """
                 )
                 conn.commit()
@@ -528,6 +630,9 @@ class LearningStore:
                 raise
         progress.version = revision
         progress.updated_at = now
+        from deeptutor.learning.event_hub import publish_topic_signal
+
+        publish_topic_signal(path_id, revision, event_type)
 
     @contextmanager
     def transaction(
@@ -544,6 +649,8 @@ class LearningStore:
         """
         path_id = self._validate_id(book_id)
         self._import_legacy_if_needed(path_id)
+        committed_revision: int | None = None
+        committed_reason = "topic.changed"
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             tx: LearningTransaction | None = None
@@ -617,12 +724,19 @@ class LearningStore:
                                 now,
                             ),
                         )
+                    committed_revision = revision
+                    if tx.events:
+                        committed_reason = tx.events[-1][0]
                     tx.progress.version = revision
                     tx.progress.updated_at = now
                 conn.commit()
             except Exception:
                 conn.rollback()
                 raise
+        if committed_revision is not None:
+            from deeptutor.learning.event_hub import publish_topic_signal
+
+            publish_topic_signal(path_id, committed_revision, committed_reason)
 
     def mutate(
         self,
@@ -655,6 +769,9 @@ class LearningStore:
             for archived in archive_dir.glob("*.json"):
                 if archived.stem == path_id or archived.stem.startswith(f"{path_id}."):
                     archived.unlink(missing_ok=True)
+        from deeptutor.learning.event_hub import publish_topic_signal
+
+        publish_topic_signal(path_id, 0, "topic.deleted")
 
     def exists(self, book_id: str) -> bool:
         path_id = self._validate_id(book_id)
@@ -674,6 +791,81 @@ class LearningStore:
         }
         return sorted(stored | legacy)
 
+    # ---- product topic metadata -----------------------------------------
+
+    @staticmethod
+    def _default_map_seed(path_id: str) -> int:
+        return int.from_bytes(hashlib.sha256(path_id.encode("utf-8")).digest()[:4], "big")
+
+    def put_topic(self, metadata: TopicMetadata, sources: list[TopicSource]) -> MasteryTopic:
+        path_id = self._validate_id(metadata.path_id)
+        normalized = metadata.model_copy(deep=True)
+        normalized.path_id = path_id
+        if normalized.map_seed == 0:
+            normalized.map_seed = self._default_map_seed(path_id)
+        ordered = [source.model_copy(deep=True) for source in sources]
+        for index, source in enumerate(ordered):
+            source.position = index
+
+        def apply(tx: LearningTransaction) -> None:
+            tx.put_topic(normalized, ordered)
+
+        self.mutate(path_id, apply)
+        topic = self.get_topic(path_id)
+        if topic is None:  # pragma: no cover - transaction guarantees the row
+            raise LearningStoreError(f"Failed to persist topic {path_id!r}")
+        return topic
+
+    def get_topic(self, path_id: str) -> MasteryTopic | None:
+        path_id = self._validate_id(path_id)
+        progress = self.load(path_id)
+        if progress is None:
+            return None
+        with self._connect() as conn:
+            meta_row = conn.execute(
+                "SELECT * FROM mastery_topic_meta WHERE path_id = ?", (path_id,)
+            ).fetchone()
+            source_rows = conn.execute(
+                """
+                SELECT * FROM mastery_topic_sources
+                WHERE path_id = ? ORDER BY position ASC, created_at ASC
+                """,
+                (path_id,),
+            ).fetchall()
+        if meta_row is None:
+            metadata = TopicMetadata(
+                path_id=path_id,
+                map_seed=self._default_map_seed(path_id),
+                created_at=progress.created_at,
+                updated_at=progress.updated_at,
+            )
+        else:
+            metadata = TopicMetadata(
+                path_id=path_id,
+                goal=meta_row["goal"] or "",
+                description=meta_row["description"] or "",
+                emoji=meta_row["emoji"] or "🧭",
+                map_seed=int(meta_row["map_seed"] or self._default_map_seed(path_id)),
+                status=meta_row["status"] or "active",
+                created_at=float(meta_row["created_at"]),
+                updated_at=float(meta_row["updated_at"]),
+            )
+        sources = [
+            TopicSource(
+                id=row["source_id"],
+                kind=row["kind"],
+                source_id=row["external_id"] or "",
+                label=row["label"],
+                excerpt=row["excerpt"] or "",
+                position=int(row["position"]),
+                available=bool(row["available"]),
+                metadata=json.loads(row["metadata_json"] or "{}"),
+                created_at=float(row["created_at"]),
+            )
+            for row in source_rows
+        ]
+        return MasteryTopic(metadata=metadata, sources=sources)
+
     # ---- explicit path/session ownership ---------------------------------
 
     def bind_session(self, path_id: str, session_id: str, *, owns_path: bool = False) -> None:
@@ -683,6 +875,7 @@ class LearningStore:
         if not session_id:
             raise ValueError("session_id must not be empty")
         now = time.time()
+        current_revision = 0
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             try:
@@ -725,10 +918,18 @@ class LearningStore:
                     """,
                     (path_id, session_id, int(owns_path), now, now),
                 )
+                current_revision = int(
+                    conn.execute(
+                        "SELECT revision FROM mastery_paths WHERE path_id = ?", (path_id,)
+                    ).fetchone()["revision"]
+                )
                 conn.commit()
             except Exception:
                 conn.rollback()
                 raise
+        from deeptutor.learning.event_hub import publish_topic_signal
+
+        publish_topic_signal(path_id, current_revision, "session.bound")
 
     def list_session_ids(self, path_id: str) -> list[str]:
         path_id = self._validate_id(path_id)
