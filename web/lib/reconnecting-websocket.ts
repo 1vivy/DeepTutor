@@ -13,19 +13,19 @@ export function reconnectDelayMs(
   return Math.min(baseDelayMs * 2 ** Math.max(0, attempt), maxDelayMs);
 }
 
-interface RetryScheduler {
+export interface RetryScheduler {
   set(callback: () => void, delayMs: number): unknown;
   clear(handle: unknown): void;
 }
 
-interface ReconnectingWebSocketHandlers {
+export interface ReconnectingWebSocketHandlers {
   onOpen?: () => void;
   onMessage: (event: MessageEvent) => void;
   onDisconnect?: () => void;
   onError?: (error: unknown) => void;
 }
 
-interface ReconnectingWebSocketOptions {
+export interface ReconnectingWebSocketOptions {
   createSocket?: (url: string) => WebSocket;
   shouldReconnect?: () => boolean;
   scheduler?: RetryScheduler;
