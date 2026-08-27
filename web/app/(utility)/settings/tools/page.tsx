@@ -2,12 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, Loader2, Lock, Wrench } from "lucide-react";
+import Link from "next/link";
 import { useTranslation } from "react-i18next";
 
 import { useSettings } from "@/components/settings/SettingsContext";
 import { SettingsPageHeader } from "@/components/settings/shared";
 import { apiFetch, apiUrl } from "@/lib/api";
 import { invalidateEnabledOptionalToolsCache } from "@/lib/tools-settings";
+import {
+  toolAvailabilityCopy,
+  toolEffectiveEnabled,
+} from "@/lib/tool-availability";
 
 type ToolParameter = {
   name: string;
@@ -44,6 +49,9 @@ type BuiltinTool = {
   // for a plain system built-in. Owned tools render in their own section
   // below the built-in tools.
   capability?: string | null;
+  // Runtime readiness is independent of the saved composer preference.
+  available?: boolean;
+  unavailable_reason?: string | null;
 };
 
 type ToolsResponse = {
@@ -258,9 +266,18 @@ export default function ToolsSettingsPage() {
                     const hints = tool.hints[language];
                     const isPending = pending.has(tool.name);
                     const isComingSoon = !!tool.coming_soon;
-                    const isEnabled =
-                      !isComingSoon &&
-                      (tool.toggleable ? enabled.has(tool.name) : true);
+                    const isAvailable = tool.available !== false;
+                    const availability = !isAvailable
+                      ? toolAvailabilityCopy(
+                          tool.unavailable_reason,
+                          language === "zh" ? "zh" : "en",
+                        )
+                      : null;
+                    const isEnabled = toolEffectiveEnabled(
+                      tool.toggleable ? enabled.has(tool.name) : true,
+                      isAvailable,
+                      isComingSoon,
+                    );
                     return (
                       <div
                         key={tool.name}
@@ -273,7 +290,7 @@ export default function ToolsSettingsPage() {
                         <div className="flex w-full items-start gap-3 px-5 py-4">
                           <Wrench
                             className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${
-                              isComingSoon
+                              isComingSoon || !isAvailable
                                 ? "text-[var(--muted-foreground)]/40"
                                 : "text-[var(--muted-foreground)]"
                             }`}
@@ -307,6 +324,11 @@ export default function ToolsSettingsPage() {
                                       : "Coming soon"}
                                   </span>
                                 )}
+                                {availability && !isComingSoon && (
+                                  <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                                    {availability.badge}
+                                  </span>
+                                )}
                               </div>
                               <p
                                 className={`mt-1 text-[12.5px] leading-relaxed ${
@@ -317,6 +339,19 @@ export default function ToolsSettingsPage() {
                               >
                                 {hints.short_description || tool.description}
                               </p>
+                              {availability && !isComingSoon && (
+                                <p className="mt-1 text-[11.5px] leading-relaxed text-amber-700 dark:text-amber-300">
+                                  {availability.detail}{" "}
+                                  {availability.href && (
+                                    <Link
+                                      href={availability.href}
+                                      className="font-medium underline underline-offset-2"
+                                    >
+                                      {language === "zh" ? "打开设置" : "Open settings"}
+                                    </Link>
+                                  )}
+                                </p>
+                              )}
                             </div>
                             <ChevronDown
                               className={`mt-1 h-4 w-4 shrink-0 text-[var(--muted-foreground)] transition-transform ${
@@ -335,6 +370,15 @@ export default function ToolsSettingsPage() {
                                 label={
                                   language === "zh" ? "敬请期待" : "Coming soon"
                                 }
+                              />
+                            ) : !isAvailable ? (
+                              <ToolToggle
+                                checked={false}
+                                disabled
+                                onChange={() => {
+                                  /* runtime unavailable */
+                                }}
+                                label={availability?.badge ?? t("Not configured")}
                               />
                             ) : tool.toggleable ? (
                               <ToolToggle

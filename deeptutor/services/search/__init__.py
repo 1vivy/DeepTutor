@@ -85,14 +85,21 @@ def _assert_provider_supported(provider_name: str) -> None:
         )
 
 
-def _disabled_result(query: str, provider: str) -> dict[str, Any]:
+def _disabled_result(
+    query: str,
+    provider: str,
+    *,
+    error_code: str,
+    answer: str,
+) -> dict[str, Any]:
     return {
         "timestamp": datetime.now().isoformat(),
         "query": query,
-        "answer": "Web search is disabled.",
+        "answer": answer,
         "citations": [],
         "search_results": [],
         "provider": provider,
+        "error_code": error_code,
     }
 
 
@@ -126,13 +133,27 @@ def web_search(
     config = _get_web_search_config()
     if not config.get("enabled", True):
         _logger.warning("Web search is disabled in config")
-        return _disabled_result(query, "disabled")
+        return _disabled_result(
+            query,
+            "disabled",
+            error_code="web_search_disabled",
+            answer="Web search is disabled by system configuration.",
+        )
 
     resolved = resolve_search_runtime_config()
     provider_name = (provider or resolved.provider).strip().lower()
     _assert_provider_supported(provider_name)
     if provider_name == "none":
-        return _disabled_result(query, "none")
+        return _disabled_result(
+            query,
+            "none",
+            error_code="search_provider_not_configured",
+            answer=(
+                "Web search is enabled but no search provider is configured. "
+                "Open Settings > Search and choose a provider; DuckDuckGo works "
+                "without an API key."
+            ),
+        )
 
     api_key, base_url = _credentials_for(provider_name, resolved)
     base_url = provider_kwargs.get("base_url") or base_url

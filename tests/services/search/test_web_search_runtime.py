@@ -63,6 +63,24 @@ def test_web_search_rejects_deprecated_provider(monkeypatch) -> None:
         web_search("hello")
 
 
+def test_web_search_none_provider_returns_actionable_configuration_error(monkeypatch) -> None:
+    _patch_runtime(
+        monkeypatch,
+        ResolvedSearchConfig(
+            provider="none",
+            requested_provider="none",
+            max_results=5,
+        ),
+    )
+
+    result = web_search("hello")
+
+    assert result["provider"] == "none"
+    assert result["error_code"] == "search_provider_not_configured"
+    assert "Settings" in result["answer"]
+    assert "DuckDuckGo" in result["answer"]
+
+
 def test_web_search_perplexity_missing_key_hard_fails(monkeypatch) -> None:
     _patch_runtime(
         monkeypatch,

@@ -1660,10 +1660,14 @@ class AgenticChatPipeline:
         if self.language == "zh":
             how_to_write = (
                 (
-                    "通过 exec 使用 PowerShell here-string 将脚本写入文件再运行，例如：\n"
+                    "当前 shell 是 Windows PowerShell。列目录使用 Get-ChildItem，限制输出使用 "
+                    "Select-Object -First；连续命令使用分号。`python` 与 `python -m pip` 均指向 "
+                    "DeepTutor 自己的运行环境。通过 exec 使用 PowerShell here-string 将脚本写入文件再运行，例如：\n"
                     "  @'\n...Python 脚本内容...\n'@ | Set-Content -Encoding utf8 gen.py\n"
                     "  python gen.py\n"
-                    "不要使用 bash heredoc（<<'PY'）或 POSIX 重定向语法——当前为 Windows 环境。"
+                    "本地路径经 Test-Path 或 Get-Item 验证存在后，直接读取，不要要求用户重复上传。"
+                    "命令失败时先根据 STDERR 与退出码修正命令或依赖；只有工具明确返回拒绝访问时，"
+                    "才能判断为权限问题。不要把命令语法或依赖错误说成沙箱无权访问。"
                 )
                 if is_windows
                 else (
@@ -1681,12 +1685,17 @@ class AgenticChatPipeline:
             )
         how_to_write = (
             (
-                "write the script to a file through exec with a PowerShell "
+                "the current shell is Windows PowerShell. Use Get-ChildItem to list files, "
+                "Select-Object -First to limit output, and semicolons between commands. "
+                "Both `python` and `python -m pip` resolve to DeepTutor's runtime. "
+                "Write the script to a file through exec with a PowerShell "
                 "here-string, then run it, for example:\n"
                 "  @'\n...Python script contents...\n'@ | Set-Content -Encoding utf8 gen.py\n"
                 "  python gen.py\n"
-                "Do not use Bash heredoc (<<'PY') or POSIX redirection syntax; "
-                "this is a Windows environment. "
+                "After Test-Path or Get-Item confirms a local path, read it directly instead "
+                "of asking the user to upload it again. Correct the command or dependency from "
+                "STDERR and the exit code first. Do not describe a syntax or dependency failure "
+                "as denied sandbox access unless the tool explicitly reports access denied. "
             )
             if is_windows
             else (
