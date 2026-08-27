@@ -25,6 +25,13 @@ const state: ReadingTurnState = {
   selection: "",
 };
 
+/** Validate persisted/wire material ids before they become reader addresses. */
+export function normalizeReadingMaterialId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  return /^[0-9a-f]{8,64}$/.test(normalized) ? normalized : null;
+}
+
 export function setReadingMaterial(materialId: string | null): void {
   state.materialId = materialId;
   if (!materialId) {

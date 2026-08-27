@@ -322,6 +322,7 @@ const AssistantMessage = memo(function AssistantMessage({
   ) => void;
 }) {
   const events = useMemo(() => msg.events ?? [], [msg.events]);
+  const readingMaterialId = researchRequestSnapshot?.readingMaterialId;
   const resultEvent = useMemo(
     () => msg.events?.find((event) => event.type === "result") ?? null,
     [msg.events],
@@ -473,6 +474,8 @@ const AssistantMessage = memo(function AssistantMessage({
             <AssistantResponse
               content={msg.content}
               isStreaming={isStreaming}
+              readingMaterialId={readingMaterialId}
+              events={events}
             />
           ) : null}
         </>
@@ -495,6 +498,8 @@ const AssistantMessage = memo(function AssistantMessage({
             <AssistantResponse
               content={msg.content}
               isStreaming={isStreaming}
+              readingMaterialId={readingMaterialId}
+              events={events}
             />
           ) : null}
           <QuizViewer
@@ -515,6 +520,8 @@ const AssistantMessage = memo(function AssistantMessage({
               key={seg.key}
               content={seg.text}
               isStreaming={isStreaming}
+              readingMaterialId={readingMaterialId}
+              events={events}
             />
           ) : seg.kind === "trace" ? (
             // What DeepTutor worked out after the user answered — shown
@@ -536,7 +543,12 @@ const AssistantMessage = memo(function AssistantMessage({
           ),
         )
       ) : (
-        <AssistantResponse content={msg.content} isStreaming={isStreaming} />
+        <AssistantResponse
+          content={msg.content}
+          isStreaming={isStreaming}
+          readingMaterialId={readingMaterialId}
+          events={events}
+        />
       )}
       {/* Non-default branches (quiz, math animator, visualize) keep
           ask_user below the body. The default branch inlines the card
