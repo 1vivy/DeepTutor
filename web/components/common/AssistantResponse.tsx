@@ -5,12 +5,16 @@ import { Fragment, memo, useMemo } from "react";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import ModelThinkingCard from "@/components/common/ModelThinkingCard";
 import { useReading } from "@/context/ReadingContext";
+import type { StreamEvent } from "@/lib/unified-ws";
 import {
   hasVisibleMarkdownContent,
   repairMalformedStrongEmphasis,
   stripArtifactAnnotations,
 } from "@/lib/markdown-display";
-import { linkifyLocatorCitations } from "@/lib/reading-citations";
+import {
+  linkifyLocatorCitations,
+  verifiedReadingLocators,
+} from "@/lib/reading-citations";
 import { linkifyMediaTimestamps } from "@/lib/reading-media-citations";
 import { parseModelThinkingSegments } from "@/lib/think-segments";
 import { useSmoothStreamText } from "@/hooks/useSmoothStreamText";
@@ -27,29 +31,46 @@ interface AssistantResponseProps {
    * in that case.
    */
   isStreaming?: boolean;
+  readingMaterialId?: string;
+  events?: StreamEvent[];
 }
 
 function AssistantResponseImpl({
   content,
   className = "text-[16px] leading-[1.75]",
   isStreaming = false,
+  readingMaterialId,
+  events,
 }: AssistantResponseProps) {
   const displayContent = useSmoothStreamText(content, isStreaming);
-  // Immersive reading only: turn `[p.12]` citations into anchors the reader
-  // pane intercepts. Outside that mode `material` is null (there is no
-  // provider on most surfaces, and none when no document is open), so this is a
-  // no-op and every other chat surface renders byte-identically to before.
+  // A locator becomes interactive only when this turn's persisted reading-tool
+  // events prove it belongs to the material that was open for the turn. The
+  // currently open material is used only for an extra range check; it never
+  // supplies identity for a historical answer.
   const { material } = useReading();
+  const verifiedLocators = useMemo(
+    () => verifiedReadingLocators(events, readingMaterialId),
+    [events, readingMaterialId],
+  );
   const citedContent = useMemo(
-    () =>
-      material?.unit === "segment"
-        ? linkifyMediaTimestamps(displayContent)
-        : material
-          ? linkifyLocatorCitations(displayContent, {
-              maxLocator: material.unit_count,
-            })
-          : displayContent,
-    [displayContent, material],
+    () => {
+      if (
+        material?.unit === "segment" &&
+        (!readingMaterialId || material.material_id === readingMaterialId)
+      ) {
+        return linkifyMediaTimestamps(displayContent);
+      }
+      return readingMaterialId && verifiedLocators.size > 0
+        ? linkifyLocatorCitations(displayContent, {
+            materialId: readingMaterialId,
+            allowedLocators: verifiedLocators,
+            ...(material?.material_id === readingMaterialId
+              ? { maxLocator: material.unit_count }
+              : {}),
+          })
+        : displayContent;
+    },
+    [displayContent, material, readingMaterialId, verifiedLocators],
   );
   const segments = useMemo(
     () => parseModelThinkingSegments(stripArtifactAnnotations(citedContent)),
