@@ -75,6 +75,12 @@ export interface StartTurnMessage {
     book_id: string;
     page_ids: string[];
   }[];
+  /** Explicit units from imported Reading materials. The server resolves the
+   *  text from the current user's store; clients never send trusted content. */
+  reading_references?: {
+    material_id: string;
+    locators: number[];
+  }[];
   /** Persistent mastery state to use independently of this chat session. */
   mastery_path_id?: string;
   /** Immersive reading: the document open in the reader pane, if any. Its

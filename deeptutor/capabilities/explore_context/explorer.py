@@ -74,6 +74,7 @@ _KIND_BY_PREFIX: dict[str, tuple[str, str]] = {
     "hs-": ("Conversation transcript", "对话记录"),
     "nb-": ("Notebook record", "笔记本记录"),
     "bk-": ("Book excerpt", "书籍节选"),
+    "rd-": ("Reading excerpt", "阅读材料节选"),
     "qb-": ("Question-bank entry", "题库条目"),
     "at-": ("Document", "文档"),
 }

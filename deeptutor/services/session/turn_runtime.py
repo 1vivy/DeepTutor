@@ -250,6 +250,14 @@ def _reading_viewport(value: Any) -> dict[str, Any]:
     return viewport
 
 
+def _reading_references(value: Any) -> list[dict[str, Any]]:
+    """Normalize reading units explicitly attached to an ordinary chat turn."""
+
+    from deeptutor.reading.references import normalize_reading_references
+
+    return normalize_reading_references(value)
+
+
 def _llm_selection_dict(value: Any) -> dict[str, str] | None:
     from deeptutor.services.model_selection import LLMSelection
 
@@ -268,6 +276,7 @@ def _request_snapshot_metadata(
     history_references: list[Any],
     question_notebook_references: list[Any],
     book_references: list[Any],
+    reading_references: Sequence[dict[str, Any]] = (),
     persona: str,
     memory_references: Sequence[str],
     llm_selection: dict[str, str] | None,
@@ -292,6 +301,8 @@ def _request_snapshot_metadata(
         snapshot["questionNotebookReferences"] = question_notebook_references
     if book_references:
         snapshot["bookReferences"] = book_references
+    if reading_references:
+        snapshot["readingReferences"] = list(reading_references)
     mastery_path_id = _mastery_path_id(payload.get("mastery_path_id"))
     if mastery_path_id:
         snapshot["masteryPathId"] = mastery_path_id
@@ -1421,6 +1432,11 @@ class TurnRuntimeManager:
                 if overrides.get("book_references") is not None
                 else snapshot.get("bookReferences") or []
             ),
+            "reading_references": _reading_references(
+                overrides.get("reading_references")
+                if "reading_references" in overrides
+                else snapshot.get("readingReferences")
+            ),
             "mastery_path_id": mastery_path_id,
             # Recovered from the original turn's snapshot so the regenerate runs
             # against the same document. An explicit override wins (the reader
@@ -1744,6 +1760,7 @@ class TurnRuntimeManager:
             question_notebook_references = payload.get("question_notebook_references", []) or []
             book_context_result = build_book_context(payload.get("book_references", []) or [])
             book_references = book_context_result.references
+            reading_references = _reading_references(payload.get("reading_references"))
             memory_references = _extract_memory_references(payload)
             notebook_context = ""
             history_context = ""
@@ -1961,6 +1978,7 @@ class TurnRuntimeManager:
                     fresh_book_references=book_references,
                     fresh_history_session_ids=history_references,
                     fresh_question_entry_ids=question_notebook_references,
+                    fresh_reading_references=reading_references,
                     language=str(payload.get("language", "en") or "en"),
                 )
                 source_manifest_text, source_index = render_manifest(inventory)
@@ -2116,6 +2134,7 @@ class TurnRuntimeManager:
                         history_references=history_references,
                         question_notebook_references=question_notebook_references,
                         book_references=book_references,
+                        reading_references=reading_references,
                         persona=active_persona,
                         memory_references=memory_references,
                         llm_selection=payload.get("llm_selection"),
@@ -2153,6 +2172,7 @@ class TurnRuntimeManager:
                     "history_references": history_references,
                     "question_notebook_references": question_notebook_references,
                     "book_references": book_references,
+                    "reading_references": reading_references,
                     "mastery_path_id": _mastery_path_id(payload.get("mastery_path_id")),
                     "mastery_path_lease_managed": capability_name == "mastery_path",
                     # Immersive reading: the open material activates the reading

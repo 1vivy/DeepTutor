@@ -124,6 +124,10 @@ import {
   type SelectedBookReference,
 } from "@/lib/book-references";
 import {
+  selectedReadingsToPayload,
+  type SelectedReadingReference,
+} from "@/lib/reading-references";
+import {
   normalizeSelectedText,
   type SelectionTutorContext,
 } from "@/lib/selection-tutor";
@@ -157,6 +161,12 @@ const MemoryPicker = dynamic(() => import("@/components/chat/MemoryPicker"), {
 });
 const BookReferencePicker = dynamic(
   () => import("@/components/chat/BookReferencePicker"),
+  {
+    ssr: false,
+  },
+);
+const ReadingReferencePicker = dynamic(
+  () => import("@/components/chat/ReadingReferencePicker"),
   {
     ssr: false,
   },
@@ -613,6 +623,7 @@ export default function ChatPage() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showNotebookPicker, setShowNotebookPicker] = useState(false);
   const [showBookPicker, setShowBookPicker] = useState(false);
+  const [showReadingPicker, setShowReadingPicker] = useState(false);
   const [showHistoryPicker, setShowHistoryPicker] = useState(false);
   const [showAgentsPicker, setShowAgentsPicker] = useState(false);
   const [showQuestionBankPicker, setShowQuestionBankPicker] = useState(false);
@@ -627,6 +638,9 @@ export default function ChatPage() {
   >([]);
   const [selectedBookReferences, setSelectedBookReferences] = useState<
     SelectedBookReference[]
+  >([]);
+  const [selectedReadingReferences, setSelectedReadingReferences] = useState<
+    SelectedReadingReference[]
   >([]);
   const [selectedHistorySessions, setSelectedHistorySessions] = useState<
     SelectedHistorySession[]
@@ -962,6 +976,10 @@ export default function ChatPage() {
   const bookReferencesPayload = useMemo(
     () => selectedBooksToPayload(selectedBookReferences),
     [selectedBookReferences],
+  );
+  const readingReferencesPayload = useMemo(
+    () => selectedReadingsToPayload(selectedReadingReferences),
+    [selectedReadingReferences],
   );
   // Chat-history and imported-agent references are both just session ids and
   // share one backend field. Merge + de-dupe them here.
@@ -1703,7 +1721,7 @@ export default function ChatPage() {
 
     const messageElementForNode = (node: Node | null): HTMLElement | null => {
       const element =
-        node instanceof HTMLElement ? node : node?.parentElement ?? null;
+        node instanceof HTMLElement ? node : (node?.parentElement ?? null);
       return element?.closest<HTMLElement>("[data-chat-message-id]") ?? null;
     };
     const anchorMessage = messageElementForNode(selection.anchorNode);
@@ -1849,6 +1867,7 @@ export default function ChatPage() {
         (!content &&
           !attachments.length &&
           !selectedBookReferences.length &&
+          !selectedReadingReferences.length &&
           !selectedNotebookRecords.length &&
           !selectedHistorySessions.length &&
           !selectedQuestionEntries.length &&
@@ -1902,6 +1921,7 @@ export default function ChatPage() {
         content ||
         (selectedNotebookRecords.length ||
         selectedBookReferences.length ||
+        selectedReadingReferences.length ||
         selectedHistorySessions.length ||
         selectedAgentSessions.length ||
         selectedQuestionEntries.length ||
@@ -1920,7 +1940,10 @@ export default function ChatPage() {
         config,
         notebookReferencesPayload,
         historyReferencesPayload,
-        { bookReferences: bookReferencesPayload },
+        {
+          bookReferences: bookReferencesPayload,
+          readingReferences: readingReferencesPayload,
+        },
         questionNotebookReferencesPayload,
         undefined,
         memoryPayload,
@@ -1929,6 +1952,7 @@ export default function ChatPage() {
       shouldAutoScrollRef.current = true;
       setAttachments([]);
       setSelectedBookReferences([]);
+      setSelectedReadingReferences([]);
       setSelectedNotebookRecords([]);
       setSelectedHistorySessions([]);
       setSelectedAgentSessions([]);
@@ -1938,6 +1962,7 @@ export default function ChatPage() {
     [
       attachments,
       bookReferencesPayload,
+      readingReferencesPayload,
       historyReferencesPayload,
       isQuizMode,
       isResearchMode,
@@ -1954,6 +1979,7 @@ export default function ChatPage() {
       selectedAgentSessions.length,
       selectedMemoryFiles.length,
       selectedBookReferences.length,
+      selectedReadingReferences.length,
       selectedNotebookRecords.length,
       selectedQuestionEntries.length,
       sendMessage,
@@ -2000,6 +2026,7 @@ export default function ChatPage() {
           persistUserMessage: false,
           requestSnapshotOverride,
           bookReferences: originalSnapshot?.bookReferences,
+          readingReferences: originalSnapshot?.readingReferences,
         },
         originalSnapshot?.questionNotebookReferences,
         originalSnapshot?.persona,
@@ -2078,6 +2105,9 @@ export default function ChatPage() {
   const handleSelectBookPicker = useCallback(() => {
     setShowBookPicker(true);
   }, []);
+  const handleSelectReadingPicker = useCallback(() => {
+    setShowReadingPicker(true);
+  }, []);
   const handleSelectHistoryPicker = useCallback(() => {
     setShowHistoryPicker(true);
   }, []);
@@ -2114,6 +2144,11 @@ export default function ChatPage() {
       prev.filter((record) => record.bookId !== bookId),
     );
   }, []);
+  const handleRemoveReadingReference = useCallback((materialId: string) => {
+    setSelectedReadingReferences((previous) =>
+      previous.filter((record) => record.materialId !== materialId),
+    );
+  }, []);
   const handleRemoveQuestion = useCallback((entryId: number) => {
     setSelectedQuestionEntries((prev) =>
       prev.filter((entry) => entry.id !== entryId),
@@ -2137,9 +2172,18 @@ export default function ChatPage() {
   const handleCloseBookPicker = useCallback(() => {
     setShowBookPicker(false);
   }, []);
+  const handleCloseReadingPicker = useCallback(() => {
+    setShowReadingPicker(false);
+  }, []);
   const handleApplyBookReferences = useCallback(
     (references: SelectedBookReference[]) => {
       setSelectedBookReferences(references);
+    },
+    [],
+  );
+  const handleApplyReadingReferences = useCallback(
+    (references: SelectedReadingReference[]) => {
+      setSelectedReadingReferences(references);
     },
     [],
   );
@@ -2462,6 +2506,7 @@ export default function ChatPage() {
                 }
                 contextBudget={contextBudget}
                 selectedBookReferences={selectedBookReferences}
+                selectedReadingReferences={selectedReadingReferences}
                 selectedNotebookRecords={selectedNotebookRecords}
                 selectedHistorySessions={selectedHistorySessions}
                 selectedAgentSessions={selectedAgentSessions}
@@ -2482,6 +2527,7 @@ export default function ChatPage() {
                 onSelectLLM={setLLMSelection}
                 onSelectNotebookPicker={handleSelectNotebookPicker}
                 onSelectBookPicker={handleSelectBookPicker}
+                onSelectReadingPicker={handleSelectReadingPicker}
                 onSelectHistoryPicker={handleSelectHistoryPicker}
                 onSelectAgentsPicker={handleSelectAgentsPicker}
                 onSelectQuestionBankPicker={handleSelectQuestionBankPicker}
@@ -2500,6 +2546,7 @@ export default function ChatPage() {
                 onRemoveHistory={handleRemoveHistory}
                 onRemoveAgent={handleRemoveAgent}
                 onRemoveBookReference={handleRemoveBookReference}
+                onRemoveReadingReference={handleRemoveReadingReference}
                 onRemoveNotebook={handleRemoveNotebook}
                 onRemoveQuestion={handleRemoveQuestion}
                 onDragEnter={handleDragEnter}
@@ -2543,6 +2590,12 @@ export default function ChatPage() {
               initialReferences={selectedBookReferences}
               onClose={handleCloseBookPicker}
               onApply={handleApplyBookReferences}
+            />
+            <ReadingReferencePicker
+              open={showReadingPicker}
+              initialReferences={selectedReadingReferences}
+              onClose={handleCloseReadingPicker}
+              onApply={handleApplyReadingReferences}
             />
             <HistorySessionPicker
               open={showHistoryPicker}

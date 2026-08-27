@@ -14,6 +14,7 @@ import pytest
 from deeptutor.services.session.turn_runtime import (
     READING_SELECTION_MAX_CHARS,
     _reading_material_id,
+    _reading_references,
     _reading_viewport,
     _request_snapshot_metadata,
 )
@@ -87,6 +88,15 @@ def test_selection_is_bounded_because_it_enters_the_prompt() -> None:
     assert len(viewport["selection"]) == READING_SELECTION_MAX_CHARS
 
 
+def test_explicit_reading_references_are_normalized_at_the_turn_boundary() -> None:
+    assert _reading_references(
+        [
+            {"material_id": "ABCDEF0123456789", "locators": [2, 2, "3"]},
+            {"material_id": "../../etc", "locators": [1]},
+        ]
+    ) == [{"material_id": "abcdef0123456789", "locators": [2, 3]}]
+
+
 # ---------------------------------------------------------------------------
 # snapshot persistence
 # ---------------------------------------------------------------------------
@@ -123,3 +133,25 @@ def test_a_plain_chat_turn_carries_no_reading_key() -> None:
 
 def test_a_bogus_id_is_not_persisted() -> None:
     assert "readingMaterialId" not in _snapshot({"reading_material_id": "../../etc"})
+
+
+def test_explicit_reading_references_are_persisted_for_retry() -> None:
+    snapshot = _request_snapshot_metadata(
+        content="hi",
+        capability="chat",
+        payload={},
+        attachments=[],
+        config={},
+        notebook_references=[],
+        history_references=[],
+        question_notebook_references=[],
+        book_references=[],
+        reading_references=[{"material_id": "abcdef0123456789", "locators": [1, 2]}],
+        persona="",
+        memory_references=[],
+        llm_selection=None,
+    )["request_snapshot"]
+
+    assert snapshot["readingReferences"] == [
+        {"material_id": "abcdef0123456789", "locators": [1, 2]}
+    ]

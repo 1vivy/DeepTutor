@@ -12,6 +12,7 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowUp,
+  BookMarked,
   BookOpen,
   Bot,
   Brain,
@@ -45,6 +46,7 @@ import type { LLMOption } from "@/lib/llm-options";
 import ChatSpaceMenu from "@/components/chat/space/ChatSpaceMenu";
 import type { SpaceMemoryFile } from "@/lib/space-items";
 import type { SelectedBookReference } from "@/lib/book-references";
+import type { SelectedReadingReference } from "@/lib/reading-references";
 import AgentSelector from "./AgentSelector";
 import ContextBudgetChip, { type ContextBudget } from "./ContextBudgetChip";
 import KnowledgeSelector from "./KnowledgeSelector";
@@ -57,6 +59,7 @@ type SpaceSelectionCounts = {
   chatHistory: number;
   myAgents: number;
   books: number;
+  reading: number;
   notebooks: number;
   questionBank: number;
   persona: number;
@@ -200,6 +203,7 @@ export default memo(function ChatComposer({
   contextBudget = null,
   selectedNotebookRecords,
   selectedBookReferences,
+  selectedReadingReferences = [],
   selectedHistorySessions,
   selectedAgentSessions,
   selectedQuestionEntries,
@@ -220,6 +224,7 @@ export default memo(function ChatComposer({
   onSelectLLM,
   onSelectNotebookPicker,
   onSelectBookPicker,
+  onSelectReadingPicker,
   onSelectHistoryPicker,
   onSelectAgentsPicker,
   onSelectQuestionBankPicker,
@@ -238,6 +243,7 @@ export default memo(function ChatComposer({
   onRemoveHistory,
   onRemoveAgent,
   onRemoveBookReference,
+  onRemoveReadingReference,
   onRemoveNotebook,
   onRemoveQuestion,
   onDragEnter,
@@ -287,6 +293,7 @@ export default memo(function ChatComposer({
   contextBudget?: ContextBudget | null;
   selectedNotebookRecords: SelectedRecord[];
   selectedBookReferences: SelectedBookReference[];
+  selectedReadingReferences?: SelectedReadingReference[];
   selectedHistorySessions: SelectedHistorySession[];
   selectedAgentSessions: SelectedHistorySession[];
   selectedQuestionEntries: SelectedQuestionEntry[];
@@ -322,6 +329,7 @@ export default memo(function ChatComposer({
   onSelectLLM: (selection: LLMSelection | null) => void;
   onSelectNotebookPicker: () => void;
   onSelectBookPicker: () => void;
+  onSelectReadingPicker?: () => void;
   onSelectHistoryPicker: () => void;
   onSelectAgentsPicker: () => void;
   onSelectQuestionBankPicker: () => void;
@@ -347,6 +355,7 @@ export default memo(function ChatComposer({
   onRemoveHistory: (sessionId: string) => void;
   onRemoveAgent: (sessionId: string) => void;
   onRemoveBookReference: (bookId: string) => void;
+  onRemoveReadingReference?: (materialId: string) => void;
   onRemoveNotebook: (notebookId: string) => void;
   onRemoveQuestion: (entryId: number) => void;
   onDragEnter: (event: React.DragEvent) => void;
@@ -474,7 +483,7 @@ export default memo(function ChatComposer({
       setMoreCapsOpen(false);
       onSelectCapability(value);
     },
-    [onSelectCapability],
+    [onSelectCapability, setMoreCapsOpen],
   );
 
   // Functional-update form keeps `handleInputChange` identity stable across
@@ -501,6 +510,7 @@ export default memo(function ChatComposer({
   const hasReferences =
     !!attachments.length ||
     !!selectedBookReferences.length ||
+    !!selectedReadingReferences.length ||
     !!selectedNotebookRecords.length ||
     !!selectedHistorySessions.length ||
     !!selectedAgentSessions.length ||
@@ -542,6 +552,10 @@ export default memo(function ChatComposer({
       (total, ref) => total + ref.pages.length,
       0,
     ),
+    reading: selectedReadingReferences.reduce(
+      (total, reference) => total + reference.units.length,
+      0,
+    ),
     notebooks: selectedNotebookRecords.length,
     questionBank: selectedQuestionEntries.length,
     persona: selectedPersona ? 1 : 0,
@@ -566,51 +580,50 @@ export default memo(function ChatComposer({
   // toolbar KnowledgeSelector chip instead — same lifecycle class as
   // the persona selector.
   const contextTreeItems: ContextTreeItem[] = [
-    ...selectedBookReferences.map(
-      (book): ContextTreeItem => ({
-        key: `book-${book.bookId}`,
-        icon: BookOpen,
-        kind: t("Book"),
-        label: `${book.bookTitle} (${book.pages.length})`,
-        onRemove: () => onRemoveBookReference(book.bookId),
-      }),
-    ),
-    ...notebookReferenceGroups.map(
-      (group): ContextTreeItem => ({
-        key: `nb-${group.notebookId}`,
-        icon: BookOpen,
-        kind: t("Notebook"),
-        label: `${group.notebookName} (${group.count})`,
-        onRemove: () => onRemoveNotebook(group.notebookId),
-      }),
-    ),
-    ...selectedHistorySessions.map(
-      (session): ContextTreeItem => ({
-        key: `hist-${session.sessionId}`,
-        icon: MessageSquare,
-        kind: t("Chat History"),
-        label: session.title,
-        onRemove: () => onRemoveHistory(session.sessionId),
-      }),
-    ),
-    ...selectedAgentSessions.map(
-      (session): ContextTreeItem => ({
-        key: `agent-${session.sessionId}`,
-        icon: Bot,
-        kind: t("My Agents"),
-        label: session.title,
-        onRemove: () => onRemoveAgent(session.sessionId),
-      }),
-    ),
-    ...selectedQuestionEntries.map(
-      (entry): ContextTreeItem => ({
-        key: `q-${entry.id}`,
-        icon: ClipboardList,
-        kind: t("Question Bank"),
-        label: entry.question,
-        onRemove: () => onRemoveQuestion(entry.id),
-      }),
-    ),
+    ...selectedBookReferences.map((book): ContextTreeItem => ({
+      key: `book-${book.bookId}`,
+      icon: BookOpen,
+      kind: t("Book"),
+      label: `${book.bookTitle} (${book.pages.length})`,
+      onRemove: () => onRemoveBookReference(book.bookId),
+    })),
+    ...selectedReadingReferences.map((material): ContextTreeItem => ({
+      key: `reading-${material.materialId}`,
+      icon: BookMarked,
+      kind: t("Reading"),
+      label: `${material.materialTitle} (${material.units.length})`,
+      onRemove: onRemoveReadingReference
+        ? () => onRemoveReadingReference(material.materialId)
+        : undefined,
+    })),
+    ...notebookReferenceGroups.map((group): ContextTreeItem => ({
+      key: `nb-${group.notebookId}`,
+      icon: BookOpen,
+      kind: t("Notebook"),
+      label: `${group.notebookName} (${group.count})`,
+      onRemove: () => onRemoveNotebook(group.notebookId),
+    })),
+    ...selectedHistorySessions.map((session): ContextTreeItem => ({
+      key: `hist-${session.sessionId}`,
+      icon: MessageSquare,
+      kind: t("Chat History"),
+      label: session.title,
+      onRemove: () => onRemoveHistory(session.sessionId),
+    })),
+    ...selectedAgentSessions.map((session): ContextTreeItem => ({
+      key: `agent-${session.sessionId}`,
+      icon: Bot,
+      kind: t("My Agents"),
+      label: session.title,
+      onRemove: () => onRemoveAgent(session.sessionId),
+    })),
+    ...selectedQuestionEntries.map((entry): ContextTreeItem => ({
+      key: `q-${entry.id}`,
+      icon: ClipboardList,
+      kind: t("Question Bank"),
+      label: entry.question,
+      onRemove: () => onRemoveQuestion(entry.id),
+    })),
     ...(selectedPersona
       ? [
           {
@@ -622,15 +635,13 @@ export default memo(function ChatComposer({
           } satisfies ContextTreeItem,
         ]
       : []),
-    ...selectedMemoryFiles.map(
-      (file): ContextTreeItem => ({
-        key: `mem-${file}`,
-        icon: Brain,
-        kind: t("Memory"),
-        label: file === "summary" ? t("Summary") : t("Profile"),
-        onRemove: () => onToggleMemoryFile(file),
-      }),
-    ),
+    ...selectedMemoryFiles.map((file): ContextTreeItem => ({
+      key: `mem-${file}`,
+      icon: Brain,
+      kind: t("Memory"),
+      label: file === "summary" ? t("Summary") : t("Profile"),
+      onRemove: () => onToggleMemoryFile(file),
+    })),
   ];
 
   const handleManualSend = useCallback(() => {
@@ -752,6 +763,7 @@ export default memo(function ChatComposer({
             agentsAvailable={agentsAvailable}
             onSelectNotebookPicker={onSelectNotebookPicker}
             onSelectBookPicker={onSelectBookPicker}
+            onSelectReadingPicker={onSelectReadingPicker}
             onSelectHistoryPicker={onSelectHistoryPicker}
             onSelectAgentsPicker={onSelectAgentsPicker}
             onSelectQuestionBankPicker={onSelectQuestionBankPicker}
@@ -1033,6 +1045,7 @@ export default memo(function ChatComposer({
                         knowledgeAvailable={false}
                         personaAvailable={!onPersonaSelectionChange}
                         agentsAvailable={agentsAvailable}
+                        readingAvailable={Boolean(onSelectReadingPicker)}
                         onSelectItem={(key) => {
                           onSetSpaceMenuOpen(false);
                           if (key === "attach") handlePickFiles();
@@ -1040,6 +1053,7 @@ export default memo(function ChatComposer({
                             onSelectHistoryPicker();
                           else if (key === "my_agents") onSelectAgentsPicker();
                           else if (key === "books") onSelectBookPicker();
+                          else if (key === "reading") onSelectReadingPicker?.();
                           else if (key === "notebooks")
                             onSelectNotebookPicker();
                           else if (key === "question_bank")
