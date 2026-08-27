@@ -1370,6 +1370,8 @@
   "settingsTour.tools.desc": "在此开关用户可自选的工具；锁定工具会在 chat agent 需要时自动挂载。",
   "Step {{current}} of {{total}}": "第 {{current}} / {{total}} 步",
   "Back": "上一步",
+  "Forward": "下一步",
+  "Unavailable": "不可用",
   "Switch user-toggleable tools on or off. Locked tools are mounted automatically when the chat agent needs them.": "在此开关用户可自选的工具；锁定工具会在 chat agent 需要时自动挂载。",
   "Always on": "始终启用",
   "Auto-mounted by the agent when needed. Not user-toggleable.": "由 agent 在需要时自动挂载，用户无需手动开关。",
