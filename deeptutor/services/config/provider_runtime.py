@@ -299,10 +299,16 @@ class VoiceProviderSpec:
     is_local: bool = False
 
 
-# Voice providers in the OpenAI-compatible cluster. A single adapter covers all
-# of these; bespoke providers (DashScope native, ElevenLabs, Gemini, Deepgram)
-# would register their own ``adapter`` value once implemented.
+# Voice providers either use the shared OpenAI-compatible adapter or a native
+# protocol adapter registered by name (currently DashScope TTS/STT).
 TTS_PROVIDERS: dict[str, VoiceProviderSpec] = {
+    "dashscope": VoiceProviderSpec(
+        label="Aliyun DashScope",
+        default_api_base="https://dashscope.aliyuncs.com/api/v1",
+        adapter="dashscope",
+        default_model="qwen3-tts-flash",
+        default_voice="Cherry",
+    ),
     "openai": VoiceProviderSpec(
         label="OpenAI",
         default_api_base="https://api.openai.com/v1",
@@ -351,6 +357,12 @@ TTS_PROVIDERS: dict[str, VoiceProviderSpec] = {
 }
 
 STT_PROVIDERS: dict[str, VoiceProviderSpec] = {
+    "dashscope": VoiceProviderSpec(
+        label="Aliyun DashScope",
+        default_api_base="https://dashscope.aliyuncs.com/api/v1",
+        adapter="dashscope",
+        default_model="paraformer-v2",
+    ),
     "openai": VoiceProviderSpec(
         label="OpenAI",
         default_api_base="https://api.openai.com/v1",
@@ -393,6 +405,8 @@ STT_PROVIDERS: dict[str, VoiceProviderSpec] = {
 
 # Provider-name aliases accepted from older/loose catalog values.
 VOICE_PROVIDER_ALIASES = {
+    "aliyun": "dashscope",
+    "bailian": "dashscope",
     "azure": "azure_openai",
     "aoai": "azure_openai",
     "openai_compatible": "custom",
@@ -429,6 +443,12 @@ class GenerationProviderSpec:
 # Image-generation providers in the OpenAI-compatible cluster. A single adapter
 # covers all of these; ``default_model`` is only a Settings prefill hint.
 IMAGEGEN_PROVIDERS: dict[str, GenerationProviderSpec] = {
+    "dashscope": GenerationProviderSpec(
+        label="Aliyun DashScope",
+        default_api_base="https://dashscope.aliyuncs.com/api/v1",
+        adapter="dashscope",
+        default_model="wanx2.1-t2i-turbo",
+    ),
     "openai": GenerationProviderSpec(
         label="OpenAI",
         default_api_base="https://api.openai.com/v1",
@@ -475,6 +495,12 @@ IMAGEGEN_PROVIDERS: dict[str, GenerationProviderSpec] = {
 # Video-generation providers. Text-to-video has no synchronous standard; these
 # all use the async-task adapter (submit → poll → download).
 VIDEOGEN_PROVIDERS: dict[str, GenerationProviderSpec] = {
+    "dashscope": GenerationProviderSpec(
+        label="Aliyun DashScope",
+        default_api_base="https://dashscope.aliyuncs.com/api/v1",
+        adapter="dashscope",
+        default_model="wanx2.1-t2v-turbo",
+    ),
     "volcengine": GenerationProviderSpec(
         label="Volcengine Ark (Seedance)",
         default_api_base="https://ark.cn-beijing.volces.com/api/v3",
@@ -491,6 +517,8 @@ VIDEOGEN_PROVIDERS: dict[str, GenerationProviderSpec] = {
 
 # Provider-name aliases accepted from older/loose catalog values.
 GENERATION_PROVIDER_ALIASES = {
+    "aliyun": "dashscope",
+    "bailian": "dashscope",
     "ark": "volcengine",
     "volces": "volcengine",
     "doubao": "volcengine",

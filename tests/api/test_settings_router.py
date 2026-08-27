@@ -578,6 +578,26 @@ def test_embedding_provider_choices_use_full_endpoint_urls() -> None:
     assert "custom_openai_sdk" not in embedding
 
 
+def test_media_and_voice_provider_choices_include_dashscope() -> None:
+    choices = settings_router._provider_choices()
+    services = ("tts", "stt", "imagegen", "videogen")
+    dashscope = {
+        service: {item["value"]: item for item in choices[service]}["dashscope"]
+        for service in services
+    }
+
+    assert set(dashscope) == set(services)
+    assert all(item["label"] == "Aliyun DashScope" for item in dashscope.values())
+    assert all(
+        item["base_url"] == "https://dashscope.aliyuncs.com/api/v1" for item in dashscope.values()
+    )
+    assert dashscope["tts"]["default_model"] == "qwen3-tts-flash"
+    assert dashscope["tts"]["default_voice"] == "Cherry"
+    assert dashscope["stt"]["default_model"] == "paraformer-v2"
+    assert dashscope["imagegen"]["default_model"] == "wanx2.1-t2i-turbo"
+    assert dashscope["videogen"]["default_model"] == "wanx2.1-t2v-turbo"
+
+
 def test_llm_provider_choices_include_atlascloud() -> None:
     llm = {item["value"]: item for item in settings_router._provider_choices()["llm"]}
 
