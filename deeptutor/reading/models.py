@@ -24,7 +24,7 @@ from typing import Any, Literal
 UnitKind = Literal["page", "chapter", "slide", "section"]
 RenderMode = Literal["text", "pdf", "epub"]
 
-AnnotationKind = Literal["highlight", "underline", "note"]
+AnnotationKind = Literal["highlight", "underline", "note", "citation"]
 TextSelectorType = Literal["TextQuoteSelector", "TextPositionSelector"]
 MAX_TEXT_SELECTOR_CHARS = 2000
 
@@ -371,7 +371,7 @@ class Annotation:
         return cls(
             annotation_id=str(data.get("annotation_id") or ""),
             locator=max(1, int(data.get("locator") or 1)),
-            kind=kind if kind in ("highlight", "underline", "note") else "highlight",  # type: ignore[arg-type]
+            kind=(kind if kind in ("highlight", "underline", "note", "citation") else "highlight"),  # type: ignore[arg-type]
             color=color if color in ANNOTATION_COLORS else DEFAULT_ANNOTATION_COLOR,
             quote=str(data.get("quote") or ""),
             note=str(data.get("note") or ""),

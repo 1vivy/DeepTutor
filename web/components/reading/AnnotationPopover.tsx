@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
+  BookmarkPlus,
   Highlighter,
   MessageSquareQuote,
   StickyNote,
@@ -25,6 +26,7 @@ export interface AnnotationPopoverProps {
   onHighlight: (color: AnnotationColor) => void;
   onUnderline: (color: AnnotationColor) => void;
   onNote: (note: string, color: AnnotationColor) => void;
+  onCitation: (color: AnnotationColor) => void;
   onAsk: () => void;
   onDismiss: () => void;
 }
@@ -47,6 +49,7 @@ export function AnnotationPopover({
   onHighlight,
   onUnderline,
   onNote,
+  onCitation,
   onAsk,
   onDismiss,
 }: AnnotationPopoverProps) {
@@ -138,6 +141,11 @@ export function AnnotationPopover({
           label={t("Add note")}
           active={noteOpen}
           onClick={() => setNoteOpen((open) => !open)}
+        />
+        <IconButton
+          icon={BookmarkPlus}
+          label={t("Save citation")}
+          onClick={() => onCitation(color)}
         />
         <IconButton
           icon={MessageSquareQuote}
