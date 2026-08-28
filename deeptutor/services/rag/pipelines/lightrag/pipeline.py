@@ -285,8 +285,11 @@ class LightRagPipeline:
                 raise
             failed = True
             accepted = False
+            enqueue_started = False
+            cleanup: list[ingress.StagedDocument] = []
             try:
                 await engine.initialize(rag)
+                enqueue_started = True
                 track_id = await engine.enqueue(rag, staged)
                 if not isinstance(track_id, str) or not track_id.strip():
                     raise engine.LightRagContractError(
@@ -306,6 +309,18 @@ class LightRagPipeline:
                     raise LightRagBatchError(outcome)
                 failed = False
                 return outcome
+            except BaseException:
+                if not enqueue_started:
+                    cleanup = staged
+                elif not accepted:
+                    try:
+                        cleanup = await engine.confirmed_unaccepted(rag, staged)
+                    except BaseException:
+                        self.logger.exception(
+                            "Could not confirm which LightRAG documents were rejected; "
+                            "retaining all staged ingress"
+                        )
+                raise
             finally:
                 try:
                     await engine.finalize(rag, cancel_pending=failed)
@@ -314,9 +329,8 @@ class LightRagPipeline:
                         raise
                     self.logger.exception("LightRAG cleanup failed while indexing was aborting")
                 finally:
-                    if failed and not accepted:
-                        for item in staged:
-                            ingress.remove_unaccepted(item)
+                    for item in cleanup:
+                        ingress.remove_unaccepted(item)
 
         return await run_in_worker_loop(job)
 

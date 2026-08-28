@@ -230,6 +230,33 @@ async def enqueue(rag: Any, staged: list[StagedDocument]) -> str:
     )
 
 
+def _document_id(canonical_name: str) -> str:
+    from lightrag.utils import compute_mdhash_id
+    from lightrag.utils_pipeline import (
+        has_known_document_source,
+        normalize_document_file_path,
+    )
+
+    source = normalize_document_file_path(canonical_name)
+    if not has_known_document_source(source):
+        raise LightRagContractError(
+            f"LightRAG cannot derive a stable document ID for {canonical_name!r}"
+        )
+    return compute_mdhash_id(source, prefix="doc-")
+
+
+async def confirmed_unaccepted(rag: Any, staged: list[StagedDocument]) -> list[StagedDocument]:
+    """Return documents whose missing doc_status row was strictly confirmed."""
+    ids_by_name = {item.canonical_name: _document_id(item.canonical_name) for item in staged}
+    rows = await rag.doc_status.get_docs_by_ids(
+        list(ids_by_name.values()),
+        strict=True,
+    )
+    if not isinstance(rows, dict):
+        raise LightRagContractError("doc_status.get_docs_by_ids must return an object")
+    return [item for item in staged if ids_by_name[item.canonical_name] not in rows]
+
+
 def _managed_queue_funcs(rag: Any) -> Iterable[Callable[..., Any]]:
     role_funcs = getattr(rag, "role_llm_funcs", {})
     candidates: list[object] = list(role_funcs.values()) if isinstance(role_funcs, Mapping) else []
@@ -418,6 +445,7 @@ __all__ = [
     "LightRagContractError",
     "PARSER_ENGINE",
     "build_rag",
+    "confirmed_unaccepted",
     "enqueue",
     "finalize",
     "initialize",

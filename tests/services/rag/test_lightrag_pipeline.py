@@ -573,6 +573,13 @@ def test_pre_acceptance_failure_removes_ingress_and_allows_same_name_retry(
     class Rag:
         working_dir = str(working)
 
+        class DocStatus:
+            async def get_docs_by_ids(self, _doc_ids, *, strict):
+                assert strict is True
+                return {}
+
+        doc_status = DocStatus()
+
         async def apipeline_process_enqueue_documents(self):
             return None
 
@@ -615,6 +622,105 @@ def test_pre_acceptance_failure_removes_ingress_and_allows_same_name_retry(
     attempt = 1
     outcome = asyncio.run(pipeline._run_indexing(working, [str(source)], None))
     assert outcome.complete is True
+
+
+def test_enqueue_partial_commit_removes_only_confirmed_unaccepted_ingress(
+    tmp_path: Path, monkeypatch
+) -> None:
+    sources = [tmp_path / "source" / name for name in ("accepted.md", "rejected.md")]
+    sources[0].parent.mkdir()
+    for source in sources:
+        source.write_text(source.stem, encoding="utf-8")
+    working = tmp_path / "version-1"
+    status_reads: list[tuple[list[str], bool]] = []
+
+    class DocStatus:
+        async def get_docs_by_ids(self, doc_ids, *, strict):
+            status_reads.append((doc_ids, strict))
+            return {doc_ids[0]: types.SimpleNamespace(status="pending")}
+
+    class Rag:
+        working_dir = str(working)
+        doc_status = DocStatus()
+
+    pipeline = LightRagPipeline(kb_base_dir=str(tmp_path))
+
+    def stage(_working, paths):
+        return [
+            freeze_document(
+                working,
+                Path(path),
+                ParsedDocument(markdown=Path(path).stem, engine="text_only"),
+            )
+            for path in paths
+        ], {}
+
+    async def enqueue(_rag, _staged):
+        raise RuntimeError("doc_status partially committed")
+
+    async def no_op(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(pipeline, "_stage_documents", stage)
+    monkeypatch.setattr(engine, "build_rag", lambda *_args, **_kwargs: Rag())
+    monkeypatch.setattr(engine, "initialize", no_op)
+    monkeypatch.setattr(engine, "enqueue", enqueue)
+    monkeypatch.setattr(engine, "finalize", no_op)
+
+    with pytest.raises(RuntimeError, match="partially committed"):
+        asyncio.run(pipeline._run_indexing(working, [str(path) for path in sources], None))
+
+    assert len(status_reads) == 1
+    assert status_reads[0][1] is True
+    assert (pending_root(working) / "accepted.md").is_file()
+    assert (bundles_root(working) / "accepted.md.bundle").is_dir()
+    assert not (pending_root(working) / "rejected.md").exists()
+    assert not (bundles_root(working) / "rejected.md.bundle").exists()
+
+
+def test_enqueue_status_read_failure_retains_all_ingress(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "source" / "doc.md"
+    source.parent.mkdir()
+    source.write_text("body", encoding="utf-8")
+    working = tmp_path / "version-1"
+
+    class DocStatus:
+        async def get_docs_by_ids(self, _doc_ids, *, strict):
+            assert strict is True
+            raise RuntimeError("status unavailable")
+
+    class Rag:
+        working_dir = str(working)
+        doc_status = DocStatus()
+
+    pipeline = LightRagPipeline(kb_base_dir=str(tmp_path))
+
+    def stage(_working, paths):
+        return [
+            freeze_document(
+                working,
+                Path(paths[0]),
+                ParsedDocument(markdown="body", engine="text_only"),
+            )
+        ], {}
+
+    async def enqueue(_rag, _staged):
+        raise ValueError("enqueue failed")
+
+    async def no_op(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(pipeline, "_stage_documents", stage)
+    monkeypatch.setattr(engine, "build_rag", lambda *_args, **_kwargs: Rag())
+    monkeypatch.setattr(engine, "initialize", no_op)
+    monkeypatch.setattr(engine, "enqueue", enqueue)
+    monkeypatch.setattr(engine, "finalize", no_op)
+
+    with pytest.raises(ValueError, match="enqueue failed"):
+        asyncio.run(pipeline._run_indexing(working, [str(source)], None))
+
+    assert (pending_root(working) / "doc.md").is_file()
+    assert (bundles_root(working) / "doc.md.bundle").is_dir()
 
 
 def test_append_rejects_corrupt_or_unpublished_existing_version(
