@@ -229,7 +229,16 @@ class ReadingStore:
                 raw_path = raw_dir / _safe_filename(display_name, fallback=path.name)
                 raw_path.write_bytes(data)
 
-            outline = extraction.outline or synthesise_outline(extraction.units)
+            # A PDF page's first text line is not a table of contents. It is
+            # often a figure caption, running header, or reference entry, so
+            # presenting those labels as document structure is actively
+            # misleading. PDFs either keep their native bookmarks or expose no
+            # outline; the client can still offer an honest page navigator.
+            outline = (
+                extraction.outline
+                if extraction.outline or extraction.render_mode == "pdf"
+                else synthesise_outline(extraction.units)
+            )
             _atomic_write(
                 stage_dir / OUTLINE_NAME,
                 json.dumps([entry.to_dict() for entry in outline], ensure_ascii=False),
@@ -280,6 +289,103 @@ class ReadingStore:
             # Install the fully written directory in one swap. If the second
             # rename fails, put the previous material back before surfacing the
             # error; readers never observe a half-written unit set.
+            try:
+                if material_dir.exists():
+                    os.replace(material_dir, backup_dir)
+                try:
+                    os.replace(stage_dir, material_dir)
+                except Exception:
+                    if backup_dir.exists() and not material_dir.exists():
+                        os.replace(backup_dir, material_dir)
+                    raise
+            finally:
+                shutil.rmtree(stage_dir, ignore_errors=True)
+                shutil.rmtree(backup_dir, ignore_errors=True)
+            return manifest
+
+    def ingest_units(
+        self,
+        material_id: str,
+        *,
+        filename: str,
+        units: Sequence[str],
+        unit: str = "section",
+        title: str = "",
+        mime: str = "text/markdown",
+        extractor: str = "pre-extracted",
+        render_mode: str = "text",
+        raw_data: bytes | None = None,
+        outline: Sequence[OutlineEntry] | None = None,
+        unit_refs: Sequence[UnitReference] = (),
+    ) -> MaterialManifest:
+        """Install trusted, already-extracted units (web pages and transcripts).
+
+        The regular :meth:`ingest` path owns local document parsing. URL and
+        media importers already have structured text plus, optionally, playable
+        bytes; this entrypoint gives them the same atomic on-disk contract
+        without creating fake temporary document formats.
+        """
+        material_id = self._validate_id(material_id)
+        clean_units = tuple(str(value).strip() for value in units if str(value).strip())
+        if not clean_units:
+            raise ReadingError(f"{filename}: no readable content was extracted")
+        if unit not in {"page", "chapter", "slide", "section", "segment"}:
+            raise ReadingError(f"unsupported reading unit: {unit}")
+        if render_mode not in {"text", "pdf", "epub", "video", "audio"}:
+            raise ReadingError(f"unsupported render mode: {render_mode}")
+        remote_video = render_mode == "video" and extractor.startswith(
+            ("youtube-", "bilibili-")
+        )
+        if render_mode != "text" and not raw_data and not remote_video:
+            raise ReadingError(f"{render_mode} materials require playable source bytes")
+
+        display_name = (filename or "material").strip() or "material"
+        with self._locked(material_id):
+            existing = self._load_manifest(material_id)
+            material_dir = self._dir(material_id)
+            stage_dir = self.root / f".{material_id}.{uuid.uuid4().hex[:8]}.staging"
+            backup_dir = self.root / f".{material_id}.{uuid.uuid4().hex[:8]}.backup"
+            (stage_dir / UNITS_DIR).mkdir(parents=True, exist_ok=True)
+            for index, text in enumerate(clean_units, start=1):
+                self._unit_file(stage_dir, index).write_text(text, encoding="utf-8")
+
+            if raw_data is not None:
+                raw_dir = stage_dir / RAW_DIR
+                raw_dir.mkdir(parents=True, exist_ok=True)
+                (raw_dir / _safe_filename(display_name, fallback="material")).write_bytes(raw_data)
+
+            resolved_outline = tuple(outline or synthesise_outline(clean_units))
+            _atomic_write(
+                stage_dir / OUTLINE_NAME,
+                json.dumps([entry.to_dict() for entry in resolved_outline], ensure_ascii=False),
+            )
+            _atomic_write(
+                stage_dir / UNIT_REFS_NAME,
+                json.dumps([entry.to_dict() for entry in unit_refs], ensure_ascii=False),
+            )
+            manifest = MaterialManifest(
+                material_id=material_id,
+                filename=display_name,
+                unit=unit,  # type: ignore[arg-type]
+                unit_count=len(clean_units),
+                mime=mime,
+                title=(title or Path(display_name).stem).strip(),
+                source_hash=material_id,
+                extractor=extractor,
+                byte_size=len(raw_data or b""),
+                char_count=sum(len(value) for value in clean_units),
+                created_at=existing.created_at if existing else time.time(),
+                has_raw_view=render_mode == "pdf",
+                render_mode=render_mode,  # type: ignore[arg-type]
+            )
+            _atomic_write(
+                stage_dir / MANIFEST_NAME,
+                json.dumps(manifest.to_dict(), ensure_ascii=False, indent=2),
+            )
+            for state_name in (ANNOTATIONS_NAME, POSITION_NAME):
+                source_state = material_dir / state_name
+                if source_state.is_file():
+                    shutil.copy2(source_state, stage_dir / state_name)
             try:
                 if material_dir.exists():
                     os.replace(material_dir, backup_dir)
@@ -392,7 +498,7 @@ class ReadingStore:
         """The material's outline, rebuilt from units if the file is missing."""
         manifest = self.manifest(material_id)
         rows = _read_json(self._dir(material_id) / OUTLINE_NAME)
-        if isinstance(rows, list) and rows:
+        if isinstance(rows, list):
             entries: list[OutlineEntry] = []
             for row in rows:
                 if not isinstance(row, dict):
@@ -408,8 +514,16 @@ class ReadingStore:
                     )
                 except (KeyError, TypeError, ValueError):
                     continue
+            if manifest.render_mode == "pdf":
+                # Migrate legacy PDF imports in place at read time: older
+                # versions persisted one synthesised row per page. Returning
+                # no outline here immediately removes those false contents
+                # without requiring users to re-import their files.
+                return [] if all(entry.synthesised for entry in entries) else entries
             if entries:
                 return entries
+        if manifest.render_mode == "pdf":
+            return []
         units = tuple(
             self.unit_text(material_id, locator) for locator in range(1, manifest.unit_count + 1)
         )

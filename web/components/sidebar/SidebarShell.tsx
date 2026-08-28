@@ -87,6 +87,13 @@ const PRIMARY_NAV: NavEntry[] = [
     requires: "llm",
   },
   {
+    href: "/reading",
+    label: "Immersive Reading",
+    icon: BookText,
+    tooltipKey: "Immersive Reading tooltip",
+    requires: "llm",
+  },
+  {
     href: "/space",
     label: "Learning Space",
     icon: LayoutGrid,

@@ -23,7 +23,7 @@ import shutil
 import tempfile
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, UploadFile
 from fastapi.params import File
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field, model_validator
@@ -32,12 +32,18 @@ from deeptutor.reading import (
     ANNOTATION_COLORS,
     Annotation,
     MaterialNotFound,
+    ReadingCatalogStore,
     ReadingError,
     ReadingPosition,
     ReadingStore,
     ReadingUpgradeConflict,
     export_material,
     render_outline,
+)
+from deeptutor.reading.ingestion import ReadingIngestionService
+from deeptutor.reading.knowledge_capture import (
+    organize_workspace_notes,
+    send_workspace_to_notebook,
 )
 from deeptutor.reading.models import MAX_TEXT_SELECTOR_CHARS
 from deeptutor.utils.document_validator import DocumentValidator
@@ -50,10 +56,32 @@ router = APIRouter()
 # passes here cannot then be rejected deeper in with a less helpful message.
 MAX_MATERIAL_BYTES = DocumentValidator.MAX_FILE_SIZE
 _UPLOAD_CHUNK = 1024 * 1024
+_MEDIA_EXTENSIONS = {
+    ".mp4",
+    ".mov",
+    ".mkv",
+    ".webm",
+    ".m4v",
+    ".mp3",
+    ".m4a",
+    ".wav",
+    ".aac",
+    ".ogg",
+    ".flac",
+}
 
 
 def _store() -> ReadingStore:
     return ReadingStore()
+
+
+def _catalog() -> ReadingCatalogStore:
+    return ReadingCatalogStore()
+
+
+def _ingestion() -> ReadingIngestionService:
+    catalog = _catalog()
+    return ReadingIngestionService(ReadingStore(catalog.root), catalog)
 
 
 def _http_error(exc: Exception) -> HTTPException:
@@ -87,7 +115,8 @@ class MaterialInfo(BaseModel):
     char_count: int = 0
     created_at: float = 0.0
     has_raw_view: bool = False
-    render_mode: Literal["text", "pdf", "epub"] = "text"
+    render_mode: Literal["text", "pdf", "epub", "video", "audio"] = "text"
+    extractor: str = ""
     annotation_count: int = 0
 
 
@@ -199,7 +228,446 @@ class EpubPairingRequest(BaseModel):
     chinese_material_id: str
 
 
+class UrlImportRequest(BaseModel):
+    urls: list[str] = Field(min_length=1, max_length=50)
+    workspace_id: str = ""
+    workspace_title: str = ""
+
+
+class WorkspaceCreateRequest(BaseModel):
+    title: str = Field(default="Untitled reading workspace", max_length=300)
+    description: str = Field(default="", max_length=2000)
+    material_ids: list[str] = Field(default_factory=list, max_length=100)
+
+
+class WorkspaceUpdateRequest(BaseModel):
+    title: str | None = Field(default=None, max_length=300)
+    description: str | None = Field(default=None, max_length=2000)
+
+
+class WorkspaceMaterialRequest(BaseModel):
+    material_id: str
+    make_active: bool = False
+
+
+class WorkspaceReorderRequest(BaseModel):
+    material_ids: list[str] = Field(min_length=1, max_length=100)
+
+
+class ReadingSessionCreateRequest(BaseModel):
+    title: str = Field(default="New reading conversation", max_length=100)
+    active_material_id: str = ""
+
+
+class ReadingSessionRenameRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=100)
+
+
+class ReadingSessionLinkRequest(BaseModel):
+    target_session_id: str
+
+
+class FolderCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    parent_id: str = ""
+
+
+class TagCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    color: str = Field(default="terracotta", max_length=64)
+
+
+class OrganizeNotesRequest(BaseModel):
+    material_ids: list[str] = Field(default_factory=list, max_length=100)
+
+
+class NotebookCaptureRequest(OrganizeNotesRequest):
+    notebook_ids: list[str] = Field(min_length=1, max_length=20)
+    title: str = Field(default="", max_length=300)
+    summary: str = Field(default="", max_length=1000)
+
+
 # === Routes ===================================================================
+
+
+@router.get("/library/materials")
+async def list_library_materials(
+    search: str = Query(default="", max_length=200),
+    status: Literal["queued", "processing", "ready", "failed"] | None = None,
+) -> dict[str, Any]:
+    """Return reusable sources, lazily registering legacy material folders."""
+    catalog = _catalog()
+    try:
+        for manifest in _store().list_materials():
+            if catalog.get_material(manifest.material_id) is None:
+                catalog.register_manifest(manifest)
+        return {
+            "materials": [row.to_dict() for row in catalog.list_materials(search=search, status=status)]
+        }
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.post("/library/import-urls", status_code=202)
+async def import_urls(
+    payload: UrlImportRequest, background_tasks: BackgroundTasks
+) -> dict[str, Any]:
+    """Queue safe webpage, YouTube, or Bilibili imports into a workspace."""
+    service = _ingestion()
+    try:
+        materials = [service.queue_url(url) for url in payload.urls]
+        workspace_id = payload.workspace_id.strip()
+        if workspace_id:
+            for material in materials:
+                service.catalog.add_material(workspace_id, material.material_id)
+            workspace = service.catalog.get_workspace(workspace_id)
+        else:
+            workspace = service.catalog.create_workspace(
+                payload.workspace_title or "Imported reading",
+                [row.material_id for row in materials],
+            )
+        for material in materials:
+            background_tasks.add_task(service.process_url, material.material_id)
+        return {
+            "materials": [row.to_dict() for row in materials],
+            "workspace": workspace.to_dict() if workspace else None,
+        }
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.post("/materials/{material_id}/retry", status_code=202)
+async def retry_import(material_id: str, background_tasks: BackgroundTasks) -> dict[str, Any]:
+    service = _ingestion()
+    try:
+        material = service.catalog.get_material(material_id)
+        if material is None:
+            raise MaterialNotFound(f"material {material_id!r} not found")
+        service.catalog.update_material_status(material_id, "queued", progress=0)
+        background_tasks.add_task(service.retry, material_id)
+        return {"material": service.catalog.get_material(material_id).to_dict()}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.get("/workspaces")
+async def list_workspaces(
+    search: str = Query(default="", max_length=200),
+    folder_id: str = "",
+    tag_id: str = "",
+) -> dict[str, Any]:
+    try:
+        rows = _catalog().list_workspaces(
+            search=search,
+            folder_id=folder_id or None,
+            tag_id=tag_id or None,
+        )
+        return {"workspaces": [row.to_dict() for row in rows]}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.post("/workspaces", status_code=201)
+async def create_workspace(payload: WorkspaceCreateRequest) -> dict[str, Any]:
+    try:
+        row = _catalog().create_workspace(
+            payload.title,
+            payload.material_ids,
+            description=payload.description,
+        )
+        return {"workspace": row.to_dict()}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.get("/workspaces/{workspace_id}")
+async def get_workspace(workspace_id: str) -> dict[str, Any]:
+    try:
+        catalog = _catalog()
+        row = catalog.get_workspace(workspace_id)
+        if row is None:
+            raise MaterialNotFound(f"reading workspace {workspace_id!r} not found")
+        return {
+            "workspace": row.to_dict(),
+            "sessions": [session.to_dict() for session in catalog.list_sessions(workspace_id)],
+        }
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.patch("/workspaces/{workspace_id}")
+async def update_workspace(
+    workspace_id: str, payload: WorkspaceUpdateRequest
+) -> dict[str, Any]:
+    try:
+        row = _catalog().update_workspace(
+            workspace_id,
+            title=payload.title,
+            description=payload.description,
+        )
+        return {"workspace": row.to_dict()}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.delete("/workspaces/{workspace_id}")
+async def delete_workspace(workspace_id: str) -> dict[str, Any]:
+    from deeptutor.services.session import get_session_store
+
+    try:
+        catalog = _catalog()
+        sessions = catalog.list_sessions(workspace_id)
+        if not catalog.delete_workspace(workspace_id):
+            raise MaterialNotFound(f"reading workspace {workspace_id!r} not found")
+        session_store = get_session_store()
+        for session in sessions:
+            await session_store.delete_session(session.session_id)
+        return {"status": "ok", "workspace_id": workspace_id}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/materials")
+async def add_workspace_material(
+    workspace_id: str, payload: WorkspaceMaterialRequest
+) -> dict[str, Any]:
+    try:
+        row = _catalog().add_material(
+            workspace_id, payload.material_id, make_active=payload.make_active
+        )
+        return {"workspace": row.to_dict()}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.put("/workspaces/{workspace_id}/materials/order")
+async def reorder_workspace_materials(
+    workspace_id: str, payload: WorkspaceReorderRequest
+) -> dict[str, Any]:
+    try:
+        row = _catalog().reorder_materials(workspace_id, payload.material_ids)
+        return {"workspace": row.to_dict()}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.put("/workspaces/{workspace_id}/materials/{material_id}/active")
+async def activate_workspace_material(workspace_id: str, material_id: str) -> dict[str, Any]:
+    try:
+        row = _catalog().set_active_material(workspace_id, material_id)
+        return {"workspace": row.to_dict()}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.delete("/workspaces/{workspace_id}/materials/{material_id}")
+async def remove_workspace_material(workspace_id: str, material_id: str) -> dict[str, Any]:
+    try:
+        row = _catalog().remove_material(workspace_id, material_id)
+        return {"workspace": row.to_dict()}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.get("/folders")
+async def list_folders() -> dict[str, Any]:
+    return {"folders": [row.to_dict() for row in _catalog().list_folders()]}
+
+
+@router.post("/folders", status_code=201)
+async def create_folder(payload: FolderCreateRequest) -> dict[str, Any]:
+    try:
+        row = _catalog().create_folder(payload.name, parent_id=payload.parent_id or None)
+        return {"folder": row.to_dict()}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.put("/workspaces/{workspace_id}/folders/{folder_id}")
+async def assign_workspace_folder(workspace_id: str, folder_id: str) -> dict[str, Any]:
+    try:
+        catalog = _catalog()
+        catalog.assign_workspace_folder(workspace_id, folder_id)
+        return {"workspace": catalog.get_workspace(workspace_id).to_dict()}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.get("/tags")
+async def list_tags() -> dict[str, Any]:
+    return {"tags": [row.to_dict() for row in _catalog().list_tags()]}
+
+
+@router.post("/tags", status_code=201)
+async def create_tag(payload: TagCreateRequest) -> dict[str, Any]:
+    try:
+        row = _catalog().create_tag(payload.name, color=payload.color)
+        return {"tag": row.to_dict()}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.put("/workspaces/{workspace_id}/tags/{tag_id}")
+async def assign_workspace_tag(workspace_id: str, tag_id: str) -> dict[str, Any]:
+    try:
+        catalog = _catalog()
+        catalog.assign_workspace_tag(workspace_id, tag_id)
+        return {"workspace": catalog.get_workspace(workspace_id).to_dict()}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.get("/workspaces/{workspace_id}/sessions")
+async def list_reading_sessions(workspace_id: str) -> dict[str, Any]:
+    try:
+        catalog = _catalog()
+        return {
+            "sessions": [
+                row.to_dict()
+                | {"linked_session_ids": catalog.list_session_links(workspace_id, row.session_id)}
+                for row in catalog.list_sessions(workspace_id)
+            ]
+        }
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/sessions", status_code=201)
+async def create_reading_session(
+    workspace_id: str, payload: ReadingSessionCreateRequest
+) -> dict[str, Any]:
+    from deeptutor.services.session import get_session_store
+
+    catalog = _catalog()
+    try:
+        workspace = catalog.get_workspace(workspace_id)
+        if workspace is None:
+            raise MaterialNotFound(f"reading workspace {workspace_id!r} not found")
+        active_material_id = payload.active_material_id or workspace.active_material_id
+        if active_material_id and active_material_id not in {
+            tab.material.material_id for tab in workspace.tabs
+        }:
+            raise ReadingError("active material does not belong to this reading workspace")
+        session_store = get_session_store()
+        session = await session_store.create_session(title=payload.title)
+        await session_store.update_session_preferences(
+            session["id"],
+            {
+                "capability": "immersive_reading",
+                "session_kind": "immersive_reading",
+                "reading_workspace_id": workspace_id,
+                "reading_material_id": active_material_id or "",
+            },
+        )
+        reading_session = catalog.attach_session(
+            workspace_id,
+            session["id"],
+            title=payload.title,
+            active_material_id=active_material_id,
+        )
+        return {"session": reading_session.to_dict()}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.patch("/workspaces/{workspace_id}/sessions/{session_id}")
+async def rename_reading_session(
+    workspace_id: str, session_id: str, payload: ReadingSessionRenameRequest
+) -> dict[str, Any]:
+    from deeptutor.services.session import get_session_store
+
+    try:
+        catalog = _catalog()
+        row = catalog.rename_session(workspace_id, session_id, payload.title)
+        await get_session_store().update_session_title(session_id, payload.title)
+        return {"session": row.to_dict()}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.delete("/workspaces/{workspace_id}/sessions/{session_id}")
+async def delete_reading_session(workspace_id: str, session_id: str) -> dict[str, Any]:
+    from deeptutor.services.session import get_session_store
+
+    try:
+        catalog = _catalog()
+        if not catalog.detach_session(workspace_id, session_id):
+            raise MaterialNotFound("reading session not found")
+        await get_session_store().delete_session(session_id)
+        return {"status": "ok", "session_id": session_id}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/sessions/{session_id}/links")
+async def link_reading_session(
+    workspace_id: str, session_id: str, payload: ReadingSessionLinkRequest
+) -> dict[str, Any]:
+    try:
+        catalog = _catalog()
+        catalog.link_session(workspace_id, session_id, payload.target_session_id)
+        return {
+            "session_id": session_id,
+            "linked_session_ids": catalog.list_session_links(workspace_id, session_id),
+        }
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.delete(
+    "/workspaces/{workspace_id}/sessions/{session_id}/links/{target_session_id}"
+)
+async def unlink_reading_session(
+    workspace_id: str, session_id: str, target_session_id: str
+) -> dict[str, Any]:
+    try:
+        catalog = _catalog()
+        catalog.unlink_session(workspace_id, session_id, target_session_id)
+        return {
+            "session_id": session_id,
+            "linked_session_ids": catalog.list_session_links(workspace_id, session_id),
+        }
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/notes/organize")
+async def organize_reading_notes(
+    workspace_id: str, payload: OrganizeNotesRequest
+) -> dict[str, Any]:
+    try:
+        catalog = _catalog()
+        notes = await asyncio.to_thread(
+            organize_workspace_notes,
+            workspace_id,
+            material_ids=payload.material_ids,
+            catalog=catalog,
+            reading_store=ReadingStore(catalog.root),
+        )
+        return {"notes": notes.to_dict()}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/notebook")
+async def capture_reading_to_notebook(
+    workspace_id: str, payload: NotebookCaptureRequest
+) -> dict[str, Any]:
+    try:
+        catalog = _catalog()
+        result = await asyncio.to_thread(
+            send_workspace_to_notebook,
+            workspace_id,
+            payload.notebook_ids,
+            material_ids=payload.material_ids,
+            title=payload.title,
+            summary=payload.summary,
+            catalog=catalog,
+            reading_store=ReadingStore(catalog.root),
+        )
+        return {"success": True, **result}
+    except Exception as exc:
+        raise _http_error(exc) from exc
 
 
 @router.get("/supported-formats", response_model=SupportedFormats)
@@ -209,9 +677,9 @@ async def supported_formats() -> SupportedFormats:
     from deeptutor.utils.document_extractor import SUPPORTED_DOC_EXTENSIONS
 
     return SupportedFormats(
-        extensions=sorted(SUPPORTED_DOC_EXTENSIONS),
+        extensions=sorted(set(SUPPORTED_DOC_EXTENSIONS) | _MEDIA_EXTENSIONS),
         max_bytes=MAX_MATERIAL_BYTES,
-        raw_view_extensions=sorted(RAW_VIEW_EXTENSIONS),
+        raw_view_extensions=sorted(set(RAW_VIEW_EXTENSIONS) | _MEDIA_EXTENSIONS),
     )
 
 
@@ -255,7 +723,14 @@ async def upload_material(file: UploadFile = File(...)) -> MaterialDetail:  # no
             raise HTTPException(status_code=400, detail=f"{filename} is empty.")
 
         store = _store()
-        manifest = store.ingest(tmp_path, filename=filename)
+        if Path(filename).suffix.lower() in _MEDIA_EXTENSIONS:
+            record = await ReadingIngestionService(store, _catalog()).import_media(
+                tmp_path, filename=filename
+            )
+            manifest = store.manifest(record.material_id)
+        else:
+            manifest = store.ingest(tmp_path, filename=filename)
+            _catalog().register_manifest(manifest)
         return _detail(store, manifest)
     except HTTPException:
         raise
@@ -329,6 +804,7 @@ async def delete_material(material_id: str) -> dict[str, Any]:
         raise _http_error(exc) from exc
     if not removed:
         raise HTTPException(status_code=404, detail=f"material {material_id!r} not found")
+    _catalog().delete_material(material_id)
     return {"status": "ok", "material_id": material_id}
 
 

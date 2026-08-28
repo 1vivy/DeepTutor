@@ -76,6 +76,27 @@ def _make_items(*specs):
     return items
 
 
+def test_generic_history_excludes_immersive_reading_sessions(
+    store: SQLiteSessionStore,
+) -> None:
+    chat = asyncio.run(store.create_session(title="Regular chat"))
+    reading = asyncio.run(store.create_session(title="Reading conversation"))
+    asyncio.run(
+        store.update_session_preferences(
+            reading["id"],
+            {
+                "session_kind": "immersive_reading",
+                "reading_workspace_id": "rw_private",
+            },
+        )
+    )
+
+    listed = asyncio.run(store.list_sessions())
+
+    assert [row["id"] for row in listed] == [chat["id"]]
+    assert asyncio.run(store.get_session(reading["id"])) is not None
+
+
 # ── Notebook entries ──────────────────────────────────────────────
 
 

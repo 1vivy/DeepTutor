@@ -10,6 +10,7 @@ test("capabilityForPath maps LLM features to llm", () => {
   assert.equal(capabilityForPath("/partners"), "llm");
   assert.equal(capabilityForPath("/co-writer"), "llm");
   assert.equal(capabilityForPath("/book"), "llm");
+  assert.equal(capabilityForPath("/reading"), "llm");
   assert.equal(capabilityForPath("/space/learning"), "llm"); // Mastery Path
   assert.equal(capabilityForPath("/playground"), "llm");
 });
@@ -18,6 +19,7 @@ test("capabilityForPath matches nested routes by prefix", () => {
   assert.equal(capabilityForPath("/home/abc-123"), "llm");
   assert.equal(capabilityForPath("/partners/partner-1"), "llm");
   assert.equal(capabilityForPath("/space/learning/book-1"), "llm");
+  assert.equal(capabilityForPath("/reading/workspace-1/session-1"), "llm");
 });
 
 test("capabilityForPath matches on a segment boundary, not a bare prefix", () => {

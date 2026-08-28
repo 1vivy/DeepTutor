@@ -230,6 +230,18 @@ def _extract_readable(html_or_text: str) -> tuple[str, str]:
     """
     title = ""
     if "<" in html_or_text and ">" in html_or_text:
+        # Immersive Reading needs article structure rather than a page-wide
+        # text dump. Reuse the product's mature documentation/article extractor
+        # when lxml is available; the regex path below remains a lean-install
+        # fallback for malformed pages or environments without that dependency.
+        try:
+            from deeptutor.services.web_source.html_extractor import (
+                extract_article_markdown,
+            )
+
+            return extract_article_markdown(html_or_text)
+        except Exception:
+            logger.debug("structured HTML extraction failed; using text fallback", exc_info=True)
         title_match = _TITLE_RE.search(html_or_text)
         if title_match:
             title = re.sub(r"\s+", " ", title_match.group(1)).strip()

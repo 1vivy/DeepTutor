@@ -215,6 +215,7 @@ def _mastery_path_id(value: Any) -> str:
 # Reading material ids are content hashes; anything else is a client bug or an
 # injection attempt, so the shape is enforced here rather than deeper in.
 _READING_ID_RE = re.compile(r"^[0-9a-f]{8,64}$")
+_READING_WORKSPACE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 # A selection is quoted back into the prompt, so it is bounded here — the
 # reader has no reason to send more, and a runaway selection must not eat the
 # turn's context budget.
@@ -225,6 +226,12 @@ def _reading_material_id(value: Any) -> str:
     """Normalize the immersive-reading material bound to this turn."""
     candidate = str(value or "").strip().lower()
     return candidate if _READING_ID_RE.match(candidate) else ""
+
+
+def _reading_workspace_id(value: Any) -> str:
+    """Normalize the owner-scoped reading workspace bound to this turn."""
+    candidate = str(value or "").strip()
+    return candidate if _READING_WORKSPACE_ID_RE.fullmatch(candidate) else ""
 
 
 def _reading_viewport(value: Any) -> dict[str, Any]:
@@ -301,6 +308,9 @@ def _request_snapshot_metadata(
     reading_material_id = _reading_material_id(payload.get("reading_material_id"))
     if reading_material_id:
         snapshot["readingMaterialId"] = reading_material_id
+    reading_workspace_id = _reading_workspace_id(payload.get("reading_workspace_id"))
+    if reading_workspace_id:
+        snapshot["readingWorkspaceId"] = reading_workspace_id
     if persona:
         snapshot["persona"] = persona
     if memory_references:
@@ -1035,6 +1045,33 @@ class TurnRuntimeManager:
         }
         session = await self.store.ensure_session(payload.get("session_id"))
         preferences = session.get("preferences") or {}
+        reading_workspace_id = _reading_workspace_id(payload.get("reading_workspace_id"))
+        reading_material_id = _reading_material_id(payload.get("reading_material_id"))
+        if capability == "immersive_reading" and reading_workspace_id:
+            from deeptutor.reading import ReadingCatalogStore
+
+            reading_catalog = ReadingCatalogStore()
+            reading_workspace = reading_catalog.get_workspace(reading_workspace_id)
+            if reading_workspace is None:
+                raise RuntimeError("The reading workspace is unavailable.")
+            reading_material_id = reading_material_id or str(
+                reading_workspace.active_material_id or ""
+            )
+            if reading_material_id not in {
+                tab.material.material_id for tab in reading_workspace.tabs
+            }:
+                raise RuntimeError("The active material is not part of this reading workspace.")
+            reading_catalog.attach_session(
+                reading_workspace_id,
+                session["id"],
+                title=str(session.get("title") or "New reading conversation"),
+                active_material_id=reading_material_id,
+            )
+            payload = {
+                **payload,
+                "reading_workspace_id": reading_workspace_id,
+                "reading_material_id": reading_material_id,
+            }
         # A mastery path has a longer lifetime than any one conversation.
         # Persist the explicit association on the session, and restore it on
         # later turns whose frontend payload omits the field.
@@ -1226,6 +1263,14 @@ class TurnRuntimeManager:
             # Mastery turns persist their fully resolved path so a later turn
             # cannot silently fall back to a different aggregate.
             preference_update["mastery_path_id"] = mastery_path_id
+        if capability == "immersive_reading" and reading_workspace_id:
+            preference_update.update(
+                {
+                    "session_kind": "immersive_reading",
+                    "reading_workspace_id": reading_workspace_id,
+                    "reading_material_id": reading_material_id,
+                }
+            )
         await self.store.update_session_preferences(session["id"], preference_update)
         turn = await self.store.create_turn(session["id"], capability=capability)
         execution = _TurnExecution(
@@ -1430,6 +1475,12 @@ class TurnRuntimeManager:
                 overrides.get("reading_material_id")
                 if "reading_material_id" in overrides
                 else snapshot.get("readingMaterialId")
+            ),
+            "reading_workspace_id": _reading_workspace_id(
+                overrides.get("reading_workspace_id")
+                if "reading_workspace_id" in overrides
+                else snapshot.get("readingWorkspaceId")
+                or preferences.get("reading_workspace_id")
             ),
             "config": config,
         }
@@ -2159,6 +2210,9 @@ class TurnRuntimeManager:
                     # capability and binds its tools; the viewport tells the
                     # model where the user is actually looking.
                     "reading_material_id": _reading_material_id(payload.get("reading_material_id")),
+                    "reading_workspace_id": _reading_workspace_id(
+                        payload.get("reading_workspace_id")
+                    ),
                     "reading_viewport": _reading_viewport(payload.get("reading_viewport")),
                     "book_context": book_context,
                     "book_context_warnings": book_context_result.warnings,

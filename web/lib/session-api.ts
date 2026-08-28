@@ -45,7 +45,11 @@ export interface SessionPreferences {
   course_id?: string;
   /** Source conversation for nested selected-text tutor threads. */
   parent_session_id?: string;
-  session_kind?: "chat" | "selection_tutor";
+  session_kind?: "chat" | "selection_tutor" | "immersive_reading";
+  /** Owning Immersive Reading workspace, present only for reading sessions. */
+  reading_workspace_id?: string;
+  /** Material active when the reading conversation was created. */
+  reading_material_id?: string;
   pinned?: boolean;
   archived?: boolean;
 }

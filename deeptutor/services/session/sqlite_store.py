@@ -1445,7 +1445,17 @@ class SQLiteSessionStore:
 
     # ``ESCAPE '\'`` makes the underscore in ``imported_`` literal rather than
     # the LIKE single-char wildcard.
-    _WHERE_NATIVE = r"WHERE s.id NOT LIKE 'imported\_%' ESCAPE '\'"
+    _WHERE_NATIVE = r"""
+        WHERE s.id NOT LIKE 'imported\_%' ESCAPE '\'
+          AND COALESCE(
+                json_extract(
+                    CASE WHEN json_valid(s.preferences_json)
+                         THEN s.preferences_json ELSE '{}' END,
+                    '$.session_kind'
+                ),
+                'chat'
+              ) <> 'immersive_reading'
+    """
     _WHERE_IMPORTED = r"WHERE s.id LIKE 'imported\_%' ESCAPE '\'"
 
     def _list_session_summaries_sync(

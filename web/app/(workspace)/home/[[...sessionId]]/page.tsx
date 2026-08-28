@@ -13,7 +13,6 @@ import { useParams, useRouter } from "next/navigation";
 
 import {
   BarChart3,
-  BookOpenText,
   BrainCircuit,
   CircleHelp,
   Clapperboard,
@@ -322,16 +321,6 @@ const CAPABILITIES: CapabilityDef[] = [
     // when this capability is active; rag auto-mounts when a KB is attached.
     // These are only the extra optional tools the tutor may also reach for.
     allowedTools: ["web_search", "code_execution"],
-    defaultTools: [],
-  },
-  {
-    value: "immersive_reading",
-    label: "Immersive Reading",
-    description: "Read a document with the assistant, cited line by line",
-    icon: BookOpenText,
-    // The five reading tools auto-mount server-side once a document is open;
-    // these are the extra tools the assistant may also reach for while reading.
-    allowedTools: ["web_search", "code_execution", "reason"],
     defaultTools: [],
   },
 ];
