@@ -322,6 +322,17 @@ const CAPABILITIES: CapabilityDef[] = [
     allowedTools: ["web_search", "code_execution", "reason"],
     defaultTools: [],
   },
+  {
+    value: "mastery_path",
+    label: "Mastery Path",
+    description: "Mastery-based tutoring with a hard gate",
+    icon: GraduationCap,
+    // The mastery tools (status/quiz/grade/assess/build) auto-mount server-side
+    // when this capability is active; rag auto-mounts when a KB is attached.
+    // These are only the extra optional tools the tutor may also reach for.
+    allowedTools: ["web_search", "code_execution"],
+    defaultTools: [],
+  },
 ];
 
 interface KnowledgeBase {

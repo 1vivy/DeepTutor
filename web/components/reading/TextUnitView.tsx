@@ -621,6 +621,13 @@ function TextWithHeadings({
             | "h4"
             | "h5"
             | "h6";
+          const titleOffset = line.text.indexOf(line.heading.title);
+          const markerPrefix =
+            titleOffset >= 0 ? line.text.slice(0, titleOffset) : "";
+          const markerSuffix =
+            titleOffset >= 0
+              ? line.text.slice(titleOffset + line.heading.title.length)
+              : "";
           return (
             <Fragment key={key}>
               {lineIndex > 0 && "\n"}
@@ -629,7 +636,23 @@ function TextWithHeadings({
                 data-reader-heading-id={line.heading.id}
                 className="mt-5 mb-2 font-serif text-[var(--foreground)] first:mt-0"
               >
-                {line.text}
+                {markerPrefix && (
+                  <span
+                    aria-hidden="true"
+                    className="inline-block size-0 overflow-hidden align-top text-[0px]"
+                  >
+                    {markerPrefix}
+                  </span>
+                )}
+                {titleOffset >= 0 ? line.heading.title : line.text}
+                {markerSuffix && (
+                  <span
+                    aria-hidden="true"
+                    className="inline-block size-0 overflow-hidden align-top text-[0px]"
+                  >
+                    {markerSuffix}
+                  </span>
+                )}
               </Heading>
             </Fragment>
           );

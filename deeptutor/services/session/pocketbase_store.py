@@ -248,7 +248,13 @@ class PocketBaseSessionStore:
 
         try:
             result = await asyncio.to_thread(_list)
-            return [self._session_record_to_dict(r) for r in result.items]
+            sessions = [self._session_record_to_dict(r) for r in result.items]
+            return [
+                session
+                for session in sessions
+                if (session.get("preferences") or {}).get("session_kind")
+                != "immersive_reading"
+            ]
         except Exception as exc:
             logger.warning(f"list_sessions failed: {exc}")
             return []

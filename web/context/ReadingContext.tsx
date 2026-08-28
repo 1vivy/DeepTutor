@@ -62,7 +62,11 @@ export interface ReadingContextValue {
   dismissError: () => void;
   setError: (message: string) => void;
   /** Report scroll position / selection. Does not trigger a render. */
-  reportViewport: (next: { locator?: number; selection?: string }) => void;
+  reportViewport: (next: {
+    locator?: number;
+    selection?: string;
+    timeSeconds?: number | null;
+  }) => void;
 }
 
 const noop = () => {};
@@ -198,7 +202,11 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const reportViewport = useCallback(
-    (next: { locator?: number; selection?: string }) =>
+    (next: {
+      locator?: number;
+      selection?: string;
+      timeSeconds?: number | null;
+    }) =>
       setReadingViewport(next),
     [],
   );

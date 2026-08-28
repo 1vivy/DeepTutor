@@ -45,6 +45,10 @@ const AUTO_JUMP_KEY = "dt.reader.autoJump";
 
 export interface ReaderPaneProps {
   onClose: () => void;
+  /** The dedicated Reading workspace already owns source navigation and tabs. */
+  embedded?: boolean;
+  /** User-owned navigation from the dedicated workspace's source outline. */
+  externalJump?: JumpRequest | null;
 }
 
 /**
@@ -64,7 +68,11 @@ export interface ReaderPaneProps {
  *   write removes it again and surfaces the error. Waiting for a round trip
  *   before showing ink makes highlighting feel broken.
  */
-export function ReaderPane({ onClose }: ReaderPaneProps) {
+export function ReaderPane({
+  onClose,
+  embedded = false,
+  externalJump = null,
+}: ReaderPaneProps) {
   const { t } = useTranslation();
   // Document + annotations live in the provider (workspace layout), so they
   // survive the remount that sending the first message causes.
@@ -140,13 +148,13 @@ export function ReaderPane({ onClose }: ReaderPaneProps) {
   }, [material]);
 
   useEffect(() => {
-    if (!material || outlineUserChoice !== null) return;
+    if (embedded || !material || outlineUserChoice !== null) return;
     const desktop = window.matchMedia("(min-width: 768px)").matches;
     setShowOutline(
       desktop &&
         ((material.outline?.length ?? 0) >= 8 || pageHeadings.length >= 3),
     );
-  }, [material, outlineUserChoice, pageHeadings.length]);
+  }, [embedded, material, outlineUserChoice, pageHeadings.length]);
 
   const toggleOutline = useCallback(() => {
     setShowOutline((current) => {
@@ -167,6 +175,7 @@ export function ReaderPane({ onClose }: ReaderPaneProps) {
   }, [material]);
 
   useEffect(() => {
+    if (embedded) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "b") {
         event.preventDefault();
@@ -175,7 +184,7 @@ export function ReaderPane({ onClose }: ReaderPaneProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [toggleOutline]);
+  }, [embedded, toggleOutline]);
 
   const toggleAutoJump = useCallback(() => {
     setAutoJump((current) => {
@@ -209,6 +218,11 @@ export function ReaderPane({ onClose }: ReaderPaneProps) {
     nonceRef.current += 1;
     setJump({ locator, quote, nonce: nonceRef.current });
   }, []);
+
+  useEffect(() => {
+    if (!externalJump) return;
+    requestJump(externalJump.locator, externalJump.quote);
+  }, [externalJump, requestJump]);
 
   useEffect(() => {
     const onReaderAction = (event: Event) => {
@@ -393,9 +407,9 @@ export function ReaderPane({ onClose }: ReaderPaneProps) {
 
   return (
     <div className="relative flex h-full min-w-0 flex-col border-r border-[var(--border)] bg-[var(--background)]">
-      <ReaderResizeHandle />
+      {!embedded && <ReaderResizeHandle />}
       <header className="flex h-11 shrink-0 items-center gap-1 border-b border-[var(--border)] px-2.5">
-        {material && hasContents && (
+        {!embedded && material && hasContents && (
           <button
             type="button"
             title={t("Contents")}
@@ -456,11 +470,13 @@ export function ReaderPane({ onClose }: ReaderPaneProps) {
               // trigger too keeps it from being a button that does nothing.
               className="hidden lg:inline-flex"
             />
-            <HeaderButton
-              icon={X}
-              label={t("Close document")}
-              onClick={closeMaterial}
-            />
+            {!embedded && (
+              <HeaderButton
+                icon={X}
+                label={t("Close document")}
+                onClick={closeMaterial}
+              />
+            )}
           </>
         )}
         {!material && (
@@ -497,7 +513,7 @@ export function ReaderPane({ onClose }: ReaderPaneProps) {
       )}
 
       <div className="relative flex min-h-0 flex-1">
-        {showOutline && material && hasContents && (
+        {!embedded && showOutline && material && hasContents && (
           <ReaderOutline
             rows={outlineRows}
             pageHeadings={pageHeadings}

@@ -95,6 +95,27 @@ def test_get_session_summaries_batches_counts_and_latest_visible_message(
     assert by_id[second["id"]]["last_message"] == ""
 
 
+def test_generic_history_excludes_immersive_reading_sessions(
+    store: SQLiteSessionStore,
+) -> None:
+    chat = asyncio.run(store.create_session(title="Regular chat"))
+    reading = asyncio.run(store.create_session(title="Reading conversation"))
+    asyncio.run(
+        store.update_session_preferences(
+            reading["id"],
+            {
+                "session_kind": "immersive_reading",
+                "reading_workspace_id": "rw_private",
+            },
+        )
+    )
+
+    listed = asyncio.run(store.list_sessions())
+
+    assert [row["id"] for row in listed] == [chat["id"]]
+    assert asyncio.run(store.get_session(reading["id"])) is not None
+
+
 # ── Notebook entries ──────────────────────────────────────────────
 
 

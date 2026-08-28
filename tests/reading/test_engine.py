@@ -134,6 +134,20 @@ def test_pdf_outline_drops_bookmarks_pointing_outside_the_page_range(tmp_path: P
     assert all(1 <= e.locator <= len(extraction.units) for e in extraction.outline)
 
 
+def test_pdf_without_bookmarks_does_not_invent_contents(tmp_path: Path) -> None:
+    path = _write_pdf(
+        tmp_path / "plain.pdf",
+        ["Figure 1: this is page content, not a document heading.", "References"],
+    )
+
+    extraction = extract_material(path)
+    assert extraction.outline == ()
+
+    reading_store = ReadingStore(root=tmp_path / "plain-materials")
+    manifest = reading_store.ingest(path)
+    assert reading_store.outline(manifest.material_id) == []
+
+
 def test_text_file_is_cut_into_sections_on_paragraph_boundaries(tmp_path: Path) -> None:
     paragraph = "Dense prose about attention mechanisms. " * 30  # ~1.2k chars
     path = tmp_path / "notes.md"

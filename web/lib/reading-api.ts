@@ -8,10 +8,10 @@ import { apiFetch, apiUrl } from "@/lib/api";
 // unit word is carried on the material so the UI can say "page 12" or
 // "chapter 3" without ever branching on the file type itself.
 
-export type UnitKind = "page" | "chapter" | "slide" | "section";
+export type UnitKind = "page" | "chapter" | "slide" | "section" | "segment";
 export type AnnotationKind = "highlight" | "underline" | "note";
 export type ExportFormat = "auto" | "pdf" | "markdown";
-export type RenderMode = "text" | "pdf" | "epub";
+export type RenderMode = "text" | "pdf" | "epub" | "video" | "audio";
 
 /** Palette offered by the annotation toolbar; mirrored server-side. */
 export const ANNOTATION_COLORS = [
@@ -36,6 +36,7 @@ export interface MaterialInfo {
   /** True when the original bytes can be rendered faithfully (PDF today). */
   has_raw_view: boolean;
   render_mode: RenderMode;
+  extractor: string;
   annotation_count: number;
 }
 

@@ -801,6 +801,11 @@ class GenerateFromNotebookRequest(BaseModel):
     records: list[NotebookRecordInput]
 
 
+class GenerateFromReadingRequest(BaseModel):
+    workspace_id: str
+    material_ids: list[str] = Field(default_factory=list, max_length=20)
+
+
 @router.post("/progress/{book_id}/generate-from-notebook")
 async def generate_from_notebook(book_id: str, body: GenerateFromNotebookRequest):
     _validate_book_id(book_id)
@@ -876,3 +881,29 @@ async def generate_from_notebook(book_id: str, body: GenerateFromNotebookRequest
         "modules": [m.model_dump() for m in modules],
         "path_revision": progress.version,
     }
+
+
+@router.post("/progress/{book_id}/generate-from-reading")
+async def generate_from_reading(book_id: str, body: GenerateFromReadingRequest):
+    """Create a mastery curriculum from a private reading workspace."""
+    from deeptutor.reading.knowledge_capture import mastery_source_records
+
+    try:
+        records = await asyncio.to_thread(
+            mastery_source_records,
+            body.workspace_id,
+            material_ids=body.material_ids,
+        )
+    except Exception as exc:
+        from deeptutor.reading import ReadingError
+
+        if isinstance(exc, ReadingError):
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise
+    return await generate_from_notebook(
+        book_id,
+        GenerateFromNotebookRequest(
+            notebook_id=f"reading:{body.workspace_id}",
+            records=[NotebookRecordInput(**record) for record in records],
+        ),
+    )

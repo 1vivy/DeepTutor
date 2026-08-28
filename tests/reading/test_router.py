@@ -165,12 +165,14 @@ def test_delete_material_is_idempotent_then_404s(client: TestClient) -> None:
     assert client.delete(f"/api/v1/reading/materials/{material_id}").status_code == 404
 
 
-def test_supported_formats_names_pdf_as_the_faithful_view(client: TestClient) -> None:
+def test_supported_formats_names_faithful_documents_and_media(client: TestClient) -> None:
     body = client.get("/api/v1/reading/supported-formats").json()
 
     assert ".pdf" in body["extensions"]
     assert ".epub" in body["extensions"]
-    assert body["raw_view_extensions"] == [".pdf"]
+    assert ".pdf" in body["raw_view_extensions"]
+    assert ".mp4" in body["raw_view_extensions"]
+    assert ".mp3" in body["raw_view_extensions"]
     assert body["max_bytes"] > 0
 
 

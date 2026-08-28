@@ -61,6 +61,22 @@ def test_extract_readable_strips_scripts_and_styles() -> None:
     assert body.startswith("# Hello")
 
 
+def test_extract_readable_prefers_article_over_navigation_chrome() -> None:
+    html = """
+    <html><head><title>Research note</title></head><body>
+      <nav>Home Products Pricing</nav>
+      <main><article><h1>Reward models</h1><p>Pairwise comparisons.</p></article></main>
+      <footer>Legal sitemap</footer>
+    </body></html>
+    """
+    title, body = _extract_readable(html)
+    assert title == "Research note"
+    assert "Reward models" in body
+    assert "Pairwise comparisons" in body
+    assert "Products Pricing" not in body
+    assert "Legal sitemap" not in body
+
+
 def test_extract_readable_passes_through_plain_text() -> None:
     title, body = _extract_readable("Plain text payload\nwith two lines.")
     assert title == ""
