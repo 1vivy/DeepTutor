@@ -29,7 +29,11 @@ import {
 } from "@/lib/session-api";
 import { normalizeMarkdownForDisplay } from "@/lib/markdown-display";
 import { normalizeMessageContent } from "@/lib/message-content";
-import { buildVisiblePath, tipMessageId } from "@/lib/message-branches";
+import {
+  buildVisiblePath,
+  selectChildBranch,
+  tipMessageId,
+} from "@/lib/message-branches";
 import { nextOptimisticId, resolvePersistedMessage } from "@/lib/optimistic-id";
 import { reconcileTurnIds } from "@/lib/turn-reconcile";
 import {
@@ -392,6 +396,11 @@ function reducer(state: ProviderState, action: Action): ProviderState {
     case "ADD_USER_MSG": {
       const session =
         state.sessions[action.key] ?? createSessionEntry(action.key);
+      const userId = nextOptimisticId();
+      const parentId =
+        action.parentMessageId === undefined
+          ? null
+          : action.parentMessageId;
       return {
         ...state,
         sessions: {
@@ -401,14 +410,11 @@ function reducer(state: ProviderState, action: Action): ProviderState {
             messages: [
               ...session.messages,
               {
-                id: nextOptimisticId(),
+                id: userId,
                 role: "user",
                 content: action.content,
                 capability: action.capability || "",
-                parentMessageId:
-                  action.parentMessageId === undefined
-                    ? null
-                    : action.parentMessageId,
+                parentMessageId: parentId,
                 ...(action.attachments?.length
                   ? { attachments: action.attachments }
                   : {}),
@@ -417,6 +423,11 @@ function reducer(state: ProviderState, action: Action): ProviderState {
                   : {}),
               },
             ],
+            selectedBranches: selectChildBranch(
+              session.selectedBranches,
+              parentId,
+              userId,
+            ),
             updatedAt: Date.now(),
           },
         },
