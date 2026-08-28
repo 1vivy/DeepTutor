@@ -723,6 +723,67 @@ def test_enqueue_status_read_failure_retains_all_ingress(tmp_path: Path, monkeyp
     assert (bundles_root(working) / "doc.md.bundle").is_dir()
 
 
+@pytest.mark.parametrize("operation", ["initialize", "add_documents"])
+def test_public_initial_ingestion_retains_uncertain_ingress(
+    tmp_path: Path, monkeypatch, operation: str
+) -> None:
+    source = tmp_path / "source" / "doc.md"
+    source.parent.mkdir()
+    source.write_text("body", encoding="utf-8")
+    staged_working: Path | None = None
+
+    class DocStatus:
+        async def get_docs_by_ids(self, _doc_ids, *, strict):
+            assert strict is True
+            raise RuntimeError("status unavailable")
+
+    class Rag:
+        doc_status = DocStatus()
+
+    pipeline = LightRagPipeline(kb_base_dir=str(tmp_path / "knowledge-bases"))
+
+    def stage(working, paths):
+        nonlocal staged_working
+        staged_working = working
+        return [
+            freeze_document(
+                working,
+                Path(paths[0]),
+                ParsedDocument(markdown="body", engine="text_only"),
+            )
+        ], {}
+
+    async def enqueue(_rag, _staged):
+        raise ValueError("original enqueue failure")
+
+    async def no_op(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(pipeline, "_ensure_available", lambda: None)
+    monkeypatch.setattr(pipeline, "_stage_documents", stage)
+    monkeypatch.setattr(engine, "build_rag", lambda *_args, **_kwargs: Rag())
+    monkeypatch.setattr(engine, "initialize", no_op)
+    monkeypatch.setattr(engine, "enqueue", enqueue)
+    monkeypatch.setattr(engine, "finalize", no_op)
+
+    with pytest.raises(ValueError, match="original enqueue failure"):
+        asyncio.run(getattr(pipeline, operation)("kb", [str(source)]))
+
+    assert staged_working is not None
+    assert (pending_root(staged_working) / "doc.md").is_file()
+    assert (bundles_root(staged_working) / "doc.md.bundle").is_dir()
+
+
+def test_zero_accepted_candidate_cleanup_removes_empty_version(tmp_path: Path) -> None:
+    version = tmp_path / "version-1"
+    pending_root(version).mkdir(parents=True)
+    bundles_root(version).mkdir(parents=True)
+
+    LightRagPipeline(kb_base_dir=str(tmp_path))._remove_zero_accepted_candidate(version)
+
+    assert not version.exists()
+
+
 def test_append_rejects_corrupt_or_unpublished_existing_version(
     tmp_path: Path, monkeypatch
 ) -> None:

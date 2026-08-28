@@ -335,8 +335,12 @@ class LightRagPipeline:
         return await run_in_worker_loop(job)
 
     def _remove_zero_accepted_candidate(self, root_dir: Path) -> None:
-        if root_dir.is_dir() and not storage.has_any_doc_status(root_dir):
-            shutil.rmtree(root_dir)
+        if not root_dir.is_dir() or storage.has_any_doc_status(root_dir):
+            return
+        for ingress_dir in (ingress.pending_root(root_dir), ingress.bundles_root(root_dir)):
+            if ingress_dir.is_dir() and any(path.is_file() for path in ingress_dir.rglob("*")):
+                return
+        shutil.rmtree(root_dir)
 
     async def initialize(self, kb_name: str, file_paths: List[str], **kwargs) -> bool:
         self._ensure_available()
