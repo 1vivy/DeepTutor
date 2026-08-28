@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   connectImaKnowledgeBase as connectImaApi,
   connectLightRagServer as connectLightRagServerApi,
+  connectWeKnora as connectWeKnoraApi,
   connectLinkedFolder as connectLinkedFolderApi,
   connectMarginNote4Library as connectMarginNote4Api,
   connectObsidianVault as connectObsidianApi,
@@ -352,6 +353,20 @@ export function useKnowledgeBases() {
     [load],
   );
 
+  const connectWeKnora = useCallback(
+    async (params: {
+      name: string;
+      serverUrl: string;
+      apiKey: string;
+      knowledgeBaseId: string;
+    }) => {
+      await connectWeKnoraApi(params);
+      invalidateKnowledgeCaches();
+      await load({ force: true, showSpinner: false });
+    },
+    [load],
+  );
+
   const connectIma = useCallback(
     async (params: {
       name: string;
@@ -389,6 +404,7 @@ export function useKnowledgeBases() {
     connectObsidian,
     connectLinkedFolder,
     connectLightRagServer,
+    connectWeKnora,
     connectMarginNote4,
     connectIma,
   };

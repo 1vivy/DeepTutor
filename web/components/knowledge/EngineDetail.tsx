@@ -76,6 +76,7 @@ const ENGINE_ICONS: Record<string, LucideIcon> = {
   graphrag: Network,
   lightrag: Workflow,
   "lightrag-server": Server,
+  weknora: Database,
 };
 
 const INSTALL_HINTS: Record<string, string> = {
@@ -121,6 +122,7 @@ const ENGINE_MODEL_KINDS: Record<string, ("llm" | "embedding")[]> = {
   graphrag: ["llm", "embedding"],
   lightrag: ["llm", "embedding"],
   "lightrag-server": [],
+  weknora: [],
 };
 
 const MODEL_KIND_LABEL: Record<string, string> = {

@@ -39,6 +39,7 @@ export default function KnowledgePage() {
     connectObsidian,
     connectLinkedFolder,
     connectLightRagServer,
+    connectWeKnora,
     connectMarginNote4,
     connectIma,
   } = useKnowledgeBases();
@@ -314,6 +315,7 @@ export default function KnowledgePage() {
         onConnectLinkedFolder={connectLinkedFolder}
         onConnectObsidian={connectObsidian}
         onConnectLightRagServer={connectLightRagServer}
+        onConnectWeKnora={connectWeKnora}
         onConnectMarginNote4={connectMarginNote4}
         onConnectIma={connectIma}
         initialMode={createPreset?.mode}

@@ -243,6 +243,7 @@ def _rag_check(
     )
     from deeptutor.services.rag.factory import (
         LIGHTRAG_SERVER_PROVIDER,
+        WEKNORA_PROVIDER,
         normalize_provider_name,
     )
 
@@ -253,6 +254,18 @@ def _rag_check(
             continue
         provider = normalize_provider_name(str(entry.get("rag_provider") or default_provider))
         providers.add(provider)
+        if provider == WEKNORA_PROVIDER:
+            from deeptutor.services.rag.pipelines.weknora.config import config_from_entry
+
+            try:
+                weknora_config = config_from_entry(entry)
+                endpoint_ok, _ = _safe_endpoint(weknora_config.base_url)
+                if not endpoint_ok:
+                    failures.append(f"{kb_name}: invalid WeKnora server URL")
+            except Exception as exc:
+                failures.append(f"{kb_name}: {_redact_error(exc, None)}")
+            continue
+
         if provider != LIGHTRAG_SERVER_PROVIDER:
             continue
 
@@ -268,7 +281,7 @@ def _rag_check(
         except Exception as exc:
             failures.append(f"{kb_name}: {_redact_error(exc, None)}")
 
-    for provider in sorted(providers - {LIGHTRAG_SERVER_PROVIDER}):
+    for provider in sorted(providers - {LIGHTRAG_SERVER_PROVIDER, WEKNORA_PROVIDER}):
         try:
             report = preflight(provider)
             for check in report.get("checks", []):

@@ -49,6 +49,7 @@ const ENGINE_ICONS: Record<string, LucideIcon> = {
   graphrag: Network,
   lightrag: Workflow,
   "lightrag-server": Server,
+  weknora: Database,
 };
 
 function EngineStatusBadge({ status }: { status: ProviderConnectionStatus }) {
