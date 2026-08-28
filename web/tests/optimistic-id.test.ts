@@ -5,7 +5,11 @@ import {
   resolvePersistedMessage,
 } from "../lib/optimistic-id";
 import { reconcileTurnIds } from "../lib/turn-reconcile";
-import { buildVisiblePath, tipMessageId } from "../lib/message-branches";
+import {
+  buildVisiblePath,
+  persistedBranchSelections,
+  tipMessageId,
+} from "../lib/message-branches";
 import type { MessageItem } from "../context/UnifiedChatContext";
 
 test("optimistic ids are negative and strictly decreasing", () => {
@@ -101,5 +105,12 @@ test("the previous reply stays visible once the next turn is queued", () => {
   assert.deepEqual(
     visible.messages.map((m) => m.content),
     ["q1", "a1", "q2"],
+  );
+});
+
+test("persisted branch selections drop optimistic ids", () => {
+  assert.deepEqual(
+    persistedBranchSelections({ null: -42, "10": 11, "11": -99, "12": 13 }),
+    { "10": 11, "12": 13 },
   );
 });

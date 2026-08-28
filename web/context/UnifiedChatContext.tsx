@@ -29,7 +29,11 @@ import {
 } from "@/lib/session-api";
 import { normalizeMarkdownForDisplay } from "@/lib/markdown-display";
 import { normalizeMessageContent } from "@/lib/message-content";
-import { buildVisiblePath, tipMessageId } from "@/lib/message-branches";
+import {
+  buildVisiblePath,
+  persistedBranchSelections,
+  tipMessageId,
+} from "@/lib/message-branches";
 import { nextOptimisticId, resolvePersistedMessage } from "@/lib/optimistic-id";
 import { reconcileTurnIds } from "@/lib/turn-reconcile";
 import {
@@ -1977,11 +1981,12 @@ export function UnifiedChatProvider({
         childId,
       });
       const sessionId = session.sessionId;
-      if (!sessionId) return;
-      const nextSelections = {
+      if (!sessionId || childId < 0) return;
+      const nextSelections = persistedBranchSelections({
         ...session.selectedBranches,
         [parentKey]: childId,
-      };
+      });
+      if (Object.keys(nextSelections).length === 0) return;
       // Fire-and-forget — local state is the source of truth for the UI;
       // the server copy only matters for reload-time hydration.
       updateBranchSelection(sessionId, nextSelections).catch((err) => {
