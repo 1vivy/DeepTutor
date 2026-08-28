@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import inspect
 import json
 from pathlib import Path
@@ -26,6 +27,11 @@ from deeptutor.services.rag.pipelines.lightrag.pipeline import (
     LightRagBatchError,
     LightRagNeedsReindexError,
     LightRagPipeline,
+)
+
+REQUIRES_LIGHTRAG = pytest.mark.skipif(
+    importlib.util.find_spec("lightrag") is None,
+    reason="requires the optional rag-lightrag extra",
 )
 
 
@@ -77,6 +83,7 @@ def test_availability_checks_native_lightrag_module(monkeypatch) -> None:
     assert seen == ["lightrag"]
 
 
+@REQUIRES_LIGHTRAG
 def test_distribution_identity_is_exact_rc2() -> None:
     assert engine.installed_version() == "1.5.7rc2"
     assert engine.LIGHTRAG_DISTRIBUTION == "lightrag-hku"
@@ -109,6 +116,7 @@ def _resolver(tmp_path: Path):
     return rag
 
 
+@REQUIRES_LIGHTRAG
 def test_source_resolver_only_reads_version_ingress(tmp_path: Path, monkeypatch) -> None:
     pending = pending_root(tmp_path)
     pending.mkdir(parents=True)
@@ -124,6 +132,7 @@ def test_source_resolver_only_reads_version_ingress(tmp_path: Path, monkeypatch)
     )
 
 
+@REQUIRES_LIGHTRAG
 @pytest.mark.parametrize("bad", ["../doc.pdf", "/tmp/doc.pdf", "nested/doc.pdf"])
 def test_source_resolver_rejects_noncanonical_paths(tmp_path: Path, bad: str) -> None:
     rag = _resolver(tmp_path)
@@ -131,6 +140,7 @@ def test_source_resolver_rejects_noncanonical_paths(tmp_path: Path, bad: str) ->
         rag._resolve_source_file_for_parser(bad, parser_engine="deeptutor")
 
 
+@REQUIRES_LIGHTRAG
 def test_source_resolver_rejects_symlink_and_ambiguity(tmp_path: Path) -> None:
     pending = pending_root(tmp_path)
     archived = pending / "__parsed__"
@@ -148,6 +158,7 @@ def test_source_resolver_rejects_symlink_and_ambiguity(tmp_path: Path) -> None:
         rag._resolve_source_file_for_parser("doc.pdf", parser_engine="deeptutor")
 
 
+@REQUIRES_LIGHTRAG
 def test_source_resolver_rejects_other_parser(tmp_path: Path) -> None:
     with pytest.raises(IngressError, match="Unsupported parser"):
         _resolver(tmp_path)._resolve_source_file_for_parser("doc.pdf", parser_engine="mineru")
@@ -189,6 +200,7 @@ def test_vision_adapter_rejects_invalid_inputs(monkeypatch, value) -> None:
         asyncio.run(config.build_vision_model_func()("describe", image_inputs=value))
 
 
+@REQUIRES_LIGHTRAG
 def test_embedding_adapter_preserves_query_and_document_roles(monkeypatch) -> None:
     calls: list[tuple[list[str], str | None]] = []
 
@@ -344,6 +356,7 @@ def _query_result() -> dict:
     }
 
 
+@REQUIRES_LIGHTRAG
 def test_query_uses_one_call_and_preserves_complete_sources(monkeypatch) -> None:
     monkeypatch.setattr(engine, "query_kwargs_from_settings", lambda: {})
     rag = _QueryRag(_query_result())
@@ -361,6 +374,7 @@ def test_query_uses_one_call_and_preserves_complete_sources(monkeypatch) -> None
     assert sources[-1]["metadata"]["processing_info"] == {"chunks": 1}
 
 
+@REQUIRES_LIGHTRAG
 @pytest.mark.parametrize(
     "result",
     [
@@ -380,6 +394,7 @@ def test_query_rejects_failure_and_malformed_envelopes(result) -> None:
         asyncio.run(engine.query_with_sources(_QueryRag(result), "q"))
 
 
+@REQUIRES_LIGHTRAG
 def test_storage_publishes_schema_two_metadata(tmp_path: Path, monkeypatch) -> None:
     (tmp_path / "kv_store_doc_status.json").write_text(
         json.dumps({"id": {"status": "processed", "chunks_list": ["c"]}}), encoding="utf-8"
@@ -610,6 +625,7 @@ def test_pre_acceptance_failure_removes_ingress_and_allows_same_name_retry(
 
     monkeypatch.setattr(pipeline, "_stage_documents", stage)
     monkeypatch.setattr(engine, "build_rag", lambda *_args, **_kwargs: Rag())
+    monkeypatch.setattr(engine, "_document_id", lambda name: f"doc-{name}")
     monkeypatch.setattr(engine, "initialize", initialize)
     monkeypatch.setattr(engine, "enqueue", enqueue)
     monkeypatch.setattr(engine, "finalize", finalize)
@@ -663,6 +679,7 @@ def test_enqueue_partial_commit_removes_only_confirmed_unaccepted_ingress(
 
     monkeypatch.setattr(pipeline, "_stage_documents", stage)
     monkeypatch.setattr(engine, "build_rag", lambda *_args, **_kwargs: Rag())
+    monkeypatch.setattr(engine, "_document_id", lambda name: f"doc-{name}")
     monkeypatch.setattr(engine, "initialize", no_op)
     monkeypatch.setattr(engine, "enqueue", enqueue)
     monkeypatch.setattr(engine, "finalize", no_op)

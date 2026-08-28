@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 
+import pytest
+
 from deeptutor.services.rag.pipelines.lightrag import engine
+
+pytestmark = pytest.mark.skipif(
+    importlib.util.find_spec("lightrag") is None,
+    reason="requires the optional rag-lightrag extra",
+)
 
 
 class _NativeLightRag:

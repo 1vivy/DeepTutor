@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,10 @@ from deeptutor.services.parsing.types import ParsedDocument
 from deeptutor.services.rag.pipelines.lightrag import ingress, sidecar
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "lightrag_bridge"
+REQUIRES_LIGHTRAG = pytest.mark.skipif(
+    importlib.util.find_spec("lightrag") is None,
+    reason="requires the optional rag-lightrag extra",
+)
 
 
 def _structured(asset_dir: Path | None = None) -> ParsedDocument:
@@ -178,6 +183,7 @@ def test_same_canonical_basename_is_rejected_before_enqueue(tmp_path: Path) -> N
         ingress.freeze_document(working, second, parsed)
 
 
+@REQUIRES_LIGHTRAG
 def test_sidecar_maps_structured_fields_and_positions(tmp_path: Path) -> None:
     source = tmp_path / "paper.pdf"
     source.write_bytes(b"pdf")
@@ -209,6 +215,7 @@ def test_sidecar_maps_structured_fields_and_positions(tmp_path: Path) -> None:
     assert block.positions[0].range == [1.0, 2.0, 3.0, 4.0]
 
 
+@REQUIRES_LIGHTRAG
 def test_sidecar_unknown_content_is_preserved_or_rejected(tmp_path: Path) -> None:
     bundle = tmp_path / "bundle"
     bundle.mkdir()
@@ -226,6 +233,7 @@ def test_sidecar_unknown_content_is_preserved_or_rejected(tmp_path: Path) -> Non
         sidecar.build_ir(manifest, bundle)
 
 
+@REQUIRES_LIGHTRAG
 def test_sidecar_asset_traversal_is_rejected(tmp_path: Path) -> None:
     bundle = tmp_path / "bundle"
     bundle.mkdir()
@@ -243,6 +251,7 @@ def test_sidecar_asset_traversal_is_rejected(tmp_path: Path) -> None:
         sidecar.build_ir(manifest, bundle)
 
 
+@REQUIRES_LIGHTRAG
 def test_official_legacy_mineru_golden_maps_without_private_builder(tmp_path: Path) -> None:
     golden = FIXTURES / "mineru-legacy-official-example" / "content_list.json"
     provenance = json.loads(
@@ -279,6 +288,7 @@ def test_official_legacy_mineru_golden_maps_without_private_builder(tmp_path: Pa
     assert {position.anchor for position in block.positions} == {"1", "3", "6"}
 
 
+@REQUIRES_LIGHTRAG
 def test_authenticated_current_mineru_golden_maps_from_public_artifacts(tmp_path: Path) -> None:
     capture = FIXTURES / "mineru-v2-current"
     provenance = json.loads(
