@@ -6,8 +6,10 @@ import asyncio
 from dataclasses import replace
 from pathlib import Path
 
-from lightrag.utils import EmbeddingFunc
 import numpy as np
+import pytest
+
+EmbeddingFunc = pytest.importorskip("lightrag.utils").EmbeddingFunc
 
 from deeptutor.services.parsing.types import ParsedDocument
 from deeptutor.services.rag.index_versioning import list_kb_versions
