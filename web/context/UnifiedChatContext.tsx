@@ -106,6 +106,13 @@ export interface ChatState {
   selectedBranches: Record<string, number>;
 }
 
+export interface SessionConfiguration {
+  capability?: string | null;
+  knowledgeBases?: string[];
+  masteryPathId?: string | null;
+  enabledTools?: string[];
+}
+
 interface SessionStatusSnapshot {
   sessionId: string;
   status: SessionRuntimeStatus;
@@ -247,7 +254,16 @@ type Action =
       assistantMessageId?: number | null;
     }
   | { type: "DELETE_TURN"; key: string; messageId: number }
-  | { type: "NEW_SESSION"; key: string }
+  | {
+      type: "NEW_SESSION";
+      key: string;
+      configuration?: SessionConfiguration;
+    }
+  | {
+      type: "CONFIGURE_SESSION";
+      key?: string;
+      configuration: SessionConfiguration;
+    }
   | { type: "ENSURE_DRAFT_SESSION"; key: string }
   | {
       type: "SET_SELECTED_BRANCH";
@@ -313,12 +329,43 @@ function updateSelectedSession(
   };
 }
 
+function applySessionConfiguration(
+  session: SessionEntry,
+  configuration?: SessionConfiguration,
+): SessionEntry {
+  if (!configuration) return session;
+  return {
+    ...session,
+    activeCapability:
+      configuration.capability !== undefined
+        ? configuration.capability
+        : session.activeCapability,
+    knowledgeBases:
+      configuration.knowledgeBases !== undefined
+        ? [...configuration.knowledgeBases]
+        : session.knowledgeBases,
+    masteryPathId:
+      configuration.masteryPathId !== undefined
+        ? configuration.masteryPathId
+        : session.masteryPathId,
+    enabledTools:
+      configuration.enabledTools !== undefined
+        ? [...configuration.enabledTools]
+        : session.enabledTools,
+    updatedAt: Date.now(),
+  };
+}
+
 /** Add an empty session under ``key`` and make it the selected one. */
-function selectFreshDraft(state: ProviderState, key: string): ProviderState {
+function selectFreshDraft(
+  state: ProviderState,
+  key: string,
+  configuration?: SessionConfiguration,
+): ProviderState {
   const MAX_CACHED_SESSIONS = 20;
   const nextSessions = {
     ...state.sessions,
-    [key]: createSessionEntry(key),
+    [key]: applySessionConfiguration(createSessionEntry(key), configuration),
   };
   const keys = Object.keys(nextSessions);
   if (keys.length > MAX_CACHED_SESSIONS) {
@@ -798,7 +845,20 @@ function reducer(state: ProviderState, action: Action): ProviderState {
         sidebarRefreshToken: state.sidebarRefreshToken + 1,
       };
     case "NEW_SESSION":
-      return selectFreshDraft(state, action.key);
+      return selectFreshDraft(state, action.key, action.configuration);
+    case "CONFIGURE_SESSION": {
+      const key = action.key || state.selectedKey;
+      if (!key) return state;
+      const session = state.sessions[key];
+      if (!session) return state;
+      return {
+        ...state,
+        sessions: {
+          ...state.sessions,
+          [key]: applySessionConfiguration(session, action.configuration),
+        },
+      };
+    }
     // Idempotent variant of NEW_SESSION: guarantees there is *a* selected
     // session without discarding one a page already selected and configured.
     // The check belongs here rather than in the caller because a mount effect
@@ -872,7 +932,14 @@ interface ChatContextValue {
   /** Switch which sibling is currently visible at a branch point. */
   switchBranch: (parentMessageId: number | null, childId: number) => void;
   renameSessionTitle: (title: string) => Promise<void>;
-  newSession: () => void;
+  newSession: (configuration?: SessionConfiguration) => void;
+  /** Apply route-owned preferences to an explicit loaded session (or the
+   * selected draft). Dispatching by key keeps this safe immediately after
+   * LOAD_SESSION, before React has committed a new context render. */
+  configureSession: (
+    configuration: SessionConfiguration,
+    sessionKey?: string,
+  ) => void;
   /** Fetch a session and apply it. Pass ``revalidate`` when the session is
    *  already on screen (see ``showCachedSession``): the snapshot is then
    *  dropped rather than applied if a turn started meanwhile. */
@@ -1913,9 +1980,20 @@ export function UnifiedChatProvider({
     });
   }, []);
 
-  const newSession = useCallback(() => {
-    dispatch({ type: "NEW_SESSION", key: makeDraftKey() });
+  const newSession = useCallback((configuration?: SessionConfiguration) => {
+    dispatch({ type: "NEW_SESSION", key: makeDraftKey(), configuration });
   }, [makeDraftKey]);
+
+  const configureSession = useCallback(
+    (configuration: SessionConfiguration, sessionKey?: string) => {
+      dispatch({
+        type: "CONFIGURE_SESSION",
+        key: sessionKey,
+        configuration,
+      });
+    },
+    [],
+  );
 
   const editMessage = useCallback(
     async (messageId: number, newContent: string) => {
@@ -2049,6 +2127,7 @@ export function UnifiedChatProvider({
       switchBranch,
       renameSessionTitle,
       newSession,
+      configureSession,
       loadSession,
       showCachedSession,
       selectedSessionId: derivedState.sessionId,
@@ -2073,6 +2152,7 @@ export function UnifiedChatProvider({
       switchBranch,
       renameSessionTitle,
       newSession,
+      configureSession,
       loadSession,
       showCachedSession,
       sessionStatuses,

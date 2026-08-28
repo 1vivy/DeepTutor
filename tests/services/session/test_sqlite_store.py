@@ -76,6 +76,25 @@ def _make_items(*specs):
     return items
 
 
+def test_get_session_summaries_batches_counts_and_latest_visible_message(
+    store: SQLiteSessionStore,
+) -> None:
+    first = asyncio.run(store.create_session(title="First", session_id="session-1"))
+    second = asyncio.run(store.create_session(title="Second", session_id="session-2"))
+    asyncio.run(store.add_message(first["id"], "system", "private setup"))
+    asyncio.run(store.add_message(first["id"], "user", "First question"))
+    asyncio.run(store.add_message(first["id"], "assistant", "Latest answer"))
+    asyncio.run(store.add_message(second["id"], "system", "system only"))
+
+    summaries = asyncio.run(store.get_session_summaries([first["id"], second["id"], first["id"]]))
+    by_id = {summary["session_id"]: summary for summary in summaries}
+
+    assert by_id[first["id"]]["message_count"] == 2
+    assert by_id[first["id"]]["last_message"] == "Latest answer"
+    assert by_id[second["id"]]["message_count"] == 0
+    assert by_id[second["id"]]["last_message"] == ""
+
+
 # ── Notebook entries ──────────────────────────────────────────────
 
 

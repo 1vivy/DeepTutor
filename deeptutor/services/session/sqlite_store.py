@@ -1413,7 +1413,7 @@ class SQLiteSessionStore:
             s.compressed_summary,
             s.summary_up_to_msg_id,
             s.preferences_json,
-            COUNT(m.id) AS message_count,
+            COUNT(CASE WHEN m.role != 'system' THEN 1 END) AS message_count,
             COALESCE(
                 (SELECT t.status FROM turns t WHERE t.session_id = s.id
                  ORDER BY t.updated_at DESC LIMIT 1),
@@ -1431,7 +1431,8 @@ class SQLiteSessionStore:
             ) AS capability,
             COALESCE(
                 (SELECT m2.content FROM messages m2
-                 WHERE m2.session_id = s.id AND TRIM(COALESCE(m2.content, '')) != ''
+                 WHERE m2.session_id = s.id AND m2.role != 'system'
+                   AND TRIM(COALESCE(m2.content, '')) != ''
                  ORDER BY m2.id DESC LIMIT 1),
                 ''
             ) AS last_message
@@ -1456,13 +1457,31 @@ class SQLiteSessionStore:
                 self._SESSION_SUMMARY_SQL.format(where=where_sql),
                 (limit, offset),
             ).fetchall()
-        sessions = []
-        for row in rows:
-            payload = dict(row)
-            payload["session_id"] = payload["id"]
-            payload["preferences"] = _json_loads(payload.pop("preferences_json", ""), {})
-            sessions.append(payload)
-        return sessions
+        return [self._session_summary_payload(row) for row in rows]
+
+    @staticmethod
+    def _session_summary_payload(row: sqlite3.Row) -> dict[str, Any]:
+        payload = dict(row)
+        payload["session_id"] = payload["id"]
+        payload["preferences"] = _json_loads(payload.pop("preferences_json", ""), {})
+        return payload
+
+    def _get_session_summaries_sync(
+        self,
+        session_ids: list[str],
+    ) -> list[dict[str, Any]]:
+        ids = list(dict.fromkeys(str(item or "").strip() for item in session_ids))
+        ids = [item for item in ids if item]
+        if not ids:
+            return []
+        placeholders = ",".join("?" for _ in ids)
+        where = f"WHERE s.id IN ({placeholders})"
+        with self._connect() as conn:
+            rows = conn.execute(
+                self._SESSION_SUMMARY_SQL.format(where=where),
+                (*ids, len(ids), 0),
+            ).fetchall()
+        return [self._session_summary_payload(row) for row in rows]
 
     def _list_sessions_sync(
         self,
@@ -1486,6 +1505,12 @@ class SQLiteSessionStore:
         offset: int = 0,
     ) -> list[dict[str, Any]]:
         return await self._run(self._list_sessions_sync, limit, offset)
+
+    async def get_session_summaries(
+        self,
+        session_ids: list[str],
+    ) -> list[dict[str, Any]]:
+        return await self._run(self._get_session_summaries_sync, session_ids)
 
     async def list_imported_sessions(
         self,
