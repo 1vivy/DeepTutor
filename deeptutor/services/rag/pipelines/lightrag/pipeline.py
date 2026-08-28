@@ -284,9 +284,15 @@ class LightRagPipeline:
                     ingress.remove_unaccepted(item)
                 raise
             failed = True
+            accepted = False
             try:
                 await engine.initialize(rag)
                 track_id = await engine.enqueue(rag, staged)
+                if not isinstance(track_id, str) or not track_id.strip():
+                    raise engine.LightRagContractError(
+                        "LightRAG enqueue did not return a valid track_id"
+                    )
+                accepted = True
                 await rag.apipeline_process_enqueue_documents()
                 outcome = await self._reconcile(
                     rag,
@@ -307,6 +313,10 @@ class LightRagPipeline:
                     if not failed:
                         raise
                     self.logger.exception("LightRAG cleanup failed while indexing was aborting")
+                finally:
+                    if failed and not accepted:
+                        for item in staged:
+                            ingress.remove_unaccepted(item)
 
         return await run_in_worker_loop(job)
 
@@ -336,14 +346,6 @@ class LightRagPipeline:
             self._remove_zero_accepted_candidate(root_dir)
             raise
 
-    def _legacy_exists(self, kb_dir: Path) -> bool:
-        return any(
-            entry.get("provider") == storage.PROVIDER
-            and entry.get("ready")
-            and not storage.meta_is_native_published(Path(str(entry["storage_path"])))
-            for entry in list_kb_versions(kb_dir)
-        )
-
     async def add_documents(self, kb_name: str, file_paths: List[str], **kwargs) -> bool:
         self._ensure_available()
         kb_dir = resolve_kb_dir(self.kb_base_dir, kb_name)
@@ -351,9 +353,10 @@ class LightRagPipeline:
         if existing is not None and storage.meta_is_native_published(existing):
             root_dir = existing
             is_update = True
-        elif existing is not None or self._legacy_exists(kb_dir):
+        elif existing is not None or list_kb_versions(kb_dir):
             raise LightRagNeedsReindexError(
-                "This LightRAG index predates the native adapter and must be rebuilt before appending."
+                "This LightRAG index is legacy, unpublished, or corrupt and must be rebuilt "
+                "before appending."
             )
         else:
             root_dir = resolve_storage_dir_for_rebuild(kb_dir, None)

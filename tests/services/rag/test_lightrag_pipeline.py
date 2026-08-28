@@ -16,12 +16,15 @@ from deeptutor.services.rag.index_versioning import list_kb_versions
 from deeptutor.services.rag.pipelines.lightrag import config, engine, storage
 from deeptutor.services.rag.pipelines.lightrag.ingress import (
     IngressError,
+    bundles_root,
+    freeze_document,
     load_verified_bundle,
     pending_root,
 )
 from deeptutor.services.rag.pipelines.lightrag.pipeline import (
     BatchOutcome,
     LightRagBatchError,
+    LightRagNeedsReindexError,
     LightRagPipeline,
 )
 
@@ -555,6 +558,105 @@ def test_partial_failure_is_typed_and_finalizes_with_cancellation(
         asyncio.run(pipeline._run_indexing(tmp_path, ["bad.pdf"], None))
     assert caught.value.outcome.failed == {"bad.pdf": "parse failed"}
     assert events == [("finalize", True)]
+
+
+@pytest.mark.parametrize("failure_stage", ["initialize", "enqueue"])
+def test_pre_acceptance_failure_removes_ingress_and_allows_same_name_retry(
+    tmp_path: Path, monkeypatch, failure_stage: str
+) -> None:
+    source = tmp_path / "source" / "doc.md"
+    source.parent.mkdir()
+    source.write_text("body", encoding="utf-8")
+    working = tmp_path / "version-1"
+    attempt = 0
+
+    class Rag:
+        working_dir = str(working)
+
+        async def apipeline_process_enqueue_documents(self):
+            return None
+
+        async def aget_docs_by_track_id(self, _track_id):
+            return {"doc-id": types.SimpleNamespace(file_path="doc.md", status="processed")}
+
+    pipeline = LightRagPipeline(kb_base_dir=str(tmp_path))
+
+    def stage(_working, paths):
+        staged = freeze_document(
+            working,
+            Path(paths[0]),
+            ParsedDocument(markdown="body", engine="text_only"),
+        )
+        return [staged], {}
+
+    async def initialize(_rag):
+        if attempt == 0 and failure_stage == "initialize":
+            raise RuntimeError("initialize rejected")
+
+    async def enqueue(_rag, _staged):
+        if attempt == 0 and failure_stage == "enqueue":
+            raise RuntimeError("enqueue rejected")
+        return "track-1"
+
+    async def finalize(_rag, *, cancel_pending):
+        assert cancel_pending is (attempt == 0)
+
+    monkeypatch.setattr(pipeline, "_stage_documents", stage)
+    monkeypatch.setattr(engine, "build_rag", lambda *_args, **_kwargs: Rag())
+    monkeypatch.setattr(engine, "initialize", initialize)
+    monkeypatch.setattr(engine, "enqueue", enqueue)
+    monkeypatch.setattr(engine, "finalize", finalize)
+
+    with pytest.raises(RuntimeError, match=failure_stage):
+        asyncio.run(pipeline._run_indexing(working, [str(source)], None))
+    assert not (pending_root(working) / "doc.md").exists()
+    assert not (bundles_root(working) / "doc.md.bundle").exists()
+
+    attempt = 1
+    outcome = asyncio.run(pipeline._run_indexing(working, [str(source)], None))
+    assert outcome.complete is True
+
+
+def test_append_rejects_corrupt_or_unpublished_existing_version(
+    tmp_path: Path, monkeypatch
+) -> None:
+    version = tmp_path / "kb" / "version-1"
+    workspace = version / "workspace"
+    workspace.mkdir(parents=True)
+    (version / "meta.json").write_text(
+        json.dumps(
+            {
+                "provider": "lightrag",
+                "signature": "lightrag",
+                "lightrag_adapter_schema": 2,
+                "parser_bridge_schema": 1,
+                "state": "published",
+                "workspace": "workspace",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (workspace / "kv_store_doc_status.json").write_text(
+        json.dumps({"failed": {"status": "failed", "chunks_list": []}}),
+        encoding="utf-8",
+    )
+    before = {
+        path.relative_to(version): path.read_bytes()
+        for path in version.rglob("*")
+        if path.is_file()
+    }
+    pipeline = LightRagPipeline(kb_base_dir=str(tmp_path))
+    monkeypatch.setattr(pipeline, "_ensure_available", lambda: None)
+
+    with pytest.raises(LightRagNeedsReindexError, match="unpublished, or corrupt"):
+        asyncio.run(pipeline.add_documents("kb", [str(tmp_path / "new.md")]))
+
+    assert not (tmp_path / "kb" / "version-2").exists()
+    assert {
+        path.relative_to(version): path.read_bytes()
+        for path in version.rglob("*")
+        if path.is_file()
+    } == before
 
 
 def test_search_failure_is_not_reported_as_empty_success(tmp_path: Path, monkeypatch) -> None:
