@@ -52,10 +52,15 @@ class EmbeddingSignature:
     dimension: int
     base_url: str
     api_version: str
+    role_semantics: str = ""
 
     def hash(self) -> str:
         """Short hex digest used as the stable signature."""
-        canonical = json.dumps(asdict(self), sort_keys=True, ensure_ascii=False)
+        fields = asdict(self)
+        role_semantics = fields.pop("role_semantics")
+        if role_semantics:
+            fields["role_semantics"] = role_semantics
+        canonical = json.dumps(fields, sort_keys=True, ensure_ascii=False)
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
 
 
