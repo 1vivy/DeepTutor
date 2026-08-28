@@ -334,6 +334,12 @@ class LearningStore:
     def db_path(self) -> Path:
         return Path(self._root) / self._DB_FILENAME
 
+    @property
+    def event_scope(self) -> str:
+        """Stable workspace identity used by the process-local wake-up hub."""
+
+        return str(Path(self._root).resolve())
+
     def _path(self, book_id: str) -> Path:
         """Return the legacy JSON location after validating the public id."""
         self._validate_id(book_id)
@@ -519,15 +525,30 @@ class LearningStore:
             # removes any unarchived copy so it cannot resurrect the path.
             pass
 
-    def _import_legacy_if_needed(self, book_id: str) -> None:
-        path_id = self._validate_id(book_id)
-        legacy_path = self._path(path_id)
+    def import_legacy_json(self, legacy_path: Path, *, archive: bool = True) -> bool:
+        """Import one V1 JSON aggregate into this store exactly once.
+
+        ``legacy_path`` may live outside the store root.  That small public
+        boundary lets the workspace migration merge still-live V1 JSON files
+        into an already-created V2 database without teaching the migration
+        module about the SQLite schema.  The committed row always wins over a
+        duplicate JSON file.  ``archive=False`` is reserved for callers that
+        have already made their own durable archive copy.
+
+        Returns ``True`` when this call inserted a new aggregate.
+        """
+
+        legacy_path = Path(legacy_path)
+        if legacy_path.suffix != ".json":
+            raise ValueError(f"Legacy mastery path must be a JSON file: {legacy_path}")
+        path_id = self._validate_id(legacy_path.stem)
         if not legacy_path.exists():
-            return
+            return False
         with self._connect() as conn:
             if conn.execute("SELECT 1 FROM mastery_paths WHERE path_id = ?", (path_id,)).fetchone():
-                self._archive_legacy(legacy_path)
-                return
+                if archive:
+                    self._archive_legacy(legacy_path)
+                return False
         try:
             legacy_text = legacy_path.read_text(encoding="utf-8")
         except FileNotFoundError:
@@ -539,7 +560,7 @@ class LearningStore:
                     "SELECT 1 FROM mastery_paths WHERE path_id = ?", (path_id,)
                 ).fetchone()
             if imported is not None:
-                return
+                return False
             raise
         data = json.loads(legacy_text)
         progress = LearningProgress.model_validate(data)
@@ -550,6 +571,7 @@ class LearningStore:
         now = time.time()
         revision = max(1, int(progress.version or 0))
         payload = self._progress_payload(progress, revision, now)
+        inserted = False
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             try:
@@ -562,6 +584,7 @@ class LearningStore:
                     (path_id, payload, revision, progress.created_at, now),
                 )
                 if conn.execute("SELECT changes()").fetchone()[0]:
+                    inserted = True
                     conn.execute(
                         """
                         INSERT INTO mastery_events (
@@ -574,7 +597,13 @@ class LearningStore:
             except Exception:
                 conn.rollback()
                 raise
-        self._archive_legacy(legacy_path)
+        if archive:
+            self._archive_legacy(legacy_path)
+        return inserted
+
+    def _import_legacy_if_needed(self, book_id: str) -> None:
+        path_id = self._validate_id(book_id)
+        self.import_legacy_json(self._path(path_id))
 
     def load(self, book_id: str) -> LearningProgress | None:
         path_id = self._validate_id(book_id)
@@ -659,7 +688,12 @@ class LearningStore:
         progress.updated_at = now
         from deeptutor.learning.event_hub import publish_topic_signal
 
-        publish_topic_signal(path_id, revision, event_type)
+        publish_topic_signal(
+            path_id,
+            revision,
+            event_type,
+            scope=self.event_scope,
+        )
 
     @contextmanager
     def transaction(
@@ -763,7 +797,12 @@ class LearningStore:
         if committed_revision is not None:
             from deeptutor.learning.event_hub import publish_topic_signal
 
-            publish_topic_signal(path_id, committed_revision, committed_reason)
+            publish_topic_signal(
+                path_id,
+                committed_revision,
+                committed_reason,
+                scope=self.event_scope,
+            )
 
     def mutate(
         self,
@@ -798,7 +837,12 @@ class LearningStore:
                     archived.unlink(missing_ok=True)
         from deeptutor.learning.event_hub import publish_topic_signal
 
-        publish_topic_signal(path_id, 0, "topic.deleted")
+        publish_topic_signal(
+            path_id,
+            0,
+            "topic.deleted",
+            scope=self.event_scope,
+        )
 
     def exists(self, book_id: str) -> bool:
         path_id = self._validate_id(book_id)
@@ -843,9 +887,17 @@ class LearningStore:
             raise LearningStoreError(f"Failed to persist topic {path_id!r}")
         return topic
 
-    def get_topic(self, path_id: str) -> MasteryTopic | None:
+    def get_topic(
+        self,
+        path_id: str,
+        *,
+        progress: LearningProgress | None = None,
+    ) -> MasteryTopic | None:
         path_id = self._validate_id(path_id)
-        progress = self.load(path_id)
+        if progress is None:
+            progress = self.load(path_id)
+        elif progress.book_id != path_id:
+            raise ValueError("progress does not belong to the requested topic")
         if progress is None:
             return None
         with self._connect() as conn:
@@ -859,6 +911,15 @@ class LearningStore:
                 """,
                 (path_id,),
             ).fetchall()
+        return self._topic_from_rows(path_id, progress, meta_row, source_rows)
+
+    def _topic_from_rows(
+        self,
+        path_id: str,
+        progress: LearningProgress,
+        meta_row: sqlite3.Row | None,
+        source_rows: list[sqlite3.Row],
+    ) -> MasteryTopic:
         if meta_row is None:
             metadata = TopicMetadata(
                 path_id=path_id,
@@ -892,6 +953,93 @@ class LearningStore:
             for row in source_rows
         ]
         return MasteryTopic(metadata=metadata, sources=sources)
+
+    def list_topic_snapshots(
+        self,
+        *,
+        status: str = "active",
+    ) -> list[
+        tuple[
+            LearningProgress,
+            MasteryTopic,
+            int,
+            MasteryInteraction | None,
+        ]
+    ]:
+        """Read the atlas in a constant number of bounded SQLite queries."""
+
+        with self._connect() as conn:
+            progress_rows = conn.execute(
+                """
+                SELECT p.* FROM mastery_paths p
+                JOIN mastery_topic_meta m ON m.path_id = p.path_id
+                WHERE m.status = ?
+                ORDER BY p.updated_at DESC
+                """,
+                (status,),
+            ).fetchall()
+            meta_rows = {
+                str(row["path_id"]): row
+                for row in conn.execute(
+                    "SELECT * FROM mastery_topic_meta WHERE status = ?",
+                    (status,),
+                ).fetchall()
+            }
+            source_rows: dict[str, list[sqlite3.Row]] = {}
+            for row in conn.execute(
+                """
+                SELECT s.* FROM mastery_topic_sources s
+                JOIN mastery_topic_meta m ON m.path_id = s.path_id
+                WHERE m.status = ?
+                ORDER BY s.path_id, s.position ASC, s.created_at ASC
+                """,
+                (status,),
+            ).fetchall():
+                source_rows.setdefault(str(row["path_id"]), []).append(row)
+            session_counts = {
+                str(row["path_id"]): int(row["session_count"])
+                for row in conn.execute(
+                    """
+                    SELECT b.path_id, COUNT(*) AS session_count
+                    FROM mastery_path_sessions b
+                    JOIN mastery_topic_meta m ON m.path_id = b.path_id
+                    WHERE m.status = ?
+                    GROUP BY b.path_id
+                    """,
+                    (status,),
+                ).fetchall()
+            }
+            placeholders = ",".join("?" for _ in _ACTIVE_INTERACTION_STATES)
+            active_rows = {
+                str(row["path_id"]): row
+                for row in conn.execute(
+                    f"""
+                    SELECT i.* FROM mastery_interactions i
+                    JOIN mastery_topic_meta m ON m.path_id = i.path_id
+                    WHERE m.status = ? AND i.status IN ({placeholders})
+                    """,  # nosec B608 - generated placeholders; values remain bound
+                    (status, *_ACTIVE_INTERACTION_STATES),
+                ).fetchall()
+            }
+
+        snapshots = []
+        for progress_row in progress_rows:
+            path_id = str(progress_row["path_id"])
+            progress = self._progress_from_row(progress_row)
+            snapshots.append(
+                (
+                    progress,
+                    self._topic_from_rows(
+                        path_id,
+                        progress,
+                        meta_rows.get(path_id),
+                        source_rows.get(path_id, []),
+                    ),
+                    session_counts.get(path_id, 0),
+                    LearningTransaction._interaction_from_row(active_rows.get(path_id)),
+                )
+            )
+        return snapshots
 
     # ---- explicit path/session ownership ---------------------------------
 
@@ -956,7 +1104,12 @@ class LearningStore:
                 raise
         from deeptutor.learning.event_hub import publish_topic_signal
 
-        publish_topic_signal(path_id, current_revision, "session.bound")
+        publish_topic_signal(
+            path_id,
+            current_revision,
+            "session.bound",
+            scope=self.event_scope,
+        )
 
     def list_session_ids(self, path_id: str) -> list[str]:
         path_id = self._validate_id(path_id)

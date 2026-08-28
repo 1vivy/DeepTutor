@@ -63,19 +63,20 @@
   box-shadow: 0 22px 55px rgba(66, 47, 29, 0.16);
 }
 
-.mastery-waypoint {
+.mastery-waypoint-icon {
   transition:
     transform 160ms ease,
     box-shadow 160ms ease,
     border-color 160ms ease;
 }
 
-.mastery-waypoint:hover,
-.mastery-waypoint:focus-visible {
-  transform: translate(-50%, -50%) scale(1.08);
+.mastery-waypoint:hover .mastery-waypoint-icon,
+.mastery-waypoint:focus-visible .mastery-waypoint-icon {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 3px var(--mastery-paper-raised), 0 0 0 5px var(--mastery-route);
 }
 
-.mastery-waypoint[data-current="true"] {
+.mastery-waypoint[data-current="true"] .mastery-waypoint-icon {
   animation: mastery-pulse 2.4s ease-in-out infinite;
 }
 
@@ -130,15 +131,15 @@
 
 @media (prefers-reduced-motion: reduce) {
   .mastery-map-card,
-  .mastery-waypoint,
+  .mastery-waypoint-icon,
   .mastery-campfire {
     animation: none !important;
     transition-duration: 0.01ms !important;
   }
 
   .mastery-map-card:hover,
-  .mastery-waypoint:hover,
-  .mastery-waypoint:focus-visible {
+  .mastery-waypoint:hover .mastery-waypoint-icon,
+  .mastery-waypoint:focus-visible .mastery-waypoint-icon {
     transform: none;
   }
 }

@@ -1,10 +1,18 @@
 "use client";
 
-import { AlertCircle, Compass, Plus, RefreshCw, Sparkles } from "lucide-react";
+import Link from "next/link";
+import {
+  AlertCircle,
+  ArrowRight,
+  Compass,
+  Plus,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
 
 import type { MasteryTopic } from "@/lib/learning-api";
 
-import type { Translate } from "./format";
+import { topicDisplayName, type Translate } from "./format";
 import { TopicMapCard } from "./TopicMapCard";
 
 export function TopicAtlas({
@@ -19,7 +27,7 @@ export function TopicAtlas({
   loading: boolean;
   error: string | null;
   tr: Translate;
-  onCreate: () => void;
+  onCreate: (trigger: HTMLButtonElement) => void;
   onRetry: () => void;
 }) {
   const activeTopics = topics.filter((topic) => topic.metadata.status === "active");
@@ -27,6 +35,10 @@ export function TopicAtlas({
     (count, topic) => count + topic.reviews.filter((review) => review.due).length,
     0,
   );
+  const dueTopics = activeTopics.filter((topic) =>
+    topic.reviews.some((review) => review.due),
+  );
+  const firstDueTopic = dueTopics[0];
 
   return (
     <main className="mastery-shell h-full overflow-y-auto [scrollbar-gutter:stable]">
@@ -49,7 +61,7 @@ export function TopicAtlas({
           </div>
           <button
             type="button"
-            onClick={onCreate}
+            onClick={(event) => onCreate(event.currentTarget)}
             className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-medium text-[var(--primary-foreground)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2"
           >
             <Plus className="h-4 w-4" />
@@ -58,13 +70,16 @@ export function TopicAtlas({
         </header>
 
         {dueCount > 0 && (
-          <section className="mt-8 flex items-center gap-3 rounded-2xl border border-amber-700/20 bg-amber-500/[0.07] px-4 py-3.5 text-sm text-[var(--foreground)]">
+          <section className="mt-8 flex flex-col gap-3 rounded-2xl border border-amber-700/20 bg-amber-500/[0.07] px-4 py-3.5 text-sm text-[var(--foreground)] sm:flex-row sm:items-center">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-300">
               <Sparkles className="h-4 w-4" />
             </span>
-            <div>
+            <div className="min-w-0 flex-1">
               <div className="font-medium">
-                {tr(`${dueCount} 个记忆信标已亮起`, `${dueCount} review beacons are glowing`)}
+                {tr(
+                  `${dueCount} 个记忆信标已亮起，分布在 ${dueTopics.length} 个主题中`,
+                  `${dueCount} review beacons are glowing across ${dueTopics.length} ${dueTopics.length === 1 ? "topic" : "topics"}`,
+                )}
               </div>
               <div className="mt-0.5 text-xs text-[var(--muted-foreground)]">
                 {tr(
@@ -73,6 +88,15 @@ export function TopicAtlas({
                 )}
               </div>
             </div>
+            {firstDueTopic && (
+              <Link
+                href={`/space/learning/${encodeURIComponent(firstDueTopic.path_id)}`}
+                className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-700 px-3.5 text-xs font-semibold text-white transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-2 dark:bg-amber-300 dark:text-amber-950"
+              >
+                {tr("开始复习", "Start review")}: {topicDisplayName(firstDueTopic, tr)}
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            )}
           </section>
         )}
 
@@ -143,7 +167,7 @@ export function TopicAtlas({
             </p>
             <button
               type="button"
-              onClick={onCreate}
+              onClick={(event) => onCreate(event.currentTarget)}
               className="relative z-[1] mt-7 inline-flex h-11 items-center gap-2 rounded-xl bg-[var(--mastery-ink)] px-5 text-sm font-medium text-[var(--mastery-paper-raised)] transition hover:-translate-y-0.5"
             >
               <Plus className="h-4 w-4" />

@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import multiprocessing
 from pathlib import Path
 import sqlite3
 
+import pytest
+
+import deeptutor.learning.migration as migration_module
 from deeptutor.learning.migration import prepare_mastery_v2_root
 from deeptutor.learning.models import LearningProgress, MasteryInteraction, PendingQuestion
 from deeptutor.learning.storage import LearningStore
@@ -16,6 +20,10 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _prepare_in_process(path: str) -> str:
+    return str(prepare_mastery_v2_root(Path(path)))
 
 
 def test_workspace_v1_is_archived_then_copied_into_v2_store(tmp_path: Path) -> None:
@@ -103,3 +111,77 @@ def test_empty_workspace_uses_v2_directory_without_creating_archive(tmp_path: Pa
 
     assert store.db_path == learning_root / "mastery" / "mastery.sqlite3"
     assert not (learning_root / "archive").exists()
+
+
+def test_live_root_json_is_imported_and_archived(tmp_path: Path) -> None:
+    learning_root = tmp_path / "learning"
+    learning_root.mkdir(parents=True)
+    legacy_json = learning_root / "json-only.json"
+    legacy_json.write_text(
+        LearningProgress(book_id="json-only", name="JSON only").model_dump_json(),
+        encoding="utf-8",
+    )
+
+    v2_root = prepare_mastery_v2_root(learning_root)
+
+    assert LearningStore(root=v2_root).load("json-only").name == "JSON only"
+    assert not legacy_json.exists()
+    archive = next((learning_root / "archive").glob("v1-*"))
+    assert (archive / "legacy-json" / "json-only.json").exists()
+    manifest = json.loads((archive / "migration.json").read_text(encoding="utf-8"))
+    assert manifest["legacy_json_count"] == 1
+
+
+def test_late_root_json_is_reconciled_into_existing_v2_store(tmp_path: Path) -> None:
+    learning_root = tmp_path / "learning"
+    v2_root = prepare_mastery_v2_root(learning_root)
+    LearningStore(root=v2_root).save(LearningProgress(book_id="existing"))
+    late_json = learning_root / "late-topic.json"
+    late_json.write_text(
+        LearningProgress(book_id="late-topic", name="Recovered").model_dump_json(),
+        encoding="utf-8",
+    )
+
+    assert prepare_mastery_v2_root(learning_root) == v2_root
+    migrated = LearningStore(root=v2_root)
+    assert migrated.exists("existing") is True
+    assert migrated.load("late-topic").name == "Recovered"
+    assert not late_json.exists()
+
+
+def test_process_concurrent_initialization_creates_one_archive(tmp_path: Path) -> None:
+    learning_root = tmp_path / "learning"
+    old_store = LearningStore(root=learning_root)
+    old_store.save(LearningProgress(book_id="topic-one"))
+
+    context = multiprocessing.get_context("spawn")
+    with context.Pool(processes=3) as pool:
+        roots = pool.map(_prepare_in_process, [str(learning_root)] * 3)
+
+    assert roots == [str(learning_root / "mastery")] * 3
+    assert len(list((learning_root / "archive").glob("v1-*"))) == 1
+    assert LearningStore(root=learning_root / "mastery").exists("topic-one") is True
+
+
+def test_interrupted_finalization_resumes_from_staging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    learning_root = tmp_path / "learning"
+    old_store = LearningStore(root=learning_root)
+    old_store.save(LearningProgress(book_id="topic-one"))
+
+    def interrupt(_archive_root: Path, _staging: Path) -> None:
+        raise RuntimeError("simulated shutdown")
+
+    monkeypatch.setattr(migration_module, "_finish_staging_archive", interrupt)
+    with pytest.raises(RuntimeError, match="simulated shutdown"):
+        prepare_mastery_v2_root(learning_root)
+
+    assert (learning_root / "archive" / ".v1-migration-in-progress").exists()
+    assert not (learning_root / "mastery.sqlite3").exists()
+    monkeypatch.undo()
+
+    v2_root = prepare_mastery_v2_root(learning_root)
+    assert not (learning_root / "archive" / ".v1-migration-in-progress").exists()
+    assert len(list((learning_root / "archive").glob("v1-*"))) == 1
+    assert LearningStore(root=v2_root).exists("topic-one") is True

@@ -27,9 +27,18 @@ import { useTranslation } from "react-i18next";
 
 import { ChatMessageList } from "@/components/chat/home/ChatMessages";
 import { useUnifiedChat, type SessionConfiguration } from "@/context/UnifiedChatContext";
-import { fetchMasteryTopic, type MasteryTopic } from "@/lib/learning-api";
+import { useMasteryPathActivity } from "@/hooks/useMasteryPathActivity";
+import {
+  fetchMasteryTopic,
+  fetchMasteryTopicSessions,
+  type MasteryTopic,
+} from "@/lib/learning-api";
 import { shouldSubmitOnEnter } from "@/lib/composer-keyboard";
 import { useImeComposing } from "@/lib/use-ime-composing";
+import {
+  isMasteryDraftSessionReady,
+  type MasteryDraftRouteGuard,
+} from "@/lib/mastery-study-route";
 
 import { topicDisplayName, type Translate } from "./format";
 
@@ -51,7 +60,11 @@ const STARTERS = [
   },
 ] as const;
 
-function currentWaypoint(topic: MasteryTopic, fallback: string) {
+function currentWaypoint(
+  topic: MasteryTopic,
+  fallback: string,
+  tr: Translate,
+) {
   if (topic.next.knowledge_point_name) return topic.next.knowledge_point_name;
   for (const region of topic.map.modules) {
     const point = region.knowledge_points.find(
@@ -59,7 +72,7 @@ function currentWaypoint(topic: MasteryTopic, fallback: string) {
     );
     if (point) return point.name;
   }
-  return topic.map.complete ? "Journey complete" : fallback;
+  return topic.map.complete ? tr("旅程已完成", "Journey complete") : fallback;
 }
 
 export function MasteryStudy({
@@ -98,6 +111,8 @@ export function MasteryStudy({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const initializedRouteRef = useRef("");
+  const draftRouteGuardRef = useRef<MasteryDraftRouteGuard | null>(null);
+  const activity = useMasteryPathActivity(pathId || null);
   const { isComposingRef, onCompositionStart, onCompositionEnd } =
     useImeComposing();
 
@@ -120,7 +135,7 @@ export function MasteryStudy({
     return () => {
       active = false;
     };
-  }, [pathId, tr]);
+  }, [activity.revision, pathId, tr]);
 
   const knowledgeBases = useMemo(
     () =>
@@ -150,13 +165,37 @@ export function MasteryStudy({
     initializedRouteRef.current = routeKey;
 
     if (!routeSessionId) {
+      draftRouteGuardRef.current = {
+        routeKey,
+        previousSessionId: state.sessionId,
+      };
       newSession(sessionConfiguration);
       return;
     }
 
-    const cached = showCachedSession(routeSessionId);
-    if (cached) configureSession(sessionConfiguration, routeSessionId);
-    void loadSession(routeSessionId, cached ? { revalidate: true } : undefined)
+    draftRouteGuardRef.current = null;
+
+    void fetchMasteryTopicSessions(pathId, { cache: "no-store" })
+      .then((topicSessions) => {
+        if (
+          !topicSessions.some(
+            (candidate) => candidate.session_id === routeSessionId,
+          )
+        ) {
+          throw new Error(
+            tr(
+              "这个会话不属于当前学习主题。请从本主题的会话营地重新进入。",
+              "This session belongs to a different learning topic. Open a session from this topic's camp instead.",
+            ),
+          );
+        }
+        const cached = showCachedSession(routeSessionId);
+        if (cached) configureSession(sessionConfiguration, routeSessionId);
+        return loadSession(
+          routeSessionId,
+          cached ? { revalidate: true } : undefined,
+        );
+      })
       .then(() => {
         configureSession(sessionConfiguration, routeSessionId);
         setSessionResolution({ routeKey, error: null });
@@ -182,18 +221,37 @@ export function MasteryStudy({
     routeSessionId,
     sessionConfiguration,
     showCachedSession,
+    state.sessionId,
     topic,
     tr,
   ]);
 
   useEffect(() => {
-    if (routeSessionId || !state.sessionId || state.masteryPathId !== pathId)
+    const newSessionId = state.sessionId;
+    if (
+      routeSessionId ||
+      !newSessionId ||
+      !isMasteryDraftSessionReady({
+        guard: draftRouteGuardRef.current,
+        routeKey: currentRouteKey,
+        sessionId: newSessionId,
+        masteryPathId: state.masteryPathId,
+        pathId,
+      })
+    )
       return;
     router.replace(
-      `/space/learning/${encodeURIComponent(pathId)}/study/${encodeURIComponent(state.sessionId)}`,
+      `/space/learning/${encodeURIComponent(pathId)}/study/${encodeURIComponent(newSessionId)}`,
       { scroll: false },
     );
-  }, [pathId, routeSessionId, router, state.masteryPathId, state.sessionId]);
+  }, [
+    currentRouteKey,
+    pathId,
+    routeSessionId,
+    router,
+    state.masteryPathId,
+    state.sessionId,
+  ]);
 
   const sessionError =
     sessionResolution?.routeKey === currentRouteKey
@@ -201,8 +259,7 @@ export function MasteryStudy({
       : null;
   const sessionLoading = Boolean(
     routeSessionId &&
-      sessionResolution?.routeKey !== currentRouteKey &&
-      state.sessionId !== routeSessionId,
+      sessionResolution?.routeKey !== currentRouteKey,
   );
 
   useEffect(() => {
@@ -222,11 +279,12 @@ export function MasteryStudy({
   const submit = useCallback(
     (value = draft) => {
       const content = value.trim();
-      if (!content || state.isStreaming || sessionLoading) return;
+      if (!content || state.isStreaming || sessionLoading || sessionError)
+        return;
       sendMessage(content);
       setDraft("");
     },
-    [draft, sendMessage, sessionLoading, state.isStreaming],
+    [draft, sendMessage, sessionError, sessionLoading, state.isStreaming],
   );
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -268,7 +326,7 @@ export function MasteryStudy({
   }
 
   const displayName = topicDisplayName(topic, tr);
-  const waypoint = currentWaypoint(topic, displayName);
+  const waypoint = currentWaypoint(topic, displayName, tr);
   const completed = topic.map.counts.mastered;
   const total = topic.map.counts.total;
   const progress = total ? Math.round((completed / total) * 100) : 0;
@@ -360,12 +418,12 @@ export function MasteryStudy({
         <section className="flex min-w-0 flex-1 flex-col bg-[var(--background)]">
           <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
             <div className="mx-auto w-full max-w-[900px] px-4 pb-8 pt-7 sm:px-7">
-              {sessionLoading && !hasMessages ? (
+              {sessionLoading ? (
                 <div className="flex min-h-[45vh] flex-col items-center justify-center text-sm text-[var(--muted-foreground)]">
                   <Loader2 className="mb-3 h-5 w-5 animate-spin" />
                   {tr("正在回到这段旅程…", "Returning to this learning journey…")}
                 </div>
-              ) : sessionError && !hasMessages ? (
+              ) : sessionError ? (
                 <div className="mx-auto mt-20 max-w-md rounded-[22px] border border-red-500/20 bg-red-500/5 p-6 text-center">
                   <MessageCircle className="mx-auto h-8 w-8 text-red-500/60" />
                   <h2 className="mt-3 text-sm font-semibold">
@@ -440,53 +498,55 @@ export function MasteryStudy({
             </div>
           </div>
 
-          <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)]/95 px-3 pb-3 pt-3 backdrop-blur sm:px-6 sm:pb-5">
-            <div className="mx-auto max-w-[900px]">
-              <div className="relative rounded-[22px] border border-[var(--border)] bg-[var(--card)] p-2 shadow-[0_12px_36px_rgba(0,0,0,0.08)] focus-within:border-[var(--mastery-route)]/40">
-                <textarea
-                  ref={textareaRef}
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onCompositionStart={onCompositionStart}
-                  onCompositionEnd={onCompositionEnd}
-                  disabled={sessionLoading}
-                  rows={1}
-                  placeholder={tr(
-                    `问导师关于「${waypoint}」的问题…`,
-                    `Ask your tutor about “${waypoint}”…`,
+          {!sessionError && (
+            <div className="shrink-0 border-t border-[var(--border)] bg-[var(--background)]/95 px-3 pb-3 pt-3 backdrop-blur sm:px-6 sm:pb-5">
+              <div className="mx-auto max-w-[900px]">
+                <div className="relative rounded-[22px] border border-[var(--border)] bg-[var(--card)] p-2 shadow-[0_12px_36px_rgba(0,0,0,0.08)] focus-within:border-[var(--mastery-route)]/40">
+                  <textarea
+                    ref={textareaRef}
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onCompositionStart={onCompositionStart}
+                    onCompositionEnd={onCompositionEnd}
+                    disabled={sessionLoading}
+                    rows={1}
+                    placeholder={tr(
+                      `问导师关于「${waypoint}」的问题…`,
+                      `Ask your tutor about “${waypoint}”…`,
+                    )}
+                    className="block min-h-12 w-full resize-none bg-transparent px-3 py-2.5 pr-14 text-sm leading-6 text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]/70 disabled:opacity-50"
+                  />
+                  {state.isStreaming ? (
+                    <button
+                      type="button"
+                      onClick={cancelStreamingTurn}
+                      className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--foreground)] text-[var(--background)]"
+                      aria-label={tr("停止回答", "Stop response")}
+                    >
+                      <Square className="h-3.5 w-3.5 fill-current" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => submit()}
+                      disabled={!draft.trim() || sessionLoading}
+                      className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--mastery-route)] text-white transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-30"
+                      aria-label={tr("发送", "Send")}
+                    >
+                      <ArrowUp className="h-4 w-4" />
+                    </button>
                   )}
-                  className="block min-h-12 w-full resize-none bg-transparent px-3 py-2.5 pr-14 text-sm leading-6 text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]/70 disabled:opacity-50"
-                />
-                {state.isStreaming ? (
-                  <button
-                    type="button"
-                    onClick={cancelStreamingTurn}
-                    className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--foreground)] text-[var(--background)]"
-                    aria-label={tr("停止回答", "Stop response")}
-                  >
-                    <Square className="h-3.5 w-3.5 fill-current" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => submit()}
-                    disabled={!draft.trim() || sessionLoading}
-                    className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--mastery-route)] text-white transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-30"
-                    aria-label={tr("发送", "Send")}
-                  >
-                    <ArrowUp className="h-4 w-4" />
-                  </button>
-                )}
+                </div>
+                <p className="mt-2 text-center text-[10px] text-[var(--muted-foreground)]/65">
+                  {tr(
+                    "导师会用可验证的关卡证据更新地图；你始终可以手动覆盖掌握状态。",
+                    "The tutor updates your map with verifiable checkpoint evidence; you can always override mastery yourself.",
+                  )}
+                </p>
               </div>
-              <p className="mt-2 text-center text-[10px] text-[var(--muted-foreground)]/65">
-                {tr(
-                  "导师会用可验证的关卡证据更新地图；你始终可以手动覆盖掌握状态。",
-                  "The tutor updates your map with verifiable checkpoint evidence; you can always override mastery yourself.",
-                )}
-              </p>
             </div>
-          </div>
+          )}
         </section>
       </div>
     </main>

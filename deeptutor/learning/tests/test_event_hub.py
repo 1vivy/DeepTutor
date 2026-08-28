@@ -37,3 +37,35 @@ async def test_topic_hub_isolated_by_path_and_unsubscribes_cleanly() -> None:
     assert signal.path_id == "second"
     assert signal.sequence >= 1
     assert first.queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_topic_hub_isolated_by_workspace_scope() -> None:
+    hub = MasteryTopicEventHub()
+    first = hub.subscribe("shared", scope="workspace-a")
+    second = hub.subscribe("shared", scope="workspace-b")
+    try:
+        hub.publish("shared", 3, scope="workspace-a")
+        signal = await asyncio.wait_for(first.get(), timeout=1)
+    finally:
+        first.close()
+        second.close()
+
+    assert signal.revision == 3
+    assert second.queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_topic_hub_coalesces_slow_subscriber_to_latest_signal() -> None:
+    hub = MasteryTopicEventHub()
+    subscription = hub.subscribe("topic-one")
+    try:
+        for revision in range(1, 51):
+            hub.publish("topic-one", revision)
+        await asyncio.sleep(0)
+        signal = await asyncio.wait_for(subscription.get(), timeout=1)
+    finally:
+        subscription.close()
+
+    assert signal.revision == 50
+    assert subscription.queue.empty()

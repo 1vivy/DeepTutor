@@ -19,6 +19,9 @@ from deeptutor.learning.models import (
     KnowledgePoint,
     KnowledgeType,
     LearningModule,
+    LearningProgress,
+    MasteryInteraction,
+    MasteryTopic,
     TopicMetadata,
     TopicSource,
     TopicSourceKind,
@@ -230,25 +233,60 @@ def _review_queue(progress) -> list[dict]:
     ]
 
 
-def _topic_payload(store: LearningStore, path_id: str) -> dict:
-    progress = store.load(path_id)
-    if progress is None:
-        raise HTTPException(status_code=404, detail="Mastery topic not found")
-    topic = store.get_topic(path_id)
-    if topic is None:  # pragma: no cover - a loaded path always synthesizes metadata
-        raise HTTPException(status_code=404, detail="Mastery topic not found")
+def _next_step_payload(store: LearningStore, path_id: str, progress) -> dict:
+    interaction = (
+        store.get_active_interaction(path_id) if progress.pending_question is not None else None
+    )
+    return _next_step_from_interaction(progress, interaction)
+
+
+def _next_step_from_interaction(
+    progress: LearningProgress,
+    interaction: MasteryInteraction | None,
+) -> dict:
+    return learning_policy.next_objective(
+        progress,
+        pending_session_id=interaction.session_id if interaction is not None else "",
+    ).to_dict()
+
+
+def _topic_payload_from_snapshot(
+    progress: LearningProgress,
+    topic: MasteryTopic,
+    session_count: int,
+    active_interaction: MasteryInteraction | None,
+) -> dict:
+    path_id = progress.book_id
     return {
         "path_id": path_id,
         "name": learning_policy.path_display_name(progress),
         "metadata": topic.metadata.model_dump(mode="json"),
         "sources": [source.model_dump(mode="json") for source in topic.sources],
         "path_revision": progress.version,
-        "next": learning_policy.next_objective(progress).to_dict(),
+        "next": _next_step_from_interaction(progress, active_interaction),
         "map": learning_policy.map_summary(progress),
         "reviews": _review_queue(progress),
-        "session_count": len(store.list_session_ids(path_id)),
+        "session_count": session_count,
         "updated_at": progress.updated_at,
     }
+
+
+def _topic_payload(store: LearningStore, path_id: str) -> dict:
+    progress = store.load(path_id)
+    if progress is None:
+        raise HTTPException(status_code=404, detail="Mastery topic not found")
+    topic = store.get_topic(path_id, progress=progress)
+    if topic is None:  # pragma: no cover - a loaded path always synthesizes metadata
+        raise HTTPException(status_code=404, detail="Mastery topic not found")
+    active_interaction = (
+        store.get_active_interaction(path_id) if progress.pending_question is not None else None
+    )
+    return _topic_payload_from_snapshot(
+        progress,
+        topic,
+        len(store.list_session_ids(path_id)),
+        active_interaction,
+    )
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
@@ -258,9 +296,11 @@ def _topic_payload(store: LearningStore, path_id: str) -> dict:
 async def list_topics():
     store = LearningStore()
     topics = await asyncio.to_thread(
-        lambda: [_topic_payload(store, path_id) for path_id in store.list_all()]
+        lambda: [
+            _topic_payload_from_snapshot(*snapshot)
+            for snapshot in store.list_topic_snapshots(status="active")
+        ]
     )
-    topics.sort(key=lambda item: item["updated_at"], reverse=True)
     return {"topics": topics}
 
 
@@ -288,7 +328,7 @@ async def create_topic(body: ConfirmTopicRequest):
 
     path_id = f"topic_{uuid.uuid4().hex}"
     try:
-        modules = materialize_modules(path_id, body.modules)
+        modules = materialize_modules(path_id, body.modules, strict=True)
     except TopicGenerationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     sources = _topic_sources(body.sources)
@@ -327,13 +367,27 @@ async def edit_topic_map(path_id: str, body: EditTopicMapRequest):
         materialize_modules,
     )
 
-    try:
-        modules = materialize_modules(path_id, body.modules)
-    except TopicGenerationError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
     async with _exclusive_path_mutation(path_id):
+        store = LearningStore()
+        progress = await asyncio.to_thread(store.load, path_id)
+        if progress is None:
+            raise HTTPException(status_code=404, detail="Mastery topic not found")
+        existing_module_ids = {module.id for module in progress.modules}
+        existing_objective_ids = {
+            point.id for module in progress.modules for point in module.knowledge_points
+        }
+        try:
+            modules = materialize_modules(
+                path_id,
+                body.modules,
+                strict=True,
+                existing_module_ids=existing_module_ids,
+                existing_objective_ids=existing_objective_ids,
+            )
+        except TopicGenerationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         await asyncio.to_thread(
-            LearningService(LearningStore()).replace_modules_for_path,
+            LearningService(store).replace_modules_for_path,
             path_id,
             modules,
             event_type="topic.map_edited",
@@ -380,24 +434,17 @@ async def list_topic_sessions(path_id: str):
     from deeptutor.services.session import get_session_store
 
     session_store = get_session_store()
+    active_interaction = await asyncio.to_thread(
+        learning_store.get_active_interaction,
+        path_id,
+    )
+    pending_session_id = active_interaction.session_id if active_interaction else ""
+    session_summaries = await session_store.get_session_summaries(session_ids)
     sessions = []
-    for session_id in session_ids:
-        session = await session_store.get_session_with_messages(session_id)
-        if session is None:
-            continue
+    for session in session_summaries:
+        session_id = str(session.get("session_id") or session.get("id") or "")
         preferences = session.get("preferences") or {}
-        messages = session.get("messages") or []
-        visible_messages = [
-            message for message in messages if str(message.get("role") or "") != "system"
-        ]
-        last_message = next(
-            (
-                str(message.get("content") or "").strip()
-                for message in reversed(visible_messages)
-                if str(message.get("content") or "").strip()
-            ),
-            "",
-        )
+        last_message = str(session.get("last_message") or "").strip()
         sessions.append(
             {
                 "session_id": session.get("session_id") or session.get("id") or session_id,
@@ -406,10 +453,13 @@ async def list_topic_sessions(path_id: str):
                 "updated_at": session.get("updated_at") or 0,
                 "status": session.get("status") or "idle",
                 "active_turn_id": session.get("active_turn_id") or "",
-                "message_count": len(visible_messages),
+                "message_count": int(session.get("message_count") or 0),
                 "last_message": last_message[:240],
                 "pinned": bool(preferences.get("pinned")),
                 "archived": bool(preferences.get("archived")),
+                "has_pending_question": bool(
+                    pending_session_id and pending_session_id == session_id
+                ),
             }
         )
     sessions.sort(key=lambda item: item["updated_at"], reverse=True)
@@ -508,7 +558,10 @@ async def mastery_topic_websocket(ws: WebSocket) -> None:
             # Register before replay. A concurrent commit is therefore either
             # present in this DB tail, queued on the subscription, or both;
             # the cursor in ``forward`` removes the harmless overlap.
-            subscription = mastery_topic_event_hub.subscribe(path_id)
+            subscription = mastery_topic_event_hub.subscribe(
+                path_id,
+                scope=store.event_scope,
+            )
             events = await asyncio.to_thread(
                 store.list_events,
                 path_id,
@@ -562,7 +615,7 @@ async def get_progress_map(book_id: str):
         "book_id": book_id,
         "name": learning_policy.path_display_name(progress),
         "path_revision": progress.version,
-        "next": learning_policy.next_objective(progress).to_dict(),
+        "next": _next_step_payload(service.store, book_id, progress),
         "map": learning_policy.map_summary(progress),
     }
 

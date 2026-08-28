@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 
@@ -24,6 +24,7 @@ export default function MasteryPathPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const wizardTriggerRef = useRef<HTMLElement | null>(null);
 
   const loadTopics = useCallback(async () => {
     setError(null);
@@ -51,7 +52,10 @@ export default function MasteryPathPage() {
         loading={loading}
         error={error}
         tr={tr}
-        onCreate={() => setWizardOpen(true)}
+        onCreate={(trigger) => {
+          wizardTriggerRef.current = trigger;
+          setWizardOpen(true);
+        }}
         onRetry={() => {
           setLoading(true);
           void loadTopics();
@@ -60,6 +64,7 @@ export default function MasteryPathPage() {
       {wizardOpen && (
         <CreateTopicWizard
           tr={tr}
+          returnFocusRef={wizardTriggerRef}
           onClose={() => setWizardOpen(false)}
           onCreated={(topic) => {
             setWizardOpen(false);

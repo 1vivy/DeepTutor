@@ -125,6 +125,11 @@ export function ObjectiveDetail({
 function GateBar({ report, tr }: { report: ObjectiveReport; tr: Translate }) {
   const pct = Math.round(report.mastery * 100);
   const thresholdPct = Math.round(report.threshold * 100);
+  const perfectButBelowGate =
+    report.gate === "quantitative" &&
+    report.attempts.length > 0 &&
+    report.correct_count === report.attempts.length &&
+    report.mastery < report.threshold;
   return (
     <div>
       <div className="flex items-baseline justify-between text-xs">
@@ -161,6 +166,14 @@ function GateBar({ report, tr }: { report: ObjectiveReport; tr: Translate }) {
           />
         )}
       </div>
+      {perfectButBelowGate && (
+        <p className="mt-1.5 text-[11px] leading-4 text-[var(--muted-foreground)]">
+          {tr(
+            `虽然目前 ${report.correct_count}/${report.attempts.length} 全部答对，掌握分仍会结合证据数量、难度与近期稳定性计算；再完成一次有区分度的练习即可继续提高。`,
+            `Even with ${report.correct_count}/${report.attempts.length} correct so far, mastery also weighs evidence volume, difficulty, and recent consistency. One more discriminating practice can raise it further.`,
+          )}
+        </p>
+      )}
     </div>
   );
 }

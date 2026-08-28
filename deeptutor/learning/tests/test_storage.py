@@ -276,6 +276,35 @@ class TestTopicMetadata:
         assert first.metadata.map_seed == second.metadata.map_seed
         assert first.sources == []
 
+    def test_topic_snapshots_batch_active_topics_with_counts_and_sources(self, store):
+        for path_id in ("active-path", "archived-path"):
+            store.save(LearningProgress(book_id=path_id, name=path_id))
+        store.put_topic(
+            TopicMetadata(path_id="active-path", goal="Learn"),
+            [
+                TopicSource(
+                    id="source-1",
+                    kind=TopicSourceKind.BOOK,
+                    label="Course book",
+                )
+            ],
+        )
+        store.put_topic(
+            TopicMetadata(path_id="archived-path", status="archived"),
+            [],
+        )
+        store.bind_session("active-path", "session-a")
+        store.bind_session("active-path", "session-b")
+
+        snapshots = store.list_topic_snapshots()
+
+        assert len(snapshots) == 1
+        progress, topic, session_count, active_interaction = snapshots[0]
+        assert progress.book_id == "active-path"
+        assert [source.label for source in topic.sources] == ["Course book"]
+        assert session_count == 2
+        assert active_interaction is None
+
 
 class TestLegacyMigration:
     def test_json_path_is_imported_and_archived_on_first_read(self, store, tmp_path):

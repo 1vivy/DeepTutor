@@ -24,10 +24,20 @@ class TopicSignal:
 
 
 class TopicSubscription:
-    def __init__(self, hub: "MasteryTopicEventHub", path_id: str) -> None:
+    def __init__(
+        self,
+        hub: "MasteryTopicEventHub",
+        path_id: str,
+        *,
+        scope: str,
+    ) -> None:
         self._hub = hub
         self.path_id = path_id
-        self.queue: asyncio.Queue[TopicSignal] = asyncio.Queue()
+        self.scope = scope
+        # A wake-up is only a hint to replay SQLite. Keeping the newest signal
+        # is sufficient and prevents a slow/background tab from accumulating
+        # an unbounded in-memory queue.
+        self.queue: asyncio.Queue[TopicSignal] = asyncio.Queue(maxsize=1)
         self.loop = asyncio.get_running_loop()
         self._closed = False
         self._hub._add(self)
@@ -45,26 +55,39 @@ class TopicSubscription:
 class MasteryTopicEventHub:
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._subscriptions: dict[str, set[TopicSubscription]] = {}
+        self._subscriptions: dict[tuple[str, str], set[TopicSubscription]] = {}
         self._sequence = itertools.count(1)
 
-    def subscribe(self, path_id: str) -> TopicSubscription:
-        return TopicSubscription(self, str(path_id))
+    @staticmethod
+    def _key(scope: str, path_id: str) -> tuple[str, str]:
+        return str(scope or "default"), str(path_id)
+
+    def subscribe(self, path_id: str, *, scope: str = "default") -> TopicSubscription:
+        return TopicSubscription(self, str(path_id), scope=str(scope or "default"))
 
     def _add(self, subscription: TopicSubscription) -> None:
         with self._lock:
-            self._subscriptions.setdefault(subscription.path_id, set()).add(subscription)
+            key = self._key(subscription.scope, subscription.path_id)
+            self._subscriptions.setdefault(key, set()).add(subscription)
 
     def _remove(self, subscription: TopicSubscription) -> None:
         with self._lock:
-            group = self._subscriptions.get(subscription.path_id)
+            key = self._key(subscription.scope, subscription.path_id)
+            group = self._subscriptions.get(key)
             if not group:
                 return
             group.discard(subscription)
             if not group:
-                self._subscriptions.pop(subscription.path_id, None)
+                self._subscriptions.pop(key, None)
 
-    def publish(self, path_id: str, revision: int, reason: str = "topic.changed") -> None:
+    def publish(
+        self,
+        path_id: str,
+        revision: int,
+        reason: str = "topic.changed",
+        *,
+        scope: str = "default",
+    ) -> None:
         with self._lock:
             signal = TopicSignal(
                 path_id=str(path_id),
@@ -72,25 +95,40 @@ class MasteryTopicEventHub:
                 reason=str(reason or "topic.changed"),
                 sequence=next(self._sequence),
             )
-            subscriptions = list(self._subscriptions.get(signal.path_id, ()))
+            subscriptions = list(self._subscriptions.get(self._key(scope, signal.path_id), ()))
         for subscription in subscriptions:
             if subscription.loop.is_closed():
                 subscription.close()
                 continue
             try:
                 subscription.loop.call_soon_threadsafe(
-                    subscription.queue.put_nowait,
+                    self._deliver_latest,
+                    subscription,
                     signal,
                 )
             except RuntimeError:
                 subscription.close()
 
+    @staticmethod
+    def _deliver_latest(subscription: TopicSubscription, signal: TopicSignal) -> None:
+        if subscription._closed:
+            return
+        if subscription.queue.full():
+            subscription.queue.get_nowait()
+        subscription.queue.put_nowait(signal)
+
 
 mastery_topic_event_hub = MasteryTopicEventHub()
 
 
-def publish_topic_signal(path_id: str, revision: int, reason: str = "topic.changed") -> None:
-    mastery_topic_event_hub.publish(path_id, revision, reason)
+def publish_topic_signal(
+    path_id: str,
+    revision: int,
+    reason: str = "topic.changed",
+    *,
+    scope: str = "default",
+) -> None:
+    mastery_topic_event_hub.publish(path_id, revision, reason, scope=scope)
 
 
 __all__ = [

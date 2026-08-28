@@ -23,7 +23,7 @@ import {
   type ObjectiveReport,
 } from "@/lib/learning-api";
 
-import type { Translate } from "./format";
+import { knowledgeTypeLabel, type Translate } from "./format";
 import { ObjectiveDetail } from "./ObjectiveDetail";
 
 interface Point {
@@ -167,36 +167,44 @@ export function AdventureMap({
                         onClick={() => onSelect(selected ? null : point.id)}
                         aria-pressed={selected}
                         aria-label={`${point.name} — ${statusLabel(point, tr)}`}
-                        className={`mastery-waypoint absolute left-0 top-0 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-2xl border-2 shadow-md outline-none focus-visible:ring-2 focus-visible:ring-[var(--mastery-route)] focus-visible:ring-offset-2 ${
-                          point.status === "mastered"
-                            ? "border-[var(--mastery-moss)] bg-[var(--mastery-moss)] text-white"
-                            : point.status === "learning"
-                              ? "border-[var(--mastery-gold)] bg-[var(--mastery-paper-raised)] text-[var(--mastery-gold)]"
-                              : "border-[var(--mastery-route)]/45 bg-[var(--mastery-paper-raised)] text-[var(--mastery-route)]"
-                        } ${selected ? "ring-2 ring-[var(--mastery-route)] ring-offset-2" : ""}`}
+                        className="mastery-waypoint group absolute left-0 top-0 flex w-44 -translate-x-1/2 -translate-y-6 flex-col items-center outline-none"
                       >
-                        {point.mastery_source === "learner" ? (
-                          <Sparkles className="h-5 w-5" />
-                        ) : point.status === "mastered" ? (
-                          <Check className="h-5 w-5" />
-                        ) : point.status === "learning" ? (
-                          <CircleDot className="h-5 w-5" />
-                        ) : (
-                          <Circle className="h-5 w-5" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onSelect(selected ? null : point.id)}
-                        className={`absolute left-0 top-9 w-44 -translate-x-1/2 rounded-xl border px-2.5 py-2 text-center shadow-sm transition ${
-                          selected
-                            ? "border-[var(--mastery-route)] bg-[var(--mastery-paper-raised)]"
-                            : "border-black/10 bg-[var(--mastery-paper-raised)]/90 hover:bg-[var(--mastery-paper-raised)]"
-                        }`}
-                      >
-                        <span className="line-clamp-2 text-xs font-medium leading-4">{point.name}</span>
-                        <span className="mt-1 block text-[9px] font-semibold uppercase tracking-[0.12em] opacity-55">
-                          {statusLabel(point, tr)}
+                        <span
+                          className={`mastery-waypoint-icon flex h-12 w-12 items-center justify-center rounded-2xl border-2 shadow-md ${
+                            point.status === "mastered"
+                              ? "border-[var(--mastery-moss)] bg-[var(--mastery-moss)] text-white"
+                              : point.status === "learning"
+                                ? "border-[var(--mastery-gold)] bg-[var(--mastery-paper-raised)] text-[var(--mastery-gold)]"
+                                : "border-[var(--mastery-route)]/45 bg-[var(--mastery-paper-raised)] text-[var(--mastery-route)]"
+                          } ${
+                            selected
+                              ? "ring-2 ring-[var(--mastery-route)] ring-offset-2"
+                              : ""
+                          }`}
+                        >
+                          {point.mastery_source === "learner" ? (
+                            <Sparkles className="h-5 w-5" />
+                          ) : point.status === "mastered" ? (
+                            <Check className="h-5 w-5" />
+                          ) : point.status === "learning" ? (
+                            <CircleDot className="h-5 w-5" />
+                          ) : (
+                            <Circle className="h-5 w-5" />
+                          )}
+                        </span>
+                        <span
+                          className={`mt-3 w-full rounded-xl border px-2.5 py-2 text-center shadow-sm transition ${
+                            selected
+                              ? "border-[var(--mastery-route)] bg-[var(--mastery-paper-raised)]"
+                              : "border-black/10 bg-[var(--mastery-paper-raised)]/90 group-hover:bg-[var(--mastery-paper-raised)]"
+                          }`}
+                        >
+                          <span className="line-clamp-2 text-xs font-medium leading-4">
+                            {point.name}
+                          </span>
+                          <span className="mt-1 block text-[9px] font-semibold uppercase tracking-[0.12em] opacity-55">
+                            {statusLabel(point, tr)}
+                          </span>
                         </span>
                       </button>
                       {current && (
@@ -294,7 +302,7 @@ function ObjectiveDrawer({
               <div className="mt-1 flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
                 <span>{report.module_name}</span>
                 <span>·</span>
-                <span>{report.type}</span>
+                <span>{knowledgeTypeLabel(report.type, tr)}</span>
                 {report.mastery_source === "learner" && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-amber-700 dark:text-amber-300">
                     <Sparkles className="h-3 w-3" />

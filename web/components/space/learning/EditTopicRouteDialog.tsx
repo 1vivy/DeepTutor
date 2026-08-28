@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type RefObject } from "react";
 import { AlertTriangle, Check, Loader2, X } from "lucide-react";
 
+import { useModalDialog } from "@/hooks/useModalDialog";
 import {
   type MasteryTopic,
   type ModuleInit,
@@ -10,8 +11,9 @@ import {
   updateMasteryTopicMap,
 } from "@/lib/learning-api";
 
-import { RouteDraftEditor } from "./CreateTopicWizard";
 import type { Translate } from "./format";
+import { RouteDraftEditor } from "./RouteDraftEditor";
+import { isRouteDraftValid } from "./route-draft";
 
 function topicDraft(topic: MasteryTopic): TopicDraft {
   return {
@@ -37,18 +39,22 @@ export function EditTopicRouteDialog({
   tr,
   onClose,
   onSaved,
+  returnFocusRef,
 }: {
   topic: MasteryTopic;
   tr: Translate;
   onClose: () => void;
   onSaved: (topic: MasteryTopic) => void;
+  returnFocusRef: RefObject<HTMLElement | null>;
 }) {
   const original = useMemo(() => topicDraft(topic), [topic]);
   const [draft, setDraft] = useState(original);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useModalDialog(onClose, busy, returnFocusRef);
 
   const save = async () => {
+    if (!isRouteDraftValid(draft)) return;
     setBusy(true);
     setError(null);
     try {
@@ -62,12 +68,16 @@ export function EditTopicRouteDialog({
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="edit-route-title"
       className="fixed inset-0 z-50 flex items-end justify-center bg-[var(--overlay)] p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
     >
-      <div className="flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[26px] border border-[var(--border)] bg-[var(--card)] shadow-2xl sm:rounded-[26px]">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-route-title"
+        tabIndex={-1}
+        className="flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[26px] border border-[var(--border)] bg-[var(--card)] shadow-2xl outline-none sm:rounded-[26px]"
+      >
         <header className="flex items-start justify-between border-b border-[var(--border)] px-5 py-4 sm:px-7">
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--primary)]">
@@ -116,7 +126,7 @@ export function EditTopicRouteDialog({
           <button
             type="button"
             onClick={() => void save()}
-            disabled={busy || !draft.modules.length}
+            disabled={busy || !isRouteDraftValid(draft)}
             className="inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--primary)] px-4 text-sm font-medium text-[var(--primary-foreground)] disabled:opacity-50"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}

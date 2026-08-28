@@ -996,6 +996,40 @@ class TurnRuntimeManager:
                 f"path {path_id!r} is already active in session {exc.lease.session_id!r}"
             ) from exc
 
+    @staticmethod
+    async def _validate_mastery_session_topic(
+        *,
+        session_id: str,
+        requested_path_id: str,
+        remembered_path_id: str,
+    ) -> None:
+        """Reject a topic URL paired with an unrelated existing chat session.
+
+        A new session has no associations and may start any topic. Historical
+        sessions may resume any path they were durably bound to (including a
+        legitimate in-chat path switch), while the remembered preference
+        covers sessions created before explicit bindings were introduced.
+        """
+
+        from deeptutor.learning.storage import LearningStore
+
+        learning_store = LearningStore()
+        associations = await asyncio.to_thread(
+            learning_store.list_paths_for_session,
+            session_id,
+        )
+        known_path_ids = {str(item.get("path_id") or "") for item in associations}
+        remembered = str(remembered_path_id or "").strip()
+        if (
+            (known_path_ids or remembered)
+            and requested_path_id not in known_path_ids
+            and (not remembered or requested_path_id != remembered)
+        ):
+            raise RuntimeError(
+                "mastery_session_topic_mismatch: "
+                f"session {session_id!r} does not belong to path {requested_path_id!r}"
+            )
+
     async def start_turn(self, payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
         capability = str(payload.get("capability") or "chat")
         if not payload.get("language"):
@@ -1054,6 +1088,11 @@ class TurnRuntimeManager:
                 session_id=session["id"],
             )
             mastery_path_id = mastery_binding.path_id
+            await self._validate_mastery_session_topic(
+                session_id=session["id"],
+                requested_path_id=mastery_path_id,
+                remembered_path_id=_mastery_path_id(preferences.get("mastery_path_id")),
+            )
         else:
             mastery_path_id = configured_mastery_path_id
         payload = {**payload, "mastery_path_id": mastery_path_id}

@@ -165,6 +165,7 @@ class NextStep:
     reason: str = ""
     pending_prompt: str = ""
     pending_question: PublicPendingQuestion | None = None
+    session_id: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -183,6 +184,7 @@ class NextStep:
             "pending_question": (
                 self.pending_question.to_dict() if self.pending_question is not None else None
             ),
+            "session_id": self.session_id,
         }
 
 
@@ -201,7 +203,12 @@ def _gate_kind(kp: KnowledgePoint) -> str:
     return "qualitative" if kp.type in QUALITATIVE_TYPES else "quantitative"
 
 
-def next_objective(progress: LearningProgress, *, now: float | None = None) -> NextStep:
+def next_objective(
+    progress: LearningProgress,
+    *,
+    now: float | None = None,
+    pending_session_id: str = "",
+) -> NextStep:
     """Decide the next thing to work on. Order of precedence:
 
     1. an outstanding posed question (grade it before moving on);
@@ -227,6 +234,7 @@ def next_objective(progress: LearningProgress, *, now: float | None = None) -> N
             reason="A posed question is awaiting the learner's answer; grade it with mastery_grade.",
             pending_prompt=pending.prompt,
             pending_question=public_pending_question(pending),
+            session_id=str(pending_session_id or ""),
         )
 
     due = due_reviews(progress, now=now)

@@ -2,6 +2,18 @@
 
 export type Translate = (cn: string, en: string) => string;
 
+const KNOWLEDGE_TYPE_LABELS: Record<string, [string, string]> = {
+  concept: ["概念", "Concept"],
+  memory: ["记忆", "Memory"],
+  procedure: ["过程", "Procedure"],
+  design: ["设计", "Design"],
+};
+
+export function knowledgeTypeLabel(type: string, tr: Translate): string {
+  const label = KNOWLEDGE_TYPE_LABELS[type];
+  return label ? tr(label[0], label[1]) : type;
+}
+
 /**
  * Older paths did not require a human-readable title and sometimes stored the
  * generated path id as the name. Keep a short trace suffix without exposing a

@@ -100,6 +100,8 @@ export interface NextStep {
   reason: string;
   /** The outstanding question's text, when `action` is `answer_pending`. */
   pending_prompt: string;
+  /** Session that owns an outstanding question; empty for non-pending steps. */
+  session_id: string;
 }
 
 export interface MasteryMapResult {
@@ -387,6 +389,8 @@ export interface MasteryTopic {
 export interface TopicDraft {
   description: string;
   modules: ModuleInit[];
+  /** Server-hydrated source states (for example KB retrieval availability). */
+  sources?: TopicSourceInput[];
 }
 
 export interface GenerateTopicInput {
@@ -412,6 +416,7 @@ export interface TopicSession {
   last_message: string;
   pinned: boolean;
   archived: boolean;
+  has_pending_question: boolean;
 }
 
 async function masteryJson<T>(

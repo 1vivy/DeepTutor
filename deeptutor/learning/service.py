@@ -674,12 +674,61 @@ class LearningService:
                     tx.progress.current_module_id = applied_modules[0].id
                     tx.progress.current_kp_index = 0
             else:
+                current_kp_id = ""
+                for current_module in tx.progress.modules:
+                    if current_module.id != tx.progress.current_module_id:
+                        continue
+                    if 0 <= tx.progress.current_kp_index < len(current_module.knowledge_points):
+                        current_kp_id = current_module.knowledge_points[
+                            tx.progress.current_kp_index
+                        ].id
+                    break
+                pending_kp_id = (
+                    tx.progress.pending_question.knowledge_point_id
+                    if tx.progress.pending_question is not None
+                    else ""
+                )
+                active_interaction = tx.active_interaction()
+                active_kp_id = (
+                    active_interaction.question.knowledge_point_id
+                    if active_interaction is not None
+                    else ""
+                )
+
                 self.replace_modules(tx.progress, applied_modules)
-                tx.progress.pending_question = None
-                tx.abandon_active_interactions()
-                if applied_modules:
+                objective_locations = {
+                    kp.id: (module.id, kp_index)
+                    for module in applied_modules
+                    for kp_index, kp in enumerate(module.knowledge_points)
+                }
+
+                if current_kp_id in objective_locations:
+                    (
+                        tx.progress.current_module_id,
+                        tx.progress.current_kp_index,
+                    ) = objective_locations[current_kp_id]
+                elif applied_modules:
                     tx.progress.current_module_id = applied_modules[0].id
                     tx.progress.current_kp_index = 0
+                else:
+                    tx.progress.current_module_id = ""
+                    tx.progress.current_kp_index = 0
+
+                if tx.progress.pending_question is not None:
+                    if pending_kp_id not in objective_locations:
+                        tx.progress.pending_question = None
+                    else:
+                        pending_module_id, _ = objective_locations[pending_kp_id]
+                        tx.progress.pending_question.module_id = pending_module_id
+
+                if active_interaction is not None:
+                    if active_kp_id not in objective_locations:
+                        tx.abandon_active_interactions()
+                    else:
+                        active_module_id, _ = objective_locations[active_kp_id]
+                        if active_interaction.question.module_id != active_module_id:
+                            active_interaction.question.module_id = active_module_id
+                            tx.put_interaction(active_interaction)
             tx.touch()
             tx.emit(
                 event_type,
