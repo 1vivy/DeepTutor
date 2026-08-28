@@ -97,14 +97,39 @@ def _settings(monkeypatch: pytest.MonkeyPatch) -> None:
         "lightrag_kwargs_from_settings",
         lambda: {"llm_model_max_async": 8, "entity_extract_max_gleaning": 2},
     )
+    monkeypatch.setattr(
+        engine_module,
+        "lightrag_llm_selection_from_settings",
+        lambda: {"profile_id": "profile-1", "model_id": "model-1"},
+    )
 
 
-def test_modern_raganything_receives_every_knob(fake_raganything, tmp_path: Path) -> None:
+def test_modern_raganything_receives_every_knob(
+    fake_raganything, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     fake_raganything(_ModernRag, _ModernConfig)
+    llm_selection_args: list[dict[str, str] | None] = []
+
+    def record_llm_adapter(**kwargs):
+        llm_selection_args.append(kwargs.get("llm_selection"))
+        return lambda *args, **kwargs: None
+
+    monkeypatch.setattr(engine_module, "build_llm_model_func", record_llm_adapter)
+    monkeypatch.setattr(
+        engine_module,
+        "build_vision_model_func",
+        lambda **_kwargs: lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        engine_module,
+        "build_embedding_func",
+        lambda **_kwargs: lambda *args, **kwargs: None,
+    )
 
     rag = engine_module.build_rag(tmp_path)
 
     assert rag.config.max_concurrent_files == 4
+    assert llm_selection_args == [{"profile_id": "profile-1", "model_id": "model-1"}]
     assert rag.lightrag_kwargs == {"llm_model_max_async": 8, "entity_extract_max_gleaning": 2}
 
 

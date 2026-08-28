@@ -1378,6 +1378,30 @@ class LightRagConfigUpdate(BaseModel):
     max_concurrent_files: int | None = None
     llm_model_max_async: int | None = None
     entity_extract_max_gleaning: int | None = None
+    llm_profile_id: str | None = None
+    llm_model_id: str | None = None
+
+
+def _validate_lightrag_llm_selection(profile_id: str, model_id: str) -> None:
+    """Keep stored LightRAG references inside the configured model catalog."""
+    if bool(profile_id) != bool(model_id):
+        raise HTTPException(
+            status_code=422,
+            detail="LightRAG model selection requires both profile_id and model_id.",
+        )
+    if not profile_id:
+        return
+    try:
+        from deeptutor.services.config import get_model_catalog_service
+        from deeptutor.services.model_selection import (
+            LLMSelection,
+            apply_llm_selection_to_catalog,
+        )
+
+        selection = LLMSelection.from_payload({"profile_id": profile_id, "model_id": model_id})
+        apply_llm_selection_to_catalog(get_model_catalog_service().load(), selection)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
 @router.get("/rag-pipelines/lightrag/config")
@@ -1406,7 +1430,14 @@ async def update_lightrag_pipeline_config(payload: LightRagConfigUpdate):
         service = get_runtime_settings_service()
         current = service.load_lightrag()
         updates = payload.model_dump(exclude_none=True)
+        candidate = {**current, **updates}
+        _validate_lightrag_llm_selection(
+            str(candidate.get("llm_profile_id") or ""),
+            str(candidate.get("llm_model_id") or ""),
+        )
         return service.save_lightrag({**current, **updates})
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error updating LightRAG config: {e}")
         raise HTTPException(status_code=500, detail=str(e))

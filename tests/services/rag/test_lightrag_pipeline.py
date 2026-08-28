@@ -73,6 +73,79 @@ def test_normalize_provider_keeps_lightrag() -> None:
     assert normalize_provider_name("LightRAG") == "lightrag"
 
 
+def test_lightrag_llm_selection_requires_both_catalog_ids(monkeypatch) -> None:
+    settings_cases = [
+        ({}, None),
+        ({"llm_profile_id": "p", "llm_model_id": "m"}, {"profile_id": "p", "model_id": "m"}),
+        ({"llm_profile_id": "p", "llm_model_id": ""}, None),
+        ({"llm_profile_id": "", "llm_model_id": "m"}, None),
+    ]
+    for settings, expected in settings_cases:
+        monkeypatch.setattr(
+            "deeptutor.services.config.load_lightrag_settings",
+            lambda settings=settings: settings,
+        )
+        assert lr_config.lightrag_llm_selection_from_settings() == expected
+
+
+def test_lightrag_llm_adapter_resolves_dedicated_catalog_selection(
+    monkeypatch,
+) -> None:
+    class _Config:
+        model = "light-model"
+
+    class _Client:
+        def __init__(self, *, config, configure_env) -> None:
+            assert config is cfg
+            assert configure_env is False
+
+        def get_model_func(self):
+            async def model_func(_prompt, **kwargs):
+                assert kwargs["max_retries"] == 0
+                return "ok"
+
+            return model_func
+
+    cfg = _Config()
+    monkeypatch.setattr(
+        "deeptutor.services.model_selection.runtime.resolve_llm_config_for_selection",
+        lambda selection: cfg,
+    )
+    monkeypatch.setattr("deeptutor.services.llm.client.LLMClient", _Client)
+
+    adapter = lr_config.build_llm_model_func(llm_selection={"profile_id": "p", "model_id": "m"})
+    assert asyncio.run(adapter("prompt")) == "ok"
+
+
+def test_lightrag_vision_adapter_resolves_dedicated_catalog_selection(
+    monkeypatch,
+) -> None:
+    class _Config:
+        model = "light-model"
+
+    class _Client:
+        def __init__(self, *, config, configure_env) -> None:
+            assert config is cfg
+            assert configure_env is False
+
+        def get_vision_model_func(self):
+            async def model_func(_prompt, **kwargs):
+                assert kwargs["allow_image_fallback"] is False
+                return "ok"
+
+            return model_func
+
+    cfg = _Config()
+    monkeypatch.setattr(
+        "deeptutor.services.model_selection.runtime.resolve_llm_config_for_selection",
+        lambda selection: cfg,
+    )
+    monkeypatch.setattr("deeptutor.services.llm.client.LLMClient", _Client)
+
+    adapter = lr_config.build_vision_model_func(llm_selection={"profile_id": "p", "model_id": "m"})
+    assert asyncio.run(adapter("prompt")) == "ok"
+
+
 @pytest.mark.parametrize(
     "given,expected",
     [
@@ -715,9 +788,9 @@ def test_build_rag_skips_raganything_parser_install_check(monkeypatch) -> None:
     fake_module.RAGAnything = _FakeRagAnything
     fake_module.RAGAnythingConfig = _FakeConfig
     monkeypatch.setitem(sys.modules, "raganything", fake_module)
-    monkeypatch.setattr(engine, "build_llm_model_func", lambda: "llm")
-    monkeypatch.setattr(engine, "build_vision_model_func", lambda: "vision")
-    monkeypatch.setattr(engine, "build_embedding_func", lambda: "embed")
+    monkeypatch.setattr(engine, "build_llm_model_func", lambda **_kwargs: "llm")
+    monkeypatch.setattr(engine, "build_vision_model_func", lambda **_kwargs: "vision")
+    monkeypatch.setattr(engine, "build_embedding_func", lambda **_kwargs: "embed")
 
     rag = engine.build_rag(Path("/tmp/kb-wd"))  # noqa: S108
 

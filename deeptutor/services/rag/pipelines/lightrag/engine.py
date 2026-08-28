@@ -28,6 +28,7 @@ from .config import (
     build_vision_model_func,
     indexing_kwargs_from_settings,
     lightrag_kwargs_from_settings,
+    lightrag_llm_selection_from_settings,
     normalize_mode,
     query_kwargs_from_settings,
 )
@@ -94,7 +95,9 @@ def build_rag(working_dir: Path, *, io_bridge: OwnerLoopBridge | None = None) ->
     from raganything import RAGAnything, RAGAnythingConfig
 
     config = _build_config(RAGAnythingConfig, working_dir)
-    adapter_kwargs = {"io_bridge": io_bridge} if io_bridge is not None else {}
+    adapter_kwargs: dict[str, Any] = {"llm_selection": lightrag_llm_selection_from_settings()}
+    if io_bridge is not None:
+        adapter_kwargs["io_bridge"] = io_bridge
     funcs = {
         "llm_model_func": build_llm_model_func(**adapter_kwargs),
         "vision_model_func": build_vision_model_func(**adapter_kwargs),

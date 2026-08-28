@@ -296,6 +296,8 @@ DEFAULT_GRAPHRAG_SETTINGS: dict[str, Any] = {
 # mode-only query). ``max_concurrent_files`` maps to RAGAnythingConfig's batch
 # knob; ``llm_model_max_async`` / ``entity_extract_max_gleaning`` ride into
 # LightRAG's own constructor via RAGAnything's ``lightrag_kwargs`` passthrough.
+# Stable catalog references let LightRAG use a dedicated LLM while the global
+# active chat model remains unchanged for ordinary chat.
 DEFAULT_LIGHTRAG_SETTINGS: dict[str, Any] = {
     "version": 1,
     "top_k": 60,
@@ -303,6 +305,8 @@ DEFAULT_LIGHTRAG_SETTINGS: dict[str, Any] = {
     "max_concurrent_files": 1,
     "llm_model_max_async": 4,
     "entity_extract_max_gleaning": 1,
+    "llm_profile_id": "",
+    "llm_model_id": "",
 }
 
 IGNORE_PROCESS_OVERRIDES_ENV = "DEEPTUTOR_IGNORE_PROCESS_ENV_OVERRIDES"
@@ -869,6 +873,8 @@ class RuntimeSettingsService:
             "entity_extract_max_gleaning": _coerce_clamped_int(
                 settings.get("entity_extract_max_gleaning"), 1, 0, 5
             ),
+            "llm_profile_id": _string(settings.get("llm_profile_id"))[:128],
+            "llm_model_id": _string(settings.get("llm_model_id"))[:128],
         }
 
     def _normalize_document_parsing(self, settings: dict[str, Any]) -> dict[str, Any]:

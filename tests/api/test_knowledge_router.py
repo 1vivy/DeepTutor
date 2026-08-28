@@ -1927,3 +1927,60 @@ def test_lightrag_config_endpoint_round_trips_the_indexing_knobs(
     assert again["max_concurrent_files"] == 4
     assert again["entity_extract_max_gleaning"] == 2
     assert again["top_k"] == 42
+
+
+def test_lightrag_config_validates_dedicated_llm_selection(monkeypatch, tmp_path: Path) -> None:
+    """The LightRAG override references a real catalog pair, not free text."""
+    from deeptutor.services.config.model_catalog import ModelCatalogService
+
+    settings_service = RuntimeSettingsService(tmp_path, process_env={})
+    catalog_service = ModelCatalogService(tmp_path / "model_catalog.json")
+    catalog_service.save(
+        {
+            "services": {
+                "llm": {
+                    "active_profile_id": "profile-1",
+                    "active_model_id": "model-1",
+                    "profiles": [
+                        {
+                            "id": "profile-1",
+                            "name": "Local",
+                            "binding": "ollama",
+                            "models": [{"id": "model-1", "model": "qwen"}],
+                        }
+                    ],
+                }
+            }
+        }
+    )
+    monkeypatch.setattr(
+        "deeptutor.services.config.get_runtime_settings_service",
+        lambda: settings_service,
+    )
+    monkeypatch.setattr(
+        "deeptutor.services.config.get_model_catalog_service",
+        lambda: catalog_service,
+    )
+
+    client = TestClient(_build_app())
+    saved = client.put(
+        "/api/v1/knowledge/rag-pipelines/lightrag/config",
+        json={"llm_profile_id": "profile-1", "llm_model_id": "model-1"},
+    )
+    assert saved.status_code == 200
+    assert saved.json()["llm_profile_id"] == "profile-1"
+    assert saved.json()["llm_model_id"] == "model-1"
+
+    unknown = client.put(
+        "/api/v1/knowledge/rag-pipelines/lightrag/config",
+        json={"llm_model_id": "missing"},
+    )
+    assert unknown.status_code == 422
+
+    cleared = client.put(
+        "/api/v1/knowledge/rag-pipelines/lightrag/config",
+        json={"llm_profile_id": "", "llm_model_id": ""},
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["llm_profile_id"] == ""
+    assert cleared.json()["llm_model_id"] == ""

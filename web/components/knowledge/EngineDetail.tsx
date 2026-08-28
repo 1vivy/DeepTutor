@@ -894,13 +894,36 @@ function LightRagForm({
   onError: (message: string) => void;
 }) {
   const { t } = useTranslation();
+  const [modelOptions, setModelOptions] =
+    useState<ModelOptionsByKind | null>(null);
   const { form, setLoaded, setForm, saving, setSaving, dirty, patch } =
     useEngineForm<LightRagConfig>(
       () => getLightRagConfig({ force: true }),
       onError,
     );
 
+  useEffect(() => {
+    let cancelled = false;
+    getEngineModelOptions(["llm"])
+      .then((data) => !cancelled && setModelOptions(data))
+      .catch(() => !cancelled && setModelOptions({ llm: { active: { profile_id: null, model_id: null }, options: [] } }));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (!form) return <FormSkeleton />;
+
+  const llmEntry = modelOptions?.llm;
+  const selectedProfileId = form.llm_profile_id;
+  const selectedModelId = form.llm_model_id;
+  const selectedValue =
+    selectedProfileId && selectedModelId
+      ? `${selectedProfileId}::${selectedModelId}`
+      : "";
+  const selectedOption = llmEntry?.options.find(
+    (option) => `${option.profile_id}::${option.model_id}` === selectedValue,
+  );
 
   const save = async () => {
     setSaving(true);
@@ -911,6 +934,8 @@ function LightRagForm({
         max_concurrent_files: form.max_concurrent_files,
         llm_model_max_async: form.llm_model_max_async,
         entity_extract_max_gleaning: form.entity_extract_max_gleaning,
+        llm_profile_id: form.llm_profile_id,
+        llm_model_id: form.llm_model_id,
       });
       setLoaded(next);
       setForm(next);
@@ -936,6 +961,50 @@ function LightRagForm({
           value={form.response_type}
           onChange={(v) => patch({ response_type: v })}
         />
+        <label className="flex flex-col gap-1">
+          <span className="text-[12px] font-medium text-[var(--foreground)]">
+            {t("Chat model")}
+          </span>
+          <select
+            value={selectedValue}
+            disabled={!llmEntry}
+            onChange={(event) => {
+              const [profileId, modelId] = event.target.value.split("::");
+              patch({
+                llm_profile_id: profileId || "",
+                llm_model_id: modelId || "",
+              });
+            }}
+            className="w-full cursor-pointer rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 text-[13px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--foreground)]/25 disabled:opacity-50"
+          >
+            {!llmEntry ? (
+              <option value="">{t("Loading models…")}</option>
+            ) : (
+              <>
+                <option value="">{t("Use global active chat model")}</option>
+                {selectedValue && !selectedOption && (
+                  <option value={selectedValue}>
+                    {t("Selected model unavailable")}
+                  </option>
+                )}
+                {llmEntry.options.map((option) => (
+                  <option
+                    key={`${option.profile_id}::${option.model_id}`}
+                    value={`${option.profile_id}::${option.model_id}`}
+                  >
+                    {option.label}
+                    {option.model && option.model !== option.label
+                      ? ` · ${option.model}`
+                      : ""}
+                  </option>
+                ))}
+              </>
+            )}
+          </select>
+          <span className="text-[11px] text-[var(--muted-foreground)]">
+            {t("Used for LightRAG extraction and query calls")}
+          </span>
+        </label>
       </div>
 
       {/* Indexing knobs are a separate axis from the two above: they shape how
