@@ -28,6 +28,9 @@ DEFAULT_SYSTEM_SETTINGS: dict[str, Any] = {
     # deployment shapes; a stronger backend (runner sidecar / bwrap) still
     # takes precedence when available. Set false to disable host-side exec.
     "sandbox_allow_subprocess": True,
+    # Conservative chat -> deep_question routing. Explicit requests only, and
+    # callers can still pass config.auto_route=false for a single turn.
+    "capability_routing_enabled": False,
     # Chat attachment policy. Size caps gate what the composer accepts and
     # what the turn runtime / partner upload endpoints extract; the char
     # budgets bound how much extracted text is inlined into the LLM context
@@ -709,6 +712,8 @@ class RuntimeSettingsService:
             payload["chat_attachment_dir"] = value
         if value := self._process_env_value("DEEPTUTOR_SANDBOX_ALLOW_SUBPROCESS"):
             payload["sandbox_allow_subprocess"] = value
+        if value := self._process_env_value("DEEPTUTOR_CAPABILITY_ROUTING_ENABLED"):
+            payload["capability_routing_enabled"] = value
         if value := self._process_env_value("CHAT_ATTACHMENT_MAX_FILE_MB"):
             payload["chat_attachment_max_file_mb"] = value
         if value := self._process_env_value("CHAT_ATTACHMENT_MAX_TOTAL_MB"):
@@ -1047,6 +1052,9 @@ class RuntimeSettingsService:
             "chat_attachment_dir": _string(settings.get("chat_attachment_dir")),
             "sandbox_allow_subprocess": _coerce_bool(
                 settings.get("sandbox_allow_subprocess"), True
+            ),
+            "capability_routing_enabled": _coerce_bool(
+                settings.get("capability_routing_enabled"), False
             ),
             "chat_attachment_max_file_mb": max_file_mb,
             "chat_attachment_max_total_mb": max_total_mb,
