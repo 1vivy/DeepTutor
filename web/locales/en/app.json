@@ -3604,5 +3604,15 @@
   "Configured {{count}} services and made them active.": "Configured {{count}} services and made them active.",
   "Configured {{count}} services — {{kept}} kept your existing choice.": "Configured {{count}} services — {{kept}} kept your existing choice.",
   "Opened from Connections. Applying will also make this the {{service}} profile in use.": "Opened from Connections. Applying will also make this the {{service}} profile in use.",
-  "Back to {{name}}": "Back to {{name}}"
+  "Back to {{name}}": "Back to {{name}}",
+  "Save draft": "Save draft",
+  "Draft not applied yet": "Draft not applied yet",
+  "Draft saved — not applied yet": "Draft saved — not applied yet",
+  "Draft discarded": "Draft discarded",
+  "Applied": "Applied",
+  "Store these changes without putting them into effect.": "Store these changes without putting them into effect.",
+  "Put these settings into effect.": "Put these settings into effect.",
+  "Go back to what is currently live.": "Go back to what is currently live.",
+  "Could not save the draft: {{message}}": "Could not save the draft: {{message}}",
+  "Could not apply: {{message}}": "Could not apply: {{message}}"
 }

@@ -42,6 +42,12 @@ from deeptutor.services.config.runtime_settings import (
     CHAT_ATTACHMENT_MAX_TOTAL_MB_RANGE,
     compute_ws_max_size,
 )
+from deeptutor.services.config.settings_draft import (
+    get_settings_draft_service,
+    is_empty_draft,
+    merge_draft_secrets,
+    redact_draft,
+)
 from deeptutor.services.embedding.client import reset_embedding_client
 from deeptutor.services.llm.client import reset_llm_client
 from deeptutor.services.llm.config import clear_llm_config_cache
@@ -183,6 +189,14 @@ class EnabledToolsUpdate(BaseModel):
 
 class CatalogPayload(BaseModel):
     catalog: dict[str, Any]
+
+
+class SettingsDraftPayload(BaseModel):
+    """The unapplied settings envelope, as the settings UI holds it."""
+
+    catalog: dict[str, Any] | None = None
+    # Opaque per-page state, keyed by the string the page registers with.
+    extensions: dict[str, Any] = Field(default_factory=dict)
 
 
 class CodexReasoningEffortUpdate(BaseModel):
@@ -1375,20 +1389,70 @@ async def update_catalog(payload: CatalogPayload):
     return {"catalog": redact_catalog_secrets(catalog)}
 
 
+@router.get("/draft")
+async def get_settings_draft():
+    """Return the unapplied draft, or nothing when there is none.
+
+    The draft is deliberately invisible to every other read path: nothing that
+    resolves runtime configuration looks here, which is the whole difference
+    between saving a draft and applying it.
+    """
+    _require_settings_admin()
+    draft = get_settings_draft_service().load()
+    if is_empty_draft(draft):
+        return {"draft": None}
+    return {"draft": redact_draft(draft)}
+
+
+@router.put("/draft")
+async def update_settings_draft(payload: SettingsDraftPayload):
+    _require_settings_admin()
+    service = get_settings_draft_service()
+    stored = service.load()
+    merged = merge_draft_secrets(
+        payload.model_dump(),
+        stored,
+        get_model_catalog_service().load(),
+    )
+    if is_empty_draft(merged):
+        service.clear()
+        return {"draft": None}
+    saved = service.save(merged)
+    return {"draft": redact_draft(saved)}
+
+
+@router.delete("/draft")
+async def discard_settings_draft():
+    _require_settings_admin()
+    get_settings_draft_service().clear()
+    return {"draft": None}
+
+
 @router.post("/apply")
 async def apply_catalog(payload: CatalogPayload | None = None):
+    """Move settings into the files the runtime reads, and clear the draft.
+
+    With no body this promotes the stored draft's catalog, which is how the
+    settings UI applies: credentials that only ever existed in a draft would
+    otherwise have to round-trip through the browser as placeholders and come
+    back resolving to the previous key.
+    """
     _require_settings_admin()
     service = get_model_catalog_service()
+    draft_service = get_settings_draft_service()
     current = service.load()
-    catalog = (
-        reconcile_codex_catalog_update(
-            current,
-            restore_catalog_secrets(payload.catalog, current),
+    if payload is not None:
+        proposed = restore_catalog_secrets(payload.catalog, current)
+    else:
+        draft_catalog = draft_service.load().get("catalog")
+        proposed = (
+            restore_catalog_secrets(draft_catalog, current)
+            if isinstance(draft_catalog, dict)
+            else current
         )
-        if payload is not None
-        else current
-    )
+    catalog = reconcile_codex_catalog_update(current, proposed)
     applied = service.apply(catalog)
+    draft_service.clear()
     _invalidate_runtime_caches()
     return {
         "message": "Catalog applied to runtime settings.",

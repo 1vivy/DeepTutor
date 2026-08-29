@@ -13,6 +13,7 @@ import {
 } from "@/components/settings/shared";
 import { useSettings } from "@/components/settings/SettingsContext";
 import { apiFetch, apiUrl } from "@/lib/api";
+import { EXTENSION_ENDPOINTS } from "@/lib/settings-extensions";
 
 type StarterSettings = { trace_count: number };
 
@@ -23,7 +24,8 @@ type StarterSettingsPayload = {
 
 export default function StarterSettingsPage() {
   const { t } = useTranslation();
-  const { registerExtension } = useSettings();
+  const { registerExtension, pendingExtensionPayload, draftRevision } =
+    useSettings();
   const [payload, setPayload] = useState<StarterSettingsPayload | null>(null);
   const [draft, setDraft] = useState<StarterSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,7 +38,7 @@ export default function StarterSettingsPage() {
       setError(null);
       try {
         const response = await apiFetch(
-          apiUrl("/api/v1/settings/chat-starters"),
+          apiUrl(EXTENSION_ENDPOINTS["chat-starters"]),
         );
         const data = (await response.json().catch(() => ({}))) as
           | StarterSettingsPayload
@@ -51,7 +53,13 @@ export default function StarterSettingsPage() {
         if (cancelled) return;
         const next = data as StarterSettingsPayload;
         setPayload(next);
-        setDraft({ ...next.settings });
+        // An edit left behind earlier in this session (or parked in a saved
+        // draft) wins over the server value — leaving the page is not a way
+        // to discard changes.
+        const pending = pendingExtensionPayload(
+          "chat-starters",
+        ) as StarterSettings | undefined;
+        setDraft(pending ? { ...pending } : { ...next.settings });
       } catch (err) {
         if (!cancelled)
           setError(err instanceof Error ? err.message : String(err));
@@ -63,7 +71,7 @@ export default function StarterSettingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [t]);
+  }, [draftRevision, pendingExtensionPayload, t]);
 
   const dirty = useMemo(
     () =>
@@ -82,7 +90,7 @@ export default function StarterSettingsPage() {
     setError(null);
     try {
       const response = await apiFetch(
-        apiUrl("/api/v1/settings/chat-starters"),
+        apiUrl(EXTENSION_ENDPOINTS["chat-starters"]),
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -108,9 +116,9 @@ export default function StarterSettingsPage() {
   }, [t]);
 
   useEffect(() => {
-    registerExtension("chat-starters", { dirty, save });
+    registerExtension("chat-starters", { dirty, save, payload: draft });
     return () => registerExtension("chat-starters", null);
-  }, [dirty, save, registerExtension]);
+  }, [dirty, draft, save, registerExtension]);
 
   const bounds = payload?.bounds.trace_count;
 

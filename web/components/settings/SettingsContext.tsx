@@ -26,6 +26,7 @@ import { useAppShell } from "@/context/AppShellContext";
 import { apiFetch, apiUrl } from "@/lib/api";
 import { invalidateLLMOptionsCache } from "@/lib/llm-options";
 import { setModelReasoningEffort } from "@/lib/reasoning-effort";
+import { applyExtensionPayload } from "@/lib/settings-extensions";
 import { setTheme as applyThemePreference } from "@/lib/theme";
 
 // ─── Domain types ─────────────────────────────────────────────────────────
@@ -268,6 +269,22 @@ export type ServiceReadiness =
   | "passed"
   | "failed";
 
+/**
+ * Where the current settings state lives.
+ *   clean   — identical to what is applied
+ *   unsaved — edited, not written anywhere yet
+ *   saved   — written to the draft store, not applied
+ */
+export type DraftState = "clean" | "unsaved" | "saved";
+
+/** What the server holds as unapplied. `catalog` comes back redacted. */
+export type StoredDraft = {
+  version: number;
+  updated_at: string;
+  catalog: Catalog | null;
+  extensions: Record<string, unknown>;
+};
+
 type SettingsPayload = {
   ui: UiSettings;
   catalog?: Catalog;
@@ -503,6 +520,13 @@ function readStoredDiagnosticsResults(): Partial<
 export interface SettingsExtension {
   dirty: boolean;
   save: () => Promise<void>;
+  /**
+   * The page's current editable state. Retained by the provider after the
+   * page unmounts, so navigating away from a half-edited settings page no
+   * longer throws the edit away, and stored in the draft so it survives a
+   * reload. Pages that omit it keep the old (lossy) behaviour.
+   */
+  payload?: unknown;
 }
 
 type SettingsContextValue = {
@@ -589,8 +613,15 @@ type SettingsContextValue = {
   // Save / apply
   saving: boolean;
   applying: boolean;
-  saveCatalog: () => Promise<void>;
+  saveDraft: () => Promise<void>;
   applyCatalog: () => Promise<void>;
+  discardDraft: () => Promise<void>;
+  /** A draft parked on the server, waiting to be applied. */
+  storedDraft: StoredDraft | null;
+  draftState: DraftState;
+  /** Bumped when a draft is discarded so pages re-read from the server. */
+  draftRevision: number;
+  pendingExtensionPayload: (key: string) => unknown;
 
   // Sub-page extension hooks. Sub-routes (e.g. /settings/memory) that own
   // state outside the catalog register a "dirty + save" pair so the global
@@ -665,6 +696,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [connectionTargets, setConnectionTargets] = useState<ConnectionTarget[]>(
     [],
   );
+  const [storedDraft, setStoredDraft] = useState<StoredDraft | null>(null);
+  // Signature of the envelope as last written to the draft store.
+  const [savedSignature, setSavedSignature] = useState<string | null>(null);
+  const [draftRevision, setDraftRevision] = useState(0);
   const [toast, setToast] = useState("");
   const [saving, setSaving] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -685,33 +720,57 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   // Extensions register their latest dirty/save on each render. Keep the
   // derived dirty state explicit instead of using an indirect version counter.
   const extensionsRef = useRef<Map<string, SettingsExtension>>(new Map());
-  const [hasDirtyExtension, setHasDirtyExtension] = useState(false);
+  // Pending edits from settings pages that keep state outside the catalog,
+  // kept here rather than in the pages themselves. A page unmounts on every
+  // navigation inside Settings; holding its unsaved payload at the provider
+  // is what makes leaving the page non-destructive.
+  const pendingRef = useRef<Map<string, unknown>>(new Map());
+  // A signature of the pending payloads rather than just their keys: the
+  // toolbar has to notice the second edit to the same field, not only the
+  // first, or "Draft saved" would keep showing after further typing.
+  const [pendingSignature, setPendingSignature] = useState("{}");
+  const syncPendingKeys = useCallback(() => {
+    const entries = Array.from(pendingRef.current.entries()).sort(
+      ([a], [b]) => (a < b ? -1 : a > b ? 1 : 0),
+    );
+    const next = JSON.stringify(Object.fromEntries(entries));
+    setPendingSignature((current) => (current === next ? current : next));
+  }, []);
+
   const registerExtension = useCallback(
     (key: string, ext: SettingsExtension | null) => {
       const map = extensionsRef.current;
-      const prev = map.get(key);
       if (ext === null) {
-        if (prev === undefined) return;
+        // Deregistration means "this page left the screen", never "discard
+        // what was typed" — the pending payload deliberately outlives it.
         map.delete(key);
-        setHasDirtyExtension(
-          Array.from(map.values()).some((extension) => extension.dirty),
-        );
-        return;
-      }
-      if (prev && prev.dirty === ext.dirty && prev.save === ext.save) {
         return;
       }
       map.set(key, ext);
-      // Only recompute the dirty summary when dirty flips — save fn changes
-      // every render are common and should not re-render the toolbar.
-      if (prev?.dirty !== ext.dirty) {
-        setHasDirtyExtension(
-          Array.from(map.values()).some((extension) => extension.dirty),
-        );
+      if (ext.dirty) {
+        if (ext.payload !== undefined) pendingRef.current.set(key, ext.payload);
+      } else if (ext.payload != null) {
+        // Clean *and* loaded means the user reverted, so the pending edit goes.
+        // A null payload means the page is still fetching and has nothing to
+        // say yet — dropping the pending edit there would delete it during the
+        // very remount it is supposed to survive.
+        pendingRef.current.delete(key);
       }
+      syncPendingKeys();
     },
+    [syncPendingKeys],
+  );
+
+  /** A payload this page left behind earlier in the session, if any. */
+  const pendingExtensionPayload = useCallback(
+    (key: string) => pendingRef.current.get(key),
     [],
   );
+
+  const clearPending = useCallback(() => {
+    pendingRef.current.clear();
+    syncPendingKeys();
+  }, [syncPendingKeys]);
 
   const [settingsError, setSettingsError] = useState<string | null>(null);
 
@@ -745,6 +804,34 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       if (payload.providers) setProviders(payload.providers);
       if (payload.connection_targets)
         setConnectionTargets(payload.connection_targets);
+
+      // A draft parked in an earlier session takes over the editable copy —
+      // otherwise "Save Draft" would look like it had done nothing at all.
+      try {
+        const draftResponse = await apiFetch(apiUrl("/api/v1/settings/draft"));
+        if (draftResponse.ok) {
+          const stored = (await draftResponse.json()) as {
+            draft: StoredDraft | null;
+          };
+          if (stored.draft) {
+            setStoredDraft(stored.draft);
+            if (stored.draft.catalog) setDraft(cloneCatalog(stored.draft.catalog));
+            for (const [key, value] of Object.entries(
+              stored.draft.extensions ?? {},
+            )) {
+              pendingRef.current.set(key, value);
+            }
+            syncPendingKeys();
+            // Pages fetch their own state in parallel with this and may have
+            // already read an empty pending map. Bumping the revision re-runs
+            // their load effect now that the draft is actually here.
+            setDraftRevision((value) => value + 1);
+          }
+        }
+      } catch {
+        // No draft is the normal case and a failed read must not block the
+        // page; the live settings above are already in hand.
+      }
       settingsLoaded = true;
     } catch (err) {
       console.error("Failed to load settings:", err);
@@ -775,7 +862,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         );
       }
     }
-  }, [t]);
+  }, [syncPendingKeys, t]);
 
   // Load settings + status once on mount. Subsequent navigations between
   // settings sub-pages share this state via the layout-level provider.
@@ -803,6 +890,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const timer = setTimeout(() => setToast(""), 3500);
     return () => clearTimeout(timer);
   }, [toast]);
+
 
   useEffect(() => {
     try {
@@ -1305,43 +1393,75 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [llmContextDetection, mutateCatalog, t]);
 
   // ── Save / Apply ────────────────────────────────────────────────────────
-  const saveCatalog = useCallback(async () => {
-    if (!catalogEditable) return;
+  /** The envelope the draft endpoint stores: catalog plus every pending page. */
+  const draftEnvelope = useCallback(
+    () => ({
+      catalog: catalogEditable ? draft : null,
+      extensions: Object.fromEntries(pendingRef.current.entries()),
+    }),
+    [catalogEditable, draft],
+  );
+
+  /**
+   * Save Draft — write everything unsaved to the draft store and stop there.
+   *
+   * Nothing here reaches the files the runtime resolves against, which is the
+   * entire difference from Apply. It covers the pages that keep state outside
+   * the catalog too; previously this button only ever wrote the catalog and
+   * reported success for edits it had not touched.
+   */
+  const saveDraft = useCallback(async () => {
     setSaving(true);
+    const signature = envelopeSignatureRef.current;
     try {
-      const response = await apiFetch(apiUrl("/api/v1/settings/catalog"), {
+      const response = await apiFetch(apiUrl("/api/v1/settings/draft"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ catalog: draft }),
+        body: JSON.stringify(draftEnvelope()),
       });
-      const payload = await response.json();
-      setCatalog(payload.catalog);
-      setDraft(cloneCatalog(payload.catalog));
-      // The model list the chat composer shows is derived from this catalog.
-      invalidateLLMOptionsCache();
-      setToast(t("Draft saved"));
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = (await response.json()) as { draft: StoredDraft | null };
+      setStoredDraft(payload.draft ?? null);
+      setSavedSignature(signature);
+      setToast(t("Draft saved — not applied yet"));
+    } catch (err) {
+      setToast(
+        t("Could not save the draft: {{message}}", {
+          message: err instanceof Error ? err.message : String(err),
+        }),
+      );
     } finally {
       setSaving(false);
     }
-  }, [catalogEditable, draft, t]);
+  }, [draftEnvelope, t]);
 
+  /** Apply — move everything into the live files and clear the draft. */
   const applyCatalog = useCallback(async () => {
     setApplying(true);
     try {
-      // Flush extensions (e.g. /settings/memory) first so their saved
-      // state is visible to any backend side-effects in /apply below.
-      const exts = Array.from(extensionsRef.current.values()).filter(
-        (e) => e.dirty,
-      );
-      await Promise.all(exts.map((e) => e.save()));
+      // Park the current state server-side first so Apply promotes exactly
+      // what is on screen, and so credentials typed into a draft never have
+      // to round-trip through the browser as placeholders.
+      await apiFetch(apiUrl("/api/v1/settings/draft"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(draftEnvelope()),
+      });
 
-      // The catalog apply is only meaningful when editable; an extension-
-      // only flush should still produce a success toast.
+      // Pages still on screen save themselves — they refresh their own local
+      // state and surface their own errors. Everything else pending is
+      // written straight to the endpoint that owns it.
+      const mounted = extensionsRef.current;
+      for (const [key, payload] of pendingRef.current.entries()) {
+        const ext = mounted.get(key);
+        if (ext?.dirty) await ext.save();
+        else await applyExtensionPayload(key, payload);
+      }
+
       if (catalogEditable) {
         const response = await apiFetch(apiUrl("/api/v1/settings/apply"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ catalog: draft }),
         });
         const payload = await response.json();
         setCatalog(payload.catalog);
@@ -1349,12 +1469,41 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         invalidateLLMOptionsCache();
         const statusResponse = await apiFetch(apiUrl("/api/v1/system/status"));
         setStatus((await statusResponse.json()) as SystemStatus);
+      } else {
+        await apiFetch(apiUrl("/api/v1/settings/draft"), { method: "DELETE" });
       }
-      setToast(t("All changes saved"));
+      clearPending();
+      setStoredDraft(null);
+      setSavedSignature(null);
+      setToast(t("Applied"));
+    } catch (err) {
+      setToast(
+        t("Could not apply: {{message}}", {
+          message: err instanceof Error ? err.message : String(err),
+        }),
+      );
     } finally {
       setApplying(false);
     }
-  }, [catalogEditable, draft, t]);
+  }, [catalogEditable, clearPending, draftEnvelope, t]);
+
+  /** Throw the draft away and go back to what is actually live. */
+  const discardDraft = useCallback(async () => {
+    setApplying(true);
+    try {
+      await apiFetch(apiUrl("/api/v1/settings/draft"), { method: "DELETE" });
+      clearPending();
+      setStoredDraft(null);
+      setSavedSignature(null);
+      setDraft(cloneCatalog(catalog));
+      setToast(t("Draft discarded"));
+      // Pages holding their own copy of a discarded payload have to re-read.
+      setDraftRevision((value) => value + 1);
+    } finally {
+      setApplying(false);
+    }
+  }, [catalog, clearPending, t]);
+
 
   // ── Diagnostics ─────────────────────────────────────────────────────────
   // Reset capability snapshot when switching embedding profile/model so a
@@ -1568,13 +1717,50 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [tourStepIndex, router]);
 
   // ── Derived ─────────────────────────────────────────────────────────────
-  const hasUnsavedChanges = useMemo(() => {
-    return (
-      hasDirtyExtension ||
+  // What the current screen state would be persisted as. Compared against the
+  // last thing actually written so the toolbar can tell "not saved anywhere"
+  // apart from "saved as a draft, not applied".
+  const envelopeSignature = useMemo(
+    () =>
+      JSON.stringify({
+        catalog: catalogEditable ? draft : null,
+        extensions: pendingSignature,
+      }),
+    [catalogEditable, draft, pendingSignature],
+  );
+
+  const differsFromLive = useMemo(
+    () =>
+      pendingSignature !== "{}" ||
       (catalogEditable === true &&
-        JSON.stringify(catalog) !== JSON.stringify(draft))
-    );
-  }, [catalog, catalogEditable, draft, hasDirtyExtension]);
+        JSON.stringify(catalog) !== JSON.stringify(draft)),
+    [catalog, catalogEditable, draft, pendingSignature],
+  );
+
+  const envelopeSignatureRef = useRef(envelopeSignature);
+  envelopeSignatureRef.current = envelopeSignature;
+
+  const draftState: DraftState = !differsFromLive
+    ? "clean"
+    : envelopeSignature === savedSignature
+      ? "saved"
+      : "unsaved";
+
+  const hasUnsavedChanges = draftState === "unsaved";
+
+  // Moving between settings pages keeps unsaved edits (they live on the
+  // provider), but closing or reloading the tab cannot — that is the moment
+  // the work would disappear, so warn there. Only for edits with nowhere to
+  // fall back to: once saved as a draft the server already has them.
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasUnsavedChanges]);
 
   const settingsLoading = catalogEditable === null;
 
@@ -1625,8 +1811,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       applyDetectedContextWindow,
       saving,
       applying,
-      saveCatalog,
+      saveDraft,
       applyCatalog,
+      discardDraft,
+      storedDraft,
+      draftState,
+      draftRevision,
+      pendingExtensionPayload,
       registerExtension,
       logs,
       testRunning,
@@ -1646,6 +1837,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       applyDetectedContextWindow,
       applyCatalog,
       applying,
+      draftState,
+      storedDraft,
+      draftRevision,
+      pendingExtensionPayload,
+      discardDraft,
       catalog,
       catalogEditable,
       codeBlockShowLineNumbers,
@@ -1674,7 +1870,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       removeActiveModel,
       removeActiveProfile,
       runDetailedTest,
-      saveCatalog,
+      saveDraft,
       saving,
       settingsError,
       loadSettings,

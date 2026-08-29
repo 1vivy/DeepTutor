@@ -1,29 +1,45 @@
 "use client";
 
-import { Loader2, Rocket, Save, Wand2 } from "lucide-react";
+import { Loader2, Rocket, Save, Undo2, Wand2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useTranslation } from "react-i18next";
 
 import { storagePathFor } from "@/lib/settings-nav";
 import { useSettings } from "./SettingsContext";
 
-// Sticky toolbar above the sub-page content. Save Draft / Apply only show
-// when there's actually something to save — keeps the bar quiet for the
-// majority of sessions that just visit Appearance.
+/**
+ * Sticky toolbar above the sub-page content.
+ *
+ * Save Draft and Apply now promise different things and the bar has to say
+ * which state you are in, because "there is a draft waiting" is invisible
+ * otherwise — a draft parked yesterday would sit there unexplained.
+ *
+ *   unsaved edits   → Save draft · Apply         ("Unsaved changes")
+ *   draft on server → Apply · Discard            ("Draft not applied yet")
+ *   neither         → nothing to do              ("All changes saved")
+ *
+ * The storage path moved into the status line's tooltip: self-hosted users
+ * occasionally want to know which file backs a page, but it is a developer
+ * fact and does not belong permanently on screen for everyone else.
+ */
 export function SettingsToolbar() {
   const { t } = useTranslation();
   const pathname = usePathname() ?? "";
   const storagePath = storagePathFor(pathname);
   const {
     catalogEditable,
-    hasUnsavedChanges,
+    draftState,
     saving,
     applying,
-    saveCatalog,
+    saveDraft,
     applyCatalog,
+    discardDraft,
     startTour,
     toast,
   } = useSettings();
+
+  const busy = saving || applying;
+  const canApply = draftState !== "clean";
 
   if (catalogEditable !== true) {
     if (!toast) return null;
@@ -36,31 +52,30 @@ export function SettingsToolbar() {
     );
   }
 
+  const status = toast
+    ? { text: toast, tone: "text-[var(--primary)] animate-fade-in" }
+    : draftState === "unsaved"
+      ? {
+          text: t("Unsaved changes"),
+          tone: "text-amber-600 dark:text-amber-400",
+        }
+      : draftState === "saved"
+        ? {
+            text: t("Draft not applied yet"),
+            tone: "text-amber-600 dark:text-amber-400",
+          }
+        : {
+            text: t("All changes saved"),
+            tone: "text-[var(--muted-foreground)]",
+          };
+
   return (
     <div className="flex items-center justify-between gap-3 px-1 py-2">
       <p
-        className={`min-w-0 truncate text-[12px] ${
-          toast
-            ? "text-[var(--primary)] animate-fade-in"
-            : hasUnsavedChanges
-              ? "text-amber-600 dark:text-amber-400"
-              : "text-[var(--muted-foreground)]"
-        }`}
+        className={`min-w-0 truncate text-[12px] ${status.tone}`}
+        title={storagePath || undefined}
       >
-        {toast ? (
-          toast
-        ) : hasUnsavedChanges ? (
-          t("Draft has unsaved changes")
-        ) : storagePath ? (
-          <>
-            {t("Saved to")}{" "}
-            <span className="font-mono text-[var(--foreground)]/65">
-              {storagePath}
-            </span>
-          </>
-        ) : (
-          t("All changes saved")
-        )}
+        {status.text}
       </p>
       <div className="flex items-center gap-2">
         <button
@@ -70,9 +85,21 @@ export function SettingsToolbar() {
           <Rocket className="h-3 w-3" />
           {t("Tour")}
         </button>
+        {canApply && (
+          <button
+            onClick={discardDraft}
+            disabled={busy}
+            title={t("Go back to what is currently live.")}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:opacity-40"
+          >
+            <Undo2 className="h-3 w-3" />
+            {t("Discard")}
+          </button>
+        )}
         <button
-          onClick={saveCatalog}
-          disabled={saving || !hasUnsavedChanges}
+          onClick={saveDraft}
+          disabled={busy || draftState !== "unsaved"}
+          title={t("Store these changes without putting them into effect.")}
           className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:opacity-40"
         >
           {saving ? (
@@ -80,12 +107,13 @@ export function SettingsToolbar() {
           ) : (
             <Save className="h-3 w-3" />
           )}
-          {t("Save Draft")}
+          {t("Save draft")}
         </button>
         <button
           data-tour="tour-actions"
           onClick={applyCatalog}
-          disabled={applying}
+          disabled={busy || !canApply}
+          title={t("Put these settings into effect.")}
           className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--foreground)] px-3 py-1.5 text-[12px] font-medium text-[var(--background)] transition-opacity hover:opacity-80 disabled:opacity-40"
         >
           {applying ? (

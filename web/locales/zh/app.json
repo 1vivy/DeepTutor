@@ -3604,5 +3604,15 @@
   "Configured {{count}} services and made them active.": "已配置 {{count}} 个服务并设为当前使用。",
   "Configured {{count}} services — {{kept}} kept your existing choice.": "已配置 {{count}} 个服务；{{kept}} 保留了你原有的选择。",
   "Opened from Connections. Applying will also make this the {{service}} profile in use.": "从「连接」跳转而来。应用后，{{service}} 将改用这个配置。",
-  "Back to {{name}}": "改回 {{name}}"
+  "Back to {{name}}": "改回 {{name}}",
+  "Save draft": "存草稿",
+  "Draft not applied yet": "草稿尚未应用",
+  "Draft saved — not applied yet": "草稿已保存，尚未应用",
+  "Draft discarded": "已放弃草稿",
+  "Applied": "已应用",
+  "Store these changes without putting them into effect.": "保存这些更改，但先不生效。",
+  "Put these settings into effect.": "让这些设置生效。",
+  "Go back to what is currently live.": "回到当前生效的设置。",
+  "Could not save the draft: {{message}}": "草稿保存失败：{{message}}",
+  "Could not apply: {{message}}": "应用失败：{{message}}"
 }
