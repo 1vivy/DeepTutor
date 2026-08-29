@@ -51,8 +51,34 @@ export default function SettingsSectionGrid({
     (
       leaf: SettingsLeaf,
     ): { label: Lang; tone: "ok" | "bad" | "neutral"; dot: boolean } | null => {
-      if (!leaf.service) return null;
       if (catalogEditable !== true) return null;
+      // Two leaves in the Models grid configure the catalog without owning a
+      // service of their own; their chip counts what they hold instead.
+      if (leaf.key === "connections") {
+        const count = (catalog.connections ?? []).length;
+        return count > 0
+          ? {
+              tone: "neutral",
+              dot: true,
+              label: { zh: `${count} 个连接`, en: `${count} connected` },
+            }
+          : { tone: "neutral", dot: false, label: { zh: "未配置", en: "Not set" } };
+      }
+      if (leaf.key === "task-models") {
+        const count = Object.keys(catalog.services.llm.tasks ?? {}).length;
+        return count > 0
+          ? {
+              tone: "neutral",
+              dot: true,
+              label: { zh: `${count} 项已指定`, en: `${count} pinned` },
+            }
+          : {
+              tone: "neutral",
+              dot: false,
+              label: { zh: "跟随默认", en: "Inherited" },
+            };
+      }
+      if (!leaf.service) return null;
       const readiness = serviceReadiness(
         catalog,
         leaf.service,

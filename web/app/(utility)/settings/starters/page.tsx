@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -165,6 +166,19 @@ export default function StarterSettingsPage() {
             }
           />
         </SettingSection>
+      )}
+
+      {!loading && payload && (
+        <p className="mt-5 text-[11.5px] leading-relaxed text-[var(--muted-foreground)]">
+          {t("These lines are written by the active model unless you pin one.")}{" "}
+          <Link
+            href="/settings/task-models"
+            className="inline-flex items-center gap-1 text-[var(--foreground)] underline-offset-2 hover:underline"
+          >
+            {t("Task models")}
+            <ArrowUpRight className="h-3 w-3" />
+          </Link>
+        </p>
       )}
     </div>
   );

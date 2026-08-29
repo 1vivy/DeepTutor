@@ -10,7 +10,9 @@ import {
   Database,
   FileScan,
   Image as ImageIcon,
+  KeyRound,
   Library,
+  ListChecks,
   MessagesSquare,
   Mic,
   Network,
@@ -76,6 +78,17 @@ export interface SettingsCategory {
 }
 
 const MODEL_CHILDREN: SettingsLeaf[] = [
+  {
+    key: "connections",
+    href: "/settings/connections",
+    label: { zh: "连接", en: "Connections" },
+    blurb: {
+      zh: "一份凭据供给多个服务。",
+      en: "One credential, supplying several services.",
+    },
+    icon: KeyRound,
+    tile: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  },
   {
     key: "llm",
     href: "/settings/llm",
@@ -156,6 +169,17 @@ const MODEL_CHILDREN: SettingsLeaf[] = [
     icon: Clapperboard,
     tile: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
     service: "videogen",
+  },
+  {
+    key: "task-models",
+    href: "/settings/task-models",
+    label: { zh: "任务模型", en: "Task models" },
+    blurb: {
+      zh: "会话标题与起始建议使用的模型。",
+      en: "The model behind conversation titles and starting points.",
+    },
+    icon: ListChecks,
+    tile: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
   },
 ];
 

@@ -92,17 +92,75 @@ export type CatalogProfile = {
   extra_headers?: Record<string, string> | string;
   proxy?: string;
   max_results?: number;
+  /** Set when this profile's credentials come from a catalog connection. */
+  connection_id?: string;
   models: CatalogModel[];
 };
+
+/**
+ * LLM work the product starts on its own — naming a conversation, writing the
+ * three starting points under the home composer. Blank ids mean "inherit".
+ */
+export type LlmTaskKey = "session_title" | "starters";
+
+export const LLM_TASK_KEYS: LlmTaskKey[] = ["session_title", "starters"];
+
+export type LlmTaskSelection = { profile_id: string; model_id: string };
 
 export type CatalogService = {
   active_profile_id: string | null;
   active_model_id?: string | null;
   profiles: CatalogProfile[];
+  /** LLM only: per-task model pins. Absent entry = inherit. */
+  tasks?: Partial<Record<LlmTaskKey, LlmTaskSelection>>;
 };
+
+/**
+ * One vendor credential, typed once and mirrored into every service profile
+ * that links to it. The backend does the mirroring on save, so a linked
+ * profile still stores its own resolved credentials — linking changes where
+ * they were typed, not how they resolve.
+ */
+export type CatalogConnection = {
+  id: string;
+  name: string;
+  provider: string;
+  api_key: string;
+  /** Optional endpoint override; blank means each service's own default. */
+  base_url: string;
+  api_version: string;
+  extra_headers?: Record<string, string> | string;
+};
+
+/** Per-service prefills a connection's provider can supply, from the backend. */
+export type ConnectionTargetService = {
+  provider: string;
+  base_url: string;
+  default_model: string;
+  default_dim?: string;
+  default_voice?: string;
+};
+
+export type ConnectionTarget = {
+  provider: string;
+  label: string;
+  default_base_url: string;
+  services: Partial<Record<ServiceName, ConnectionTargetService>>;
+};
+
+/** Services a connection can supply, in the order the UI lists them. */
+export const CONNECTABLE_SERVICES: ServiceName[] = [
+  "llm",
+  "embedding",
+  "tts",
+  "stt",
+  "imagegen",
+  "videogen",
+];
 
 export type Catalog = {
   version: number;
+  connections?: CatalogConnection[];
   services: {
     llm: CatalogService;
     embedding: CatalogService;
@@ -214,6 +272,7 @@ type SettingsPayload = {
   ui: UiSettings;
   catalog?: Catalog;
   providers?: Record<ServiceName, ProviderOption[]>;
+  connection_targets?: ConnectionTarget[];
 };
 
 const DIAGNOSTICS_RESULTS_KEY = "deeptutor.settings.diagnosticsResults.v1";
@@ -306,6 +365,7 @@ function prefillsDefaultModel(service: ServiceName): boolean {
 export function defaultCatalog(): Catalog {
   return {
     version: 1,
+    connections: [],
     services: {
       llm: { active_profile_id: null, active_model_id: null, profiles: [] },
       embedding: {
@@ -498,6 +558,31 @@ type SettingsContextValue = {
   ) => void;
   updateContextWindowField: (value: string) => void;
   updateReasoningEffort: (value: string) => void;
+
+  // Connections + task models
+  connectionTargets: ConnectionTarget[];
+  connectionTarget: (provider: string) => ConnectionTarget | null;
+  addConnection: (input: {
+    provider: string;
+    name: string;
+    api_key: string;
+    base_url: string;
+  }) => CatalogConnection;
+  updateConnectionField: (
+    id: string,
+    field: keyof CatalogConnection,
+    value: string,
+  ) => void;
+  removeConnection: (id: string) => void;
+  unlinkProfile: (service: ServiceName, profileId: string) => void;
+  linkConnectionToServices: (
+    connection: Pick<
+      CatalogConnection,
+      "id" | "provider" | "name" | "api_key" | "base_url"
+    >,
+    requests: { service: ServiceName; model: string }[],
+  ) => { created: ServiceName[]; activated: ServiceName[] };
+  setLlmTask: (task: LlmTaskKey, selection: LlmTaskSelection | null) => void;
   llmContextDetection: LlmContextWindowDetection | null;
   applyDetectedContextWindow: () => void;
 
@@ -577,6 +662,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     imagegen: [],
     videogen: [],
   });
+  const [connectionTargets, setConnectionTargets] = useState<ConnectionTarget[]>(
+    [],
+  );
   const [toast, setToast] = useState("");
   const [saving, setSaving] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -655,6 +743,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       // them up, so no separate copy needs seeding here.
       syncLoadedCodeBlockSettingsToAppShell(payload.ui);
       if (payload.providers) setProviders(payload.providers);
+      if (payload.connection_targets)
+        setConnectionTargets(payload.connection_targets);
       settingsLoaded = true;
     } catch (err) {
       console.error("Failed to load settings:", err);
@@ -894,6 +984,206 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       });
     },
     [embeddingDefaultDim, language, mutateCatalog, providers],
+  );
+
+  // ─── Connections ─────────────────────────────────────────────────────────
+  //
+  // A connection holds the credential; linking creates one ordinary profile
+  // per service that points back at it. The backend mirrors the credential
+  // down on save, so everything downstream keeps reading self-contained
+  // profiles — nothing about how a profile resolves changes by being linked.
+
+  const connectionTarget = useCallback(
+    (provider: string) =>
+      connectionTargets.find((target) => target.provider === provider) ?? null,
+    [connectionTargets],
+  );
+
+  const addConnection = useCallback(
+    (input: {
+      provider: string;
+      name: string;
+      api_key: string;
+      base_url: string;
+    }) => {
+      const connection: CatalogConnection = {
+        id: `conn-${Date.now().toString(36)}${Math.random()
+          .toString(36)
+          .slice(2, 6)}`,
+        name: input.name.trim() || input.provider,
+        provider: input.provider,
+        api_key: input.api_key,
+        base_url: input.base_url.trim(),
+        api_version: "",
+        extra_headers: {},
+      };
+      mutateCatalog((next) => {
+        next.connections = [...(next.connections ?? []), { ...connection }];
+      });
+      // Returned whole because the caller links services in the same click,
+      // before the draft carrying it has been committed.
+      return connection;
+    },
+    [mutateCatalog],
+  );
+
+  const updateConnectionField = useCallback(
+    (id: string, field: keyof CatalogConnection, value: string) => {
+      mutateCatalog((next) => {
+        const connection = (next.connections ?? []).find(
+          (item) => item.id === id,
+        );
+        if (connection) (connection as Record<string, unknown>)[field] = value;
+      });
+    },
+    [mutateCatalog],
+  );
+
+  /**
+   * Drop a connection. Profiles it fed keep the credentials already mirrored
+   * into them — deleting the place a key was typed must not silently break
+   * six working services.
+   */
+  const removeConnection = useCallback(
+    (id: string) => {
+      mutateCatalog((next) => {
+        next.connections = (next.connections ?? []).filter(
+          (item) => item.id !== id,
+        );
+        for (const service of CONNECTABLE_SERVICES) {
+          for (const profile of next.services[service].profiles) {
+            if (profile.connection_id === id) delete profile.connection_id;
+          }
+        }
+      });
+    },
+    [mutateCatalog],
+  );
+
+  const unlinkProfile = useCallback(
+    (service: ServiceName, profileId: string) => {
+      mutateCatalog((next) => {
+        const profile = next.services[service].profiles.find(
+          (item) => item.id === profileId,
+        );
+        if (profile) delete profile.connection_id;
+      });
+    },
+    [mutateCatalog],
+  );
+
+  /**
+   * Create one linked profile per requested service.
+   *
+   * The plan — ids, which services get one, which of those become active — is
+   * computed here rather than inside the catalog mutator: a mutator is a React
+   * updater, so it runs during render (twice under StrictMode) and anything it
+   * reports back would be both late and doubled.
+   *
+   * A new profile becomes the active one only for services that had none. A
+   * user who already has a working LLM must not find their chat model swapped
+   * out because they pasted a key for image generation, so what did and did
+   * not become active is returned for the caller to say out loud.
+   */
+  const linkConnectionToServices = useCallback(
+    (
+      connection: Pick<
+        CatalogConnection,
+        "id" | "provider" | "name" | "api_key" | "base_url"
+      >,
+      requests: { service: ServiceName; model: string }[],
+    ) => {
+      const target = connectionTargets.find(
+        (item) => item.provider === connection.provider,
+      );
+      const stamp = `${Date.now().toString(36)}${Math.random()
+        .toString(36)
+        .slice(2, 6)}`;
+      const base = connection.base_url.trim().replace(/\/+$/, "");
+      const plan = requests.flatMap((request, index) => {
+        const spec = target?.services[request.service];
+        if (!spec) return [];
+        return [
+          {
+            service: request.service,
+            spec,
+            profileId: `${request.service}-profile-${stamp}${index}`,
+            modelId: `${request.service}-model-${stamp}${index}`,
+            model: request.model || spec.default_model || "",
+            // Mirrored from the connection on save; seeded here so the draft
+            // shows the same values the server will store.
+            baseUrl: base
+              ? request.service === "embedding"
+                ? `${base}/embeddings`
+                : base
+              : spec.base_url,
+            activate: draft.services[request.service].profiles.length === 0,
+          },
+        ];
+      });
+
+      mutateCatalog((next) => {
+        for (const item of plan) {
+          const bucket = next.services[item.service];
+          bucket.profiles.push({
+            id: item.profileId,
+            name: connection.name,
+            connection_id: connection.id,
+            binding: item.spec.provider,
+            base_url: item.baseUrl,
+            api_key: connection.api_key,
+            api_version: "",
+            extra_headers: {},
+            models: [
+              {
+                id: item.modelId,
+                name: item.model || item.spec.provider,
+                model: item.model,
+                ...(item.service === "embedding"
+                  ? {
+                      dimension: item.spec.default_dim || "",
+                      send_dimensions: true,
+                    }
+                  : {}),
+                ...(item.service === "tts"
+                  ? {
+                      voice: item.spec.default_voice || "",
+                      response_format: "mp3",
+                    }
+                  : {}),
+              },
+            ],
+          });
+          if (item.activate) {
+            bucket.active_profile_id = item.profileId;
+            bucket.active_model_id = item.modelId;
+          }
+        }
+      });
+
+      return {
+        created: plan.map((item) => item.service),
+        activated: plan
+          .filter((item) => item.activate)
+          .map((item) => item.service),
+      };
+    },
+    [connectionTargets, draft, mutateCatalog],
+  );
+
+  // ─── Task models ─────────────────────────────────────────────────────────
+
+  const setLlmTask = useCallback(
+    (task: LlmTaskKey, selection: LlmTaskSelection | null) => {
+      mutateCatalog((next) => {
+        const llm = next.services.llm;
+        const tasks = { ...(llm.tasks ?? {}) };
+        if (selection) tasks[task] = selection;
+        else delete tasks[task];
+        llm.tasks = tasks;
+      });
+    },
+    [mutateCatalog],
   );
 
   const removeActiveModel = useCallback(
@@ -1313,6 +1603,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       updateModelBoolField,
       updateContextWindowField,
       updateReasoningEffort,
+      connectionTargets,
+      connectionTarget,
+      addConnection,
+      updateConnectionField,
+      removeConnection,
+      unlinkProfile,
+      linkConnectionToServices,
+      setLlmTask,
       llmContextDetection,
       applyDetectedContextWindow,
       saving,
@@ -1353,6 +1651,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       llmContextDetection,
       logs,
       mutateCatalog,
+      connectionTargets,
+      connectionTarget,
+      addConnection,
+      updateConnectionField,
+      removeConnection,
+      unlinkProfile,
+      linkConnectionToServices,
+      setLlmTask,
       providers,
       registerExtension,
       removeActiveModel,

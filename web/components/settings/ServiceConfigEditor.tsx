@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
+  ArrowUpRight,
   CheckCircle2,
   ChevronDown,
   Eye,
@@ -1187,8 +1189,18 @@ function ProfileFields({
   ) => void;
 }) {
   const { t } = useTranslation();
-  const { providers, updateProfileField, updateModelField } = useSettings();
+  const { draft, providers, updateProfileField, updateModelField, unlinkProfile } =
+    useSettings();
   const [extraOpen, setExtraOpen] = useState(false);
+
+  // A profile fed by a connection shows its credentials but does not let them
+  // be edited here: the next save would mirror the connection's values back
+  // over anything typed, and a field that silently reverts is worse than one
+  // that says where it comes from.
+  const linkedConnection =
+    (draft.connections ?? []).find(
+      (item) => item.id === profile.connection_id,
+    ) ?? null;
 
   const providerValue =
     service === "search" ? profile.provider || "" : profile.binding || "";
@@ -1328,14 +1340,40 @@ function ProfileFields({
           <CodeBuddyAuthCard />
         </div>
       )}
+      {linkedConnection && (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border border-[var(--border)] bg-[var(--muted)]/25 px-3 py-2.5 sm:col-span-2">
+          <span className="text-[11.5px] text-[var(--muted-foreground)]">
+            {t("Credentials come from the {{name}} connection.", {
+              name: linkedConnection.name,
+            })}
+          </span>
+          <span className="flex items-center gap-3">
+            <Link
+              href="/settings/connections"
+              className="inline-flex items-center gap-1 text-[11.5px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+            >
+              {t("Edit connection")}
+              <ArrowUpRight className="h-3 w-3" />
+            </Link>
+            <button
+              type="button"
+              onClick={() => unlinkProfile(service, profile.id)}
+              className="text-[11.5px] text-[var(--muted-foreground)] underline-offset-2 transition-colors hover:text-[var(--foreground)] hover:underline"
+            >
+              {t("Use its own key")}
+            </button>
+          </span>
+        </div>
+      )}
       {fields.baseUrl && (
         <div className="sm:col-span-2">
           <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
             {service === "embedding" ? t("Endpoint URL") : t("Base URL")}
           </div>
           <input
-            className={inputClass}
+            className={`${inputClass} disabled:opacity-60`}
             value={profile.base_url}
+            disabled={Boolean(linkedConnection)}
             onChange={(e) =>
               updateProfileField(service, "base_url", e.target.value)
             }
@@ -1371,8 +1409,9 @@ function ProfileFields({
               type={showApiKey ? "text" : "password"}
               autoComplete="new-password"
               spellCheck={false}
-              className={`${inputClass} pr-10 font-mono`}
+              className={`${inputClass} pr-10 font-mono disabled:opacity-60`}
               value={profile.api_key}
+              disabled={Boolean(linkedConnection)}
               onChange={(e) =>
                 updateProfileField(service, "api_key", e.target.value)
               }

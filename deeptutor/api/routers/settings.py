@@ -580,6 +580,99 @@ def _provider_choices() -> dict[str, list[dict[str, Any]]]:
     }
 
 
+def _match_service_provider(
+    provider: str,
+    table: dict[str, Any],
+) -> tuple[str, Any] | None:
+    """Find *provider*'s entry in one service's provider table.
+
+    Vendors are not named identically across tables — the LLM registry calls
+    Alibaba's endpoint ``dashscope`` while the embedding table calls it
+    ``aliyun`` — so an exact key miss falls back to the spec's own keywords
+    rather than to a second hand-maintained name map.
+    """
+    if provider in table:
+        return provider, table[provider]
+    for name, spec in table.items():
+        if provider in getattr(spec, "keywords", ()):
+            return name, spec
+    return None
+
+
+def _connection_targets() -> list[dict[str, Any]]:
+    """Which services one vendor credential can configure, and with what.
+
+    The connection UI needs to answer "if I paste an OpenRouter key here, what
+    does it get me?" — so this joins the six per-service provider tables on the
+    vendor and reports, per service, the provider value and the prefills a
+    profile created from that connection should start with. Derived rather than
+    duplicated: adding a vendor to a service table is enough to make it
+    connectable, and the web app never keeps a second copy of the tables.
+    """
+    from deeptutor.services.config.provider_runtime import (
+        EMBEDDING_PROVIDERS,
+        IMAGEGEN_PROVIDERS,
+        STT_PROVIDERS,
+        TTS_PROVIDERS,
+        VIDEOGEN_PROVIDERS,
+    )
+    from deeptutor.services.provider_registry import PROVIDERS
+
+    service_tables: dict[str, dict[str, Any]] = {
+        "embedding": {k: v for k, v in EMBEDDING_PROVIDERS.items() if k != "custom_openai_sdk"},
+        "tts": TTS_PROVIDERS,
+        "stt": STT_PROVIDERS,
+        "imagegen": IMAGEGEN_PROVIDERS,
+        "videogen": VIDEOGEN_PROVIDERS,
+    }
+
+    targets: list[dict[str, Any]] = []
+    for spec in PROVIDERS:
+        # OAuth vendors sign in through their own flow; there is no key to
+        # share, so offering them here would promise something untrue.
+        if spec.is_oauth:
+            continue
+        services: dict[str, dict[str, Any]] = {
+            "llm": {
+                "provider": spec.name,
+                "base_url": spec.default_api_base,
+                "default_model": "",
+            }
+        }
+        for service_name, table in service_tables.items():
+            match = _match_service_provider(spec.name, table)
+            if match is None:
+                continue
+            name, service_spec = match
+            entry: dict[str, Any] = {
+                "provider": name,
+                "base_url": service_spec.default_api_base,
+                "default_model": service_spec.default_model,
+            }
+            if service_name == "embedding":
+                entry["default_dim"] = (
+                    str(service_spec.default_dim) if service_spec.default_dim else ""
+                )
+            if service_name == "tts":
+                entry["default_voice"] = service_spec.default_voice
+            services[service_name] = entry
+        targets.append(
+            {
+                "provider": spec.name,
+                "label": (
+                    "Custom (OpenAI API)"
+                    if spec.name == "custom"
+                    else "Custom (Anthropic API)"
+                    if spec.name == "custom_anthropic"
+                    else spec.label
+                ),
+                "default_base_url": spec.default_api_base,
+                "services": services,
+            }
+        )
+    return sorted(targets, key=lambda item: str(item["label"]).lower())
+
+
 def _api_base_source(system: dict[str, Any]) -> str:
     if system.get("next_public_api_base_external"):
         return "next_public_api_base_external"
@@ -643,6 +736,7 @@ async def get_settings():
         "ui": load_ui_settings(),
         "catalog": redact_catalog_secrets(get_model_catalog_service().load()),
         "providers": _provider_choices(),
+        "connection_targets": _connection_targets(),
     }
 
 

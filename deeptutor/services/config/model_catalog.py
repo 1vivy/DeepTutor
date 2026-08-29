@@ -12,7 +12,10 @@ from uuid import uuid4
 
 from deeptutor.services.path_service import get_path_service
 
-from .embedding_endpoint import normalize_embedding_endpoint_for_display
+from .embedding_endpoint import (
+    is_gemini_native_embedding_endpoint,
+    normalize_embedding_endpoint_for_display,
+)
 
 # Fallback only — frozen at admin scope at import time. Production code should
 # enter through ``get_model_catalog_service()`` so the path is resolved from the
@@ -53,6 +56,9 @@ def redact_catalog_secrets(catalog: dict[str, Any]) -> dict[str, Any]:
     """Return an API-safe catalog without mutating stored configuration."""
 
     redacted = deepcopy(catalog)
+    for connection in redacted.get("connections", []) or []:
+        if isinstance(connection, dict):
+            _redact_profile(connection)
     for service in redacted.get("services", {}).values():
         if not isinstance(service, dict):
             continue
@@ -89,6 +95,17 @@ def restore_catalog_secrets(
     """Replace secret placeholders with stored values from the same profile."""
 
     restored = deepcopy(proposed_catalog)
+    current_connections = {
+        connection.get("id"): connection
+        for connection in current_catalog.get("connections", []) or []
+        if isinstance(connection, dict) and connection.get("id")
+    }
+    for connection in restored.get("connections", []) or []:
+        if not isinstance(connection, dict):
+            continue
+        current_connection = current_connections.get(connection.get("id"))
+        if current_connection is not None:
+            _restore_profile_secrets(connection, current_connection)
     current_services = current_catalog.get("services", {})
     for service_name, proposed_service in restored.get("services", {}).items():
         if not isinstance(proposed_service, dict):
@@ -123,9 +140,37 @@ def _search_shell() -> dict[str, Any]:
     }
 
 
+# LLM work the product does on the user's behalf rather than in a turn they
+# started: naming a conversation, proposing the three lines under the home
+# composer. Both are short, frequent and latency-visible, so they are worth
+# pointing at a small fast model — but only when the user says so. An entry
+# missing (or with blank ids) means "inherit whatever the chat is using".
+LLM_TASKS: tuple[str, ...] = ("session_title", "starters")
+
+
+# Services whose profiles a connection can supply credentials to. ``search``
+# is excluded: its providers are a different namespace (Brave, Tavily, ...)
+# that happens to overlap by name with a handful of model vendors only.
+CONNECTABLE_SERVICES: tuple[str, ...] = ("llm", "embedding", "tts", "stt", "imagegen", "videogen")
+
+# Where a connection's API base has to grow a path before a service's adapter
+# can post to it. Voice/generation adapters append their own path to an API
+# base; embedding adapters use the configured URL verbatim.
+_CONNECTION_BASE_SUFFIX: dict[str, str] = {"embedding": "/embeddings"}
+
+# Credential fields a linked profile inherits from its connection. base_url is
+# handled separately because it is per-service (see _CONNECTION_BASE_SUFFIX).
+_CONNECTION_CREDENTIAL_FIELDS: tuple[str, ...] = ("api_key", "api_version", "extra_headers")
+
+
+def _connection_base_url_for(service_name: str, connection_base: str) -> str:
+    return connection_base.rstrip("/") + _CONNECTION_BASE_SUFFIX.get(service_name, "")
+
+
 def _default_catalog() -> dict[str, Any]:
     return {
         "version": 1,
+        "connections": [],
         "services": {
             "llm": _service_shell(),
             "embedding": _service_shell(),
@@ -212,9 +257,111 @@ class ModelCatalogService:
         current = self.save(catalog or self.load())
         return {"catalog_path": str(self.path), "services": list(current.get("services", {}))}
 
+    def _normalize_llm_tasks(self, catalog: dict[str, Any]) -> bool:
+        """Keep task-model pointers honest: unknown targets fall back to inherit."""
+        service = catalog.get("services", {}).get("llm", {})
+        if not isinstance(service, dict):
+            return False
+        if "tasks" not in service:
+            return False
+        raw = service["tasks"]
+        if not isinstance(raw, dict):
+            service["tasks"] = {}
+            return True
+        available = {
+            str(profile.get("id")): {
+                str(model.get("id")) for model in profile.get("models", []) or []
+            }
+            for profile in service.get("profiles", []) or []
+            if isinstance(profile, dict)
+        }
+        changed = False
+        for task in list(raw):
+            if task not in LLM_TASKS:
+                raw.pop(task)
+                changed = True
+                continue
+            entry = raw[task]
+            if not isinstance(entry, dict):
+                raw.pop(task)
+                changed = True
+                continue
+            profile_id = str(entry.get("profile_id") or "")
+            model_id = str(entry.get("model_id") or "")
+            # A profile or model deleted out from under a task pointer must not
+            # strand it: an unresolvable task silently reverts to inheriting.
+            if not profile_id or model_id not in available.get(profile_id, set()):
+                raw.pop(task)
+                changed = True
+        return changed
+
+    def _normalize_connections(self, catalog: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        """Fill in connection defaults and return them keyed by id."""
+        raw = catalog.get("connections")
+        if not isinstance(raw, list):
+            raw = []
+            catalog["connections"] = raw
+        connections: dict[str, dict[str, Any]] = {}
+        for connection in raw:
+            if not isinstance(connection, dict):
+                continue
+            connection.setdefault("id", f"conn-{uuid4().hex[:8]}")
+            connection.setdefault("provider", "")
+            connection.setdefault("name", connection.get("provider") or "Untitled Connection")
+            connection.setdefault("api_key", "")
+            connection.setdefault("base_url", "")
+            connection.setdefault("api_version", "")
+            connection.setdefault("extra_headers", {})
+            connections[str(connection["id"])] = connection
+        return connections
+
+    def _apply_connection(
+        self,
+        profile: dict[str, Any],
+        service_name: str,
+        connections: dict[str, dict[str, Any]],
+    ) -> bool:
+        """Push a linked connection's credentials down into *profile*.
+
+        Mirroring on write rather than resolving on read is deliberate: every
+        consumer of the catalog (runtime resolvers, the test runner, personal
+        model merging) keeps reading self-contained profiles exactly as it did
+        before connections existed, so linking cannot change how a profile
+        resolves — only where its credentials were typed.
+        """
+        connection_id = str(profile.get("connection_id") or "")
+        if not connection_id:
+            return False
+        connection = connections.get(connection_id)
+        if connection is None:
+            # The connection was deleted: unlink rather than wipe, so the
+            # profile keeps working with the credentials it already holds.
+            profile.pop("connection_id", None)
+            return True
+        changed = False
+        for field in _CONNECTION_CREDENTIAL_FIELDS:
+            value = deepcopy(connection.get(field))
+            if profile.get(field) != value:
+                profile[field] = value
+                changed = True
+        base_url = str(connection.get("base_url") or "").strip()
+        if base_url:
+            # Gemini's native embedding endpoint carries the model in its path,
+            # so it is not derivable from an API base — leave those alone.
+            if service_name == "embedding" and is_gemini_native_embedding_endpoint(
+                profile.get("base_url")
+            ):
+                return changed
+            resolved = _connection_base_url_for(service_name, base_url)
+            if profile.get("base_url") != resolved:
+                profile["base_url"] = resolved
+                changed = True
+        return changed
+
     def _normalize(self, catalog: dict[str, Any]) -> bool:
         services = catalog.setdefault("services", {})
         changed = False
+        connections = self._normalize_connections(catalog)
         services.setdefault("llm", _service_shell())
         services.setdefault("embedding", _service_shell())
         services.setdefault("search", _search_shell())
@@ -227,6 +374,10 @@ class ModelCatalogService:
             profiles = service.setdefault("profiles", [])
             for profile in profiles:
                 profile.setdefault("id", f"{service_name}-profile-{uuid4().hex[:8]}")
+                if service_name in CONNECTABLE_SERVICES and self._apply_connection(
+                    profile, service_name, connections
+                ):
+                    changed = True
                 profile.setdefault("name", "Untitled Profile")
                 profile.setdefault("api_version", "")
                 profile.setdefault("base_url", "")
@@ -295,6 +446,8 @@ class ModelCatalogService:
                 if models and service.get("active_model_id") not in model_ids:
                     service["active_model_id"] = models[0]["id"]
                     changed = True
+        if self._normalize_llm_tasks(catalog):
+            changed = True
         return changed
 
     def get_active_profile(
@@ -340,6 +493,8 @@ def get_model_catalog_service() -> ModelCatalogService:
 __all__ = [
     "CATALOG_PATH",
     "CATALOG_SECRET_MASK",
+    "CONNECTABLE_SERVICES",
+    "LLM_TASKS",
     "ModelCatalogService",
     "get_model_catalog_service",
     "redact_catalog_secrets",
