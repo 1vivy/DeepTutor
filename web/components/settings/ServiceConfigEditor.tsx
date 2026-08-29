@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowUpRight,
+  ArrowLeft,
   CheckCircle2,
   ChevronDown,
   Eye,
@@ -108,6 +109,56 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
     activeProviderOption,
     activeProfile,
   );
+
+  // Arriving from Settings > Connections with ?profile=<id>: open on the
+  // profile that link was aimed at instead of whichever one happens to be
+  // selected. Selecting a profile in this editor is also what puts it in use,
+  // so the switch is announced with a one-click way back rather than done
+  // quietly — the click asked to see a provider, not to adopt it.
+  //
+  // The query is read from `window.location` rather than `useSearchParams()`
+  // so no settings page needs a Suspense boundary for something that only
+  // exists after hydration.
+  const deepLinkHandled = useRef(false);
+  const [deepLink, setDeepLink] = useState<{ from: string; to: string } | null>(
+    null,
+  );
+  useEffect(() => {
+    if (deepLinkHandled.current) return;
+    const requested = new URLSearchParams(window.location.search).get("profile");
+    if (!requested) {
+      deepLinkHandled.current = true;
+      return;
+    }
+    const bucket = draft.services[service];
+    const target = bucket.profiles.find((item) => item.id === requested);
+    // The catalog may still be loading; leave the flag down and retry.
+    if (!target) return;
+    deepLinkHandled.current = true;
+    // Drop the query so a refresh does not re-apply a switch already undone.
+    window.history.replaceState(null, "", window.location.pathname);
+    const previous = bucket.active_profile_id;
+    if (previous === requested) return;
+    setDeepLink({ from: previous ?? "", to: requested });
+    mutateCatalog((next) => {
+      next.services[service].active_profile_id = requested;
+      if (service !== "search") {
+        next.services[service].active_model_id = target.models[0]?.id ?? null;
+      }
+    });
+  }, [draft, service, mutateCatalog]);
+
+  const deepLinkFromProfile = deepLink
+    ? (draft.services[service].profiles.find(
+        (item) => item.id === deepLink.from,
+      ) ?? null)
+    : null;
+  // Only while the deep-linked profile is still the selected one — once the
+  // user picks something else the offer to go back would name the wrong thing.
+  const showDeepLinkNotice =
+    deepLink !== null &&
+    deepLinkFromProfile !== null &&
+    draft.services[service].active_profile_id === deepLink.to;
 
   const [showApiKey, setShowApiKey] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
@@ -323,6 +374,34 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
 
   return (
     <div data-tour={`tour-${service}`} className="space-y-5">
+      {showDeepLinkNotice && deepLink && deepLinkFromProfile && (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-[var(--border)] bg-[var(--muted)]/25 px-4 py-2.5">
+          <span className="text-[11.5px] leading-relaxed text-[var(--muted-foreground)]">
+            {t(
+              "Opened from Connections. Applying will also make this the {{service}} profile in use.",
+              { service: t(SERVICE_LABEL[service]) },
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              const back = deepLinkFromProfile;
+              mutateCatalog((next) => {
+                next.services[service].active_profile_id = back.id;
+                if (service !== "search") {
+                  next.services[service].active_model_id =
+                    back.models[0]?.id ?? null;
+                }
+              });
+              setDeepLink(null);
+            }}
+            className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 text-[11.5px] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
+          >
+            <ArrowLeft className="h-3 w-3" />
+            {t("Back to {{name}}", { name: deepLinkFromProfile.name })}
+          </button>
+        </div>
+      )}
       {activeProfile ? (
         <div className="grid grid-cols-[200px_minmax(0,1fr)] items-start gap-5">
           {/* ── Profile list (sticky so it stays put while the editor scrolls) ── */}

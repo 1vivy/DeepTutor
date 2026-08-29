@@ -102,6 +102,17 @@ const MODEL_CHILDREN: SettingsLeaf[] = [
     service: "llm",
   },
   {
+    key: "task-models",
+    href: "/settings/task-models",
+    label: { zh: "任务模型", en: "Task models" },
+    blurb: {
+      zh: "会话标题与起始建议使用的模型。",
+      en: "The model behind conversation titles and starting points.",
+    },
+    icon: ListChecks,
+    tile: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
+  },
+  {
     key: "embedding",
     href: "/settings/embedding",
     label: { zh: "嵌入模型", en: "Embedding" },
@@ -169,17 +180,6 @@ const MODEL_CHILDREN: SettingsLeaf[] = [
     icon: Clapperboard,
     tile: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
     service: "videogen",
-  },
-  {
-    key: "task-models",
-    href: "/settings/task-models",
-    label: { zh: "任务模型", en: "Task models" },
-    blurb: {
-      zh: "会话标题与起始建议使用的模型。",
-      en: "The model behind conversation titles and starting points.",
-    },
-    icon: ListChecks,
-    tile: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
   },
 ];
 

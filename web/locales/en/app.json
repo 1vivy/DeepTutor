@@ -3602,5 +3602,7 @@
   "Duration / Resolution": "Duration / Resolution",
   "seconds": "seconds",
   "Configured {{count}} services and made them active.": "Configured {{count}} services and made them active.",
-  "Configured {{count}} services — {{kept}} kept your existing choice.": "Configured {{count}} services — {{kept}} kept your existing choice."
+  "Configured {{count}} services — {{kept}} kept your existing choice.": "Configured {{count}} services — {{kept}} kept your existing choice.",
+  "Opened from Connections. Applying will also make this the {{service}} profile in use.": "Opened from Connections. Applying will also make this the {{service}} profile in use.",
+  "Back to {{name}}": "Back to {{name}}"
 }

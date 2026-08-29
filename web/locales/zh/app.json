@@ -3602,5 +3602,7 @@
   "Duration / Resolution": "时长 / 分辨率",
   "seconds": "秒",
   "Configured {{count}} services and made them active.": "已配置 {{count}} 个服务并设为当前使用。",
-  "Configured {{count}} services — {{kept}} kept your existing choice.": "已配置 {{count}} 个服务；{{kept}} 保留了你原有的选择。"
+  "Configured {{count}} services — {{kept}} kept your existing choice.": "已配置 {{count}} 个服务；{{kept}} 保留了你原有的选择。",
+  "Opened from Connections. Applying will also make this the {{service}} profile in use.": "从「连接」跳转而来。应用后，{{service}} 将改用这个配置。",
+  "Back to {{name}}": "改回 {{name}}"
 }

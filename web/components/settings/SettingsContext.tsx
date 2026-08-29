@@ -781,8 +781,18 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   // settings sub-pages share this state via the layout-level provider.
   // Code-block switch hydration lives in AppShellContext (the single source),
   // so no separate post-mount re-read is needed here.
+  //
+  // Guarded because `loadSettings` closes over `t`, whose identity changes
+  // once i18n resolves: without this the load ran a second time a moment
+  // after mount and re-cloned `draft` from the server, silently discarding
+  // anything edited in between. `reloadSettings` is the deliberate way to
+  // re-read.
+  const loadedOnce = useRef(false);
   useEffect(() => {
-    loadSettings();
+    if (!loadedOnce.current) {
+      loadedOnce.current = true;
+      loadSettings();
+    }
     return () => {
       if (eventSourceRef.current) eventSourceRef.current.close();
     };

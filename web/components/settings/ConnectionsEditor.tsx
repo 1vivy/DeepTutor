@@ -60,6 +60,14 @@ const SERVICE_HREF: Record<ServiceName, string> = {
   videogen: "/settings/video",
 };
 
+type ServiceLink = { service: ServiceName; profileId: string };
+
+/** Where a connection's service chip points: that service's page, opened on
+ *  the profile this connection feeds. */
+function serviceHref(link: ServiceLink): string {
+  return `${SERVICE_HREF[link.service]}?profile=${encodeURIComponent(link.profileId)}`;
+}
+
 function maskedKey(value: string): string {
   const key = (value || "").trim();
   if (!key) return "";
@@ -92,14 +100,19 @@ export function ConnectionsEditor() {
 
   const connections = draft.connections ?? [];
 
-  // Which profiles each connection currently feeds, by service.
+  // Which profiles each connection currently feeds. The profile id rides
+  // along so a service link can land on that exact profile — a service with
+  // several providers configured would otherwise open on whichever one
+  // happens to be selected, which is not where the click was aimed.
   const linkage = useMemo(() => {
-    const map = new Map<string, ServiceName[]>();
+    const map = new Map<string, ServiceLink[]>();
     for (const service of CONNECTABLE_SERVICES) {
       for (const profile of draft.services[service].profiles) {
         if (!profile.connection_id) continue;
         const list = map.get(profile.connection_id) ?? [];
-        if (!list.includes(service)) list.push(service);
+        if (!list.some((item) => item.service === service)) {
+          list.push({ service, profileId: profile.id });
+        }
         map.set(profile.connection_id, list);
       }
     }
@@ -285,7 +298,7 @@ function ConnectionRow({
 }: {
   connection: CatalogConnection;
   target: ConnectionTarget | null;
-  linked: ServiceName[];
+  linked: ServiceLink[];
   first: boolean;
   editing: boolean;
   confirmingDelete: boolean;
@@ -300,7 +313,9 @@ function ConnectionRow({
   const [showKey, setShowKey] = useState(false);
 
   const available = CONNECTABLE_SERVICES.filter(
-    (service) => target?.services[service] && !linked.includes(service),
+    (service) =>
+      target?.services[service] &&
+      !linked.some((item) => item.service === service),
   );
 
   return (
@@ -320,9 +335,22 @@ function ConnectionRow({
               {maskedKey(connection.api_key) || t("No key")}
             </span>
           </div>
-          <div className="mt-1 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+          {/* Each service it supplies is a way in, not just a label: the link
+              opens that service on this connection's own profile. */}
+          <div className="mt-1 flex flex-wrap items-center text-[11px] leading-relaxed text-[var(--muted-foreground)]">
             {linked.length > 0
-              ? linked.map(label).join(" · ")
+              ? linked.map((link, index) => (
+                  <span key={link.service} className="inline-flex items-center">
+                    {index > 0 && <span className="px-1.5 opacity-50">·</span>}
+                    <Link
+                      href={serviceHref(link)}
+                      className="inline-flex items-center gap-0.5 underline-offset-2 transition-colors hover:text-[var(--foreground)] hover:underline"
+                    >
+                      {label(link.service)}
+                      <ArrowUpRight className="h-2.5 w-2.5" />
+                    </Link>
+                  </span>
+                ))
               : t("Not supplying any service yet")}
           </div>
           {available.length > 0 && (
@@ -446,20 +474,6 @@ function ConnectionRow({
               )}
             </p>
           </div>
-          {linked.length > 0 && (
-            <div className="flex flex-wrap gap-x-3 gap-y-1 sm:col-span-2">
-              {linked.map((service) => (
-                <Link
-                  key={service}
-                  href={SERVICE_HREF[service]}
-                  className="inline-flex items-center gap-1 text-[11px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-                >
-                  {label(service)}
-                  <ArrowUpRight className="h-3 w-3" />
-                </Link>
-              ))}
-            </div>
-          )}
         </div>
       )}
     </div>
