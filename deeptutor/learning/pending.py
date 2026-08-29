@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from deeptutor.learning.models import PendingQuestion
 
+from deeptutor.utils.text_display import decode_escaped_unicode_for_display
+
 
 OPTION_PREFIX_RE = re.compile(r"^\s*([A-Z])\s*[.:：、)）-]\s*(.+)$", re.IGNORECASE | re.DOTALL)
 
@@ -270,9 +272,16 @@ def public_pending_question(pending: PendingQuestion) -> PublicPendingQuestion:
     )
     return PublicPendingQuestion(
         question_id=pending.question_id,
-        prompt=pending.prompt,
+        prompt=decode_escaped_unicode_for_display(pending.prompt),
         question_type=pending.question_type,
-        options=options,
+        options=tuple(
+            PublicPendingOption(
+                id=option.id,
+                label=decode_escaped_unicode_for_display(option.label),
+                body=decode_escaped_unicode_for_display(option.body),
+            )
+            for option in options
+        ),
     )
 
 

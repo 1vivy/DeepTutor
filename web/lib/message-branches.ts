@@ -166,6 +166,23 @@ export function persistedBranchSelections(
   return result;
 }
 
+/** Select a freshly-created child at a branch point.
+ *
+ * Sending a message can create a sibling even when the parent previously had
+ * only one visible child (notably message edits). Persisting that choice with
+ * the optimistic id also lets reconcileTurnIds remap it to the server id.
+ */
+export function selectChildBranch(
+  selectedBranches: Record<string, number>,
+  parentId: number | null,
+  childId: number,
+): Record<string, number> {
+  return {
+    ...selectedBranches,
+    [parentKey(parentId)]: childId,
+  };
+}
+
 /**
  * Find the most recent child id under ``parentId`` from a flat message
  * list. Used after an edit to auto-select the freshly persisted sibling.
