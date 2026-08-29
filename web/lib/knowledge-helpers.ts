@@ -311,7 +311,7 @@ export const resolveKnowledgeIndexFailure = (
     retryable: progress?.retryable ?? storedProgress?.retryable,
     requiresModelChange: requiresEmbeddingChange || requiresCompletionChange,
     settingsHref: requiresEmbeddingChange
-      ? "/settings/embedding"
+      ? "/settings/models#embedding"
       : requiresCompletionChange
         ? "/settings/models"
         : undefined,

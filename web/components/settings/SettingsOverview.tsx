@@ -82,7 +82,7 @@ export default function SettingsOverview() {
         draftState === "saved"
           ? t("A saved draft is waiting to be applied.")
           : t("There are changes you have not saved anywhere yet."),
-      href: "/settings/llm",
+      href: "/settings/models#llm",
       label: t("Review"),
     });
   }

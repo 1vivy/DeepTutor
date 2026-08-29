@@ -1354,7 +1354,7 @@ function ProfileFields({
           </span>
           <span className="flex items-center gap-3">
             <Link
-              href="/settings/connections"
+              href="/settings/models#connections"
               className="inline-flex items-center gap-1 text-[11.5px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
             >
               {t("Edit connection")}

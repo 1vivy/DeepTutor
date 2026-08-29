@@ -180,7 +180,7 @@ export default function StarterSettingsPage() {
         <p className="mt-5 text-[11.5px] leading-relaxed text-[var(--muted-foreground)]">
           {t("These lines are written by the active model unless you pin one.")}{" "}
           <Link
-            href="/settings/task-models"
+            href="/settings/models#task-models"
             className="inline-flex items-center gap-1 text-[var(--foreground)] underline-offset-2 hover:underline"
           >
             {t("Task models")}

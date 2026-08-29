@@ -43,7 +43,10 @@ export default function SettingsMain({
             outer flex column, so the left column stays put while the right side
             scrolls. ``min-h-0`` is required for the flex child to constrain to
             remaining space — without it, ``overflow-y-auto`` would never clip. */}
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]">
+        <div
+          data-settings-scroll
+          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]"
+        >
           <div className="w-full max-w-3xl px-8 pb-16 pt-2">{children}</div>
         </div>
       </div>

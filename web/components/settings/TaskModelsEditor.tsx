@@ -116,7 +116,7 @@ export function TaskModelsEditor() {
               <span>{t("No language model is configured yet.")}</span>
             )}
             <Link
-              href="/settings/llm"
+              href="/settings/models#llm"
               className="inline-flex items-center gap-0.5 underline-offset-2 hover:text-[var(--foreground)] hover:underline"
             >
               {t("LLM")}

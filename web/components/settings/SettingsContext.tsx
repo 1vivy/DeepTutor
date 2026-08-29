@@ -654,6 +654,12 @@ type SettingsContextValue = {
   advanceTour: () => void;
   goBackTour: () => void;
   skipTour: () => void;
+
+  // Which leaf is on screen inside a merged category page (models / chat /
+  // agents). Null outside of one — the nav falls back to plain pathname
+  // matching for every other route.
+  activeSection: string | null;
+  setActiveSection: (key: string | null) => void;
 };
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
@@ -726,6 +732,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [embeddingCapabilities, setEmbeddingCapabilities] =
     useState<EmbeddingCapabilities | null>(null);
   const [tourStepIndex, setTourStepIndex] = useState(-1);
+  const [activeSection, setActiveSection] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   // Extensions register their latest dirty/save on each render. Keep the
   // derived dirty state explicit instead of using an indirect version counter.
@@ -1890,8 +1897,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       advanceTour,
       goBackTour,
       skipTour,
+      activeSection,
+      setActiveSection,
     }),
     [
+      activeSection,
       addModel,
       addProfile,
       applyDetectedContextWindow,
@@ -1931,6 +1941,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       runDetailedTest,
       saveDraft,
       saving,
+      setActiveSection,
       settingsError,
       loadSettings,
       settingsLoading,

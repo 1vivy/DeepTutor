@@ -52,14 +52,14 @@ const SERVICE_LABEL: Record<ServiceName, { en: string; zh: string }> = {
 };
 
 const SERVICE_HREF: Record<ServiceName, string> = {
-  llm: "/settings/llm",
-  task: "/settings/task-models",
-  embedding: "/settings/embedding",
-  search: "/settings/search",
-  tts: "/settings/tts",
-  stt: "/settings/stt",
-  imagegen: "/settings/image",
-  videogen: "/settings/video",
+  llm: "/settings/models#llm",
+  task: "/settings/models#task-models",
+  embedding: "/settings/models#embedding",
+  search: "/settings/models#search",
+  tts: "/settings/models#tts",
+  stt: "/settings/models#stt",
+  imagegen: "/settings/models#imagegen",
+  videogen: "/settings/models#videogen",
 };
 
 type ServiceLink = { service: ServiceName; profileId: string };

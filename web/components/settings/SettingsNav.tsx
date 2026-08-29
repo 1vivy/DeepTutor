@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ChevronDown,
+  ChevronRight,
   LayoutGrid,
   Search,
   X,
@@ -20,6 +21,41 @@ import {
   type SettingsLeaf,
 } from "@/lib/settings-nav";
 import { serviceReadiness, useSettings } from "./SettingsContext";
+
+/**
+ * Same-page anchor vs. a real route change. A merged category's children
+ * point at `${categoryHref}#${key}` — if we are already on that category
+ * page, clicking one is a scroll, not a navigation; History's own
+ * `pushState` is enough and `router.push` would be a same-URL no-op anyway.
+ * Coming from anywhere else, it is a normal route change, and the category
+ * page's own mount effect (`CategoryScroll`) scrolls to the hash once it
+ * lands.
+ */
+function goToLeaf(
+  href: string,
+  pathname: string,
+  router: ReturnType<typeof useRouter>,
+  setActiveSection: (key: string | null) => void,
+): boolean {
+  const hashIndex = href.indexOf("#");
+  if (hashIndex === -1) {
+    router.push(href);
+    return false;
+  }
+  const base = href.slice(0, hashIndex);
+  const key = href.slice(hashIndex + 1);
+  if (base !== pathname) {
+    router.push(href);
+    return false;
+  }
+  document.getElementById(key)?.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
+  window.history.replaceState(null, "", href);
+  setActiveSection(key);
+  return true;
+}
 
 /**
  * The settings navigator — one persistent column, every page one click away.
@@ -41,6 +77,8 @@ type Row = { leaf: SettingsLeaf; category: Lang };
 type Group = {
   key: string;
   label: Lang;
+  href: string;
+  icon: LucideIcon;
   rows: Row[];
   standalone: boolean;
 };
@@ -56,6 +94,8 @@ function useGroups(hideAdminOnly: boolean): Group[] {
       SETTINGS_CATEGORIES.map((category) => ({
         key: category.key,
         label: category.label,
+        href: category.href,
+        icon: category.icon,
         rows: (
           category.children ?? [
             {
@@ -106,13 +146,17 @@ export function SettingsNavCompact() {
   const zh = i18n.language?.toLowerCase().startsWith("zh");
   const tr = (value: Lang) => (zh ? value.zh : value.en);
   const groups = useGroups(useHideAdminOnly());
+  const { activeSection, setActiveSection } = useSettings();
+  const currentValue = activeSection ? `${pathname}#${activeSection}` : pathname;
 
   return (
     <div className="relative md:hidden">
       <select
-        value={pathname}
+        value={currentValue}
         aria-label={t("Settings sections")}
-        onChange={(event) => router.push(event.target.value)}
+        onChange={(event) =>
+          goToLeaf(event.target.value, pathname, router, setActiveSection)
+        }
         className="w-full appearance-none rounded-lg border border-[var(--border)] bg-[var(--background)] py-2 pl-3 pr-8 text-[13px] font-medium text-[var(--foreground)] outline-none"
       >
         <option value={SETTINGS_HUB_HREF}>{t("Overview")}</option>
@@ -139,10 +183,12 @@ export function SettingsNavCompact() {
 
 export default function SettingsNav() {
   const pathname = usePathname() ?? "";
+  const router = useRouter();
   const { t, i18n } = useTranslation();
   const zh = i18n.language?.toLowerCase().startsWith("zh");
   const tr = useCallback((value: Lang) => (zh ? value.zh : value.en), [zh]);
-  const { catalog, catalogEditable, diagnosticsResults } = useSettings();
+  const { catalog, catalogEditable, diagnosticsResults, activeSection, setActiveSection } =
+    useSettings();
 
   const [query, setQuery] = useState("");
   const groups = useGroups(useHideAdminOnly());
@@ -170,6 +216,19 @@ export default function SettingsNav() {
       catalogEditable === true &&
       serviceReadiness(catalog, leaf.service, diagnosticsResults) === "failed",
     [catalog, catalogEditable, diagnosticsResults],
+  );
+
+  // A category page opens with its own children already visible, and a
+  // search match forces every matching group open regardless of state —
+  // otherwise the row you searched for could be hidden behind a collapse.
+  const [manualExpanded, setManualExpanded] = useState<Record<string, boolean>>(
+    {},
+  );
+  const isExpanded = useCallback(
+    (group: Group) =>
+      manualExpanded[group.key] ??
+      (pathname === group.href || (needle !== "" && group.rows.length > 0)),
+    [manualExpanded, pathname, needle],
   );
 
   return (
@@ -212,30 +271,120 @@ export default function SettingsNav() {
         </p>
       )}
 
-      {visible.map((group) => (
-        <div key={group.key} className="mt-3.5 first:mt-3">
-          {!group.standalone && (
-            <div className="px-2.5 pb-1 text-[11.5px] font-normal text-[var(--muted-foreground)]/60">
-              {tr(group.label)}
-            </div>
-          )}
-          <div className="space-y-px">
-            {group.rows.map(({ leaf }, index) => (
-              <Row
-                key={leaf.key}
-                href={leaf.href}
-                label={tr(leaf.label)}
-                icon={leaf.icon}
-                active={pathname === leaf.href}
-                failing={failing(leaf)}
-                hint={tr(leaf.blurb)}
-                tourId={index === 0 ? `tour-nav-${group.key}` : undefined}
-              />
-            ))}
+      {visible.map((group) =>
+        group.standalone ? (
+          <div key={group.key} className="mt-3.5 first:mt-3">
+            <Row
+              href={group.rows[0]!.leaf.href}
+              label={tr(group.rows[0]!.leaf.label)}
+              icon={group.rows[0]!.leaf.icon}
+              active={pathname === group.rows[0]!.leaf.href}
+              failing={failing(group.rows[0]!.leaf)}
+              hint={tr(group.rows[0]!.leaf.blurb)}
+              tourId={`tour-nav-${group.key}`}
+            />
           </div>
-        </div>
-      ))}
+        ) : (
+          <div key={group.key} className="mt-3.5 first:mt-3">
+            <CategoryHeaderRow
+              href={group.href}
+              label={tr(group.label)}
+              icon={group.icon}
+              active={pathname === group.href}
+              expanded={isExpanded(group)}
+              onToggle={() =>
+                setManualExpanded((prev) => ({
+                  ...prev,
+                  [group.key]: !isExpanded(group),
+                }))
+              }
+              tourId={`tour-nav-${group.key}`}
+            />
+            {isExpanded(group) && (
+              <div className="mt-0.5 space-y-px pl-4">
+                {group.rows.map(({ leaf }) => (
+                  <Row
+                    key={leaf.key}
+                    href={leaf.href}
+                    label={tr(leaf.label)}
+                    icon={leaf.icon}
+                    active={pathname === group.href && activeSection === leaf.key}
+                    failing={failing(leaf)}
+                    hint={tr(leaf.blurb)}
+                    onClick={(event) => {
+                      if (
+                        goToLeaf(leaf.href, pathname, router, setActiveSection)
+                      ) {
+                        event.preventDefault();
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ),
+      )}
     </nav>
+  );
+}
+
+/**
+ * A category with children, promoted to the same tier as a single-leaf
+ * category (Appearance, Network, …) rather than a smaller, unclickable label
+ * above them — it links to the merged page, and a separate chevron button
+ * (a sibling, not nested in the link, since a button cannot nest inside an
+ * anchor) collapses the list of leaves under it.
+ */
+function CategoryHeaderRow({
+  href,
+  label,
+  icon: Icon,
+  active,
+  expanded,
+  onToggle,
+  tourId,
+}: {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  active: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+  tourId?: string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-center gap-0.5">
+      <Link
+        href={href}
+        data-tour={tourId}
+        aria-current={active ? "page" : undefined}
+        className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] leading-tight transition-colors ${
+          active
+            ? "bg-[var(--accent)] font-medium text-[var(--foreground)]"
+            : "text-[var(--foreground)]/70 hover:bg-[var(--accent)]/50 hover:text-[var(--foreground)]"
+        }`}
+      >
+        <Icon size={15} className={`shrink-0 ${active ? "" : "opacity-70"}`} />
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+      </Link>
+      <button
+        type="button"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onToggle();
+        }}
+        aria-label={expanded ? t("Collapse") : t("Expand")}
+        aria-expanded={expanded}
+        className="shrink-0 rounded-lg p-1.5 text-[var(--muted-foreground)]/60 transition-colors hover:bg-[var(--accent)]/50 hover:text-[var(--foreground)]"
+      >
+        <ChevronRight
+          className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-90" : ""}`}
+        />
+      </button>
+    </div>
   );
 }
 
@@ -254,6 +403,7 @@ function Row({
   failing,
   hint,
   tourId,
+  onClick,
 }: {
   href: string;
   label: string;
@@ -264,12 +414,16 @@ function Row({
   hint?: string;
   /** Only the first row of a group carries it, so the tour lands on the group. */
   tourId?: string;
+  /** A merged-category leaf intercepts the click to scroll in place instead
+   *  of navigating, when it is already the page on screen. */
+  onClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
 }) {
   return (
     <Link
       href={href}
       data-tour={tourId}
       title={hint}
+      onClick={onClick}
       aria-current={active ? "page" : undefined}
       className={`flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] leading-tight transition-colors ${
         active

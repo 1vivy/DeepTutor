@@ -25,7 +25,6 @@ import { useSettings } from "./SettingsContext";
 export function SettingsToolbar() {
   const { t } = useTranslation();
   const pathname = usePathname() ?? "";
-  const storagePath = storagePathFor(pathname);
   const {
     catalogEditable,
     draftState,
@@ -36,7 +35,9 @@ export function SettingsToolbar() {
     discardDraft,
     startTour,
     toast,
+    activeSection,
   } = useSettings();
+  const storagePath = storagePathFor(pathname, activeSection);
 
   const busy = saving || applying;
   const canApply = draftState !== "clean";
