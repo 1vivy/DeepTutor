@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Search, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { ChevronDown, Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { fetchAuthStatus } from "@/lib/auth";
@@ -32,30 +32,20 @@ import { serviceReadiness, useSettings } from "./SettingsContext";
 
 type Row = { leaf: SettingsLeaf; category: Lang };
 
-export default function SettingsNav() {
-  const pathname = usePathname() ?? "";
-  const { t, i18n } = useTranslation();
-  const zh = i18n.language?.toLowerCase().startsWith("zh");
-  const tr = useCallback((value: Lang) => (zh ? value.zh : value.en), [zh]);
-  const { catalog, catalogEditable, diagnosticsResults } = useSettings();
+type Group = {
+  key: string;
+  label: Lang;
+  rows: Row[];
+  standalone: boolean;
+};
 
-  const [query, setQuery] = useState("");
-  const [hideAdminOnly, setHideAdminOnly] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchAuthStatus().then((authStatus) => {
-      if (cancelled || !authStatus) return;
-      setHideAdminOnly(Boolean(authStatus.enabled) && !authStatus.is_admin);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // A category with children contributes its leaves; one without is itself a
-  // row, so a single-page category never costs an extra level of nesting.
-  const groups = useMemo(
+/**
+ * The same map both layouts render. A category with children contributes its
+ * leaves; one without is itself a row, so a single-page category never costs
+ * an extra level of nesting.
+ */
+function useGroups(hideAdminOnly: boolean): Group[] {
+  return useMemo(
     () =>
       SETTINGS_CATEGORIES.map((category) => ({
         key: category.key,
@@ -78,6 +68,78 @@ export default function SettingsNav() {
       })),
     [hideAdminOnly],
   );
+}
+
+function useHideAdminOnly(): boolean {
+  const [hideAdminOnly, setHideAdminOnly] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetchAuthStatus().then((authStatus) => {
+      if (cancelled || !authStatus) return;
+      setHideAdminOnly(Boolean(authStatus.enabled) && !authStatus.is_admin);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return hideAdminOnly;
+}
+
+/**
+ * Narrow-screen navigator.
+ *
+ * The column is hidden below `md`, and the breadcrumb it replaced is gone, so
+ * without this a phone landing on a settings page has no way back to any other
+ * one. A native select is the right control here: it groups, it is one tap,
+ * and the platform renders it better than anything reimplemented.
+ */
+export function SettingsNavCompact() {
+  const pathname = usePathname() ?? "";
+  const router = useRouter();
+  const { t, i18n } = useTranslation();
+  const zh = i18n.language?.toLowerCase().startsWith("zh");
+  const tr = (value: Lang) => (zh ? value.zh : value.en);
+  const groups = useGroups(useHideAdminOnly());
+
+  return (
+    <div className="relative md:hidden">
+      <select
+        value={pathname}
+        aria-label={t("Settings sections")}
+        onChange={(event) => router.push(event.target.value)}
+        className="w-full appearance-none rounded-lg border border-[var(--border)] bg-[var(--background)] py-2 pl-3 pr-8 text-[13px] font-medium text-[var(--foreground)] outline-none"
+      >
+        <option value={SETTINGS_HUB_HREF}>{t("Overview")}</option>
+        {groups.map((group) =>
+          group.standalone ? (
+            <option key={group.key} value={group.rows[0]?.leaf.href}>
+              {tr(group.label)}
+            </option>
+          ) : (
+            <optgroup key={group.key} label={tr(group.label)}>
+              {group.rows.map(({ leaf }) => (
+                <option key={leaf.key} value={leaf.href}>
+                  {tr(leaf.label)}
+                </option>
+              ))}
+            </optgroup>
+          ),
+        )}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted-foreground)]" />
+    </div>
+  );
+}
+
+export default function SettingsNav() {
+  const pathname = usePathname() ?? "";
+  const { t, i18n } = useTranslation();
+  const zh = i18n.language?.toLowerCase().startsWith("zh");
+  const tr = useCallback((value: Lang) => (zh ? value.zh : value.en), [zh]);
+  const { catalog, catalogEditable, diagnosticsResults } = useSettings();
+
+  const [query, setQuery] = useState("");
+  const groups = useGroups(useHideAdminOnly());
 
   const needle = query.trim().toLowerCase();
   const matches = useCallback(
@@ -158,6 +220,7 @@ export default function SettingsNav() {
                 label={tr(leaf.label)}
                 active={pathname === leaf.href}
                 failing={failing(leaf)}
+                hint={tr(leaf.blurb)}
                 tourId={index === 0 ? `tour-nav-${group.key}` : undefined}
               />
             ))}
@@ -173,12 +236,15 @@ function Row({
   label,
   active,
   failing,
+  hint,
   tourId,
 }: {
   href: string;
   label: string;
   active: boolean;
   failing?: boolean;
+  /** The one-line description the old sub-hub tiles showed under each name. */
+  hint?: string;
   /** Only the first row of a group carries it, so the tour lands on the group. */
   tourId?: string;
 }) {
@@ -186,6 +252,7 @@ function Row({
     <Link
       href={href}
       data-tour={tourId}
+      title={hint}
       aria-current={active ? "page" : undefined}
       className={`flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[12.5px] leading-tight transition-colors ${
         active

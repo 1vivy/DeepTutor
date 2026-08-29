@@ -1207,11 +1207,11 @@
   "settingsTour.appearance.title": "Appearance",
   "settingsTour.appearance.desc": "Visual theme and interface language. Changes apply immediately.",
   "settingsTour.status.title": "Status",
-  "settingsTour.status.desc": "Whether the backend is up and what the running DeepTutor processes cost in memory — always visible here on the hub.",
+  "settingsTour.status.desc": "Whether the backend is up and what the running DeepTutor processes cost in memory — always visible on the overview.",
   "settingsTour.network.title": "Network",
   "settingsTour.network.desc": "Ports, the browser-facing API base, and CORS origins — for Docker, LAN, and reverse-proxy deployments.",
   "settingsTour.models.title": "Models",
-  "settingsTour.models.desc": "Open this to configure language, embedding, search, voice, and generation models — all seven services live here.",
+  "settingsTour.models.desc": "Language, embedding, search, voice, and generation models — all seven services, plus the connections that supply them.",
   "settingsTour.knowledge.title": "Knowledge Base",
   "settingsTour.knowledge.desc": "Choose the document parsing engine that turns uploads into text.",
   "settingsTour.chat.title": "Chat",
@@ -3629,5 +3629,7 @@
   "Take the tour": "Take the tour",
   "Draft saved {{when}}": "Draft saved {{when}}",
   "Set up with DeepTutor": "Set up with DeepTutor",
-  "Delete this profile and every model under it?": "Delete this profile and every model under it?"
+  "Delete this profile and every model under it?": "Delete this profile and every model under it?",
+  "Model services": "Model services",
+  "Test passed": "Test passed"
 }

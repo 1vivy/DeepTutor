@@ -2,7 +2,9 @@
 
 import { usePathname } from "next/navigation";
 
-import SettingsNav from "@/components/settings/SettingsNav";
+import SettingsNav, {
+  SettingsNavCompact,
+} from "@/components/settings/SettingsNav";
 import { SettingsToolbar } from "@/components/settings/SettingsToolbar";
 import { SettingsLoadStatusBanner } from "@/components/settings/SettingsLoadStatusBanner";
 import { isNavOnlyRoute } from "@/lib/settings-nav";
@@ -28,6 +30,11 @@ export default function SettingsMain({
       </div>
       <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
         <div className="w-full px-8 pt-5">
+          {/* Below `md` the column is hidden, so this is the only way out of
+              the page you landed on. */}
+          <div className="mb-2">
+            <SettingsNavCompact />
+          </div>
           {showToolbar && <SettingsToolbar />}
           <SettingsLoadStatusBanner />
         </div>

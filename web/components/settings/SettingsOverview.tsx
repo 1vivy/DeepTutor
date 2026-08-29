@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import ProviderIcon from "@/components/common/ProviderIcon";
+import { apiFetch, apiUrl } from "@/lib/api";
 import SettingsStatusPanel from "@/components/settings/SettingsStatusPanel";
 import { setPendingPrompt } from "@/lib/pending-prompt";
 import {
@@ -18,6 +19,7 @@ import {
   getActiveProfile,
   serviceReadiness,
   useSettings,
+  type ServiceReadiness,
 } from "./SettingsContext";
 
 /**
@@ -95,25 +97,46 @@ export default function SettingsOverview() {
     });
   }
 
-  const active = useMemo(() => {
-    if (catalogEditable !== true) return [];
-    return (
-      [
-        { key: "llm", label: { zh: "语言模型", en: "Language model" } },
-        { key: "embedding", label: { zh: "嵌入模型", en: "Embedding" } },
-      ] as const
-    ).map(({ key, label }) => {
-      const profile = getActiveProfile(catalog, key);
-      const model = getActiveModel(catalog, key);
-      return {
-        key,
-        label,
-        binding: profile?.binding ?? "",
-        model: model?.model ?? "",
-        href: key === "llm" ? "/settings/llm" : "/settings/embedding",
-      };
-    });
-  }, [catalog, catalogEditable]);
+  // What each service actually resolves to right now. Search names a provider
+  // rather than a model, so it reports that instead of an empty string.
+  const { detail, binding } = useMemo(() => {
+    const detail: Record<string, string> = {};
+    const binding: Record<string, string> = {};
+    if (catalogEditable !== true) return { detail, binding };
+    for (const leaf of modelLeaves) {
+      const profile = getActiveProfile(catalog, leaf.service);
+      binding[leaf.key] =
+        (leaf.service === "search" ? profile?.provider : profile?.binding) ?? "";
+      detail[leaf.key] =
+        leaf.service === "search"
+          ? (profile?.provider ?? "")
+          : (getActiveModel(catalog, leaf.service)?.model ?? "");
+    }
+    return { detail, binding };
+  }, [catalog, catalogEditable, modelLeaves]);
+
+  // The effective browser API base. The old hub previewed it on its Network
+  // card, and it is the first thing to check on a Docker or LAN install, so it
+  // did not deserve to disappear with that card.
+  const [apiBase, setApiBase] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(apiUrl("/api/v1/settings/network"));
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          effective?: { browser_api_base?: string };
+        };
+        if (!cancelled) setApiBase(data.effective?.browser_api_base || "");
+      } catch {
+        /* non-admins get 403; the row simply does not render */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div>
@@ -180,52 +203,53 @@ export default function SettingsOverview() {
             )}
           </Section>
 
-          {active.some((item) => item.model) && (
-          <Section title={t("In use")}>
-            {active.filter((item) => item.model).map((item, index) => (
+          <Section title={t("Model services")}>
+            {states.map((item, index) => (
               <div
-                key={item.key}
-                className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 ${
+                key={item.leaf.key}
+                className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2.5 ${
                   index === 0 ? "" : "border-t border-[var(--border)]"
                 }`}
               >
-                <span className="text-[12.5px] text-[var(--muted-foreground)]">
-                  {tr(item.label)}
-                </span>
                 <Link
-                  href={item.href}
-                  className="inline-flex min-w-0 items-center gap-1.5 text-[12px] text-[var(--foreground)] transition-opacity hover:opacity-70"
+                  href={item.leaf.href}
+                  className="text-[12.5px] text-[var(--foreground)] transition-opacity hover:opacity-70"
                 >
-                  {item.binding && (
-                    <ProviderIcon provider={item.binding} size={13} />
-                  )}
-                  <span className="truncate font-mono text-[11.5px]">
-                    {item.model}
-                  </span>
-                  <ArrowUpRight className="h-3 w-3 shrink-0 text-[var(--muted-foreground)]" />
+                  {tr(item.leaf.label)}
                 </Link>
+                <span className="flex min-w-0 items-center gap-2">
+                  {detail[item.leaf.key] && (
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      {binding[item.leaf.key] && (
+                        <ProviderIcon
+                          provider={binding[item.leaf.key]}
+                          size={12}
+                        />
+                      )}
+                      <span className="truncate font-mono text-[11px] text-[var(--muted-foreground)]">
+                        {detail[item.leaf.key]}
+                      </span>
+                    </span>
+                  )}
+                  <ReadinessChip readiness={item.readiness} />
+                </span>
               </div>
             ))}
           </Section>
-          )}
 
-          {missing.length > 0 && (
-            <Section title={t("Not set up yet")}>
-              <div className="flex flex-wrap gap-x-4 gap-y-2 px-4 py-3">
-                {missing.map((item) => (
-                  <Link
-                    key={item.leaf.key}
-                    href={item.leaf.href}
-                    className="inline-flex items-center gap-1 text-[12px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
-                  >
-                    {tr(item.leaf.label)}
-                    <ArrowUpRight className="h-3 w-3" />
-                  </Link>
-                ))}
-              </div>
-            </Section>
-          )}
         </>
+      )}
+
+      {apiBase && (
+        <p className="mt-5 text-[11.5px] text-[var(--muted-foreground)]">
+          {t("Browser API base")}{" "}
+          <Link
+            href="/settings/network"
+            className="font-mono text-[var(--foreground)]/70 underline-offset-2 hover:underline"
+          >
+            {apiBase}
+          </Link>
+        </p>
       )}
 
       <button
@@ -241,6 +265,27 @@ export default function SettingsOverview() {
         </p>
       )}
     </div>
+  );
+}
+
+function ReadinessChip({ readiness }: { readiness: ServiceReadiness }) {
+  const { t } = useTranslation();
+  const label: Record<ServiceReadiness, string> = {
+    passed: t("Test passed"),
+    failed: t("Test failed"),
+    untested: t("Configured"),
+    not_configured: t("Not set"),
+  };
+  const tone: Record<ServiceReadiness, string> = {
+    passed: "text-emerald-600 dark:text-emerald-400",
+    failed: "text-red-500",
+    untested: "text-[var(--muted-foreground)]",
+    not_configured: "text-[var(--muted-foreground)]/60",
+  };
+  return (
+    <span className={`shrink-0 text-[11px] ${tone[readiness]}`}>
+      {label[readiness]}
+    </span>
   );
 }
 

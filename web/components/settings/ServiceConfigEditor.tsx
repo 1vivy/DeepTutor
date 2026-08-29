@@ -406,9 +406,10 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
         </div>
       )}
       {activeProfile ? (
-        <div className="grid grid-cols-[200px_minmax(0,1fr)] items-start gap-5">
-          {/* ── Profile list (sticky so it stays put while the editor scrolls) ── */}
-          <aside className="sticky top-4 self-start rounded-xl border border-[var(--border)]/60 bg-[var(--card)]/40 p-2">
+        <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-[200px_minmax(0,1fr)]">
+          {/* ── Profile list (sticky so it stays put while the editor scrolls;
+                 stacked above the editor when there is no room beside it) ── */}
+          <aside className="self-start rounded-xl border border-[var(--border)]/60 bg-[var(--card)]/40 p-2 md:sticky md:top-4">
             <div className="px-2 pb-2 pt-1 text-[11px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]/70">
               {t("Profiles")}
             </div>

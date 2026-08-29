@@ -1239,11 +1239,11 @@
   "settingsTour.appearance.title": "外观",
   "settingsTour.appearance.desc": "选择视觉主题和界面语言，改动立即生效。",
   "settingsTour.status.title": "状态",
-  "settingsTour.status.desc": "后端是否在线，以及 DeepTutor 各进程当前占用的内存，常驻主页一目了然。",
+  "settingsTour.status.desc": "后端是否在线，以及运行中的 DeepTutor 进程占用多少内存 —— 总览页常驻显示。",
   "settingsTour.network.title": "网络",
   "settingsTour.network.desc": "端口、浏览器访问后端的 API 地址与 CORS 来源——Docker、局域网、反向代理部署在这里配。",
   "settingsTour.models.title": "模型",
-  "settingsTour.models.desc": "点进来配置语言、向量、搜索、语音与生成模型——七项服务都在这一组里。",
+  "settingsTour.models.desc": "语言、嵌入、搜索、语音与生成模型 —— 七个服务，以及为它们供给凭据的连接。",
   "settingsTour.knowledge.title": "知识库",
   "settingsTour.knowledge.desc": "选择文档解析引擎，决定上传文档如何转成文本。",
   "settingsTour.chat.title": "聊天",
@@ -3629,5 +3629,7 @@
   "Take the tour": "看看引导",
   "Draft saved {{when}}": "草稿保存于 {{when}}",
   "Set up with DeepTutor": "让 DeepTutor 帮我配置",
-  "Delete this profile and every model under it?": "删除这个配置，以及它下面的所有模型？"
+  "Delete this profile and every model under it?": "删除这个配置，以及它下面的所有模型？",
+  "Model services": "模型服务",
+  "Test passed": "测试通过"
 }
