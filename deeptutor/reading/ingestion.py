@@ -11,6 +11,7 @@ import asyncio
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 import hashlib
+import logging
 import mimetypes
 from pathlib import Path
 import re
@@ -26,10 +27,12 @@ from deeptutor.reading.catalog_models import (
     SourceKind,
 )
 from deeptutor.reading.catalog_store import ReadingCatalogStore
-from deeptutor.reading.extract import split_into_sections
+from deeptutor.reading.extract import split_markdown_by_headings
 from deeptutor.reading.models import OutlineEntry, ReadingError, UnitReference
 from deeptutor.reading.store import ReadingStore, content_hash
 from deeptutor.tools.web_fetch import FetchOutcome, fetch_url_as_markdown
+
+logger = logging.getLogger(__name__)
 
 _YOUTUBE_HOSTS = {
     "youtube.com",
@@ -101,6 +104,16 @@ MediaChunker = Callable[[Path], Awaitable[list[tuple[float, float, bytes]]]]
 Transcriber = Callable[..., Awaitable[str]]
 
 
+def url_material_id(url: str) -> str:
+    """The content id a URL import lands on.
+
+    Duplicate detection has to answer "do I already have this link?" before the
+    fetch, so the derivation lives here rather than inside the queueing path
+    that used it.
+    """
+    return hashlib.sha256(normalize_url(url).encode("utf-8")).hexdigest()[:16]
+
+
 class ReadingIngestionService:
     def __init__(
         self,
@@ -133,7 +146,7 @@ class ReadingIngestionService:
             source_kind = SourceKind.BILIBILI
         else:
             source_kind = SourceKind.WEB
-        material_id = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
+        material_id = url_material_id(normalized)
         fallback_title = title.strip() or (urlparse(normalized).hostname or "Web source")
         return self.catalog.upsert_material(
             content_id=material_id,
@@ -144,9 +157,7 @@ class ReadingIngestionService:
             source_url=normalized,
             mime="text/html" if source_kind is SourceKind.WEB else "text/vtt",
             render_mode=(
-                "video"
-                if source_kind in {SourceKind.YOUTUBE, SourceKind.BILIBILI}
-                else "text"
+                "video" if source_kind in {SourceKind.YOUTUBE, SourceKind.BILIBILI} else "text"
             ),
             status=IngestionStatus.QUEUED,
         )
@@ -165,6 +176,11 @@ class ReadingIngestionService:
                 return await self._process_bilibili(record, preferred_languages)
             return await self._process_web(record)
         except Exception as exc:
+            logger.exception(
+                "Reading URL ingestion failed for material %s (%s)",
+                material_id,
+                record.source_kind.value,
+            )
             code = {
                 SourceKind.YOUTUBE: "youtube_transcript_failed",
                 SourceKind.BILIBILI: "bilibili_metadata_failed",
@@ -192,7 +208,7 @@ class ReadingIngestionService:
         outcome = await self._web_fetcher(record.source_url, max_chars=500_000)
         if not outcome.ok:
             raise ReadingError(outcome.error or "web source could not be fetched")
-        units = split_into_sections(outcome.markdown)
+        units, outline = split_markdown_by_headings(outcome.markdown)
         if not units:
             raise ReadingError("web source contained no readable article text")
         self.reading_store.ingest_units(
@@ -203,6 +219,10 @@ class ReadingIngestionService:
             title=outcome.title or record.title,
             mime="text/markdown",
             extractor="safe-web-fetch",
+            # An empty outline means the page had only its synthetic title (or
+            # no headings), so ReadingStore deliberately retains its existing
+            # first-line fallback for unstructured web content.
+            outline=outline or None,
         )
         return self.catalog.upsert_material(
             content_id=record.content_id,
@@ -423,6 +443,7 @@ class ReadingIngestionService:
                 status=IngestionStatus.READY,
             )
         except Exception as exc:
+            logger.exception("Reading media ingestion failed for material %s", material_id)
             self.catalog.update_material_status(
                 material_id,
                 IngestionStatus.FAILED,
@@ -441,7 +462,16 @@ def normalize_url(url: str) -> str:
         return parse_youtube_url(value).canonical_url
     if (parsed.hostname or "").lower().rstrip(".") in _BILIBILI_HOSTS:
         return parse_bilibili_url(value).canonical_url
-    return urlunparse((parsed.scheme.lower(), parsed.netloc.lower(), parsed.path or "/", parsed.params, parsed.query, ""))
+    return urlunparse(
+        (
+            parsed.scheme.lower(),
+            parsed.netloc.lower(),
+            parsed.path or "/",
+            parsed.params,
+            parsed.query,
+            "",
+        )
+    )
 
 
 def youtube_video_id(url: str) -> str | None:
@@ -628,9 +658,7 @@ async def _load_youtube_captions(
         try:
             if hasattr(api, "fetch"):
                 return list(api.fetch(video_id, languages=list(languages)))
-            return list(
-                YouTubeTranscriptApi.get_transcript(video_id, languages=list(languages))
-            )
+            return list(YouTubeTranscriptApi.get_transcript(video_id, languages=list(languages)))
         except Exception:
             # Captions can be disabled, unavailable in the preferred language,
             # region-blocked, or temporarily rejected by YouTube. None of those
@@ -657,9 +685,7 @@ async def _load_youtube_captions(
     return title, cover, segments
 
 
-async def _load_bilibili_media(
-    url: str, languages: Sequence[str]
-) -> BilibiliMedia:
+async def _load_bilibili_media(url: str, languages: Sequence[str]) -> BilibiliMedia:
     """Load public metadata, subtitles, and chapters for an official BV URL.
 
     Playback itself stays on Bilibili's documented external player. All API
@@ -725,8 +751,7 @@ async def _load_bilibili_media(
         subtitle_root = player.get("subtitle")
         subtitle_rows = (
             subtitle_root.get("subtitles")
-            if isinstance(subtitle_root, dict)
-            and isinstance(subtitle_root.get("subtitles"), list)
+            if isinstance(subtitle_root, dict) and isinstance(subtitle_root.get("subtitles"), list)
             else []
         )
         segments: list[TranscriptSegment] = []
@@ -737,9 +762,8 @@ async def _load_bilibili_media(
                 subtitle_url = f"https:{subtitle_url}"
             subtitle_parsed = urlparse(subtitle_url)
             subtitle_host = (subtitle_parsed.hostname or "").lower().rstrip(".")
-            if (
-                subtitle_parsed.scheme == "https"
-                and (subtitle_host == "hdslb.com" or subtitle_host.endswith(".hdslb.com"))
+            if subtitle_parsed.scheme == "https" and (
+                subtitle_host == "hdslb.com" or subtitle_host.endswith(".hdslb.com")
             ):
                 subtitle_response = await client.get(subtitle_url)
                 if len(subtitle_response.content) > MAX_TRANSCRIPT_BYTES * 2:
@@ -771,7 +795,11 @@ def _bilibili_api_data(response: Any, label: str) -> dict[str, Any]:
     response.raise_for_status()
     payload = response.json()
     if not isinstance(payload, dict) or int(payload.get("code") or 0) != 0:
-        message = str(payload.get("message") or "request failed") if isinstance(payload, dict) else "invalid response"
+        message = (
+            str(payload.get("message") or "request failed")
+            if isinstance(payload, dict)
+            else "invalid response"
+        )
         raise ReadingError(f"Bilibili {label} failed: {message}")
     data = payload.get("data")
     if not isinstance(data, dict):
@@ -808,11 +836,29 @@ async def _chunk_media_audio(path: Path) -> list[tuple[float, float, bytes]]:
         try:
             pattern = tmp_dir / "chunk-%04d.mp3"
             command = [
-                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(path),
-                "-vn", "-ac", "1", "-ar", "16000", "-f", "segment", "-segment_time", "600",
-                "-c:a", "libmp3lame", str(pattern),
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-y",
+                "-i",
+                str(path),
+                "-vn",
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                "-f",
+                "segment",
+                "-segment_time",
+                "600",
+                "-c:a",
+                "libmp3lame",
+                str(pattern),
             ]
-            completed = subprocess.run(command, capture_output=True, text=True, timeout=3600, check=False)
+            completed = subprocess.run(
+                command, capture_output=True, text=True, timeout=3600, check=False
+            )
             if completed.returncode != 0:
                 raise ReadingError(completed.stderr.strip() or "ffmpeg could not read this media")
             files = sorted(tmp_dir.glob("chunk-*.mp3"))

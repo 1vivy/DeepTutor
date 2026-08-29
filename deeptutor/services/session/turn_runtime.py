@@ -257,11 +257,73 @@ def _reading_viewport(value: Any) -> dict[str, Any]:
     return viewport
 
 
+def _course_field(value: Any, key: str, default: Any = "") -> Any:
+    if isinstance(value, dict):
+        return value.get(key, default)
+    return getattr(value, key, default)
+
+
+def _apply_course_defaults(
+    payload: dict[str, Any],
+    course: Any,
+    *,
+    preferences: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Fill missing fields while preserving active session preferences."""
+    updated = dict(payload)
+    saved = preferences or {}
+    if "knowledge_bases" not in payload and "knowledge_bases" in saved:
+        updated["knowledge_bases"] = saved["knowledge_bases"]
+    elif "knowledge_bases" not in payload:
+        knowledge_bases: list[str] = []
+        seen: set[str] = set()
+        for resource in _course_field(course, "resources", []) or []:
+            if str(_course_field(resource, "kind") or "") != "knowledge_base":
+                continue
+            ref_id = str(_course_field(resource, "ref_id") or "").strip()
+            if ref_id and ref_id not in seen:
+                knowledge_bases.append(ref_id)
+                seen.add(ref_id)
+        updated["knowledge_bases"] = knowledge_bases
+
+    if "persona" not in payload and "persona" in saved:
+        updated["persona"] = saved["persona"]
+    elif "persona" not in payload:
+        updated["persona"] = str(_course_field(course, "default_persona") or "").strip()
+
+    if "capability" not in payload and "capability" in saved:
+        updated["capability"] = saved["capability"]
+    elif "capability" not in payload:
+        default_capability = str(_course_field(course, "default_capability") or "").strip()
+        if default_capability:
+            updated["capability"] = default_capability
+    return updated
+
+
 def _llm_selection_dict(value: Any) -> dict[str, str] | None:
     from deeptutor.services.model_selection import LLMSelection
 
     selection = LLMSelection.from_payload(value)
     return selection.to_dict() if selection else None
+
+
+def _partner_group_references(value: Any) -> list[dict[str, str]]:
+    """Normalize the structured home-chat reference contract."""
+    if not isinstance(value, list):
+        return []
+    references: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for raw in value[:20]:
+        if not isinstance(raw, dict):
+            continue
+        group_id = str(raw.get("group_id") or "").strip()[:80]
+        session_key = str(raw.get("session_key") or "").strip()[:120]
+        key = (group_id, session_key)
+        if not all(key) or key in seen:
+            continue
+        seen.add(key)
+        references.append({"group_id": group_id, "session_key": session_key})
+    return references
 
 
 def _request_snapshot_metadata(
@@ -273,6 +335,7 @@ def _request_snapshot_metadata(
     attachments: list[dict[str, Any]],
     notebook_references: list[Any],
     history_references: list[Any],
+    partner_group_references: list[dict[str, str]],
     question_notebook_references: list[Any],
     book_references: list[Any],
     persona: str,
@@ -295,6 +358,8 @@ def _request_snapshot_metadata(
         snapshot["notebookReferences"] = notebook_references
     if history_references:
         snapshot["historyReferences"] = history_references
+    if partner_group_references:
+        snapshot["partnerGroupReferences"] = partner_group_references
     if question_notebook_references:
         snapshot["questionNotebookReferences"] = question_notebook_references
     if book_references:
@@ -1041,7 +1106,7 @@ class TurnRuntimeManager:
             )
 
     async def start_turn(self, payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
-        capability = str(payload.get("capability") or "chat")
+        persona_explicit = "persona" in payload
         if not payload.get("language"):
             from deeptutor.services.settings.interface_settings import (
                 get_response_language,
@@ -1066,6 +1131,40 @@ class TurnRuntimeManager:
         runtime_only_config = {
             key: raw_config.pop(key) for key in runtime_only_keys if key in raw_config
         }
+        session = await self.store.ensure_session(payload.get("session_id"))
+        preferences = session.get("preferences") or {}
+
+        course_id_explicit = "_course_id" in runtime_only_config
+        requested_course_id = str(
+            (
+                runtime_only_config.get("_course_id")
+                if course_id_explicit
+                else preferences.get("course_id")
+            )
+            or ""
+        ).strip()
+        bound_course = None
+        if requested_course_id:
+            from deeptutor.services.courses import (
+                CourseNotFoundError,
+                get_course_service,
+            )
+
+            try:
+                bound_course = await asyncio.to_thread(
+                    get_course_service().get,
+                    requested_course_id,
+                )
+            except CourseNotFoundError:
+                requested_course_id = ""
+        if bound_course is not None:
+            payload = _apply_course_defaults(
+                payload,
+                bound_course,
+                preferences=preferences,
+            )
+
+        capability = str(payload.get("capability") or "chat")
         try:
             from deeptutor.runtime.request_contracts import validate_capability_config
 
@@ -1075,10 +1174,9 @@ class TurnRuntimeManager:
         payload = {
             **payload,
             "capability": capability,
+            "course_id": requested_course_id,
             "config": {**validated_public_config, **runtime_only_config},
         }
-        session = await self.store.ensure_session(payload.get("session_id"))
-        preferences = session.get("preferences") or {}
         reading_workspace_id = _reading_workspace_id(payload.get("reading_workspace_id"))
         reading_material_id = _reading_material_id(payload.get("reading_material_id"))
         if capability == "immersive_reading" and reading_workspace_id:
@@ -1091,7 +1189,7 @@ class TurnRuntimeManager:
             reading_material_id = reading_material_id or str(
                 reading_workspace.active_material_id or ""
             )
-            if reading_material_id not in {
+            if reading_material_id and reading_material_id not in {
                 tab.material.material_id for tab in reading_workspace.tabs
             }:
                 raise RuntimeError("The active material is not part of this reading workspace.")
@@ -1099,7 +1197,7 @@ class TurnRuntimeManager:
                 reading_workspace_id,
                 session["id"],
                 title=str(session.get("title") or "New reading conversation"),
-                active_material_id=reading_material_id,
+                active_material_id=reading_material_id or None,
             )
             payload = {
                 **payload,
@@ -1135,12 +1233,11 @@ class TurnRuntimeManager:
         payload = {**payload, "mastery_path_id": mastery_path_id}
         # Persona is a session-level preference (mirrors llm_selection): an
         # explicit ``persona`` key in the payload — including an empty string,
-        # which means "Default" / no persona — wins and is persisted below; an
-        # absent key falls back to the session's stored preference so the
-        # active persona survives reloads and follows the session.
-        persona_explicit = "persona" in payload
+        # which means "Default" / no persona — wins and is persisted below.
+        # A course default is filled above only when that key was absent; with
+        # neither, the session's stored preference survives reloads.
         persona_pref = str(
-            (payload.get("persona") if persona_explicit else preferences.get("persona")) or ""
+            (payload.get("persona") if "persona" in payload else preferences.get("persona")) or ""
         ).strip()
         payload = {**payload, "persona": persona_pref}
         raw_llm_selection = payload.get("llm_selection")
@@ -1239,18 +1336,7 @@ class TurnRuntimeManager:
             "knowledge_bases": list(payload.get("knowledge_bases") or []),
             "language": str(payload.get("language") or "en"),
         }
-        requested_course_id = str(runtime_only_config.get("_course_id") or "").strip()
-        if requested_course_id:
-            from deeptutor.services.courses import (
-                CourseNotFoundError,
-                get_course_service,
-            )
-
-            try:
-                get_course_service().get(requested_course_id)
-            except CourseNotFoundError:
-                requested_course_id = ""
-        if "_course_id" in runtime_only_config:
+        if course_id_explicit:
             preference_update["course_id"] = requested_course_id
 
         raw_selection_context = runtime_only_config.get("selection_tutor_context")
@@ -1500,6 +1586,13 @@ class TurnRuntimeManager:
                 if overrides.get("history_references") is not None
                 else preferences.get("history_references") or []
             ),
+            "partner_group_references": _partner_group_references(
+                overrides.get("partner_group_references")
+                if overrides.get("partner_group_references") is not None
+                else snapshot.get("partnerGroupReferences")
+                or preferences.get("partner_group_references")
+                or []
+            ),
             "book_references": list(
                 overrides.get("book_references")
                 if overrides.get("book_references") is not None
@@ -1518,8 +1611,7 @@ class TurnRuntimeManager:
             "reading_workspace_id": _reading_workspace_id(
                 overrides.get("reading_workspace_id")
                 if "reading_workspace_id" in overrides
-                else snapshot.get("readingWorkspaceId")
-                or preferences.get("reading_workspace_id")
+                else snapshot.get("readingWorkspaceId") or preferences.get("reading_workspace_id")
             ),
             "config": config,
         }
@@ -1831,6 +1923,9 @@ class TurnRuntimeManager:
                 branch_parent_id = None
             notebook_references = payload.get("notebook_references", []) or []
             history_references = payload.get("history_references", []) or []
+            partner_group_references = _partner_group_references(
+                payload.get("partner_group_references")
+            )
             question_notebook_references = payload.get("question_notebook_references", []) or []
             book_context_result = build_book_context(payload.get("book_references", []) or [])
             book_references = book_context_result.references
@@ -2051,6 +2146,7 @@ class TurnRuntimeManager:
                     fresh_book_references=book_references,
                     fresh_history_session_ids=history_references,
                     fresh_question_entry_ids=question_notebook_references,
+                    fresh_partner_group_references=partner_group_references,
                     language=str(payload.get("language", "en") or "en"),
                 )
                 source_manifest_text, source_index = render_manifest(inventory)
@@ -2204,6 +2300,7 @@ class TurnRuntimeManager:
                         attachments=persisted_attachment_records,
                         notebook_references=notebook_references,
                         history_references=history_references,
+                        partner_group_references=partner_group_references,
                         question_notebook_references=question_notebook_references,
                         book_references=book_references,
                         persona=active_persona,
@@ -2241,8 +2338,10 @@ class TurnRuntimeManager:
                     "selection_tutor_context": selection_tutor_context or {},
                     "notebook_references": notebook_references,
                     "history_references": history_references,
+                    "partner_group_references": partner_group_references,
                     "question_notebook_references": question_notebook_references,
                     "book_references": book_references,
+                    "course_id": str(payload.get("course_id") or ""),
                     "mastery_path_id": _mastery_path_id(payload.get("mastery_path_id")),
                     "mastery_path_lease_managed": capability_name == "mastery_path",
                     # Immersive reading: the open material activates the reading

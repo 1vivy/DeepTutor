@@ -5,6 +5,16 @@ export interface ReadingMediaController {
   play(): void;
   pause(): void;
   destroy(): void;
+  /**
+   * Whether the player reports playback position back to us.
+   *
+   * Bilibili's external player is a cross-origin iframe with no public
+   * JavaScript API: we can start it at a timestamp, but we never learn where
+   * it is afterwards. Surfaces that follow playback — the timeline, the
+   * "current passage" highlight, resume-where-you-left-off — must say so
+   * rather than showing a position that silently never moves.
+   */
+  tracksPosition: boolean;
 }
 
 export interface YouTubePlayerLike {
@@ -26,6 +36,7 @@ export function youtubeReadingController(
     play: () => player.playVideo(),
     pause: () => player.pauseVideo(),
     destroy: () => player.destroy(),
+    tracksPosition: true,
   };
 }
 
@@ -41,5 +52,6 @@ export function html5ReadingController(
     play: () => void media.play(),
     pause: () => media.pause(),
     destroy: () => media.pause(),
+    tracksPosition: true,
   };
 }

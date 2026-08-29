@@ -129,6 +129,44 @@ def test_upsert_notebook_entries_persists_all(store: SQLiteSessionStore) -> None
     assert all(e["session_title"] == "Test" for e in result["items"])
 
 
+def test_list_notebook_entries_intersects_session_filters(
+    store: SQLiteSessionStore,
+) -> None:
+    session_a = asyncio.run(store.create_session(session_id="session-a"))
+    session_b = asyncio.run(store.create_session(session_id="session-b"))
+    asyncio.run(
+        store.upsert_notebook_entries(
+            session_a["id"],
+            _make_items(("a1", "A question?", False)),
+        )
+    )
+    asyncio.run(
+        store.upsert_notebook_entries(
+            session_b["id"],
+            _make_items(("b1", "B question?", True)),
+        )
+    )
+
+    overlap = asyncio.run(
+        store.list_notebook_entries(
+            session_id=session_a["id"],
+            session_ids=[session_a["id"], session_b["id"]],
+        )
+    )
+    disjoint = asyncio.run(
+        store.list_notebook_entries(
+            session_id=session_a["id"],
+            session_ids=[session_b["id"]],
+        )
+    )
+    empty = asyncio.run(store.list_notebook_entries(session_ids=[]))
+
+    assert overlap["total"] == 1
+    assert [item["question_id"] for item in overlap["items"]] == ["a1"]
+    assert disjoint == {"items": [], "total": 0}
+    assert empty == {"items": [], "total": 0}
+
+
 def test_upsert_notebook_entries_updates_on_conflict(store: SQLiteSessionStore) -> None:
     session = asyncio.run(store.create_session())
     sid = session["id"]

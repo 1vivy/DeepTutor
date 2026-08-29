@@ -39,5 +39,5 @@ export function readChatLaunchIntent(search: string): ChatLaunchIntent {
 
 /** Open a topic on the dedicated Mastery Path product surface. */
 export function newMasteryPathChatUrl(masteryPathId: string): string {
-  return `/space/learning/${encodeURIComponent(masteryPathId)}`;
+  return `/mastery/${encodeURIComponent(masteryPathId)}`;
 }

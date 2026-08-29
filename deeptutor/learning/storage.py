@@ -18,11 +18,14 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 import hashlib
 import json
+import logging
 from pathlib import Path
 import sqlite3
 import threading
 import time
 from typing import Any, TypeVar
+
+from pydantic import ValidationError
 
 from deeptutor.learning.models import (
     InteractionStatus,
@@ -36,6 +39,8 @@ from deeptutor.learning.models import (
 )
 from deeptutor.services.file_io import atomic_write_text as _atomic_write_text
 from deeptutor.services.path_service import get_path_service
+
+logger = logging.getLogger(__name__)
 
 _schema_lock = threading.RLock()
 _initialized_db_paths: set[Path] = set()
@@ -525,6 +530,20 @@ class LearningStore:
             # removes any unarchived copy so it cannot resurrect the path.
             pass
 
+    @staticmethod
+    def _quarantine_failed_legacy(path: Path) -> Path | None:
+        failed_dir = path.parent / "archive" / "failed"
+        failed_dir.mkdir(parents=True, exist_ok=True)
+        target = failed_dir / path.name
+        if target.exists():
+            target = failed_dir / f"{path.stem}.{int(time.time() * 1000)}{path.suffix}"
+        try:
+            path.replace(target)
+        except OSError:
+            logger.exception("Could not quarantine corrupt legacy mastery file %s", path)
+            return None
+        return target
+
     def import_legacy_json(self, legacy_path: Path, *, archive: bool = True) -> bool:
         """Import one V1 JSON aggregate into this store exactly once.
 
@@ -541,7 +560,16 @@ class LearningStore:
         legacy_path = Path(legacy_path)
         if legacy_path.suffix != ".json":
             raise ValueError(f"Legacy mastery path must be a JSON file: {legacy_path}")
-        path_id = self._validate_id(legacy_path.stem)
+        try:
+            path_id = self._validate_id(legacy_path.stem)
+        except ValueError:
+            quarantined = self._quarantine_failed_legacy(legacy_path)
+            logger.exception(
+                "Rejected legacy mastery file with invalid id path=%s quarantine=%s",
+                legacy_path,
+                quarantined,
+            )
+            return False
         if not legacy_path.exists():
             return False
         with self._connect() as conn:
@@ -562,12 +590,30 @@ class LearningStore:
             if imported is not None:
                 return False
             raise
-        data = json.loads(legacy_text)
-        progress = LearningProgress.model_validate(data)
-        if progress.book_id != path_id:
-            raise ValueError(
-                f"Legacy mastery path id mismatch: expected {path_id!r}, got {progress.book_id!r}"
+        except (OSError, UnicodeError):
+            quarantined = self._quarantine_failed_legacy(legacy_path)
+            logger.exception(
+                "Could not read legacy mastery file path=%s quarantine=%s",
+                legacy_path,
+                quarantined,
             )
+            return False
+        try:
+            data = json.loads(legacy_text)
+            progress = LearningProgress.model_validate(data)
+            if progress.book_id != path_id:
+                raise ValueError(
+                    f"Legacy mastery path id mismatch: expected {path_id!r}, "
+                    f"got {progress.book_id!r}"
+                )
+        except (json.JSONDecodeError, ValidationError, TypeError, ValueError):
+            quarantined = self._quarantine_failed_legacy(legacy_path)
+            logger.exception(
+                "Quarantined corrupt legacy mastery file path=%s quarantine=%s",
+                legacy_path,
+                quarantined,
+            )
+            return False
         now = time.time()
         revision = max(1, int(progress.version or 0))
         payload = self._progress_payload(progress, revision, now)

@@ -355,6 +355,13 @@ function describeToolCall(
         chip: null,
         mono: false,
       };
+    case "invoke_other":
+      return {
+        Icon: SpeechMark,
+        verb: t("Proposing a Partner follow-up"),
+        chip: str(a.target_partner_id) ? `@${str(a.target_partner_id).replace(/^@/, "")}` : null,
+        mono: false,
+      };
     case "github":
       return {
         Icon: ToolMark,

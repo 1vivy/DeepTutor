@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -12,6 +12,7 @@ import {
   NotebookPen,
   Pencil,
   Plus,
+  School,
   Search,
   Trash2,
   X,
@@ -34,13 +35,25 @@ const SWATCHES = [
   "#64748B",
 ];
 
+/** The course this visit is scoped to, resolved by the route. */
+export interface NotebookCourseScope {
+  id: string;
+  /** Empty when the course could not be read; the chip then says "this course". */
+  name: string;
+  /** Notebooks the course references. Empty means the course has none. */
+  notebookIds: string[];
+}
+
 interface NotebookConsoleProps {
   /** Notebook to open on arrival, e.g. from a `?notebook=<id>` deep link. */
   initialNotebookId?: string | null;
+  /** Present when arriving from a course; narrows the library to its notebooks. */
+  courseScope?: NotebookCourseScope | null;
 }
 
 export default function NotebookConsole({
   initialNotebookId,
+  courseScope = null,
 }: NotebookConsoleProps) {
   const { t } = useTranslation();
   const router = useRouter();
@@ -62,15 +75,40 @@ export default function NotebookConsole({
 
   const { notebooks, selected, selectedId } = library;
 
+  // How many notebooks exist *for this visit*. Everything the console counts —
+  // the badge, whether a filter box is worth showing, which empty state to use
+  // — reads this rather than the whole library, or a course-scoped visit would
+  // report numbers the list does not back up.
+  const scopedNotebooks = useMemo(
+    () =>
+      courseScope
+        ? notebooks.filter((notebook) =>
+            courseScope.notebookIds.includes(notebook.id),
+          )
+        : notebooks,
+    [courseScope, notebooks],
+  );
+
   const visibleNotebooks = useMemo(() => {
     const needle = notebookQuery.trim().toLowerCase();
-    if (!needle) return notebooks;
-    return notebooks.filter((notebook) =>
+    if (!needle) return scopedNotebooks;
+    return scopedNotebooks.filter((notebook) =>
       `${notebook.name} ${notebook.description ?? ""}`
         .toLowerCase()
         .includes(needle),
     );
-  }, [notebooks, notebookQuery]);
+  }, [scopedNotebooks, notebookQuery]);
+
+  // The library opens the most recent notebook by default, which under a course
+  // scope can be one the course does not reference — the list then shows one
+  // notebook while the pane beside it shows another. Pull the selection back
+  // inside the scope.
+  const scopedSelect = library.select;
+  useEffect(() => {
+    if (!courseScope || scopedNotebooks.length === 0) return;
+    if (selectedId && courseScope.notebookIds.includes(selectedId)) return;
+    scopedSelect(scopedNotebooks[0].id);
+  }, [courseScope, scopedNotebooks, scopedSelect, selectedId]);
 
   const visibleRecords = useMemo(() => {
     const records = selected?.records ?? [];
@@ -188,7 +226,7 @@ export default function NotebookConsole({
               <NotebookPen size={14} strokeWidth={1.7} />
               {t("Notebooks")}
               <span className="rounded-full bg-[var(--muted)] px-1.5 py-0.5 text-[10px] font-normal tabular-nums text-[var(--muted-foreground)]">
-                {notebooks.length}
+                {scopedNotebooks.length}
               </span>
             </h1>
             <button
@@ -245,7 +283,26 @@ export default function NotebookConsole({
             </div>
           )}
 
-          {notebooks.length > 6 && (
+          {courseScope ? (
+            <div className="flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--card)] py-1 pl-2 pr-1 text-[11px] text-[var(--muted-foreground)]">
+              <School size={11} strokeWidth={1.8} className="shrink-0" />
+              <Link
+                href={`/courses/${courseScope.id}`}
+                className="min-w-0 flex-1 truncate transition-colors hover:text-[var(--foreground)]"
+              >
+                {courseScope.name || t("This course")}
+              </Link>
+              <Link
+                href="/notebook"
+                aria-label={t("Show every notebook")}
+                className="shrink-0 rounded p-0.5 transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+              >
+                <X size={11} />
+              </Link>
+            </div>
+          ) : null}
+
+          {scopedNotebooks.length > 6 && (
             <div className="relative">
               <Search
                 size={12}
@@ -322,7 +379,7 @@ export default function NotebookConsole({
               data-test="notebooks-empty"
               className="px-2 py-8 text-center text-[12px] text-[var(--muted-foreground)]"
             >
-              {notebooks.length
+              {scopedNotebooks.length
                 ? t("No notebooks match your filter.")
                 : t("No notebooks yet.")}
             </p>

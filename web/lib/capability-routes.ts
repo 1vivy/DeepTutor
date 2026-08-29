@@ -24,7 +24,7 @@ export const ROUTE_CAPABILITIES: ReadonlyArray<{
   { prefix: "/co-writer", capability: "llm" },
   { prefix: "/book", capability: "llm" },
   { prefix: "/reading", capability: "llm" },
-  { prefix: "/space/learning", capability: "llm" }, // Mastery Path
+  { prefix: "/mastery", capability: "llm" }, // Mastery Path
   { prefix: "/playground", capability: "llm" },
 ];
 

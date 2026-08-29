@@ -587,14 +587,16 @@ async def mastery_topic_websocket(ws: WebSocket) -> None:
 @router.get("/progress")
 async def list_all_progress():
     service = get_learning_service()
-    return service.list_progress()
+    return await asyncio.to_thread(service.list_progress)
 
 
 @router.get("/progress/{book_id}")
 async def get_progress(book_id: str):
     _validate_book_id(book_id)
     service = get_learning_service()
-    progress = service.get_or_create(book_id)
+    progress = await asyncio.to_thread(service.store.load, book_id)
+    if progress is None:
+        raise HTTPException(status_code=404, detail="Mastery progress not found")
     payload = progress.model_dump(mode="json")
     if progress.pending_question is not None:
         from deeptutor.learning.pending import public_pending_question

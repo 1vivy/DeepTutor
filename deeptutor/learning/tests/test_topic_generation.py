@@ -1,6 +1,7 @@
 """Route materialisation keeps product identity separate from display order."""
 
 import json
+import logging
 from unittest.mock import AsyncMock
 
 import pytest
@@ -155,6 +156,7 @@ async def test_selected_knowledge_base_is_retrieved_into_generation_prompt(
 @pytest.mark.asyncio
 async def test_unavailable_knowledge_base_does_not_abort_other_sources(
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     monkeypatch.setattr(
         "deeptutor.tools.rag_tool.rag_search",
@@ -177,27 +179,75 @@ async def test_unavailable_knowledge_base_does_not_abort_other_sources(
         ),
     )
 
-    result = await generate_topic_draft(
-        name="Fallback",
-        goal="Keep generating from the goal",
-        sources=[
-            TopicSource(
-                id="goal",
-                kind=TopicSourceKind.GOAL,
-                label="Goal",
-                excerpt="Keep generating from the goal",
-            ),
-            TopicSource(
-                id="offline",
-                kind=TopicSourceKind.KNOWLEDGE_BASE,
-                source_id="offline-kb",
-                label="Offline KB",
-            ),
-        ],
-        language="en",
-    )
+    with caplog.at_level(logging.ERROR, logger="deeptutor.learning.topic_generation"):
+        result = await generate_topic_draft(
+            name="Fallback",
+            goal="Keep generating from the goal",
+            sources=[
+                TopicSource(
+                    id="goal",
+                    kind=TopicSourceKind.GOAL,
+                    label="Goal",
+                    excerpt="Keep generating from the goal",
+                ),
+                TopicSource(
+                    id="offline",
+                    kind=TopicSourceKind.KNOWLEDGE_BASE,
+                    source_id="offline-kb",
+                    label="Offline KB",
+                ),
+            ],
+            language="en",
+        )
 
     assert result["modules"]
     assert result["sources"][0]["available"] is True
     assert result["sources"][1]["available"] is False
     assert result["sources"][1]["metadata"]["unavailable_during_generation"] is True
+    assert "Knowledge-base grounding failed" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_malformed_model_modules_are_reported_in_forgiving_draft(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setattr(
+        "deeptutor.learning.topic_generation.complete",
+        AsyncMock(
+            return_value=json.dumps(
+                {
+                    "description": "Partially usable route",
+                    "modules": [
+                        "not-an-object",
+                        {"name": "", "knowledge_points": []},
+                        {"name": "No list", "knowledge_points": "invalid"},
+                        {
+                            "name": "Usable region",
+                            "knowledge_points": [
+                                "not-an-object",
+                                {"name": "Valid objective", "type": "concept"},
+                            ],
+                        },
+                    ],
+                }
+            )
+        ),
+    )
+
+    with caplog.at_level(logging.WARNING, logger="deeptutor.learning.topic_generation"):
+        result = await generate_topic_draft(
+            name="Mixed model output",
+            goal="Keep the valid portion",
+            sources=[],
+            language="en",
+        )
+
+    assert len(result["modules"]) == 1
+    assert result["discarded_module_count"] == 3
+    assert result["discarded_modules"] == [
+        {"index": 1, "reason": "module is not an object"},
+        {"index": 2, "reason": "module name is missing"},
+        {"index": 3, "reason": "knowledge_points is not a list"},
+    ]
+    assert "Discarded 3 generated route module(s)" in caplog.text

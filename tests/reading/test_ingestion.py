@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pytest
 
 from deeptutor.reading.catalog_models import IngestionStatus, SourceKind
 from deeptutor.reading.catalog_store import ReadingCatalogStore
+from deeptutor.reading.extract import (
+    SECTION_HARD_CHARS,
+    split_into_sections,
+    split_markdown_by_headings,
+)
 from deeptutor.reading.ingestion import (
     MAX_TRANSCRIPT_BYTES,
     TRANSCRIPT_UNAVAILABLE_TEXT,
@@ -19,7 +25,9 @@ from deeptutor.reading.ingestion import (
 )
 from deeptutor.reading.models import ReadingError
 from deeptutor.reading.store import ReadingStore
-from deeptutor.tools.web_fetch import FetchOutcome
+from deeptutor.tools.web_fetch import FetchOutcome, _extract_readable
+
+_ARTICLE_FIXTURE = Path(__file__).parents[1] / "fixtures" / "web" / "vector_article.html"
 
 
 @pytest.fixture
@@ -50,10 +58,71 @@ async def test_web_import_uses_safe_fetch_result_and_builds_sections(stores) -> 
     manifest = reading.manifest(ready.material_id)
     assert manifest.title == "A careful article"
     assert "First claim" in reading.unit_text(ready.material_id, 1)
+    assert reading.outline(ready.material_id)[0].synthesised is True
 
 
 @pytest.mark.asyncio
-async def test_failed_url_import_is_retryable(stores) -> None:
+async def test_web_article_fixture_builds_heading_derived_outline(stores) -> None:
+    reading, catalog = stores
+    title, markdown = _extract_readable(_ARTICLE_FIXTURE.read_text(encoding="utf-8"))
+
+    async def fetcher(url: str, **_kwargs):
+        return FetchOutcome(ok=True, url=url, title=title, markdown=markdown)
+
+    service = ReadingIngestionService(reading, catalog, web_fetcher=fetcher)
+    queued = service.queue_url("https://example.com/structured-article")
+    ready = await service.process_url(queued.material_id)
+
+    assert ready.status is IngestionStatus.READY
+    assert reading.manifest(ready.material_id).unit_count == 4
+    outline = reading.outline(ready.material_id)
+    assert [(row.locator, row.title, row.level) for row in outline] == [
+        (1, "Transformer (deep learning)", 1),
+        (2, "History", 2),
+        (3, "Predecessors", 3),
+        (4, "Applications", 2),
+    ]
+    assert all(row.synthesised is False for row in outline)
+    stored_text = "\n".join(
+        reading.unit_text(ready.material_id, locator) for locator in range(1, 5)
+    )
+    assert "Jump to content" not in stored_text
+    assert "navigation footer" not in stored_text
+
+
+def test_heading_sections_keep_long_continuations_under_the_same_title() -> None:
+    markdown = (
+        "# Article\n\nLead.\n\n## Long section\n\n"
+        + ("history detail " * (SECTION_HARD_CHARS // 8))
+        + "\n\n## Finish\n\nDone."
+    )
+
+    units, outline = split_markdown_by_headings(markdown)
+
+    long_rows = [row for row in outline if row.title == "Long section"]
+    assert len(long_rows) > 1
+    assert [row.locator for row in long_rows] == list(
+        range(long_rows[0].locator, long_rows[-1].locator + 1)
+    )
+    # The first piece also carries the heading line; the paragraph payload
+    # itself still obeys the existing hard-split limit.
+    assert all(
+        len(units[row.locator - 1]) <= SECTION_HARD_CHARS + len("## Long section\n\n")
+        for row in long_rows
+    )
+
+
+def test_heading_splitter_falls_back_when_only_the_page_title_exists() -> None:
+    markdown = "# Article title\n\nA flat article paragraph.\n\nAnother paragraph."
+
+    units, outline = split_markdown_by_headings(markdown)
+
+    assert units == split_into_sections(markdown)
+    assert outline == ()
+
+
+@pytest.mark.asyncio
+async def test_failed_url_import_is_retryable(stores, caplog: pytest.LogCaptureFixture) -> None:
     _reading, catalog = stores
 
     async def fetcher(_url: str, **_kwargs):
@@ -61,11 +130,13 @@ async def test_failed_url_import_is_retryable(stores) -> None:
 
     service = ReadingIngestionService(stores[0], catalog, web_fetcher=fetcher)
     queued = service.queue_url("https://example.com/private")
-    failed = await service.process_url(queued.material_id)
+    with caplog.at_level(logging.ERROR, logger="deeptutor.reading.ingestion"):
+        failed = await service.process_url(queued.material_id)
 
     assert failed.status is IngestionStatus.FAILED
     assert failed.error_code == "web_fetch_failed"
     assert "blocked" in failed.error_detail
+    assert "Reading URL ingestion failed" in caplog.text
 
 
 @pytest.mark.asyncio
@@ -134,9 +205,7 @@ def test_invalid_youtube_urls_are_rejected(url: str) -> None:
         ("https://b23.tv/BV1E7wtzaEdq", "BV1E7wtzaEdq", 1, 0),
     ],
 )
-def test_bilibili_url_shapes_are_canonical(
-    url: str, bvid: str, page: int, start: int
-) -> None:
+def test_bilibili_url_shapes_are_canonical(url: str, bvid: str, page: int, start: int) -> None:
     parsed = parse_bilibili_url(url)
     assert parsed.bvid == bvid
     assert parsed.page_number == page
@@ -174,12 +243,8 @@ async def test_bilibili_import_uses_native_video_metadata_and_subtitles(stores) 
             chapters=[TranscriptSegment(0, 31, "视频内容介绍")],
         )
 
-    service = ReadingIngestionService(
-        reading, catalog, bilibili_loader=bilibili_loader
-    )
-    queued = service.queue_url(
-        "https://www.bilibili.com/video/BV1E7wtzaEdq/?spm_id_from=tracking"
-    )
+    service = ReadingIngestionService(reading, catalog, bilibili_loader=bilibili_loader)
+    queued = service.queue_url("https://www.bilibili.com/video/BV1E7wtzaEdq/?spm_id_from=tracking")
     ready = await service.process_url(queued.material_id)
 
     assert queued.source_kind is SourceKind.BILIBILI
@@ -208,9 +273,7 @@ async def test_bilibili_chapters_remain_navigable_without_claiming_transcript(st
             ],
         )
 
-    service = ReadingIngestionService(
-        reading, catalog, bilibili_loader=bilibili_loader
-    )
+    service = ReadingIngestionService(reading, catalog, bilibili_loader=bilibili_loader)
     queued = service.queue_url("https://www.bilibili.com/video/BV1E7wtzaEdq")
     ready = await service.process_url(queued.material_id)
 
@@ -290,3 +353,28 @@ async def test_local_video_keeps_playable_raw_and_transcribes_chunks(
     assert reading.manifest(ready.material_id).render_mode == "video"
     assert reading.raw_path(ready.material_id).read_bytes() == source.read_bytes()
     assert reading.unit_text(ready.material_id, 2) == "second section"
+
+
+@pytest.mark.asyncio
+async def test_media_ingestion_failure_is_logged_and_persisted(
+    stores,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _reading, catalog = stores
+    source = tmp_path / "broken.mp4"
+    source.write_bytes(b"broken video")
+
+    async def failing_chunker(_path: Path):
+        raise RuntimeError("decoder crashed")
+
+    service = ReadingIngestionService(*stores, media_chunker=failing_chunker)
+    with caplog.at_level(logging.ERROR, logger="deeptutor.reading.ingestion"):
+        with pytest.raises(RuntimeError, match="decoder crashed"):
+            await service.import_media(source)
+
+    material_id = next(row.material_id for row in catalog.list_materials())
+    failed = catalog.get_material(material_id)
+    assert failed is not None
+    assert failed.status is IngestionStatus.FAILED
+    assert "Reading media ingestion failed" in caplog.text

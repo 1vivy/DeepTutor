@@ -72,38 +72,6 @@ class MaterialRecord:
 
 
 @dataclass(frozen=True, slots=True)
-class FolderRecord:
-    folder_id: str
-    name: str
-    parent_id: str | None = None
-    created_at: float = 0.0
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "folder_id": self.folder_id,
-            "name": self.name,
-            "parent_id": self.parent_id,
-            "created_at": self.created_at,
-        }
-
-
-@dataclass(frozen=True, slots=True)
-class TagRecord:
-    tag_id: str
-    name: str
-    color: str = "terracotta"
-    created_at: float = 0.0
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "tag_id": self.tag_id,
-            "name": self.name,
-            "color": self.color,
-            "created_at": self.created_at,
-        }
-
-
-@dataclass(frozen=True, slots=True)
 class WorkspaceTab:
     material: MaterialRecord
     tab_order: int
@@ -130,8 +98,6 @@ class WorkspaceRecord:
     created_at: float = 0.0
     updated_at: float = 0.0
     tabs: tuple[WorkspaceTab, ...] = field(default_factory=tuple)
-    folders: tuple[FolderRecord, ...] = field(default_factory=tuple)
-    tags: tuple[TagRecord, ...] = field(default_factory=tuple)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -142,8 +108,6 @@ class WorkspaceRecord:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "tabs": [row.to_dict() for row in self.tabs],
-            "folders": [row.to_dict() for row in self.folders],
-            "tags": [row.to_dict() for row in self.tags],
         }
 
 
@@ -168,12 +132,10 @@ class ReadingSessionRecord:
 
 
 __all__ = [
-    "FolderRecord",
     "IngestionStatus",
     "MaterialRecord",
     "ReadingSessionRecord",
     "SourceKind",
-    "TagRecord",
     "WorkspaceRecord",
     "WorkspaceTab",
 ]

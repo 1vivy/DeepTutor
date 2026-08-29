@@ -233,9 +233,7 @@ class MaterialManifest:
         return cls(
             material_id=str(data.get("material_id") or ""),
             filename=str(data.get("filename") or ""),
-            unit=(
-                unit if unit in ("page", "chapter", "slide", "section", "segment") else "page"
-            ),  # type: ignore[arg-type]
+            unit=(unit if unit in ("page", "chapter", "slide", "section", "segment") else "page"),  # type: ignore[arg-type]
             unit_count=int(data.get("unit_count") or 0),
             mime=str(data.get("mime") or ""),
             title=str(data.get("title") or ""),

@@ -23,6 +23,21 @@ export const ANNOTATION_COLORS = [
 ] as const;
 export type AnnotationColor = (typeof ANNOTATION_COLORS)[number];
 
+/**
+ * Swatch for each highlight colour.
+ *
+ * Deliberately literal rather than themed: a highlight is content — it is
+ * written into the exported PDF and has to look the same everywhere the
+ * annotation is read back.
+ */
+export const ANNOTATION_SWATCH: Record<AnnotationColor, string> = {
+  yellow: "#facd5a",
+  green: "#8cdb94",
+  blue: "#7ac0fa",
+  pink: "#faa1c7",
+  purple: "#c7aefa",
+};
+
 export interface MaterialInfo {
   material_id: string;
   filename: string;
@@ -178,11 +193,21 @@ export async function listMaterials(): Promise<MaterialInfo[]> {
   );
 }
 
-export async function uploadMaterial(file: File): Promise<MaterialDetail> {
+export async function uploadMaterial(
+  file: File,
+  options?: { reuse?: boolean },
+): Promise<MaterialDetail> {
   const form = new FormData();
   form.append("file", file, file.name);
+  // reuse=false asks the server to mint a separate material for content it
+  // already holds, so a second copy carries its own annotations instead of
+  // silently collapsing onto the first upload.
+  const query = options?.reuse === false ? "?reuse=false" : "";
   return unwrap(
-    await apiFetch(apiUrl(`${BASE}/materials`), { method: "POST", body: form }),
+    await apiFetch(apiUrl(`${BASE}/materials${query}`), {
+      method: "POST",
+      body: form,
+    }),
   );
 }
 

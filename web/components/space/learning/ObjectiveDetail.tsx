@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import type { ObjectiveReport } from "@/lib/learning-api";
 
@@ -17,37 +18,36 @@ import { formatAbsolute, formatRelative, type Translate } from "./format";
  */
 export function ObjectiveDetail({
   report,
-  tr,
   zh,
 }: {
   report: ObjectiveReport;
-  tr: Translate;
   zh: boolean;
 }) {
+  const { t } = useTranslation();
   const qualitative = report.gate === "qualitative";
   return (
     <div className="mt-1 mb-2 ml-5 space-y-3 border-l border-[var(--border)] pl-3">
-      <GateBar report={report} tr={tr} />
+      <GateBar report={report} />
 
       {report.review && (
-        <Row label={tr("间隔复习", "Spaced review")}>
+        <Row label={t("Spaced review")}>
           {report.review.due_at
-            ? tr(
-                `${formatRelative(report.review.due_at, zh)}复习 · ${formatAbsolute(report.review.due_at, zh)}`,
-                `Due ${formatRelative(report.review.due_at, zh)} · ${formatAbsolute(report.review.due_at, zh)}`,
-              )
-            : tr("未排期", "Not scheduled")}
+            ? t("Due {{relative}} · {{absolute}}", {
+                relative: formatRelative(report.review.due_at, zh),
+                absolute: formatAbsolute(report.review.due_at, zh),
+              })
+            : t("Not scheduled")}
           <span className="ml-2 text-[var(--muted-foreground)]">
-            {tr(
-              `第 ${report.review.interval_index + 1} 档 · 连对 ${report.review.consecutive_correct}`,
-              `interval ${report.review.interval_index + 1} · ${report.review.consecutive_correct} in a row`,
-            )}
+            {t("interval {{interval}} · {{streak}} in a row", {
+              interval: report.review.interval_index + 1,
+              streak: report.review.consecutive_correct,
+            })}
           </span>
         </Row>
       )}
 
       {qualitative && report.explanation && (
-        <Row label={tr("你的解释", "Your explanation")}>
+        <Row label={t("Your explanation")}>
           <span className="italic">{report.explanation}</span>
         </Row>
       )}
@@ -55,10 +55,10 @@ export function ObjectiveDetail({
       {report.attempts.length > 0 && (
         <div>
           <div className="text-xs text-[var(--muted-foreground)]">
-            {tr(
-              `作答记录（${report.correct_count}/${report.attempts.length} 正确）`,
-              `Attempts (${report.correct_count}/${report.attempts.length} correct)`,
-            )}
+            {t("Attempts ({{correct}}/{{total}} correct)", {
+              correct: report.correct_count,
+              total: report.attempts.length,
+            })}
           </div>
           <ul className="mt-1 space-y-1.5">
             {[...report.attempts].reverse().map((attempt, index) => (
@@ -74,11 +74,11 @@ export function ObjectiveDetail({
                 <div className="min-w-0">
                   <div className="text-[var(--foreground)]">
                     {attempt.prompt ||
-                      tr("（题面已不可用）", "(prompt unavailable)")}
+                      t("(prompt unavailable)")}
                   </div>
                   <div className="text-[var(--muted-foreground)]">
-                    {tr("你答：", "You said: ")}
-                    {attempt.answer || tr("（空）", "(blank)")}
+                    {t("You said: ")}
+                    {attempt.answer || t("(blank)")}
                     <span className="ml-2">
                       {formatRelative(attempt.at, zh)}
                     </span>
@@ -91,19 +91,13 @@ export function ObjectiveDetail({
       )}
 
       {report.errors.length > 0 && (
-        <Row label={tr("错因", "Error diagnosis")}>
+        <Row label={t("Error diagnosis")}>
           {report.errors.map((record) => (
             <span key={record.id} className="mr-2">
-              {tr(
-                ERROR_TYPE_CN[record.error_type] ?? record.error_type,
-                record.error_type,
-              )}
+              {t(record.error_type)}
               {record.retries > 0 &&
-                tr(
-                  ` · 重试 ${record.retries} 次`,
-                  ` · ${record.retries} retries`,
-                )}
-              {record.status === "graduated" && tr(" · 已订正", " · cleared")}
+                t(" · {{count}} retries", { count: record.retries })}
+              {record.status === "graduated" && t(" · cleared")}
             </span>
           ))}
         </Row>
@@ -111,10 +105,7 @@ export function ObjectiveDetail({
 
       {report.attempts.length === 0 && !report.explanation && (
         <p className="text-xs text-[var(--muted-foreground)]">
-          {tr(
-            "还没有作答记录。在对话里继续辅导后，这里会出现题目、你的回答和判分。",
-            "No attempts yet. Once you work through this waypoint, its questions, your answers, and the grading evidence will appear here.",
-          )}
+          {t("No attempts yet. Once you work through this waypoint, its questions, your answers, and the grading evidence will appear here.")}
         </p>
       )}
     </div>
@@ -122,7 +113,8 @@ export function ObjectiveDetail({
 }
 
 /** Mastery against the gate it has to clear. */
-function GateBar({ report, tr }: { report: ObjectiveReport; tr: Translate }) {
+function GateBar({ report }: { report: ObjectiveReport }) {
+  const { t } = useTranslation();
   const pct = Math.round(report.mastery * 100);
   const thresholdPct = Math.round(report.threshold * 100);
   const perfectButBelowGate =
@@ -135,14 +127,8 @@ function GateBar({ report, tr }: { report: ObjectiveReport; tr: Translate }) {
       <div className="flex items-baseline justify-between text-xs">
         <span className="text-[var(--muted-foreground)]">
           {report.gate === "qualitative"
-            ? tr(
-                "定性门槛：用自己的话讲清楚",
-                "Qualitative gate: explain it in your own words",
-              )
-            : tr(
-                `定量门槛：${thresholdPct}%`,
-                `Quantitative gate: ${thresholdPct}%`,
-              )}
+            ? t("Qualitative gate: explain it in your own words")
+            : t("Quantitative gate: {{pct}}%", { pct: thresholdPct })}
         </span>
         <span
           className={
@@ -156,7 +142,7 @@ function GateBar({ report, tr }: { report: ObjectiveReport; tr: Translate }) {
       </div>
       <div className="relative mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[var(--accent)]">
         <div
-          className={`h-full ${report.mastered ? "bg-green-500" : "bg-yellow-500"}`}
+          className={`h-full ${report.mastered ? "bg-[var(--primary)]" : "bg-[var(--muted-foreground)]"}`}
           style={{ width: `${pct}%` }}
         />
         {report.gate === "quantitative" && (
@@ -168,9 +154,9 @@ function GateBar({ report, tr }: { report: ObjectiveReport; tr: Translate }) {
       </div>
       {perfectButBelowGate && (
         <p className="mt-1.5 text-[11px] leading-4 text-[var(--muted-foreground)]">
-          {tr(
-            `虽然目前 ${report.correct_count}/${report.attempts.length} 全部答对，掌握分仍会结合证据数量、难度与近期稳定性计算；再完成一次有区分度的练习即可继续提高。`,
-            `Even with ${report.correct_count}/${report.attempts.length} correct so far, mastery also weighs evidence volume, difficulty, and recent consistency. One more discriminating practice can raise it further.`,
+          {t(
+            "Even with {{correct}}/{{total}} correct so far, mastery also weighs evidence volume, difficulty, and recent consistency. One more discriminating practice can raise it further.",
+            { correct: report.correct_count, total: report.attempts.length },
           )}
         </p>
       )}
@@ -193,9 +179,3 @@ function Row({
   );
 }
 
-const ERROR_TYPE_CN: Record<string, string> = {
-  structural: "知识结构性",
-  deviation: "理解偏差",
-  application: "应用错误",
-  metacognitive: "元认知",
-};

@@ -147,7 +147,7 @@ class ReadingListTabsTool(_ReadingToolBase):
         workspace = await asyncio.to_thread(self._catalog().get_workspace, workspace_id)
         if workspace is None:
             return self._failure("The reading workspace is unavailable.")
-        lines = [f'Reading table “{workspace.title}” has {len(workspace.tabs)} material(s):']
+        lines = [f"Reading table “{workspace.title}” has {len(workspace.tabs)} material(s):"]
         tabs: list[dict[str, Any]] = []
         for tab in workspace.tabs:
             material = tab.material
@@ -210,13 +210,14 @@ class ReadingSwitchTabTool(_ReadingToolBase):
             tab.material for tab in workspace.tabs if tab.material.material_id == material_id
         )
         return ToolResult(
-            content=f'Switched the reading tools to “{material.title}”.',
+            content=f"Switched the reading tools to “{material.title}”.",
             metadata={
                 "workspace_id": workspace_id,
                 "material_id": material_id,
                 "reader_action": "switch_tab",
             },
         )
+
 
 class MaterialOutlineTool(_ReadingToolBase):
     """The map of the open document — always cheaper than reading to find out."""

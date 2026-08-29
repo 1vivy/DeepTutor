@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import multiprocessing
 from pathlib import Path
 import sqlite3
@@ -130,6 +131,36 @@ def test_live_root_json_is_imported_and_archived(tmp_path: Path) -> None:
     assert (archive / "legacy-json" / "json-only.json").exists()
     manifest = json.loads((archive / "migration.json").read_text(encoding="utf-8"))
     assert manifest["legacy_json_count"] == 1
+    assert manifest["row_counts"]["mastery_paths"] == 1
+
+
+def test_corrupt_live_json_is_quarantined_without_blocking_good_migration(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    learning_root = tmp_path / "learning"
+    learning_root.mkdir(parents=True)
+    good_json = learning_root / "good-topic.json"
+    good_json.write_text(
+        LearningProgress(book_id="good-topic", name="Recovered topic").model_dump_json(),
+        encoding="utf-8",
+    )
+    corrupt_json = learning_root / "corrupt-topic.json"
+    corrupt_json.write_text('{"book_id": "corrupt-topic",', encoding="utf-8")
+
+    with caplog.at_level(logging.ERROR, logger="deeptutor.learning.storage"):
+        v2_root = prepare_mastery_v2_root(learning_root)
+
+    migrated = LearningStore(root=v2_root)
+    assert migrated.load("good-topic").name == "Recovered topic"
+    assert migrated.exists("corrupt-topic") is False
+    assert not corrupt_json.exists()
+    assert (learning_root / "archive" / "failed" / "corrupt-topic.json").exists()
+    assert "Quarantined corrupt legacy mastery file" in caplog.text
+
+    archive = next((learning_root / "archive").glob("v1-*"))
+    manifest = json.loads((archive / "migration.json").read_text(encoding="utf-8"))
+    assert manifest["row_counts"]["mastery_paths"] == 1
 
 
 def test_late_root_json_is_reconciled_into_existing_v2_store(tmp_path: Path) -> None:

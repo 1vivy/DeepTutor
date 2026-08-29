@@ -15,16 +15,12 @@ from deeptutor.reading.catalog_store import ReadingCatalogStore
 from deeptutor.reading.store import ReadingStore
 
 
-def test_tab_inventory_has_identity_but_never_material_body(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_tab_inventory_has_identity_but_never_material_body(tmp_path: Path, monkeypatch) -> None:
     store, catalog, workspace = _workspace(tmp_path)
     monkeypatch.setattr(reading_tools._ReadingToolBase, "_store", staticmethod(lambda: store))
     monkeypatch.setattr(reading_tools._ReadingToolBase, "_catalog", staticmethod(lambda: catalog))
 
-    result = asyncio.run(
-        ReadingListTabsTool().execute(**{WORKSPACE_KWARG: workspace.workspace_id})
-    )
+    result = asyncio.run(ReadingListTabsTool().execute(**{WORKSPACE_KWARG: workspace.workspace_id}))
 
     assert result.success
     assert "First source" in result.content
@@ -77,7 +73,5 @@ def _workspace(tmp_path: Path):
     )
     catalog.register_manifest(first)
     catalog.register_manifest(second)
-    workspace = catalog.create_workspace(
-        "Research table", [first.material_id, second.material_id]
-    )
+    workspace = catalog.create_workspace("Research table", [first.material_id, second.material_id])
     return store, catalog, workspace

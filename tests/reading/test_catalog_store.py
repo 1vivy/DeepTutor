@@ -4,9 +4,12 @@ from pathlib import Path
 
 import pytest
 
+from deeptutor.multi_user.models import CurrentUser, UserScope
+from deeptutor.multi_user.paths import user_context
 from deeptutor.reading.catalog_models import IngestionStatus, SourceKind
 from deeptutor.reading.catalog_store import ReadingCatalogStore
 from deeptutor.reading.models import ReadingError
+from deeptutor.reading.store import ReadingStore
 
 
 @pytest.fixture
@@ -94,24 +97,6 @@ def test_workspace_tabs_keep_order_and_active_material_valid(
         catalog.set_active_material(workspace.workspace_id, three.material_id)
 
 
-def test_folders_tags_and_workspace_queries(catalog: ReadingCatalogStore) -> None:
-    material = _material(catalog, "b" * 16, "A Novel")
-    workspace = catalog.create_workspace("Close Reading", [material.material_id])
-    folder = catalog.create_folder("Literature")
-    tag = catalog.create_tag("seminar", color="terracotta")
-
-    catalog.assign_workspace_folder(workspace.workspace_id, folder.folder_id)
-    catalog.assign_workspace_tag(workspace.workspace_id, tag.tag_id)
-
-    detail = catalog.get_workspace(workspace.workspace_id)
-    assert detail is not None
-    assert [row.name for row in detail.folders] == ["Literature"]
-    assert [row.name for row in detail.tags] == ["seminar"]
-    assert [row.workspace_id for row in catalog.list_workspaces(tag_id=tag.tag_id)] == [
-        workspace.workspace_id
-    ]
-
-
 def test_reading_sessions_and_explicit_historical_links(catalog: ReadingCatalogStore) -> None:
     material = _material(catalog, "c" * 16, "Systems Book")
     workspace = catalog.create_workspace("Systems", [material.material_id])
@@ -137,13 +122,9 @@ def test_reading_sessions_and_explicit_historical_links(catalog: ReadingCatalogS
     assert catalog.list_session_links(workspace.workspace_id, second.session_id) == [
         first.session_id
     ]
-    assert catalog.unlink_session(
-        workspace.workspace_id, second.session_id, first.session_id
-    )
+    assert catalog.unlink_session(workspace.workspace_id, second.session_id, first.session_id)
     assert catalog.list_session_links(workspace.workspace_id, second.session_id) == []
-    assert not catalog.unlink_session(
-        workspace.workspace_id, second.session_id, first.session_id
-    )
+    assert not catalog.unlink_session(workspace.workspace_id, second.session_id, first.session_id)
 
     with pytest.raises(ReadingError, match="same reading workspace"):
         catalog.link_session(workspace.workspace_id, second.session_id, "missing")
@@ -158,3 +139,32 @@ def test_two_catalog_roots_cannot_see_each_other(tmp_path: Path) -> None:
     assert attacker.get_material(secret.material_id) is None
     assert attacker.list_workspaces() == []
     assert victim.db_path != attacker.db_path
+
+
+def test_default_stores_follow_the_current_user_scope(tmp_path: Path) -> None:
+    def user(user_id: str) -> CurrentUser:
+        return CurrentUser(
+            id=user_id,
+            username=user_id,
+            role="user",
+            scope=UserScope(
+                kind="user",
+                user_id=user_id,
+                root=(tmp_path / "users" / user_id).resolve(),
+            ),
+        )
+
+    with user_context(user("victim")):
+        victim = ReadingCatalogStore()
+        victim_content_root = ReadingStore().root
+        secret = _material(victim, "e" * 16, "Scoped Private Draft")
+        victim.create_workspace("Scoped Private", [secret.material_id])
+
+    with user_context(user("attacker")):
+        attacker = ReadingCatalogStore()
+        attacker_content_root = ReadingStore().root
+
+    assert attacker.get_material(secret.material_id) is None
+    assert attacker.list_workspaces() == []
+    assert victim.db_path != attacker.db_path
+    assert victim_content_root != attacker_content_root

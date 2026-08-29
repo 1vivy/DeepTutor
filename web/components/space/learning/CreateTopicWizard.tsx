@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import {
   AlertCircle,
   ArrowLeft,
@@ -28,25 +29,24 @@ import {
 import type { Translate } from "./format";
 import { RouteDraftEditor } from "./RouteDraftEditor";
 import { isRouteDraftValid } from "./route-draft";
-import { DestinationStep, SourcesStep } from "./TopicWizardSteps";
+import { GoalStep, SourcesStep } from "./TopicWizardSteps";
 
 export function CreateTopicWizard({
-  tr,
   onClose,
   onCreated,
   returnFocusRef,
 }: {
-  tr: Translate;
   onClose: () => void;
   onCreated: (topic: MasteryTopic) => void;
   returnFocusRef: RefObject<HTMLElement | null>;
 }) {
+  const { t } = useTranslation();
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [goal, setGoal] = useState("");
   const [emoji, setEmoji] = useState("🧭");
   const { library, loading: libraryLoading, candidates } =
-    useTopicSourceLibrary(tr);
+    useTopicSourceLibrary(t);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [draft, setDraft] = useState<TopicDraft | null>(null);
   const [sources, setSources] = useState<TopicSourceInput[]>([]);
@@ -74,7 +74,7 @@ export function CreateTopicWizard({
       const nextSources: TopicSourceInput[] = [
         {
           kind: "goal",
-          label: tr("学习目标", "Learning destination"),
+          label: t("Learning goal"),
           excerpt: goal.trim(),
         },
         ...hydrated,
@@ -91,10 +91,7 @@ export function CreateTopicWizard({
       setError(
         reason instanceof Error
           ? reason.message
-          : tr(
-              "路线生成失败，请重试。",
-              "Route generation failed. Please retry.",
-            ),
+          : t("Could not generate the outline. Please retry."),
       );
     } finally {
       setBusy(false);
@@ -119,7 +116,7 @@ export function CreateTopicWizard({
       setError(
         reason instanceof Error
           ? reason.message
-          : tr("创建失败，请重试。", "Creation failed. Please retry."),
+          : t("Creation failed. Please retry."),
       );
     } finally {
       setBusy(false);
@@ -139,26 +136,26 @@ export function CreateTopicWizard({
         aria-modal="true"
         aria-labelledby="create-topic-title"
         tabIndex={-1}
-        className="flex max-h-[94dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[26px] border border-[var(--border)] bg-[var(--card)] shadow-2xl outline-none sm:max-h-[88dvh] sm:rounded-[26px]"
+        className="flex max-h-[94dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[26px] border border-[var(--border)] bg-[var(--card)] shadow-2xl outline-none sm:max-h-[88dvh] sm:rounded-xl"
       >
         <header className="flex items-start justify-between border-b border-[var(--border)] px-5 py-4 sm:px-7 sm:py-5">
           <div>
             <div className="flex items-center gap-2 text-xs font-medium text-[var(--primary)]">
               <Sparkles className="h-3.5 w-3.5" />
-              {tr("新远征", "New expedition")}
+              {t("New topic")}
             </div>
             <h2
               id="create-topic-title"
               className="mt-1 text-xl font-semibold tracking-tight text-[var(--foreground)]"
             >
-              {tr("绘制一条精通路线", "Chart a mastery route")}
+              {t("Plan the modules")}
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             disabled={busy}
-            aria-label={tr("关闭", "Close")}
+            aria-label={t("Close")}
             className="rounded-lg p-2 text-[var(--muted-foreground)] hover:bg-[var(--accent)] disabled:opacity-40"
           >
             <X className="h-4 w-4" />
@@ -168,12 +165,12 @@ export function CreateTopicWizard({
         <div className="border-b border-[var(--border)] px-5 py-3 sm:px-7">
           <ol
             className="grid grid-cols-3 gap-2"
-            aria-label={tr("创建步骤", "Creation steps")}
+            aria-label={t("Creation steps")}
           >
             {[
-              tr("目的地", "Destination"),
-              tr("补给", "Sources"),
-              tr("路线", "Route"),
+              t("Goal"),
+              t("Materials"),
+              t("Outline"),
             ].map((label, index) => {
               const number = index + 1;
               const active = number === step;
@@ -185,7 +182,7 @@ export function CreateTopicWizard({
                       active
                         ? "bg-[var(--primary)] text-[var(--primary-foreground)]"
                         : done
-                          ? "bg-emerald-600 text-white"
+                          ? "bg-[var(--primary)] text-[var(--primary-foreground)]"
                           : "bg-[var(--muted)] text-[var(--muted-foreground)]"
                     }`}
                   >
@@ -208,11 +205,10 @@ export function CreateTopicWizard({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-7">
           {step === 1 && (
-            <DestinationStep
+            <GoalStep
               name={name}
               goal={goal}
               emoji={emoji}
-              tr={tr}
               onName={setName}
               onGoal={setGoal}
               onEmoji={setEmoji}
@@ -223,12 +219,11 @@ export function CreateTopicWizard({
               library={library}
               loading={libraryLoading}
               selected={selected}
-              tr={tr}
               onToggle={toggleSource}
             />
           )}
           {step === 3 && draft && (
-            <RouteDraftEditor draft={draft} tr={tr} onChange={setDraft} />
+            <RouteDraftEditor draft={draft} onChange={setDraft} />
           )}
           {error && (
             <div className="mt-5 flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/[0.06] p-3 text-xs leading-5 text-red-700 dark:text-red-300">
@@ -246,7 +241,7 @@ export function CreateTopicWizard({
             className="inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm text-[var(--muted-foreground)] hover:bg-[var(--accent)] disabled:invisible"
           >
             <ArrowLeft className="h-4 w-4" />
-            {tr("上一步", "Back")}
+            {t("Back")}
           </button>
           {step === 1 ? (
             <button
@@ -255,7 +250,7 @@ export function CreateTopicWizard({
               disabled={!name.trim() || !goal.trim()}
               className="inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--primary)] px-4 text-sm font-medium text-[var(--primary-foreground)] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {tr("选择补给", "Choose sources")}
+              {t("Choose sources")}
               <ArrowRight className="h-4 w-4" />
             </button>
           ) : step === 2 ? (
@@ -271,8 +266,8 @@ export function CreateTopicWizard({
                 <Sparkles className="h-4 w-4" />
               )}
               {busy
-                ? tr("正在绘图…", "Charting…")
-                : tr("生成路线", "Generate route")}
+                ? t("Charting…")
+                : t("Generate outline")}
             </button>
           ) : (
             <button
@@ -287,8 +282,8 @@ export function CreateTopicWizard({
                 <Check className="h-4 w-4" />
               )}
               {busy
-                ? tr("正在落图…", "Saving map…")
-                : tr("开启远征", "Start expedition")}
+                ? t("Saving map…")
+                : t("Start learning")}
             </button>
           )}
         </footer>

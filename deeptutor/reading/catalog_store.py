@@ -18,16 +18,15 @@ from typing import Iterator, Sequence
 import uuid
 
 from deeptutor.reading.catalog_models import (
-    FolderRecord,
     IngestionStatus,
     MaterialRecord,
     ReadingSessionRecord,
     SourceKind,
-    TagRecord,
     WorkspaceRecord,
     WorkspaceTab,
 )
 from deeptutor.reading.models import ReadingError
+from deeptutor.services.path_service import get_path_service
 
 _SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
@@ -45,9 +44,7 @@ class ReadingCatalogStore:
 
     def __init__(self, root: Path | str | None = None) -> None:
         if root is None:
-            from deeptutor.services.path_service import PathService
-
-            root = PathService.get_instance().get_workspace_feature_dir("reading")
+            root = get_path_service().get_workspace_feature_dir("reading")
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
         self.db_path = self.root / "_catalog.sqlite3"
@@ -75,7 +72,7 @@ class ReadingCatalogStore:
 
                 CREATE TABLE IF NOT EXISTS reading_materials (
                     material_id TEXT PRIMARY KEY,
-                    content_id TEXT NOT NULL UNIQUE,
+                    content_id TEXT NOT NULL,
                     filename TEXT NOT NULL DEFAULT '',
                     title TEXT NOT NULL,
                     source_kind TEXT NOT NULL,
@@ -94,6 +91,8 @@ class ReadingCatalogStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_reading_materials_updated
                     ON reading_materials(updated_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_reading_materials_content
+                    ON reading_materials(content_id);
 
                 CREATE TABLE IF NOT EXISTS reading_workspaces (
                     workspace_id TEXT PRIMARY KEY,
@@ -118,34 +117,6 @@ class ReadingCatalogStore:
                     added_at REAL NOT NULL,
                     PRIMARY KEY (workspace_id, material_id),
                     UNIQUE (workspace_id, tab_order)
-                );
-
-                CREATE TABLE IF NOT EXISTS reading_folders (
-                    folder_id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    parent_id TEXT REFERENCES reading_folders(folder_id) ON DELETE CASCADE,
-                    created_at REAL NOT NULL,
-                    UNIQUE (parent_id, name)
-                );
-                CREATE TABLE IF NOT EXISTS reading_workspace_folders (
-                    workspace_id TEXT NOT NULL REFERENCES reading_workspaces(workspace_id)
-                        ON DELETE CASCADE,
-                    folder_id TEXT NOT NULL REFERENCES reading_folders(folder_id)
-                        ON DELETE CASCADE,
-                    PRIMARY KEY (workspace_id, folder_id)
-                );
-
-                CREATE TABLE IF NOT EXISTS reading_tags (
-                    tag_id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
-                    color TEXT NOT NULL DEFAULT 'terracotta',
-                    created_at REAL NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS reading_workspace_tags (
-                    workspace_id TEXT NOT NULL REFERENCES reading_workspaces(workspace_id)
-                        ON DELETE CASCADE,
-                    tag_id TEXT NOT NULL REFERENCES reading_tags(tag_id) ON DELETE CASCADE,
-                    PRIMARY KEY (workspace_id, tag_id)
                 );
 
                 CREATE TABLE IF NOT EXISTS reading_workspace_sessions (
@@ -187,7 +158,81 @@ class ReadingCatalogStore:
                     "ALTER TABLE reading_materials "
                     "ADD COLUMN duration_seconds REAL NOT NULL DEFAULT 0"
                 )
-            conn.execute("UPDATE reading_schema SET version = 2")
+            if self._content_id_is_unique(conn):
+                self._remove_content_id_unique_constraint(conn)
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reading_materials_updated "
+                "ON reading_materials(updated_at DESC)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reading_materials_content "
+                "ON reading_materials(content_id)"
+            )
+            conn.execute("UPDATE reading_schema SET version = 3")
+
+    @staticmethod
+    def _content_id_is_unique(conn: sqlite3.Connection) -> bool:
+        for index in conn.execute("PRAGMA index_list(reading_materials)").fetchall():
+            if not bool(index["unique"]):
+                continue
+            columns = [
+                row["name"]
+                for row in conn.execute(f"PRAGMA index_info('{index['name']}')").fetchall()
+            ]
+            if columns == ["content_id"]:
+                return True
+        return False
+
+    @staticmethod
+    def _remove_content_id_unique_constraint(conn: sqlite3.Connection) -> None:
+        """Rebuild the legacy table without changing existing material ids."""
+        conn.commit()
+        conn.execute("PRAGMA foreign_keys = OFF")
+        try:
+            conn.executescript(
+                """
+                BEGIN IMMEDIATE;
+                CREATE TABLE reading_materials_new (
+                    material_id TEXT PRIMARY KEY,
+                    content_id TEXT NOT NULL,
+                    filename TEXT NOT NULL DEFAULT '',
+                    title TEXT NOT NULL,
+                    source_kind TEXT NOT NULL,
+                    source_url TEXT NOT NULL DEFAULT '',
+                    mime TEXT NOT NULL DEFAULT '',
+                    render_mode TEXT NOT NULL DEFAULT 'text',
+                    cover_url TEXT NOT NULL DEFAULT '',
+                    duration_seconds REAL NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'queued',
+                    progress INTEGER NOT NULL DEFAULT 0,
+                    error_code TEXT NOT NULL DEFAULT '',
+                    error_detail TEXT NOT NULL DEFAULT '',
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL,
+                    last_opened_at REAL NOT NULL DEFAULT 0
+                );
+                INSERT INTO reading_materials_new (
+                    material_id, content_id, filename, title, source_kind, source_url,
+                    mime, render_mode, cover_url, duration_seconds, status, progress,
+                    error_code, error_detail, created_at, updated_at, last_opened_at
+                )
+                SELECT material_id, content_id, filename, title, source_kind, source_url,
+                       mime, render_mode, cover_url, duration_seconds, status, progress,
+                       error_code, error_detail, created_at, updated_at, last_opened_at
+                FROM reading_materials;
+                DROP TABLE reading_materials;
+                ALTER TABLE reading_materials_new RENAME TO reading_materials;
+                COMMIT;
+                """
+            )
+        except BaseException:
+            conn.rollback()
+            raise
+        finally:
+            conn.execute("PRAGMA foreign_keys = ON")
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violations:  # pragma: no cover - signals a corrupt legacy catalog
+            raise ReadingError("reading catalog migration found invalid material references")
 
     # -- materials -------------------------------------------------------
 
@@ -210,7 +255,9 @@ class ReadingCatalogStore:
         error_detail: str = "",
     ) -> MaterialRecord:
         content_id = str(content_id or "").strip()
-        resolved_id = material_id or (content_id if _SAFE_ID.fullmatch(content_id) else _new_id("mat"))
+        resolved_id = material_id or (
+            content_id if _SAFE_ID.fullmatch(content_id) else _new_id("mat")
+        )
         self._validate_id(resolved_id, "material")
         content_id = content_id or resolved_id
         try:
@@ -228,7 +275,8 @@ class ReadingCatalogStore:
                     mime, render_mode, cover_url, status, progress, error_code,
                     error_detail, duration_seconds, created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(content_id) DO UPDATE SET
+                ON CONFLICT(material_id) DO UPDATE SET
+                    content_id = excluded.content_id,
                     filename = excluded.filename, title = excluded.title,
                     source_kind = excluded.source_kind, source_url = excluded.source_url,
                     mime = excluded.mime, render_mode = excluded.render_mode,
@@ -261,7 +309,7 @@ class ReadingCatalogStore:
                 ),
             )
             row = conn.execute(
-                "SELECT * FROM reading_materials WHERE content_id = ?", (content_id,)
+                "SELECT * FROM reading_materials WHERE material_id = ?", (resolved_id,)
             ).fetchone()
         if row is None:  # pragma: no cover
             raise ReadingError("material could not be stored")
@@ -288,11 +336,48 @@ class ReadingCatalogStore:
             ).fetchone()
         return self._material(row) if row else None
 
+    def find_material_by_content(self, content_id: str) -> MaterialRecord | None:
+        """Return the stable default material for shared extracted content."""
+        resolved = str(content_id or "").strip()
+        if not resolved:
+            return None
+        with self._connect() as conn:
+            row = conn.execute(
+                """SELECT * FROM reading_materials WHERE content_id = ?
+                   ORDER BY created_at, material_id LIMIT 1""",
+                (resolved,),
+            ).fetchone()
+        return self._material(row) if row else None
+
+    def find_ready_material_by_filename(
+        self, filename: str, *, mime: str = ""
+    ) -> MaterialRecord | None:
+        """Find one ready exact-name match with a compatible media type."""
+        resolved_name = Path(str(filename or "")).name.strip()
+        if not resolved_name:
+            return None
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT * FROM reading_materials
+                   WHERE filename = ? COLLATE NOCASE AND status = 'ready'
+                   ORDER BY updated_at DESC, material_id""",
+                (resolved_name,),
+            ).fetchall()
+        wanted_mime = str(mime or "").strip().lower()
+        suffix = Path(resolved_name).suffix.lower()
+        for row in rows:
+            row_mime = str(row["mime"] or "").lower()
+            row_suffix = Path(str(row["filename"] or "")).suffix.lower()
+            if not wanted_mime or wanted_mime == row_mime or (suffix and suffix == row_suffix):
+                return self._material(row)
+        return None
+
     def list_materials(
         self,
         *,
         search: str = "",
         status: IngestionStatus | str | None = None,
+        library_filter: str = "all",
         limit: int = 200,
         offset: int = 0,
     ) -> list[MaterialRecord]:
@@ -305,6 +390,17 @@ class ReadingCatalogStore:
         if status is not None:
             clauses.append("status = ?")
             params.append(_value(status))
+        if library_filter == "unassigned":
+            clauses.append(
+                "NOT EXISTS (SELECT 1 FROM reading_workspace_materials wm "
+                "WHERE wm.material_id = reading_materials.material_id)"
+            )
+        elif library_filter == "processing":
+            clauses.append("status IN ('queued', 'processing')")
+        elif library_filter == "failed":
+            clauses.append("status = 'failed'")
+        elif library_filter != "all":
+            raise ReadingError(f"unsupported material library filter: {library_filter}")
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         params.extend((max(1, min(int(limit), 500)), max(0, int(offset))))
         with self._connect() as conn:
@@ -314,6 +410,84 @@ class ReadingCatalogStore:
                 params,
             ).fetchall()
         return [self._material(row) for row in rows]
+
+    def collections_for_materials(
+        self, material_ids: Sequence[str]
+    ) -> dict[str, list[dict[str, str]]]:
+        """Load collection membership for many materials with one grouped query."""
+        unique_ids = list(dict.fromkeys(material_ids))
+        grouped: dict[str, list[dict[str, str]]] = {material_id: [] for material_id in unique_ids}
+        if not unique_ids:
+            return grouped
+        placeholders = ",".join("?" for _ in unique_ids)
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""SELECT wm.material_id, w.workspace_id, w.title
+                    FROM reading_workspace_materials wm
+                    JOIN reading_workspaces w USING (workspace_id)
+                    WHERE wm.material_id IN ({placeholders})
+                    ORDER BY w.title COLLATE NOCASE, w.workspace_id""",  # noqa: S608
+                unique_ids,
+            ).fetchall()
+        for row in rows:
+            grouped[row["material_id"]].append(
+                {"workspace_id": row["workspace_id"], "title": row["title"]}
+            )
+        return grouped
+
+    def collections_for_material(self, material_id: str) -> list[dict[str, str]]:
+        self._validate_id(material_id, "material")
+        return self.collections_for_materials([material_id])[material_id]
+
+    def library_counts(self) -> dict[str, object]:
+        """Counts for the complete material library, independent of page filters."""
+        with self._connect() as conn:
+            row = conn.execute(
+                """SELECT
+                       COUNT(*) AS all_count,
+                       COALESCE(SUM(NOT EXISTS (
+                           SELECT 1 FROM reading_workspace_materials wm
+                           WHERE wm.material_id = reading_materials.material_id
+                       )), 0) AS unassigned_count,
+                       COALESCE(SUM(status IN ('queued', 'processing')), 0) AS processing_count,
+                       COALESCE(SUM(status = 'failed'), 0) AS failed_count,
+                       COALESCE(SUM(CASE
+                           WHEN render_mode = 'video' OR source_kind = 'video' THEN 1 ELSE 0
+                       END), 0) AS video_count,
+                       COALESCE(SUM(CASE
+                           WHEN render_mode = 'audio' OR source_kind = 'audio' THEN 1 ELSE 0
+                       END), 0) AS audio_count,
+                       COALESCE(SUM(CASE
+                           WHEN render_mode NOT IN ('video', 'audio') AND source_kind = 'web'
+                           THEN 1 ELSE 0
+                       END), 0) AS web_count,
+                       COALESCE(SUM(CASE
+                           WHEN render_mode NOT IN ('video', 'audio') AND source_kind = 'file'
+                           THEN 1 ELSE 0
+                       END), 0) AS document_count
+                   FROM reading_materials"""
+            ).fetchone()
+        assert row is not None
+        return {
+            "all": int(row["all_count"]),
+            "unassigned": int(row["unassigned_count"]),
+            "processing": int(row["processing_count"]),
+            "failed": int(row["failed_count"]),
+            "by_kind": {
+                "document": int(row["document_count"]),
+                "web": int(row["web_count"]),
+                "video": int(row["video_count"]),
+                "audio": int(row["audio_count"]),
+            },
+        }
+
+    def count_materials_for_content(self, content_id: str) -> int:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS count FROM reading_materials WHERE content_id = ?",
+                (str(content_id or "").strip(),),
+            ).fetchone()
+        return int(row["count"]) if row else 0
 
     def update_material_status(
         self,
@@ -334,7 +508,14 @@ class ReadingCatalogStore:
                 SET status = ?, progress = ?, error_code = ?, error_detail = ?, updated_at = ?
                 WHERE material_id = ?
                 """,
-                (value, resolved_progress, error_code[:128], error_detail[:4000], time.time(), material_id),
+                (
+                    value,
+                    resolved_progress,
+                    error_code[:128],
+                    error_detail[:4000],
+                    time.time(),
+                    material_id,
+                ),
             ).rowcount
         if not changed:
             raise ReadingError(f"material {material_id!r} not found")
@@ -388,7 +569,10 @@ class ReadingCatalogStore:
                     workspace_id, material_id, tab_order, added_at
                 ) VALUES (?, ?, ?, ?)
                 """,
-                [(resolved_id, material_id, index, now) for index, material_id in enumerate(unique_materials)],
+                [
+                    (resolved_id, material_id, index, now)
+                    for index, material_id in enumerate(unique_materials)
+                ],
             )
         detail = self.get_workspace(resolved_id)
         assert detail is not None
@@ -405,30 +589,17 @@ class ReadingCatalogStore:
             return self._workspace(
                 row,
                 tabs=self._workspace_tabs(conn, workspace_id),
-                folders=self._workspace_folders(conn, workspace_id),
-                tags=self._workspace_tags(conn, workspace_id),
             )
 
     def list_workspaces(
         self,
         *,
         search: str = "",
-        folder_id: str | None = None,
-        tag_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[WorkspaceRecord]:
         clauses: list[str] = []
         params: list[object] = []
-        joins = ""
-        if folder_id:
-            joins += " JOIN reading_workspace_folders wf USING (workspace_id)"
-            clauses.append("wf.folder_id = ?")
-            params.append(folder_id)
-        if tag_id:
-            joins += " JOIN reading_workspace_tags wt USING (workspace_id)"
-            clauses.append("wt.tag_id = ?")
-            params.append(tag_id)
         if search.strip():
             clauses.append("w.title LIKE ? ESCAPE '\\'")
             params.append(f"%{self._escape_like(search.strip())}%")
@@ -436,7 +607,7 @@ class ReadingCatalogStore:
         params.extend((max(1, min(int(limit), 500)), max(0, int(offset))))
         with self._connect() as conn:
             rows = conn.execute(
-                f"SELECT DISTINCT w.workspace_id FROM reading_workspaces w {joins} {where} "  # noqa: S608
+                f"SELECT w.workspace_id FROM reading_workspaces w {where} "  # noqa: S608
                 "ORDER BY w.updated_at DESC LIMIT ? OFFSET ?",
                 params,
             ).fetchall()
@@ -474,9 +645,11 @@ class ReadingCatalogStore:
     def delete_workspace(self, workspace_id: str) -> bool:
         self._validate_id(workspace_id, "workspace")
         with self._lock, self._connect() as conn:
-            return bool(conn.execute(
-                "DELETE FROM reading_workspaces WHERE workspace_id = ?", (workspace_id,)
-            ).rowcount)
+            return bool(
+                conn.execute(
+                    "DELETE FROM reading_workspaces WHERE workspace_id = ?", (workspace_id,)
+                ).rowcount
+            )
 
     def add_material(
         self, workspace_id: str, material_id: str, *, make_active: bool = False
@@ -560,11 +733,14 @@ class ReadingCatalogStore:
         if len(ordered) != len(set(ordered)):
             raise ReadingError("tab order contains duplicate materials")
         with self._lock, self._connect() as conn:
-            current = [row["material_id"] for row in conn.execute(
-                """SELECT material_id FROM reading_workspace_materials
+            current = [
+                row["material_id"]
+                for row in conn.execute(
+                    """SELECT material_id FROM reading_workspace_materials
                    WHERE workspace_id = ? ORDER BY tab_order""",
-                (workspace_id,),
-            ).fetchall()]
+                    (workspace_id,),
+                ).fetchall()
+            ]
             if set(current) != set(ordered):
                 raise ReadingError("tab order must include every workspace material exactly once")
             conn.execute(
@@ -604,58 +780,6 @@ class ReadingCatalogStore:
             )
         return self._existing_workspace(workspace_id)
 
-    # -- folders and tags ------------------------------------------------
-
-    def create_folder(
-        self, name: str, *, parent_id: str | None = None, folder_id: str | None = None
-    ) -> FolderRecord:
-        resolved_id = folder_id or _new_id("rf")
-        self._validate_id(resolved_id, "folder")
-        now = time.time()
-        resolved_name = self._require_name(name)
-        try:
-            with self._lock, self._connect() as conn:
-                conn.execute(
-                    "INSERT INTO reading_folders(folder_id, name, parent_id, created_at) VALUES (?, ?, ?, ?)",
-                    (resolved_id, resolved_name, parent_id, now),
-                )
-        except sqlite3.IntegrityError as exc:
-            raise ReadingError("folder name already exists at this level") from exc
-        return FolderRecord(resolved_id, resolved_name, parent_id, now)
-
-    def list_folders(self) -> list[FolderRecord]:
-        with self._connect() as conn:
-            rows = conn.execute("SELECT * FROM reading_folders ORDER BY name COLLATE NOCASE").fetchall()
-        return [self._folder(row) for row in rows]
-
-    def assign_workspace_folder(self, workspace_id: str, folder_id: str) -> None:
-        self._assign_relation(workspace_id, folder_id, kind="folder")
-
-    def create_tag(
-        self, name: str, *, color: str = "terracotta", tag_id: str | None = None
-    ) -> TagRecord:
-        resolved_id = tag_id or _new_id("rt")
-        self._validate_id(resolved_id, "tag")
-        now = time.time()
-        resolved_name = self._require_name(name)
-        try:
-            with self._lock, self._connect() as conn:
-                conn.execute(
-                    "INSERT INTO reading_tags(tag_id, name, color, created_at) VALUES (?, ?, ?, ?)",
-                    (resolved_id, resolved_name, color.strip()[:64], now),
-                )
-        except sqlite3.IntegrityError as exc:
-            raise ReadingError("tag name already exists") from exc
-        return TagRecord(resolved_id, resolved_name, color.strip()[:64], now)
-
-    def list_tags(self) -> list[TagRecord]:
-        with self._connect() as conn:
-            rows = conn.execute("SELECT * FROM reading_tags ORDER BY name COLLATE NOCASE").fetchall()
-        return [self._tag(row) for row in rows]
-
-    def assign_workspace_tag(self, workspace_id: str, tag_id: str) -> None:
-        self._assign_relation(workspace_id, tag_id, kind="tag")
-
     # -- reading sessions ------------------------------------------------
 
     def attach_session(
@@ -670,14 +794,19 @@ class ReadingCatalogStore:
         now = time.time()
         with self._lock, self._connect() as conn:
             self._require_workspace(conn, workspace_id)
-            if active_material_id and conn.execute(
-                """SELECT 1 FROM reading_workspace_materials
+            if (
+                active_material_id
+                and conn.execute(
+                    """SELECT 1 FROM reading_workspace_materials
                    WHERE workspace_id = ? AND material_id = ?""",
-                (workspace_id, active_material_id),
-            ).fetchone() is None:
+                    (workspace_id, active_material_id),
+                ).fetchone()
+                is None
+            ):
                 raise ReadingError("active material does not belong to this reading workspace")
             existing = conn.execute(
-                "SELECT workspace_id FROM reading_workspace_sessions WHERE session_id = ?", (session_id,)
+                "SELECT workspace_id FROM reading_workspace_sessions WHERE session_id = ?",
+                (session_id,),
             ).fetchone()
             if existing and existing["workspace_id"] != workspace_id:
                 raise ReadingError("session already belongs to another reading workspace")
@@ -745,7 +874,9 @@ class ReadingCatalogStore:
                 ).rowcount
             )
 
-    def link_session(self, workspace_id: str, source_session_id: str, target_session_id: str) -> None:
+    def link_session(
+        self, workspace_id: str, source_session_id: str, target_session_id: str
+    ) -> None:
         if source_session_id == target_session_id:
             raise ReadingError("a reading session cannot reference itself")
         with self._lock, self._connect() as conn:
@@ -790,26 +921,35 @@ class ReadingCatalogStore:
     @staticmethod
     def _material(row: sqlite3.Row) -> MaterialRecord:
         return MaterialRecord(
-            material_id=row["material_id"], content_id=row["content_id"],
-            filename=row["filename"], title=row["title"],
-            source_kind=SourceKind(row["source_kind"]), source_url=row["source_url"],
-            mime=row["mime"], render_mode=row["render_mode"], cover_url=row["cover_url"],
+            material_id=row["material_id"],
+            content_id=row["content_id"],
+            filename=row["filename"],
+            title=row["title"],
+            source_kind=SourceKind(row["source_kind"]),
+            source_url=row["source_url"],
+            mime=row["mime"],
+            render_mode=row["render_mode"],
+            cover_url=row["cover_url"],
             duration_seconds=float(row["duration_seconds"]),
-            status=IngestionStatus(row["status"]), progress=int(row["progress"]),
-            error_code=row["error_code"], error_detail=row["error_detail"],
-            created_at=float(row["created_at"]), updated_at=float(row["updated_at"]),
+            status=IngestionStatus(row["status"]),
+            progress=int(row["progress"]),
+            error_code=row["error_code"],
+            error_detail=row["error_detail"],
+            created_at=float(row["created_at"]),
+            updated_at=float(row["updated_at"]),
             last_opened_at=float(row["last_opened_at"]),
         )
 
     @classmethod
-    def _workspace(
-        cls, row: sqlite3.Row, *, tabs=(), folders=(), tags=()
-    ) -> WorkspaceRecord:
+    def _workspace(cls, row: sqlite3.Row, *, tabs=()) -> WorkspaceRecord:
         return WorkspaceRecord(
-            workspace_id=row["workspace_id"], title=row["title"],
-            description=row["description"], active_material_id=row["active_material_id"],
-            created_at=float(row["created_at"]), updated_at=float(row["updated_at"]),
-            tabs=tuple(tabs), folders=tuple(folders), tags=tuple(tags),
+            workspace_id=row["workspace_id"],
+            title=row["title"],
+            description=row["description"],
+            active_material_id=row["active_material_id"],
+            created_at=float(row["created_at"]),
+            updated_at=float(row["updated_at"]),
+            tabs=tuple(tabs),
         )
 
     @classmethod
@@ -820,44 +960,26 @@ class ReadingCatalogStore:
                WHERE wm.workspace_id = ? ORDER BY wm.tab_order""",
             (workspace_id,),
         ).fetchall()
-        return [WorkspaceTab(
-            material=cls._material(row), tab_order=int(row["tab_order"]),
-            pinned=bool(row["pinned"]), opened=bool(row["opened"]),
-            added_at=float(row["added_at"]),
-        ) for row in rows]
-
-    @staticmethod
-    def _folder(row: sqlite3.Row) -> FolderRecord:
-        return FolderRecord(row["folder_id"], row["name"], row["parent_id"], float(row["created_at"]))
-
-    @classmethod
-    def _workspace_folders(cls, conn: sqlite3.Connection, workspace_id: str) -> list[FolderRecord]:
-        rows = conn.execute(
-            """SELECT f.* FROM reading_folders f JOIN reading_workspace_folders wf USING (folder_id)
-               WHERE wf.workspace_id = ? ORDER BY f.name COLLATE NOCASE""",
-            (workspace_id,),
-        ).fetchall()
-        return [cls._folder(row) for row in rows]
-
-    @staticmethod
-    def _tag(row: sqlite3.Row) -> TagRecord:
-        return TagRecord(row["tag_id"], row["name"], row["color"], float(row["created_at"]))
-
-    @classmethod
-    def _workspace_tags(cls, conn: sqlite3.Connection, workspace_id: str) -> list[TagRecord]:
-        rows = conn.execute(
-            """SELECT t.* FROM reading_tags t JOIN reading_workspace_tags wt USING (tag_id)
-               WHERE wt.workspace_id = ? ORDER BY t.name COLLATE NOCASE""",
-            (workspace_id,),
-        ).fetchall()
-        return [cls._tag(row) for row in rows]
+        return [
+            WorkspaceTab(
+                material=cls._material(row),
+                tab_order=int(row["tab_order"]),
+                pinned=bool(row["pinned"]),
+                opened=bool(row["opened"]),
+                added_at=float(row["added_at"]),
+            )
+            for row in rows
+        ]
 
     @staticmethod
     def _session(row: sqlite3.Row) -> ReadingSessionRecord:
         return ReadingSessionRecord(
-            workspace_id=row["workspace_id"], session_id=row["session_id"],
-            title=row["title"], active_material_id=row["active_material_id"],
-            created_at=float(row["created_at"]), updated_at=float(row["updated_at"]),
+            workspace_id=row["workspace_id"],
+            session_id=row["session_id"],
+            title=row["title"],
+            active_material_id=row["active_material_id"],
+            created_at=float(row["created_at"]),
+            updated_at=float(row["updated_at"]),
         )
 
     def _existing_workspace(self, workspace_id: str) -> WorkspaceRecord:
@@ -876,17 +998,13 @@ class ReadingCatalogStore:
         return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
     @staticmethod
-    def _require_name(value: str) -> str:
-        resolved = str(value or "").strip()[:200]
-        if not resolved:
-            raise ReadingError("name is required")
-        return resolved
-
-    @staticmethod
     def _require_workspace(conn: sqlite3.Connection, workspace_id: str) -> None:
-        if conn.execute(
-            "SELECT 1 FROM reading_workspaces WHERE workspace_id = ?", (workspace_id,)
-        ).fetchone() is None:
+        if (
+            conn.execute(
+                "SELECT 1 FROM reading_workspaces WHERE workspace_id = ?", (workspace_id,)
+            ).fetchone()
+            is None
+        ):
             raise ReadingError(f"workspace {workspace_id!r} not found")
 
     @staticmethod
@@ -894,36 +1012,16 @@ class ReadingCatalogStore:
         if not material_ids:
             return
         placeholders = ",".join("?" for _ in material_ids)
-        found = {row["material_id"] for row in conn.execute(
-            f"SELECT material_id FROM reading_materials WHERE material_id IN ({placeholders})",  # noqa: S608
-            list(material_ids),
-        ).fetchall()}
+        found = {
+            row["material_id"]
+            for row in conn.execute(
+                f"SELECT material_id FROM reading_materials WHERE material_id IN ({placeholders})",  # noqa: S608
+                list(material_ids),
+            ).fetchall()
+        }
         missing = [material_id for material_id in material_ids if material_id not in found]
         if missing:
             raise ReadingError(f"unknown reading materials: {', '.join(missing)}")
-
-    def _assign_relation(self, workspace_id: str, related_id: str, *, kind: str) -> None:
-        if kind == "folder":
-            table, related_table, column = (
-                "reading_workspace_folders", "reading_folders", "folder_id"
-            )
-        else:
-            table, related_table, column = "reading_workspace_tags", "reading_tags", "tag_id"
-        with self._lock, self._connect() as conn:
-            self._require_workspace(conn, workspace_id)
-            if conn.execute(
-                f"SELECT 1 FROM {related_table} WHERE {column} = ?",  # noqa: S608
-                (related_id,),
-            ).fetchone() is None:
-                raise ReadingError(f"{kind} not found")
-            conn.execute(
-                f"INSERT OR IGNORE INTO {table}(workspace_id, {column}) VALUES (?, ?)",  # noqa: S608
-                (workspace_id, related_id),
-            )
-            conn.execute(
-                "UPDATE reading_workspaces SET updated_at = ? WHERE workspace_id = ?",
-                (time.time(), workspace_id),
-            )
 
 
 __all__ = ["ReadingCatalogStore"]

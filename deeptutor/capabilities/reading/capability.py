@@ -174,9 +174,7 @@ class ReadingCapability:
             return ""
         if workspace is None:
             return ""
-        rows = [
-            f"Reading workspace: {workspace.title}. Only one material is bound at a time."
-        ]
+        rows = [f"Reading workspace: {workspace.title}. Only one material is bound at a time."]
         rows.extend(
             f"- {tab.material.title} [{tab.material.source_kind.value}; "
             f"{tab.material.status.value}; id={tab.material.material_id}]"
@@ -213,11 +211,7 @@ class ReadingCapability:
         )
         if manifest.render_mode in {"video", "audio"}:
             first_time = next(
-                (
-                    ref.title
-                    for ref in unit_refs
-                    if ref.title and ref.source_href.startswith("#t=")
-                ),
+                (ref.title for ref in unit_refs if ref.title and ref.source_href.startswith("#t=")),
                 "00:00",
             )
             rendered += (
@@ -263,9 +257,7 @@ class ReadingCapability:
         workspace_id = resolve_workspace_id(context)
         if not material_id and not workspace_id:
             return kwargs
-        binding = context.metadata.setdefault(
-            "_reading_tool_binding", {"material_id": material_id}
-        )
+        binding = context.metadata.setdefault("_reading_tool_binding", {"material_id": material_id})
         if isinstance(binding, dict) and not binding.get("material_id"):
             binding["material_id"] = material_id
         return {

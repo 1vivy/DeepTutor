@@ -1,17 +1,18 @@
 /** Shared presentation helpers for the Mastery Path dashboard. */
 
-export type Translate = (cn: string, en: string) => string;
+/** The `t` from `useTranslation()`, narrowed to what these helpers need. */
+export type Translate = (key: string) => string;
 
-const KNOWLEDGE_TYPE_LABELS: Record<string, [string, string]> = {
-  concept: ["概念", "Concept"],
-  memory: ["记忆", "Memory"],
-  procedure: ["过程", "Procedure"],
-  design: ["设计", "Design"],
+const KNOWLEDGE_TYPE_LABELS: Record<string, string> = {
+  concept: "Concept",
+  memory: "Memory",
+  procedure: "Procedure",
+  design: "Design",
 };
 
-export function knowledgeTypeLabel(type: string, tr: Translate): string {
+export function knowledgeTypeLabel(type: string, t: Translate): string {
   const label = KNOWLEDGE_TYPE_LABELS[type];
-  return label ? tr(label[0], label[1]) : type;
+  return label ? t(label) : type;
 }
 
 /**
@@ -21,14 +22,14 @@ export function knowledgeTypeLabel(type: string, tr: Translate): string {
  */
 export function topicDisplayName(
   topic: { name: string; path_id: string },
-  tr: Translate,
+  t: Translate,
 ): string {
   const name = topic.name.trim();
   if (name && name !== topic.path_id && !/^unified_\d+_[a-z0-9]+$/i.test(name)) {
     return name;
   }
   const suffix = topic.path_id.split("_").at(-1)?.slice(-4) || "map";
-  return `${tr("探索路线", "Exploration trail")} · ${suffix}`;
+  return `${t("Exploration trail")} · ${suffix}`;
 }
 
 const MINUTE = 60;

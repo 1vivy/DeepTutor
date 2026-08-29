@@ -211,7 +211,7 @@ export default function CourseDetailPage() {
           label={t("Question Bank")}
         />
         <Shortcut
-          href="/space/learning"
+          href="/mastery"
           icon={GraduationCap}
           label={t("Mastery Path")}
         />

@@ -5,7 +5,7 @@ SQLite-backed unified chat session store.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 import json
@@ -120,6 +120,7 @@ class QuestionBankQuery:
     is_correct: bool | None = None
     search: str = ""
     session_id: str | None = None
+    session_ids: Sequence[str] | None = None
     sort: str = "recent"
     limit: int = 50
     offset: int = 0
@@ -133,6 +134,7 @@ class QuestionBankQuery:
             is_correct=self.is_correct,
             search=(self.search or "").strip()[:200],
             session_id=self.session_id,
+            session_ids=None if self.session_ids is None else tuple(self.session_ids),
             sort="oldest" if self.sort == "oldest" else "recent",
             limit=max(1, min(int(self.limit), 500)),
             offset=max(0, int(self.offset)),
@@ -1740,6 +1742,12 @@ class SQLiteSessionStore:
         if query.session_id is not None:
             conditions.append("n.session_id = ?")
             params.append(query.session_id)
+        if query.session_ids is not None:
+            # Only the placeholder shape is interpolated; session ids remain
+            # bound parameters. ``IN (NULL)`` is the explicit empty-set case.
+            placeholders = ",".join("?" for _ in query.session_ids) or "NULL"
+            conditions.append(f"n.session_id IN ({placeholders})")
+            params.extend(query.session_ids)
         if query.search:
             # ESCAPE so a learner searching for "50%" or "a_b" gets literal
             # matches instead of the wildcards those characters would be.
@@ -1823,6 +1831,7 @@ class SQLiteSessionStore:
         offset: int = 0,
         *,
         session_id: str | None = None,
+        session_ids: Sequence[str] | None = None,
         search: str = "",
         uncategorized: bool = False,
         sort: str = "recent",
@@ -1837,16 +1846,27 @@ class SQLiteSessionStore:
                 is_correct=is_correct,
                 search=search,
                 session_id=session_id,
+                session_ids=session_ids,
                 sort=sort,
                 limit=limit,
                 offset=offset,
             ),
         )
 
-    def _question_bank_stats_sync(self) -> dict[str, int]:
+    def _question_bank_stats_sync(self, session_ids: Sequence[str] | None = None) -> dict[str, int]:
         with self._connect() as conn:
+            # Same ``None`` vs ``[]`` contract as the listing: absent means "do
+            # not scope", empty means "scoped to nothing". The rail's counts sit
+            # beside the list, so anything the list excludes must not be counted
+            # here either.
+            where = ""
+            params: list[str] = []
+            if session_ids is not None:
+                placeholders = ",".join("?" for _ in session_ids) or "NULL"
+                where = f"WHERE session_id IN ({placeholders})"
+                params = list(session_ids)
             row = conn.execute(
-                """
+                f"""
                 SELECT
                     COUNT(*) AS total,
                     COALESCE(SUM(CASE WHEN is_correct = 0 THEN 1 ELSE 0 END), 0) AS wrong,
@@ -1858,7 +1878,9 @@ class SQLiteSessionStore:
                         ) THEN 1 ELSE 0 END
                     ), 0) AS uncategorized
                 FROM notebook_entries
-                """
+                {where}
+                """,  # noqa: S608 - placeholders only; every value stays bound
+                params,
             ).fetchone()
         if row is None:
             return {"total": 0, "wrong": 0, "bookmarked": 0, "uncategorized": 0}
@@ -1883,9 +1905,15 @@ class SQLiteSessionStore:
         except Exception:
             return False
 
-    async def question_bank_stats(self) -> dict[str, int]:
+    async def question_bank_stats(
+        self,
+        session_ids: Sequence[str] | None = None,
+    ) -> dict[str, int]:
         """Counts behind the bank's filter chips (and the agent's overview)."""
-        return await self._run(self._question_bank_stats_sync)
+        return await self._run(
+            self._question_bank_stats_sync,
+            None if session_ids is None else tuple(session_ids),
+        )
 
     def _get_notebook_entry_sync(self, entry_id: int) -> dict[str, Any] | None:
         with self._connect() as conn:
@@ -2025,17 +2053,32 @@ class SQLiteSessionStore:
     async def create_category(self, name: str) -> dict[str, Any]:
         return await self._run(self._create_category_sync, name)
 
-    def _list_categories_sync(self) -> list[dict[str, Any]]:
+    def _list_categories_sync(
+        self,
+        session_ids: Sequence[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        # The scope narrows the *count*, never the list: a category the learner
+        # created still exists inside a course that has not filled it yet, and
+        # dropping the row would make it look deleted. Hence the condition rides
+        # on the join instead of a WHERE clause.
+        join = "LEFT JOIN notebook_entries e ON e.id = ec.entry_id"
+        params: list[str] = []
+        if session_ids is not None:
+            placeholders = ",".join("?" for _ in session_ids) or "NULL"
+            join += f" AND e.session_id IN ({placeholders})"
+            params = list(session_ids)
         with self._connect() as conn:
             rows = conn.execute(
-                """
+                f"""
                 SELECT c.id, c.name, c.created_at,
-                       COUNT(ec.entry_id) AS entry_count
+                       COUNT(e.id) AS entry_count
                 FROM notebook_categories c
                 LEFT JOIN notebook_entry_categories ec ON ec.category_id = c.id
+                {join}
                 GROUP BY c.id
                 ORDER BY c.name
-                """,
+                """,  # noqa: S608 - placeholders only; every value stays bound
+                params,
             ).fetchall()
         return [
             {
@@ -2047,8 +2090,14 @@ class SQLiteSessionStore:
             for r in rows
         ]
 
-    async def list_categories(self) -> list[dict[str, Any]]:
-        return await self._run(self._list_categories_sync)
+    async def list_categories(
+        self,
+        session_ids: Sequence[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        return await self._run(
+            self._list_categories_sync,
+            None if session_ids is None else tuple(session_ids),
+        )
 
     def _rename_category_sync(self, category_id: int, name: str) -> bool:
         cleaned = name.strip()

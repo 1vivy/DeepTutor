@@ -13,7 +13,6 @@ import { useParams, useRouter } from "next/navigation";
 
 import {
   BarChart3,
-  BookOpenText,
   BrainCircuit,
   CircleHelp,
   Clapperboard,
@@ -28,6 +27,7 @@ import {
   MessageSquare,
   Microscope,
   PenLine,
+  Signpost,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -70,7 +70,6 @@ import {
 } from "@/context/UnifiedChatContext";
 import { useAppShell } from "@/context/AppShellContext";
 
-import { READER_ASK_EVENT, ReaderPane } from "@/components/reading/ReaderPane";
 import type { FilePreviewSource } from "@/components/chat/preview/previewerFor";
 import type { LLMSelection, StreamEvent } from "@/lib/unified-ws";
 import {
@@ -240,6 +239,17 @@ interface CapabilityDef {
    * could not be reordered without lying about the engine.
    */
   secondary?: boolean;
+
+  /**
+   * Keep this capability resolvable but stop offering it as a new choice.
+   *
+   * A capability that graduated into its own workspace still has sessions in
+   * people's history. Deleting the entry outright would make those sessions
+   * render under the wrong label while still sending the old capability to the
+   * server. So the definition stays — for naming and icons — and only the
+   * picker hides it.
+   */
+  legacy?: boolean;
 }
 
 const CAPABILITIES: CapabilityDef[] = [
@@ -313,12 +323,13 @@ const CAPABILITIES: CapabilityDef[] = [
     defaultTools: [],
   },
   {
-    value: "immersive_reading",
-    label: "Immersive Reading",
-    description: "Read a document with the assistant, cited line by line",
-    icon: BookOpenText,
-    // The five reading tools auto-mount server-side once a document is open;
-    // these are the extra tools the assistant may also reach for while reading.
+    value: "course_study",
+    label: "Course Study",
+    description: "See where a course stands and what to do next",
+    icon: Signpost,
+    // The four course tools auto-mount server-side once the conversation
+    // belongs to a course; this mode orchestrates and hands off, so it keeps
+    // the ordinary tools for understanding a request well enough to route it.
     allowedTools: ["web_search", "code_execution", "reason"],
     defaultTools: [],
   },
@@ -332,6 +343,13 @@ const CAPABILITIES: CapabilityDef[] = [
     // These are only the extra optional tools the tutor may also reach for.
     allowedTools: ["web_search", "code_execution"],
     defaultTools: [],
+    // Mastery Path is its own workspace now (/mastery). Started from
+    // here it had no topic to belong to, so `resolve_mastery_path_id` minted a
+    // path keyed by the session id — a learning path whose identity was an
+    // accident of whichever chat happened to open it, and whose map, review
+    // trail and evidence lived on a screen the learner was not looking at.
+    // Existing sessions keep working; the picker just no longer starts new ones.
+    legacy: true,
   },
 ];
 
@@ -677,7 +695,9 @@ export default function ChatPage() {
   // ref and drop the message silently — the user arrives from Settings at an
   // empty box with no idea the button did anything.
   useEffect(() => {
-    const pending = consumePendingPrompt();
+    // Two producers: the Settings hub writes the unscoped slot, and a Course
+    // Study hand-off to chat writes the "chat" one.
+    const pending = consumePendingPrompt() || consumePendingPrompt("chat");
     if (!pending) return;
     let attempts = 0;
     let timer: ReturnType<typeof setTimeout>;
@@ -705,30 +725,6 @@ export default function ChatPage() {
     return () => window.removeEventListener("dt:visualize-prompt", onVizPrompt);
   }, [handlePrefillComposer]);
 
-  // "Ask about this" on a reader selection. Prefilled rather than sent, and
-  // shaped as a quote plus a locator so the model can verify it against the
-  // document instead of taking the user's paraphrase on faith.
-  useEffect(() => {
-    const onReaderAsk = (event: Event) => {
-      const detail = (
-        event as CustomEvent<{
-          quote?: string;
-          locator?: number;
-          unit?: string;
-        }>
-      ).detail;
-      const quote = (detail?.quote || "").trim();
-      if (!quote) return;
-      const unit = detail?.unit || "page";
-      const where = detail?.locator ? ` (${unit} ${detail.locator})` : "";
-      handlePrefillComposer(
-        `> ${quote}\n\n${t("Explain this passage")}${where}: `,
-      );
-    };
-    window.addEventListener(READER_ASK_EVENT, onReaderAsk);
-    return () => window.removeEventListener(READER_ASK_EVENT, onReaderAsk);
-  }, [handlePrefillComposer, t]);
-
   const activeCap = useMemo(
     () => getCapability(state.activeCapability),
     [state.activeCapability],
@@ -736,7 +732,6 @@ export default function ChatPage() {
   const isQuizMode = activeCap.value === "deep_question";
   const isVisualizeMode = activeCap.value === "visualize";
   const isResearchMode = activeCap.value === "deep_research";
-  const isReadingMode = activeCap.value === "immersive_reading";
   const capabilityNeedsConfig = isQuizMode || isVisualizeMode || isResearchMode;
 
   // Edit-invalidates-confirm wrappers — flipping any field after the user
@@ -1355,7 +1350,7 @@ export default function ChatPage() {
     // remain readable because they carry no launch query.
     if (intent.masteryPathId) {
       router.replace(
-        `/space/learning/${encodeURIComponent(intent.masteryPathId)}`,
+        `/mastery/${encodeURIComponent(intent.masteryPathId)}`,
       );
       return;
     }
@@ -2247,21 +2242,7 @@ export default function ChatPage() {
           messages={state.messages}
           viewerPanelRef={viewerPanelRef}
         />
-        {/* Positioning context for the reader pane. AppShell's own content box
-            is not positioned, so without this the absolutely-positioned pane
-            would escape and cover the sidebar. */}
         <div className="relative h-full overflow-hidden">
-          {/* The reader slides in from the left and the chat column shrinks to
-            make room. Rendered as a sibling with its own transform rather than
-            wrapping the chat, so switching modes never remounts the chat tree —
-            a remount would refetch every piece of session metadata and stall the
-            UI for seconds (the regression behind the slow session-open bug). */}
-          <div
-            data-reader-open={isReadingMode ? "true" : "false"}
-            className="dt-reader-shell"
-          >
-            {isReadingMode && <ReaderPane onClose={() => setCapability("")} />}
-          </div>
           <div
             // When the preview drawer is open AND the viewport is wide enough,
             // push the chat content to the left by the drawer's width so the two
@@ -2272,7 +2253,6 @@ export default function ChatPage() {
             // hand-tune it without fighting Tailwind's arbitrary-value parser.
             data-preview-open={previewSource ? "true" : "false"}
             data-viewer-open={viewerPanelOpen ? "true" : "false"}
-            data-reader-open={isReadingMode ? "true" : "false"}
             className="chat-preview-shell flex h-full flex-col overflow-hidden bg-[var(--background)]"
           >
             <div className="mx-auto flex w-full max-w-[960px] flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-6 pt-3 pb-0">

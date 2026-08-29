@@ -64,6 +64,10 @@ import {
 } from "./AskUserOptions";
 import { SetupCredentialCard } from "./SetupCredentialCard";
 import { extractSetupCredential } from "@/lib/setup-signals";
+import { PartnerDraftCard } from "./PartnerDraftCard";
+import { extractPartnerDraft } from "@/lib/partner-draft";
+import { CourseHandoffCards } from "./CourseHandoffCard";
+import { extractCourseHandoffs } from "@/lib/course-handoff";
 import ContextReferenceTree, {
   type ContextTreeItem,
 } from "./ContextReferenceTree";
@@ -79,7 +83,6 @@ const QuizViewer = dynamic(() => import("@/components/quiz/QuizViewer"), {
   ssr: false,
 });
 
-export type ChatSurfaceVariant = "default" | "mastery";
 const ResearchOutlineEditor = dynamic(
   () => import("@/components/research/ResearchOutlineEditor"),
   { ssr: false },
@@ -106,20 +109,35 @@ interface NotebookReferenceGroup {
   count: number;
 }
 
+const MODE_BADGE_LABELS: Record<string, string> = {
+  chat: "Chat",
+  ask_questions: "Ask Questions",
+  deep_solve: "Deep Solve",
+  deep_question: "Quiz Generation",
+  deep_research: "Deep Research",
+  math_animator: "Math Animator",
+  visualize: "Visualize",
+  mastery_path: "Mastery Path",
+  immersive_reading: "Immersive Reading",
+};
+
 // Returns the i18n key (and a sensible fallback) for the capability badge
 // shown above the user's message. Callers must run `t(...)` on the result.
 // Exported so the turn navigator's hover card labels a turn with exactly
 // the same wording the bubble carries.
+//
+// A capability with no entry is title-cased rather than printed raw: an
+// unlisted mode used to surface its internal id ("immersive_reading") in the
+// conversation, which reads as a bug to everyone who sees it.
 export function getModeBadgeLabel(capability?: string | null): string {
-  if (!capability || capability === "chat") return "Chat";
-  if (capability === "ask_questions") return "Ask Questions";
-  if (capability === "deep_solve") return "Deep Solve";
-  if (capability === "deep_question") return "Quiz Generation";
-  if (capability === "deep_research") return "Deep Research";
-  if (capability === "math_animator") return "Math Animator";
-  if (capability === "visualize") return "Visualize";
-  if (capability === "mastery_path") return "Mastery Path";
-  return capability;
+  if (!capability) return MODE_BADGE_LABELS.chat;
+  const known = MODE_BADGE_LABELS[capability];
+  if (known) return known;
+  return capability
+    .split("_")
+    .filter(Boolean)
+    .map((word) => word[0].toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function imageSrcForAttachment(attachment: MessageAttachment): string | null {
@@ -293,7 +311,6 @@ const AssistantMessage = memo(function AssistantMessage({
   onConfirmOutline,
   onSubmitUserReply,
   researchRequestSnapshot,
-  variant = "default",
 }: {
   msg: { content: string; capability?: string; events?: StreamEvent[] };
   isStreaming?: boolean;
@@ -301,7 +318,6 @@ const AssistantMessage = memo(function AssistantMessage({
   sessionId?: string | null;
   language?: string;
   researchRequestSnapshot?: MessageRequestSnapshot | null;
-  variant?: ChatSurfaceVariant;
   onConfirmOutline?: (
     outline: Array<{ title: string; overview: string }>,
     topic: string,
@@ -392,6 +408,18 @@ const AssistantMessage = memo(function AssistantMessage({
     [msg.events],
   );
 
+  const partnerDraft = useMemo(
+    () => extractPartnerDraft(msg.events),
+    [msg.events],
+  );
+
+  // Set by ``course_handoff`` when Course Study has decided what is worth doing
+  // next. A turn may propose more than one, so this is a list.
+  const courseHandoffs = useMemo(
+    () => extractCourseHandoffs(msg.events),
+    [msg.events],
+  );
+
   // Interleaved segments for the default chat surface — text emitted
   // before the ask_user call renders above the card; text emitted by
   // the resumed iteration renders below it. Only walked when this
@@ -458,7 +486,6 @@ const AssistantMessage = memo(function AssistantMessage({
               }}
               collapsible={researchInProgress}
               defaultCollapsed={researchInProgress}
-              variant={variant}
             />
           ) : null}
           <ResearchOutlineEditor
@@ -537,7 +564,6 @@ const AssistantMessage = memo(function AssistantMessage({
                 if (!onSubmitUserReply) return;
                 onSubmitUserReply(reply);
               }}
-              variant={variant}
             />
           ),
         )
@@ -555,13 +581,16 @@ const AssistantMessage = memo(function AssistantMessage({
             if (!onSubmitUserReply) return;
             onSubmitUserReply(reply);
           }}
-          variant={variant}
         />
       ) : null}
       {/* Credential hand-off sits below whichever body branch rendered: it
           supplements the answer ("here's where to paste the key") rather than
           replacing it, and applies to every branch. */}
       {setupCredential ? <SetupCredentialCard data={setupCredential} /> : null}
+      {partnerDraft ? <PartnerDraftCard data={partnerDraft} /> : null}
+      {/* Course Study's hand-offs sit last: they are what to do *after* reading
+          the answer, so they belong below it rather than competing with it. */}
+      <CourseHandoffCards handoffs={courseHandoffs} />
     </>
   );
 });
@@ -920,6 +949,7 @@ const UserMessage = memo(function UserMessage({
   siblingInfo,
   onSwitchBranch,
   availableKbNames,
+  showModeBadge,
 }: {
   msg: ChatMessageItem;
   index: number;
@@ -931,6 +961,9 @@ const UserMessage = memo(function UserMessage({
   onSwitchBranch?: (parentMessageId: number | null, childId: number) => void;
   /** Names of KBs confirmed to exist. Omitted when the KB list is unavailable. */
   availableKbNames?: Set<string>;
+  /** Label the bubble with its capability. A single-capability surface
+   *  already names the mode in its own chrome. */
+  showModeBadge?: boolean;
 }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
@@ -1011,45 +1044,37 @@ const UserMessage = memo(function UserMessage({
           label: name,
         };
       }),
-    ...(snap?.bookReferences ?? []).map(
-      (ref): ContextTreeItem => ({
-        key: `book-${ref.book_id}`,
-        icon: BookOpen,
-        kind: t("Book"),
-        label: `${ref.page_ids.length} ${t("chapters")}`,
-      }),
-    ),
-    ...(snap?.notebookReferences ?? []).map(
-      (ref): ContextTreeItem => ({
-        key: `nb-${ref.notebook_id}`,
-        icon: BookOpen,
-        kind: t("Notebook"),
-        label: `${ref.record_ids.length} ${t("records")}`,
-      }),
-    ),
+    ...(snap?.bookReferences ?? []).map((ref): ContextTreeItem => ({
+      key: `book-${ref.book_id}`,
+      icon: BookOpen,
+      kind: t("Book"),
+      label: `${ref.page_ids.length} ${t("chapters")}`,
+    })),
+    ...(snap?.notebookReferences ?? []).map((ref): ContextTreeItem => ({
+      key: `nb-${ref.notebook_id}`,
+      icon: BookOpen,
+      kind: t("Notebook"),
+      label: `${ref.record_ids.length} ${t("records")}`,
+    })),
     // Imported agent conversations are folded into the same history_references
     // payload but carry the `imported_` id prefix — split them back out so they
     // read as "My Agents" rather than "Chat History" (mirrors the composer).
     ...(snap?.historyReferences ?? [])
       .filter((sid) => !sid.startsWith("imported_"))
-      .map(
-        (sid): ContextTreeItem => ({
-          key: `hist-${sid}`,
-          icon: MessageSquare,
-          kind: t("Chat History"),
-          label: "",
-        }),
-      ),
+      .map((sid): ContextTreeItem => ({
+        key: `hist-${sid}`,
+        icon: MessageSquare,
+        kind: t("Chat History"),
+        label: "",
+      })),
     ...(snap?.historyReferences ?? [])
       .filter((sid) => sid.startsWith("imported_"))
-      .map(
-        (sid): ContextTreeItem => ({
-          key: `agent-${sid}`,
-          icon: Bot,
-          kind: t("My Agents"),
-          label: "",
-        }),
-      ),
+      .map((sid): ContextTreeItem => ({
+        key: `agent-${sid}`,
+        icon: Bot,
+        kind: t("My Agents"),
+        label: "",
+      })),
     ...(snap?.questionNotebookReferences?.length
       ? [
           {
@@ -1070,14 +1095,12 @@ const UserMessage = memo(function UserMessage({
           } satisfies ContextTreeItem,
         ]
       : []),
-    ...(snap?.memoryReferences ?? []).map(
-      (file): ContextTreeItem => ({
-        key: `mem-${file}`,
-        icon: Brain,
-        kind: t("Memory"),
-        label: file === "summary" ? t("Summary") : t("Profile"),
-      }),
-    ),
+    ...(snap?.memoryReferences ?? []).map((file): ContextTreeItem => ({
+      key: `mem-${file}`,
+      icon: Brain,
+      kind: t("Memory"),
+      label: file === "summary" ? t("Summary") : t("Profile"),
+    })),
   ];
 
   return (
@@ -1090,11 +1113,13 @@ const UserMessage = memo(function UserMessage({
         data-turn-key={turnAnchorKey(msg, index)}
         className="flex max-w-[75%] flex-col items-end gap-1.5"
       >
-        <div className="flex justify-end pr-1">
-          <span className="text-[10px] tracking-wide text-[var(--muted-foreground)]">
-            {t(getModeBadgeLabel(msg.capability))}
-          </span>
-        </div>
+        {showModeBadge && (
+          <div className="flex justify-end pr-1">
+            <span className="text-[10px] tracking-wide text-[var(--muted-foreground)]">
+              {t(getModeBadgeLabel(msg.capability))}
+            </span>
+          </div>
+        )}
         {editing ? (
           <div className="w-[min(620px,75vw)] rounded-2xl border border-[var(--primary)]/40 bg-[var(--secondary)] px-3 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)] shadow-sm">
             <textarea
@@ -1203,7 +1228,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   onSwitchBranch,
   availableKbNames,
   onSubmitUserReply,
-  variant = "default",
+  showModeBadge = true,
 }: {
   messages: ChatMessageItem[];
   isStreaming: boolean;
@@ -1241,8 +1266,9 @@ export const ChatMessageList = memo(function ChatMessageList({
   ) => void;
   /** Names of KBs confirmed to exist. Omitted when the KB list is unavailable. */
   availableKbNames?: Set<string>;
-  /** Mastery uses a tactile challenge-card treatment for ask_user turns. */
-  variant?: ChatSurfaceVariant;
+  /** Label each user bubble with its capability. Off on surfaces that run a
+   *  single capability and already name it in their own chrome. */
+  showModeBadge?: boolean;
 }) {
   const { t } = useTranslation();
   // Visible path: when no branching has happened the result is identical
@@ -1429,6 +1455,7 @@ export const ChatMessageList = memo(function ChatMessageList({
                 siblingInfo={sib}
                 onSwitchBranch={onSwitchBranch}
                 availableKbNames={availableKbNames}
+                showModeBadge={showModeBadge}
               />
             </div>
           );
@@ -1457,8 +1484,7 @@ export const ChatMessageList = memo(function ChatMessageList({
           const resultEv = msg.events?.find((e) => e.type === "result");
           if (!resultEv) return null;
           const meta = resultEv.metadata?.metadata as
-            | Record<string, unknown>
-            | undefined;
+            Record<string, unknown> | undefined;
           const cs = meta?.cost_summary as
             | {
                 total_cost_usd?: number;
@@ -1493,7 +1519,6 @@ export const ChatMessageList = memo(function ChatMessageList({
                 researchRequestSnapshot={
                   pairedUserMessage?.requestSnapshot ?? null
                 }
-                variant={variant}
               />
             </InlineFileCardProvider>
             <GeneratedFileCards

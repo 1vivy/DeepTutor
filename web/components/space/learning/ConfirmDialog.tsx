@@ -36,14 +36,14 @@ export function ConfirmDialog({
         aria-labelledby="confirm-dialog-title"
         aria-describedby="confirm-dialog-description"
         tabIndex={-1}
-        className="w-full max-w-md rounded-[22px] border border-[var(--border)] bg-[var(--card)] p-5 shadow-2xl outline-none"
+        className="w-full max-w-md rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-2xl outline-none"
       >
         <div className="flex items-start gap-3">
           <span
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
               destructive
                 ? "bg-red-500/10 text-red-600"
-                : "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                : "bg-[var(--muted-foreground)]/10 text-[var(--muted-foreground)]"
             }`}
           >
             <AlertTriangle className="h-4 w-4" />

@@ -18,9 +18,7 @@ def test_notes_keep_quotes_locators_and_create_real_notebook_record(tmp_path: Pa
     notebook_manager = NotebookManager(base_dir=str(tmp_path / "notebooks"))
     notebook = notebook_manager.create_notebook("Research notes")
 
-    notes = organize_workspace_notes(
-        workspace_id, catalog=catalog, reading_store=reading
-    )
+    notes = organize_workspace_notes(workspace_id, catalog=catalog, reading_store=reading)
     result = send_workspace_to_notebook(
         workspace_id,
         [notebook["id"]],

@@ -21,6 +21,7 @@ import {
   PanelLeftOpen,
   PenLine,
   Route,
+  School,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -88,7 +89,18 @@ const PRIMARY_NAV: NavEntry[] = [
     requires: "llm",
   },
   {
-    href: "/space/learning",
+    // A course is the container the other surfaces hang off — the textbook, the
+    // paths, the notebooks and the question bank of one subject — so it sits at
+    // the top level next to them rather than inside the Learning Space.
+    // Ungated: creating a course, attaching material and writing its
+    // conventions need no per-user model grant.
+    href: "/courses",
+    label: "Courses",
+    icon: School,
+    tooltipKey: "Everything one subject needs, in one place",
+  },
+  {
+    href: "/mastery",
     label: "Mastery Path",
     icon: Route,
     tooltipKey: "Learn through a living mastery map",
@@ -138,7 +150,7 @@ function isNavActive(pathname: string, href: string) {
   if (href === "/space") {
     return (
       (pathname === "/space" || pathname.startsWith("/space/")) &&
-      !pathname.startsWith("/space/learning")
+      !pathname.startsWith("/mastery")
     );
   }
   return pathname === href || pathname.startsWith(`${href}/`);

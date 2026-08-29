@@ -9,7 +9,7 @@ import {
 test("continuing a mastery path opens its dedicated topic surface", () => {
   assert.equal(
     newMasteryPathChatUrl("calculus/path 1"),
-    "/space/learning/calculus%2Fpath%201",
+    "/mastery/calculus%2Fpath%201",
   );
 });
 

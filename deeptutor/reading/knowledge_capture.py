@@ -62,7 +62,10 @@ def organize_workspace_notes(
             annotation_count += 1
             if annotation.locator != current_locator:
                 current_locator = annotation.locator
-                label = headings.get(current_locator) or f"{reading_store.manifest(material_id).unit.title()} {current_locator}"
+                label = (
+                    headings.get(current_locator)
+                    or f"{reading_store.manifest(material_id).unit.title()} {current_locator}"
+                )
                 lines.extend(("", f"### {label}"))
             if annotation.quote:
                 lines.extend(("", f"> {annotation.quote.strip()}"))
@@ -135,9 +138,11 @@ def mastery_source_records(
     if workspace is None:
         raise ReadingError(f"reading workspace {workspace_id!r} not found")
     allowed = {tab.material.material_id for tab in workspace.tabs}
-    selected = list(dict.fromkeys(material_ids)) if material_ids else [
-        tab.material.material_id for tab in workspace.tabs
-    ]
+    selected = (
+        list(dict.fromkeys(material_ids))
+        if material_ids
+        else [tab.material.material_id for tab in workspace.tabs]
+    )
     if any(material_id not in allowed for material_id in selected):
         raise ReadingError("Mastery source does not belong to this reading workspace")
 

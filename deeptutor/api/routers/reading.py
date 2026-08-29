@@ -22,6 +22,7 @@ from pathlib import Path
 import shutil
 import tempfile
 from typing import Any, Literal
+import uuid
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, UploadFile
 from fastapi.params import File
@@ -31,16 +32,18 @@ from pydantic import BaseModel, Field, model_validator
 from deeptutor.reading import (
     ANNOTATION_COLORS,
     Annotation,
+    IngestionStatus,
     MaterialNotFound,
     ReadingCatalogStore,
     ReadingError,
     ReadingPosition,
     ReadingStore,
     ReadingUpgradeConflict,
+    SourceKind,
     export_material,
     render_outline,
 )
-from deeptutor.reading.ingestion import ReadingIngestionService
+from deeptutor.reading.ingestion import ReadingIngestionService, url_material_id
 from deeptutor.reading.knowledge_capture import (
     organize_workspace_notes,
     send_workspace_to_notebook,
@@ -82,6 +85,21 @@ def _catalog() -> ReadingCatalogStore:
 def _ingestion() -> ReadingIngestionService:
     catalog = _catalog()
     return ReadingIngestionService(ReadingStore(catalog.root), catalog)
+
+
+def _new_material_id() -> str:
+    return f"rm_{uuid.uuid4().hex[:12]}"
+
+
+def _content_facts(store: ReadingStore, record: Any) -> tuple[int, int]:
+    """Stored size and extracted unit count, or zeros while still processing."""
+    if getattr(record.status, "value", record.status) != "ready":
+        return 0, 0
+    try:
+        manifest = store.manifest(record.material_id)
+    except Exception:  # noqa: BLE001 - a missing manifest is a zero, not a 500
+        return 0, 0
+    return int(manifest.byte_size), int(manifest.unit_count)
 
 
 def _http_error(exc: Exception) -> HTTPException:
@@ -235,7 +253,7 @@ class UrlImportRequest(BaseModel):
 
 
 class WorkspaceCreateRequest(BaseModel):
-    title: str = Field(default="Untitled reading workspace", max_length=300)
+    title: str = Field(default="Untitled collection", max_length=300)
     description: str = Field(default="", max_length=2000)
     material_ids: list[str] = Field(default_factory=list, max_length=100)
 
@@ -267,14 +285,17 @@ class ReadingSessionLinkRequest(BaseModel):
     target_session_id: str
 
 
-class FolderCreateRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    parent_id: str = ""
+class DuplicateFileQuery(BaseModel):
+    filename: str = Field(default="", max_length=512)
+    # sha256(bytes)[:16], computed by the browser with the store's algorithm.
+    content_id: str = Field(default="", max_length=64)
+    size_bytes: int = 0
+    mime: str = Field(default="", max_length=128)
 
 
-class TagCreateRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    color: str = Field(default="terracotta", max_length=64)
+class DuplicateCheckRequest(BaseModel):
+    files: list[DuplicateFileQuery] = Field(default_factory=list, max_length=50)
+    urls: list[str] = Field(default_factory=list, max_length=50)
 
 
 class OrganizeNotesRequest(BaseModel):
@@ -294,16 +315,93 @@ class NotebookCaptureRequest(OrganizeNotesRequest):
 async def list_library_materials(
     search: str = Query(default="", max_length=200),
     status: Literal["queued", "processing", "ready", "failed"] | None = None,
+    library_filter: Literal["all", "unassigned", "processing", "failed"] = Query(
+        default="all", alias="filter"
+    ),
 ) -> dict[str, Any]:
-    """Return reusable sources, lazily registering legacy material folders."""
+    """Every material the owner has, with the collections holding each one.
+
+    Membership travels with the row because the library view exists to answer
+    "where is this used, and what did I upload that is used nowhere" — a
+    question the client cannot ask one material at a time.
+    """
     catalog = _catalog()
+    store = _store()
     try:
-        for manifest in _store().list_materials():
+        for manifest in store.list_materials():
             if catalog.get_material(manifest.material_id) is None:
                 catalog.register_manifest(manifest)
-        return {
-            "materials": [row.to_dict() for row in catalog.list_materials(search=search, status=status)]
-        }
+        rows = catalog.list_materials(search=search, status=status, library_filter=library_filter)
+        membership = catalog.collections_for_materials([row.material_id for row in rows])
+        materials: list[dict[str, Any]] = []
+        for row in rows:
+            payload = row.to_dict()
+            payload["collections"] = membership.get(row.material_id, [])
+            size_bytes, unit_count = _content_facts(store, row)
+            payload["size_bytes"] = size_bytes
+            payload["unit_count"] = unit_count
+            materials.append(payload)
+        # Counts describe the whole library, not the filtered page, so the
+        # filter chips can show what they would reveal before being clicked.
+        return {"materials": materials, "counts": catalog.library_counts()}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.post("/library/duplicate-check")
+async def duplicate_check(payload: DuplicateCheckRequest) -> dict[str, Any]:
+    """Say what the library already holds, before anything is uploaded.
+
+    Identical bytes are answered from the content id the browser computed;
+    a same-name-different-content upload is the genuinely ambiguous case and
+    is reported separately so the client can ask instead of guessing.
+    """
+    catalog = _catalog()
+    store = _store()
+
+    def described(record: Any) -> dict[str, Any]:
+        """The match, with the facts that let a user tell two copies apart."""
+        payload_row = record.to_dict()
+        size_bytes, unit_count = _content_facts(store, record)
+        payload_row["size_bytes"] = size_bytes
+        payload_row["unit_count"] = unit_count
+        return payload_row
+
+    try:
+        matches: list[dict[str, Any]] = []
+        for item in payload.files:
+            kind = "same_content"
+            record = catalog.find_material_by_content(item.content_id) if item.content_id else None
+            if record is None and item.filename:
+                record = catalog.find_ready_material_by_filename(item.filename, mime=item.mime)
+                kind = "same_name"
+            if record is None:
+                continue
+            matches.append(
+                {
+                    "query": {"filename": item.filename, "url": ""},
+                    "kind": kind,
+                    "material": described(record),
+                    "collections": catalog.collections_for_material(record.material_id),
+                }
+            )
+        for url in payload.urls:
+            try:
+                material_id = url_material_id(url)
+            except Exception:  # noqa: BLE001 - a malformed URL is simply not a match
+                continue
+            record = catalog.get_material(material_id)
+            if record is None:
+                continue
+            matches.append(
+                {
+                    "query": {"filename": "", "url": url},
+                    "kind": "same_content",
+                    "material": described(record),
+                    "collections": catalog.collections_for_material(record.material_id),
+                }
+            )
+        return {"matches": matches}
     except Exception as exc:
         raise _http_error(exc) from exc
 
@@ -322,8 +420,11 @@ async def import_urls(
                 service.catalog.add_material(workspace_id, material.material_id)
             workspace = service.catalog.get_workspace(workspace_id)
         else:
+            # Naming the collection after its first material is what keeps a
+            # library from filling up with rows all called "Imported reading".
             workspace = service.catalog.create_workspace(
-                payload.workspace_title or "Imported reading",
+                payload.workspace_title
+                or (materials[0].title if materials else "Reading collection"),
                 [row.material_id for row in materials],
             )
         for material in materials:
@@ -353,15 +454,9 @@ async def retry_import(material_id: str, background_tasks: BackgroundTasks) -> d
 @router.get("/workspaces")
 async def list_workspaces(
     search: str = Query(default="", max_length=200),
-    folder_id: str = "",
-    tag_id: str = "",
 ) -> dict[str, Any]:
     try:
-        rows = _catalog().list_workspaces(
-            search=search,
-            folder_id=folder_id or None,
-            tag_id=tag_id or None,
-        )
+        rows = _catalog().list_workspaces(search=search)
         return {"workspaces": [row.to_dict() for row in rows]}
     except Exception as exc:
         raise _http_error(exc) from exc
@@ -396,9 +491,7 @@ async def get_workspace(workspace_id: str) -> dict[str, Any]:
 
 
 @router.patch("/workspaces/{workspace_id}")
-async def update_workspace(
-    workspace_id: str, payload: WorkspaceUpdateRequest
-) -> dict[str, Any]:
+async def update_workspace(workspace_id: str, payload: WorkspaceUpdateRequest) -> dict[str, Any]:
     try:
         row = _catalog().update_workspace(
             workspace_id,
@@ -465,54 +558,6 @@ async def remove_workspace_material(workspace_id: str, material_id: str) -> dict
     try:
         row = _catalog().remove_material(workspace_id, material_id)
         return {"workspace": row.to_dict()}
-    except Exception as exc:
-        raise _http_error(exc) from exc
-
-
-@router.get("/folders")
-async def list_folders() -> dict[str, Any]:
-    return {"folders": [row.to_dict() for row in _catalog().list_folders()]}
-
-
-@router.post("/folders", status_code=201)
-async def create_folder(payload: FolderCreateRequest) -> dict[str, Any]:
-    try:
-        row = _catalog().create_folder(payload.name, parent_id=payload.parent_id or None)
-        return {"folder": row.to_dict()}
-    except Exception as exc:
-        raise _http_error(exc) from exc
-
-
-@router.put("/workspaces/{workspace_id}/folders/{folder_id}")
-async def assign_workspace_folder(workspace_id: str, folder_id: str) -> dict[str, Any]:
-    try:
-        catalog = _catalog()
-        catalog.assign_workspace_folder(workspace_id, folder_id)
-        return {"workspace": catalog.get_workspace(workspace_id).to_dict()}
-    except Exception as exc:
-        raise _http_error(exc) from exc
-
-
-@router.get("/tags")
-async def list_tags() -> dict[str, Any]:
-    return {"tags": [row.to_dict() for row in _catalog().list_tags()]}
-
-
-@router.post("/tags", status_code=201)
-async def create_tag(payload: TagCreateRequest) -> dict[str, Any]:
-    try:
-        row = _catalog().create_tag(payload.name, color=payload.color)
-        return {"tag": row.to_dict()}
-    except Exception as exc:
-        raise _http_error(exc) from exc
-
-
-@router.put("/workspaces/{workspace_id}/tags/{tag_id}")
-async def assign_workspace_tag(workspace_id: str, tag_id: str) -> dict[str, Any]:
-    try:
-        catalog = _catalog()
-        catalog.assign_workspace_tag(workspace_id, tag_id)
-        return {"workspace": catalog.get_workspace(workspace_id).to_dict()}
     except Exception as exc:
         raise _http_error(exc) from exc
 
@@ -614,9 +659,7 @@ async def link_reading_session(
         raise _http_error(exc) from exc
 
 
-@router.delete(
-    "/workspaces/{workspace_id}/sessions/{session_id}/links/{target_session_id}"
-)
+@router.delete("/workspaces/{workspace_id}/sessions/{session_id}/links/{target_session_id}")
 async def unlink_reading_session(
     workspace_id: str, session_id: str, target_session_id: str
 ) -> dict[str, Any]:
@@ -693,7 +736,10 @@ async def list_materials() -> list[MaterialInfo]:
 
 
 @router.post("/materials", response_model=MaterialDetail)
-async def upload_material(file: UploadFile = File(...)) -> MaterialDetail:  # noqa: B008
+async def upload_material(
+    file: UploadFile = File(...),  # noqa: B008
+    reuse: bool = Query(default=True),
+) -> MaterialDetail:
     """Ingest an uploaded document and return it ready to read.
 
     The upload is streamed to a temp file with a running size check, so an
@@ -730,8 +776,24 @@ async def upload_material(file: UploadFile = File(...)) -> MaterialDetail:  # no
             manifest = store.manifest(record.material_id)
         else:
             manifest = store.ingest(tmp_path, filename=filename)
-            _catalog().register_manifest(manifest)
-        return _detail(store, manifest)
+            catalog = _catalog()
+            if reuse or catalog.get_material(manifest.material_id) is None:
+                catalog.register_manifest(manifest)
+                return _detail(store, manifest)
+            # A separate material over the same extracted content: the bytes
+            # are stored once, while annotations and reading position are kept
+            # apart because the user asked for a second, independent copy.
+            record = catalog.upsert_material(
+                content_id=manifest.material_id,
+                material_id=_new_material_id(),
+                filename=manifest.filename,
+                title=manifest.title,
+                source_kind=SourceKind.FILE,
+                mime=manifest.mime,
+                render_mode=manifest.render_mode,
+                status=IngestionStatus.READY,
+            )
+            return _detail(store, store.manifest(record.material_id))
     except HTTPException:
         raise
     except Exception as exc:
@@ -798,14 +860,31 @@ async def remove_epub_pairing(pairing_id: str) -> dict[str, Any]:
 @router.delete("/materials/{material_id}")
 async def delete_material(material_id: str) -> dict[str, Any]:
     store = _store()
+    catalog = _catalog()
+    record = catalog.get_material(material_id)
+    removed_from = catalog.collections_for_material(material_id) if record else []
     try:
-        removed = store.delete(material_id)
+        shared = record is not None and catalog.count_materials_for_content(record.content_id) > 1
+        if shared and record is not None:
+            # A sibling material still reads this content: drop this row and
+            # only the annotations that belong to it.
+            store.delete_material_state(material_id, content_id=record.content_id)
+            removed = catalog.delete_material(material_id)
+        else:
+            with store.staged_delete(material_id) as staged:
+                if staged:
+                    catalog.delete_material(material_id)
+            removed = staged or bool(record and catalog.delete_material(material_id))
     except Exception as exc:
         raise _http_error(exc) from exc
     if not removed:
         raise HTTPException(status_code=404, detail=f"material {material_id!r} not found")
-    _catalog().delete_material(material_id)
-    return {"status": "ok", "material_id": material_id}
+    return {
+        "status": "ok",
+        "deleted": True,
+        "material_id": material_id,
+        "removed_from": removed_from,
+    }
 
 
 @router.get("/materials/{material_id}/units/{locator}", response_model=UnitText)

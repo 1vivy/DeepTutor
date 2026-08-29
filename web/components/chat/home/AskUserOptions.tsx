@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  CheckCircle2,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Flag,
-  Sparkles,
-} from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -476,7 +469,6 @@ function normaliseAskUserPayload(raw: unknown): AskUserPayload | null {
 }
 
 const LETTERS = "ABCDEFGH"; // matches MAX_OPTIONS=8
-type AskUserSurfaceVariant = "default" | "mastery";
 
 /**
  * Render the ``ask_user`` card.
@@ -492,7 +484,6 @@ export const AskUserOptions = memo(function AskUserOptions({
   onSubmit,
   collapsible,
   defaultCollapsed,
-  variant = "default",
 }: {
   data: AskUserCardData;
   onSubmit: (payload: {
@@ -507,8 +498,6 @@ export const AskUserOptions = memo(function AskUserOptions({
   collapsible?: boolean;
   /** Only honoured when ``collapsible`` is true. */
   defaultCollapsed?: boolean;
-  /** The mastery study surface presents the prompt as a map checkpoint. */
-  variant?: AskUserSurfaceVariant;
 }) {
   if (data.resolved) {
     return (
@@ -516,18 +505,11 @@ export const AskUserOptions = memo(function AskUserOptions({
         payload={data.payload}
         answers={data.answers ?? []}
         collapsible={collapsible ?? true}
-        defaultCollapsed={defaultCollapsed ?? variant !== "mastery"}
-        variant={variant}
+        defaultCollapsed={defaultCollapsed ?? true}
       />
     );
   }
-  return (
-    <InteractiveAskUserCard
-      payload={data.payload}
-      onSubmit={onSubmit}
-      variant={variant}
-    />
-  );
+  return <InteractiveAskUserCard payload={data.payload} onSubmit={onSubmit} />;
 });
 AskUserOptions.displayName = "AskUserOptions";
 
@@ -536,14 +518,12 @@ AskUserOptions.displayName = "AskUserOptions";
 const InteractiveAskUserCard = memo(function InteractiveAskUserCard({
   payload,
   onSubmit,
-  variant,
 }: {
   payload: AskUserPayload;
   onSubmit: (payload: {
     text?: string;
     answers?: Array<{ questionId: string; text: string }>;
   }) => void;
-  variant: AskUserSurfaceVariant;
 }) {
   const { t } = useTranslation();
   const totalQuestions = payload.questions.length;
@@ -658,41 +638,13 @@ const InteractiveAskUserCard = memo(function InteractiveAskUserCard({
   }, []);
 
   return (
-    <div
-      className={
-        variant === "mastery"
-          ? "mastery-map-paper relative mt-4 overflow-hidden rounded-[22px] border-2 border-[color-mix(in_srgb,var(--mastery-route)_35%,transparent)] p-5 shadow-[0_14px_40px_rgba(71,52,36,0.12)]"
-          : "mt-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_4px_14px_rgba(0,0,0,0.04)]"
-      }
-    >
-      {variant === "mastery" ? (
-        <div className="pointer-events-none absolute right-5 top-4 rotate-6 rounded-full border border-[var(--mastery-ink)]/15 px-3 py-1 text-[9px] font-black uppercase tracking-[0.22em] text-[var(--mastery-ink)]/30">
-          {t("Knowledge check")}
-        </div>
-      ) : null}
+    <div className="mt-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_4px_14px_rgba(0,0,0,0.04)]">
       <div className="flex items-start gap-3">
-        <div
-          className={
-            variant === "mastery"
-              ? "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--mastery-route)] text-white shadow-sm"
-              : "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)] text-[12px] font-semibold text-[var(--foreground)]/70"
-          }
-        >
-          {variant === "mastery" ? <Flag size={18} /> : "?"}
+        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)] text-[12px] font-semibold text-[var(--foreground)]/70">
+          ?
         </div>
         <div className="flex-1">
-          {variant === "mastery" ? (
-            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-[var(--mastery-route)]">
-              <Sparkles size={12} /> {t("Waypoint challenge")}
-            </div>
-          ) : null}
-          <div
-            className={
-              variant === "mastery"
-                ? "max-w-[80%] text-[15px] font-semibold leading-snug text-[var(--mastery-ink)]"
-                : "text-[13px] font-medium leading-snug text-[var(--foreground)]"
-            }
-          >
+          <div className="text-[13px] font-medium leading-snug text-[var(--foreground)]">
             {payload.intro || t("Please answer to continue.")}
           </div>
           <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">
@@ -721,9 +673,7 @@ const InteractiveAskUserCard = memo(function InteractiveAskUserCard({
                 className={
                   "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition-all " +
                   (isActive
-                    ? variant === "mastery"
-                      ? "border-[var(--mastery-route)]/50 bg-[var(--mastery-route)]/10 text-[var(--mastery-route)]"
-                      : "border-[var(--foreground)]/35 bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] text-[var(--foreground)]"
+                    ? "border-[var(--foreground)]/35 bg-[color-mix(in_srgb,var(--foreground)_5%,transparent)] text-[var(--foreground)]"
                     : "border-[var(--border)] bg-transparent text-[var(--muted-foreground)] hover:border-[var(--foreground)]/25 hover:text-[var(--foreground)]") +
                   " disabled:cursor-not-allowed disabled:opacity-60"
                 }
@@ -757,7 +707,6 @@ const InteractiveAskUserCard = memo(function InteractiveAskUserCard({
         onPickOption={(label) => pickOption(activeQuestion, label)}
         onSelectCustom={() => selectCustom(activeQuestion)}
         onCustomTextChange={(text) => updateCustomText(activeQuestion.id, text)}
-        variant={variant}
       />
 
       <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--border)]/60 pt-3">
@@ -797,11 +746,7 @@ const InteractiveAskUserCard = memo(function InteractiveAskUserCard({
             type="button"
             onClick={handleSubmit}
             disabled={submitted}
-            className={
-              variant === "mastery"
-                ? "rounded-xl bg-[var(--mastery-route)] px-4 py-2 text-[12px] font-bold text-white shadow-sm transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40"
-                : "rounded-md bg-[var(--primary)] px-3 py-1.5 text-[12px] font-medium text-[var(--primary-foreground)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-            }
+            className="rounded-md bg-[var(--primary)] px-3 py-1.5 text-[12px] font-medium text-[var(--primary-foreground)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {totalQuestions > 1 ? t("Submit answers") : t("Submit")}
           </button>
@@ -821,7 +766,6 @@ const QuestionBody = memo(function QuestionBody({
   onPickOption,
   onSelectCustom,
   onCustomTextChange,
-  variant,
 }: {
   question: AskUserQuestion;
   pickedLabels: string[];
@@ -831,7 +775,6 @@ const QuestionBody = memo(function QuestionBody({
   onPickOption: (label: string) => void;
   onSelectCustom: () => void;
   onCustomTextChange: (text: string) => void;
-  variant: AskUserSurfaceVariant;
 }) {
   const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -844,13 +787,7 @@ const QuestionBody = memo(function QuestionBody({
 
   return (
     <>
-      <div
-        className={
-          variant === "mastery"
-            ? "mt-4 text-[16px] font-bold leading-snug text-[var(--mastery-ink)]"
-            : "mt-3 text-[14px] font-medium leading-snug text-[var(--foreground)]"
-        }
-      >
+      <div className="mt-3 text-[14px] font-medium leading-snug text-[var(--foreground)]">
         {question.prompt}
         {question.multi_select ? (
           <span className="ml-1.5 text-[11px] font-normal text-[var(--muted-foreground)]">
@@ -873,15 +810,9 @@ const QuestionBody = memo(function QuestionBody({
                 onClick={() => !locked && onPickOption(option.label)}
                 disabled={locked}
                 className={
-                  `group flex w-full items-center gap-3 border text-left transition-all ${
-                    variant === "mastery"
-                      ? "rounded-2xl px-4 py-3"
-                      : "rounded-xl px-3 py-2"
-                  } ` +
+                  "group flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left transition-all " +
                   (isPicked
-                    ? variant === "mastery"
-                      ? "border-[var(--mastery-route)] bg-[var(--mastery-route)]/10 text-[var(--mastery-ink)] shadow-[inset_4px_0_0_var(--mastery-route)]"
-                      : "border-[var(--primary)]/70 bg-[color-mix(in_srgb,var(--primary)_7%,var(--card))] text-[var(--foreground)]"
+                    ? "border-[var(--primary)]/70 bg-[color-mix(in_srgb,var(--primary)_7%,var(--card))] text-[var(--foreground)]"
                     : "border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] hover:border-[var(--foreground)]/30 hover:bg-[color-mix(in_srgb,var(--foreground)_3%,var(--card))]") +
                   " disabled:cursor-not-allowed disabled:opacity-60"
                 }
@@ -965,13 +896,11 @@ const ResolvedAskUserCard = memo(function ResolvedAskUserCard({
   answers,
   collapsible,
   defaultCollapsed,
-  variant,
 }: {
   payload: AskUserPayload;
   answers: AskUserAnswer[];
   collapsible: boolean;
   defaultCollapsed: boolean;
-  variant: AskUserSurfaceVariant;
 }) {
   const { t } = useTranslation();
   // Null means "follow defaultCollapsed"; once the user toggles, their
@@ -1000,13 +929,7 @@ const ResolvedAskUserCard = memo(function ResolvedAskUserCard({
   // Match the look-and-feel of ``ResearchOutlineEditor`` so the two
   // collapsible cards stack consistently in the merged research bubble.
   return (
-    <div
-      className={
-        variant === "mastery"
-          ? "mastery-map-paper my-3 overflow-hidden rounded-[20px] border border-[var(--mastery-complete)]/35 shadow-sm"
-          : "my-2 rounded-lg border border-[var(--border)]/30 bg-[var(--background)] shadow-sm"
-      }
-    >
+    <div className="my-2 rounded-lg border border-[var(--border)]/30 bg-[var(--background)] shadow-sm">
       <button
         type="button"
         disabled={!collapsible}
@@ -1026,22 +949,8 @@ const ResolvedAskUserCard = memo(function ResolvedAskUserCard({
               }`}
             />
           )}
-          {variant === "mastery" ? (
-            <CheckCircle2
-              size={15}
-              className="text-[var(--mastery-complete)]"
-            />
-          ) : null}
-          <h3
-            className={
-              variant === "mastery"
-                ? "text-[13px] font-bold text-[var(--mastery-ink)]"
-                : "text-[13px] font-semibold text-[var(--foreground)]"
-            }
-          >
-            {variant === "mastery"
-              ? t("Checkpoint complete")
-              : t("Your answers")}
+          <h3 className="text-[13px] font-semibold text-[var(--foreground)]">
+            {t("Your answers")}
           </h3>
           {collapsible && collapsed && (
             <span className="text-[11px] text-[var(--muted-foreground)]/45">

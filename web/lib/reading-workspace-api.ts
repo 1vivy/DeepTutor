@@ -33,20 +33,38 @@ export interface ReadingLibraryMaterial {
   created_at: number;
   updated_at: number;
   last_opened_at: number;
+  /** Stored source size; 0 until the material is ready. */
+  size_bytes?: number;
+  /** Extracted units — pages for a PDF, sections for a web page. */
+  unit_count?: number;
+  /** Every collection holding this material; empty means unassigned. */
+  collections?: ReadingMaterialCollection[];
 }
 
-export interface ReadingFolder {
-  folder_id: string;
-  name: string;
-  parent_id: string | null;
-  created_at: number;
+export interface ReadingMaterialCollection {
+  workspace_id: string;
+  title: string;
 }
 
-export interface ReadingTag {
-  tag_id: string;
-  name: string;
-  color: string;
-  created_at: number;
+export type ReadingLibraryFilter =
+  | "all"
+  | "unassigned"
+  | "processing"
+  | "failed";
+
+export interface ReadingLibraryCounts {
+  all: number;
+  unassigned: number;
+  processing: number;
+  failed: number;
+  by_kind: Record<string, number>;
+}
+
+export interface ReadingDuplicateMatch {
+  query: { filename?: string; url?: string };
+  kind: "same_content" | "same_name";
+  material: ReadingLibraryMaterial;
+  collections: ReadingMaterialCollection[];
 }
 
 export interface ReadingWorkspaceTab {
@@ -65,8 +83,6 @@ export interface ReadingWorkspace {
   created_at: number;
   updated_at: number;
   tabs: ReadingWorkspaceTab[];
-  folders: ReadingFolder[];
-  tags: ReadingTag[];
 }
 
 export interface ReadingConversation {
@@ -113,24 +129,73 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function listReadingLibraryMaterials(
   search = "",
-): Promise<ReadingLibraryMaterial[]> {
+  filter: ReadingLibraryFilter = "all",
+): Promise<{
+  materials: ReadingLibraryMaterial[];
+  counts: ReadingLibraryCounts | null;
+}> {
   const params = new URLSearchParams();
   if (search) params.set("search", search);
-  const payload = await json<{ materials: ReadingLibraryMaterial[] }>(
-    `/library/materials${params.size ? `?${params}` : ""}`,
+  if (filter !== "all") params.set("filter", filter);
+  const payload = await json<{
+    materials: ReadingLibraryMaterial[];
+    counts?: ReadingLibraryCounts;
+  }>(`/library/materials${params.size ? `?${params}` : ""}`);
+  return { materials: payload.materials ?? [], counts: payload.counts ?? null };
+}
+
+/**
+ * Content id the server would derive for these bytes — sha256 truncated to 16
+ * hex chars, matching `deeptutor.reading.store.content_hash`. Hashing happens
+ * before the upload so a duplicate is caught while the user can still choose,
+ * which means reading the whole file into memory: past the ceiling we fall back
+ * to name-only matching rather than freezing the tab on a 500 MB lecture.
+ */
+const CONTENT_HASH_CEILING = 96 * 1024 * 1024;
+
+export async function readingContentId(file: File): Promise<string> {
+  if (file.size > CONTENT_HASH_CEILING) return "";
+  if (!globalThis.crypto?.subtle) return "";
+  try {
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      await file.arrayBuffer(),
+    );
+    return Array.from(new Uint8Array(digest))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("")
+      .slice(0, 16);
+  } catch {
+    return "";
+  }
+}
+
+export async function checkReadingDuplicates(payload: {
+  files?: { filename: string; content_id?: string; size_bytes?: number }[];
+  urls?: string[];
+}): Promise<ReadingDuplicateMatch[]> {
+  const result = await json<{ matches: ReadingDuplicateMatch[] }>(
+    "/library/duplicate-check",
+    { method: "POST", body: JSON.stringify(payload) },
   );
-  return payload.materials ?? [];
+  return result.matches ?? [];
+}
+
+export async function deleteReadingMaterial(
+  materialId: string,
+): Promise<ReadingMaterialCollection[]> {
+  const result = await json<{ removed_from?: ReadingMaterialCollection[] }>(
+    `/materials/${materialId}`,
+    { method: "DELETE" },
+  );
+  return result.removed_from ?? [];
 }
 
 export async function listReadingWorkspaces(filters?: {
   search?: string;
-  folderId?: string;
-  tagId?: string;
 }): Promise<ReadingWorkspace[]> {
   const params = new URLSearchParams();
   if (filters?.search) params.set("search", filters.search);
-  if (filters?.folderId) params.set("folder_id", filters.folderId);
-  if (filters?.tagId) params.set("tag_id", filters.tagId);
   const payload = await json<{ workspaces: ReadingWorkspace[] }>(
     `/workspaces${params.size ? `?${params}` : ""}`,
   );
@@ -179,6 +244,7 @@ export async function importReadingUrls(payload: {
   urls: string[];
   workspace_id?: string;
   workspace_title?: string;
+  reuse?: boolean;
 }): Promise<{
   materials: ReadingLibraryMaterial[];
   workspace: ReadingWorkspace;
@@ -234,59 +300,6 @@ export async function removeReadingWorkspaceMaterial(
     { method: "DELETE" },
   );
   return result.workspace;
-}
-
-export async function listReadingFolders(): Promise<ReadingFolder[]> {
-  return (await json<{ folders: ReadingFolder[] }>("/folders")).folders ?? [];
-}
-
-export async function createReadingFolder(name: string): Promise<ReadingFolder> {
-  return (
-    await json<{ folder: ReadingFolder }>("/folders", {
-      method: "POST",
-      body: JSON.stringify({ name }),
-    })
-  ).folder;
-}
-
-export async function assignReadingFolder(
-  workspaceId: string,
-  folderId: string,
-): Promise<ReadingWorkspace> {
-  return (
-    await json<{ workspace: ReadingWorkspace }>(
-      `/workspaces/${workspaceId}/folders/${folderId}`,
-      { method: "PUT" },
-    )
-  ).workspace;
-}
-
-export async function listReadingTags(): Promise<ReadingTag[]> {
-  return (await json<{ tags: ReadingTag[] }>("/tags")).tags ?? [];
-}
-
-export async function createReadingTag(
-  name: string,
-  color = "terracotta",
-): Promise<ReadingTag> {
-  return (
-    await json<{ tag: ReadingTag }>("/tags", {
-      method: "POST",
-      body: JSON.stringify({ name, color }),
-    })
-  ).tag;
-}
-
-export async function assignReadingTag(
-  workspaceId: string,
-  tagId: string,
-): Promise<ReadingWorkspace> {
-  return (
-    await json<{ workspace: ReadingWorkspace }>(
-      `/workspaces/${workspaceId}/tags/${tagId}`,
-      { method: "PUT" },
-    )
-  ).workspace;
 }
 
 export async function createReadingConversation(

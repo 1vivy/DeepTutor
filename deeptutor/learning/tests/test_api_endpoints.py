@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from deeptutor.api.routers.mastery_path import router
-from deeptutor.learning.models import PendingQuestion, QuizAttempt
+from deeptutor.learning.models import LearningProgress, PendingQuestion, QuizAttempt
 from deeptutor.learning.service import LearningService
 from deeptutor.learning.storage import LearningStore
 
@@ -51,6 +51,17 @@ def _module_payload(module_id: str = "m1", kp_id: str = "kp1") -> dict:
 
 
 class TestListProgress:
+    def test_list_runs_blocking_store_work_in_worker_thread(self, client):
+        with patch(
+            "deeptutor.api.routers.mastery_path.asyncio.to_thread",
+            new=AsyncMock(return_value={"summaries": [], "errors": []}),
+        ) as to_thread:
+            resp = client.get("/api/v1/learning/progress")
+
+        assert resp.status_code == 200
+        to_thread.assert_awaited_once()
+        assert to_thread.await_args.args[0].__name__ == "list_progress"
+
     def test_list_empty(self, client):
         resp = client.get("/api/v1/learning/progress")
         assert resp.status_code == 200
@@ -106,9 +117,9 @@ class TestListProgress:
         else:
             pytest.fail("named book not found in progress list")
 
-    def test_list_name_fallback_empty_modules(self, client):
+    def test_list_name_fallback_empty_modules(self, client, app):
         """Book with 0 modules: name falls back to book_id."""
-        client.get("/api/v1/learning/progress/empty_mods")
+        LearningStore(root=app.state.learning_root).save(LearningProgress(book_id="empty_mods"))
         resp = client.get("/api/v1/learning/progress")
         assert resp.status_code == 200
         for p in resp.json()["summaries"]:
@@ -603,12 +614,13 @@ class TestInitModules:
 
 
 class TestGetProgress:
-    def test_get_progress_creates_on_fly(self, client):
+    def test_get_progress_missing_path_returns_404_without_creating(self, client, app):
         resp = client.get("/api/v1/learning/progress/newbook")
-        assert resp.status_code == 200
-        assert resp.json()["book_id"] == "newbook"
+        assert resp.status_code == 404
+        assert LearningStore(root=app.state.learning_root).exists("newbook") is False
 
-    def test_get_progress_default_stage_is_diagnostic(self, client):
+    def test_get_progress_existing_path_keeps_default_diagnostic_stage(self, client, app):
+        LearningStore(root=app.state.learning_root).save(LearningProgress(book_id="freshbook"))
         resp = client.get("/api/v1/learning/progress/freshbook")
         assert resp.status_code == 200
         assert resp.json()["current_stage"] == "diagnostic"

@@ -24,12 +24,10 @@ is testable on its own and the capability that drives it
 from __future__ import annotations
 
 from deeptutor.reading.catalog_models import (
-    FolderRecord,
     IngestionStatus,
     MaterialRecord,
     ReadingSessionRecord,
     SourceKind,
-    TagRecord,
     WorkspaceRecord,
     WorkspaceTab,
 )
@@ -81,7 +79,6 @@ __all__ = [
     "ExportFormat",
     "ExportResult",
     "Extraction",
-    "FolderRecord",
     "IngestionStatus",
     "MaterialRecord",
     "MaterialManifest",
@@ -99,7 +96,6 @@ __all__ = [
     "SearchHit",
     "SearchResult",
     "SourceKind",
-    "TagRecord",
     "RenderMode",
     "TextPositionSelector",
     "TextQuoteSelector",

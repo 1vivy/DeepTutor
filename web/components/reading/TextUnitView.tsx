@@ -41,6 +41,7 @@ import {
   type ReaderHeading,
 } from "@/lib/reading-outline";
 import { cleanQuote } from "@/lib/reading-selection";
+import { MarkdownLine } from "@/lib/reading-inline-markdown";
 import { toRecogitoTextAnnotation } from "@/lib/reading-w3c-annotations";
 import type { JumpRequest, SelectionPayload } from "./PdfDocumentView";
 
@@ -660,7 +661,9 @@ function TextWithHeadings({
         return (
           <Fragment key={key}>
             {lineIndex > 0 && "\n"}
-            {line.text}
+            {/* Fenced code stays completely literal — Markdown syntax
+                inside a code block is content, not formatting. */}
+            {line.fence ? line.text : <MarkdownLine text={line.text} />}
           </Fragment>
         );
       })}

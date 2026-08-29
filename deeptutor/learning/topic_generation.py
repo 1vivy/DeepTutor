@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from typing import Any
 import uuid
 
@@ -17,6 +18,8 @@ from deeptutor.learning.models import (
 )
 from deeptutor.services.llm import complete
 from deeptutor.utils.json_parser import parse_json_response
+
+logger = logging.getLogger(__name__)
 
 _ALLOWED_TYPES = {item.value for item in KnowledgeType}
 _MAX_SOURCES = 16
@@ -97,6 +100,11 @@ async def _ground_knowledge_base_source(
             "retrieval_provider": str(result.get("provider") or ""),
         }
     except Exception:
+        logger.exception(
+            "Knowledge-base grounding failed source_id=%s label=%s",
+            grounded.source_id,
+            grounded.label,
+        )
         # One unavailable source must not discard the user's other selected
         # material or prevent a goal-only draft. Its degraded state is returned
         # to the client and persisted when the user confirms the route.
@@ -142,6 +150,7 @@ def materialize_modules(
     strict: bool = False,
     existing_module_ids: set[str] | None = None,
     existing_objective_ids: set[str] | None = None,
+    discarded_modules: list[dict[str, Any]] | None = None,
 ) -> list[LearningModule]:
     """Validate and normalize a route while keeping existing entity identity.
 
@@ -162,15 +171,22 @@ def materialize_modules(
     used_modules: set[str] = set()
     used_objectives: set[str] = set()
     modules: list[LearningModule] = []
+
+    def record_discard(module_index: int, reason: str) -> None:
+        if discarded_modules is not None:
+            discarded_modules.append({"index": module_index + 1, "reason": reason})
+
     for module_index, raw_module in enumerate(raw_modules[:8]):
         if not isinstance(raw_module, dict):
             if strict:
                 raise TopicGenerationError(f"Route region {module_index + 1} is invalid")
+            record_discard(module_index, "module is not an object")
             continue
         module_name = str(raw_module.get("name") or "").strip()[:200]
         if not module_name:
             if strict:
                 raise TopicGenerationError(f"Route region {module_index + 1} needs a name")
+            record_discard(module_index, "module name is missing")
             continue
         requested_module_id = str(raw_module.get("id") or "").strip()
         if requested_module_id in allowed_modules and requested_module_id not in used_modules:
@@ -188,6 +204,7 @@ def materialize_modules(
                 raise TopicGenerationError(
                     f"Route region {module_index + 1} needs at least one waypoint"
                 )
+            record_discard(module_index, "knowledge_points is not a list")
             continue
         if strict and not raw_kps:
             raise TopicGenerationError(
@@ -248,6 +265,11 @@ def materialize_modules(
             raise TopicGenerationError(
                 f"Route region {module_index + 1} needs at least one waypoint"
             )
+        else:
+            record_discard(module_index, "module has no usable waypoints")
+    if not strict and len(raw_modules) > 8:
+        for module_index in range(8, len(raw_modules)):
+            record_discard(module_index, "module limit exceeded")
     if not modules:
         raise TopicGenerationError("The generated route contains no usable objectives")
     return modules
@@ -279,11 +301,28 @@ async def generate_topic_draft(
     raw_modules = data.get("modules")
     if not isinstance(raw_modules, list):
         raise TopicGenerationError("The generated route has no module list")
-    modules = materialize_modules("draft", raw_modules)
+    discarded_modules: list[dict[str, Any]] = []
+    try:
+        modules = materialize_modules(
+            "draft",
+            raw_modules,
+            discarded_modules=discarded_modules,
+        )
+    finally:
+        if discarded_modules:
+            logger.warning(
+                "Discarded %d generated route module(s): %s",
+                len(discarded_modules),
+                "; ".join(
+                    f"region {item['index']}: {item['reason']}" for item in discarded_modules
+                ),
+            )
     return {
         "description": str(data.get("description") or "").strip()[:500],
         "modules": [module.model_dump(mode="json") for module in modules],
         "sources": [source.model_dump(mode="json") for source in grounded_sources],
+        "discarded_module_count": len(discarded_modules),
+        "discarded_modules": discarded_modules,
     }
 
 

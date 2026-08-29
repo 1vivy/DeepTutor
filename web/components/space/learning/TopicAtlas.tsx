@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslation } from "react-i18next";
 import {
   AlertCircle,
   ArrowRight,
@@ -19,17 +20,16 @@ export function TopicAtlas({
   topics,
   loading,
   error,
-  tr,
   onCreate,
   onRetry,
 }: {
   topics: MasteryTopic[];
   loading: boolean;
   error: string | null;
-  tr: Translate;
   onCreate: (trigger: HTMLButtonElement) => void;
   onRetry: () => void;
 }) {
+  const { t } = useTranslation();
   const activeTopics = topics.filter((topic) => topic.metadata.status === "active");
   const dueCount = activeTopics.reduce(
     (count, topic) => count + topic.reviews.filter((review) => review.due).length,
@@ -45,55 +45,49 @@ export function TopicAtlas({
       <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
         <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--primary)]">
+            <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-[var(--muted-foreground)]">
               <Compass className="h-4 w-4" />
-              {tr("学习疆域", "Learning territories")}
+              {t("Mastery Path")}
             </div>
-            <h1 className="text-3xl font-semibold tracking-[-0.035em] text-[var(--foreground)] sm:text-[38px]">
-              {tr("你的精通地图", "Your Mastery Atlas")}
+            <h1 className="font-serif text-[22px] font-semibold tracking-[-0.01em] text-[var(--foreground)]">
+              {t("Your learning topics")}
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-              {tr(
-                "每个主题都是一片可探索的疆域。沿路线闯过知识关卡，回到营地继续任意一次学习旅程。",
-                "Each topic is a territory to explore. Clear its knowledge waypoints, then return to camp and resume any learning journey.",
-              )}
+              {t("Work through each topic's knowledge points, then pick up any session where you left off.")}
             </p>
           </div>
           <button
             type="button"
             onClick={(event) => onCreate(event.currentTarget)}
-            className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-medium text-[var(--primary-foreground)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2"
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-medium text-[var(--primary-foreground)]  transition hover:opacity-90 hover: focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2"
           >
             <Plus className="h-4 w-4" />
-            {tr("开启新主题", "Chart a new topic")}
+            {t("New topic")}
           </button>
         </header>
 
         {dueCount > 0 && (
-          <section className="mt-8 flex flex-col gap-3 rounded-2xl border border-amber-700/20 bg-amber-500/[0.07] px-4 py-3.5 text-sm text-[var(--foreground)] sm:flex-row sm:items-center">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-300">
+          <section className="mt-8 flex flex-col gap-3 rounded-lg border border-[var(--border)] bg-[var(--muted-foreground)]/[0.07] px-4 py-3.5 text-sm text-[var(--foreground)] sm:flex-row sm:items-center">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--muted-foreground)]/15 text-[var(--muted-foreground)]">
               <Sparkles className="h-4 w-4" />
             </span>
             <div className="min-w-0 flex-1">
               <div className="font-medium">
-                {tr(
-                  `${dueCount} 个记忆信标已亮起，分布在 ${dueTopics.length} 个主题中`,
-                  `${dueCount} review beacons are glowing across ${dueTopics.length} ${dueTopics.length === 1 ? "topic" : "topics"}`,
-                )}
+                {t("{{beacons}} reviews are due across {{count}} topics", {
+                  beacons: dueCount,
+                  count: dueTopics.length,
+                })}
               </div>
               <div className="mt-0.5 text-xs text-[var(--muted-foreground)]">
-                {tr(
-                  "进入对应地图即可开始短复习，不会打断当前主线。",
-                  "Open their maps for a short review without losing your main route.",
-                )}
+                {t("Open their maps for a short review without losing your main route.")}
               </div>
             </div>
             {firstDueTopic && (
               <Link
-                href={`/space/learning/${encodeURIComponent(firstDueTopic.path_id)}`}
-                className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-700 px-3.5 text-xs font-semibold text-white transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-2 dark:bg-amber-300 dark:text-amber-950"
+                href={`/mastery/${encodeURIComponent(firstDueTopic.path_id)}`}
+                className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[var(--primary)] px-3.5 text-xs font-semibold text-white transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 "
               >
-                {tr("开始复习", "Start review")}: {topicDisplayName(firstDueTopic, tr)}
+                {t("Start review")}: {topicDisplayName(firstDueTopic, t)}
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             )}
@@ -101,7 +95,7 @@ export function TopicAtlas({
         )}
 
         {error && (
-          <div className="mt-8 flex items-center justify-between gap-4 rounded-2xl border border-red-500/20 bg-red-500/[0.06] p-4 text-sm">
+          <div className="mt-8 flex items-center justify-between gap-4 rounded-lg border border-red-500/20 bg-red-500/[0.06] p-4 text-sm">
             <span className="flex items-center gap-2 text-red-700 dark:text-red-300">
               <AlertCircle className="h-4 w-4" /> {error}
             </span>
@@ -111,7 +105,7 @@ export function TopicAtlas({
               className="inline-flex items-center gap-1.5 font-medium text-[var(--foreground)] hover:underline"
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              {tr("重试", "Retry")}
+              {t("Retry")}
             </button>
           </div>
         )}
@@ -121,21 +115,21 @@ export function TopicAtlas({
             {Array.from({ length: 6 }, (_, index) => (
               <div
                 key={index}
-                className="h-[360px] animate-pulse rounded-[22px] border border-[var(--border)] bg-[var(--muted)]/60"
+                className="h-[360px] animate-pulse rounded-xl border border-[var(--border)] bg-[var(--muted)]/60"
               />
             ))}
           </div>
         ) : activeTopics.length > 0 ? (
           <section
-            aria-label={tr("正在学习的主题", "Active learning topics")}
+            aria-label={t("Active learning topics")}
             className="mt-9 grid gap-6 md:grid-cols-2 xl:grid-cols-3"
           >
             {activeTopics.map((topic) => (
-              <TopicMapCard key={topic.path_id} topic={topic} tr={tr} />
+              <TopicMapCard key={topic.path_id} topic={topic} />
             ))}
           </section>
         ) : !error ? (
-          <section className="mastery-map-paper relative mx-auto mt-12 max-w-3xl overflow-hidden rounded-[28px] border border-black/10 px-6 py-16 text-center sm:px-12">
+          <section className="mastery-map-paper relative mx-auto mt-12 max-w-3xl overflow-hidden rounded-xl border border-[var(--border)] px-6 py-16 text-center sm:px-12">
             <svg
               aria-hidden="true"
               viewBox="0 0 700 280"
@@ -153,25 +147,22 @@ export function TopicAtlas({
                 strokeOpacity=".2"
               />
             </svg>
-            <div className="relative z-[1] mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] border border-black/10 bg-[var(--mastery-paper-raised)] shadow-sm">
+            <div className="relative z-[1] mx-auto flex h-16 w-16 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--mastery-paper-raised)] ">
               <Compass className="h-7 w-7 text-[var(--mastery-route)]" />
             </div>
-            <h2 className="relative z-[1] mt-6 text-2xl font-semibold tracking-tight">
-              {tr("地图仍是一张空白纸", "Your atlas is still uncharted")}
+            <h2 className="relative z-[1] mt-6 font-serif text-[18px] font-semibold tracking-tight">
+              {t("Your atlas is still uncharted")}
             </h2>
             <p className="relative z-[1] mx-auto mt-3 max-w-lg text-sm leading-6 opacity-70">
-              {tr(
-                "告诉 DeepTutor 你想抵达哪里，再混合你的书、笔记和知识库，我们会为你绘制第一条真正可走的路线。",
-                "Tell DeepTutor where you want to arrive, mix in your books, notes, and knowledge bases, and we’ll chart your first traversable route.",
-              )}
+              {t("Tell DeepTutor what you want to learn, mix in your books, notes, and knowledge bases, and it will draft the first outline.")}
             </p>
             <button
               type="button"
               onClick={(event) => onCreate(event.currentTarget)}
-              className="relative z-[1] mt-7 inline-flex h-11 items-center gap-2 rounded-xl bg-[var(--mastery-ink)] px-5 text-sm font-medium text-[var(--mastery-paper-raised)] transition hover:-translate-y-0.5"
+              className="relative z-[1] mt-7 inline-flex h-9 items-center gap-2 rounded-xl bg-[var(--mastery-ink)] px-5 text-sm font-medium text-[var(--mastery-paper-raised)] transition hover:opacity-90"
             >
               <Plus className="h-4 w-4" />
-              {tr("绘制第一张地图", "Chart the first map")}
+              {t("Chart the first map")}
             </button>
           </section>
         ) : null}

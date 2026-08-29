@@ -252,8 +252,7 @@ class PocketBaseSessionStore:
             return [
                 session
                 for session in sessions
-                if (session.get("preferences") or {}).get("session_kind")
-                != "immersive_reading"
+                if (session.get("preferences") or {}).get("session_kind") != "immersive_reading"
             ]
         except Exception as exc:
             logger.warning(f"list_sessions failed: {exc}")

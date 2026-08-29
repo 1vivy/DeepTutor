@@ -1,52 +1,47 @@
+/*
+ * Learning-space surface.
+ *
+ * These names are kept because several components already speak them, but
+ * every one now resolves to a product design token. The previous version
+ * hardcoded a parchment palette (cream #f3ead7 paper, brown route, gold
+ * highlights) plus paper-grain noise and graph-paper ruling. It read as a
+ * cartoon treasure map rather than part of the product, and it could not
+ * follow a theme switch because the values were literals.
+ *
+ * The map's identity comes from its structure — a route, waypoints, and a
+ * visible progression — not from a skin. State is encoded by form (filled →
+ * ringed → outline) so it survives any palette, and there is no invented
+ * "success green": the product has no success token, only --primary.
+ */
 .mastery-shell {
-  --mastery-ink: #2b342f;
-  --mastery-paper: #f3ead7;
-  --mastery-paper-raised: #fbf6ea;
-  --mastery-route: #8c5d3b;
-  --mastery-moss: #58725e;
-  --mastery-complete: #58725e;
-  --mastery-water: #6c8b91;
-  --mastery-gold: #b77b2f;
+  --mastery-ink: var(--foreground);
+  --mastery-paper: var(--secondary);
+  --mastery-paper-raised: var(--card);
+  --mastery-route: var(--primary);
+  --mastery-moss: var(--primary);
+  --mastery-complete: var(--primary);
+  --mastery-water: var(--muted-foreground);
+  --mastery-gold: var(--primary);
   background: var(--background);
 }
 
 .mastery-map-paper {
   background-color: var(--mastery-paper);
   color: var(--mastery-ink);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.65) inset,
-    0 18px 45px rgba(74, 54, 34, 0.1);
-}
-
-.mastery-map-paper::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.22;
-  mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90' viewBox='0 0 90 90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.08'/%3E%3C/svg%3E");
-}
-
-.mastery-map-grid {
-  background-image:
-    linear-gradient(rgba(91, 88, 71, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(91, 88, 71, 0.07) 1px, transparent 1px);
-  background-size: 28px 28px;
 }
 
 .mastery-route-line {
   fill: none;
-  stroke: var(--mastery-route);
-  stroke-width: 2.4;
+  stroke: var(--border);
+  stroke-width: 2;
   stroke-linecap: round;
-  stroke-dasharray: 1 8;
+  stroke-dasharray: 1 7;
 }
 
 .mastery-route-travelled {
   fill: none;
-  stroke: var(--mastery-moss);
-  stroke-width: 3.4;
+  stroke: var(--mastery-route);
+  stroke-width: 2.5;
   stroke-linecap: round;
 }
 
@@ -59,8 +54,8 @@
 }
 
 .mastery-map-card:hover {
-  transform: translateY(-3px) rotate(-0.15deg);
-  box-shadow: 0 22px 55px rgba(66, 47, 29, 0.16);
+  transform: translateY(-2px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08);
 }
 
 .mastery-waypoint-icon {
@@ -72,67 +67,34 @@
 
 .mastery-waypoint:hover .mastery-waypoint-icon,
 .mastery-waypoint:focus-visible .mastery-waypoint-icon {
-  transform: scale(1.08);
-  box-shadow: 0 0 0 3px var(--mastery-paper-raised), 0 0 0 5px var(--mastery-route);
+  transform: scale(1.06);
+  box-shadow:
+    0 0 0 3px var(--background),
+    0 0 0 5px var(--mastery-route);
 }
 
 .mastery-waypoint[data-current="true"] .mastery-waypoint-icon {
   animation: mastery-pulse 2.4s ease-in-out infinite;
 }
 
-.mastery-campfire {
-  animation: mastery-fire 1.8s ease-in-out infinite alternate;
-  transform-origin: center bottom;
-}
-
 @keyframes mastery-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 4px rgba(183, 123, 47, 0.18);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 18%, transparent);
   }
   50% {
-    box-shadow: 0 0 0 9px rgba(183, 123, 47, 0.05);
+    box-shadow: 0 0 0 9px color-mix(in srgb, var(--primary) 4%, transparent);
   }
 }
 
-@keyframes mastery-fire {
-  from {
-    transform: scaleY(0.94) rotate(-1deg);
-  }
-  to {
-    transform: scaleY(1.04) rotate(1deg);
-  }
-}
-
-.dark .mastery-shell,
-.theme-glass .mastery-shell {
-  --mastery-ink: #e8e3d7;
-  --mastery-paper: #202823;
-  --mastery-paper-raised: #28312b;
-  --mastery-route: #cf9569;
-  --mastery-moss: #8ba58f;
-  --mastery-complete: #8ba58f;
-  --mastery-water: #7e9da4;
-  --mastery-gold: #d5a052;
-}
-
-.dark .mastery-map-paper,
-.theme-glass .mastery-map-paper {
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.05) inset,
-    0 18px 45px rgba(0, 0, 0, 0.25);
-}
-
-.dark .mastery-map-paper::after,
-.theme-glass .mastery-map-paper::after {
-  mix-blend-mode: screen;
-  opacity: 0.08;
+.dark .mastery-map-card:hover,
+.theme-glass .mastery-map-card:hover {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .mastery-map-card,
-  .mastery-waypoint-icon,
-  .mastery-campfire {
+  .mastery-waypoint-icon {
     animation: none !important;
     transition-duration: 0.01ms !important;
   }
