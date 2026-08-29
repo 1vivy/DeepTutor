@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronDown, Search, X } from "lucide-react";
+import {
+  ChevronDown,
+  LayoutGrid,
+  Search,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { fetchAuthStatus } from "@/lib/auth";
@@ -169,23 +175,23 @@ export default function SettingsNav() {
   return (
     <nav
       aria-label={t("Settings sections")}
-      className="flex h-full w-[196px] shrink-0 flex-col gap-3 overflow-y-auto pb-8 pr-1 pt-1"
+      className="flex h-full w-[212px] shrink-0 flex-col overflow-y-auto px-1 pb-8"
     >
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--muted-foreground)]/60" />
+      <div className="relative mb-2">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted-foreground)]/50" />
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t("Search settings")}
           aria-label={t("Search settings")}
-          className="w-full rounded-md bg-[var(--muted)]/40 py-1.5 pl-7 pr-6 text-[12px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]/60 focus:bg-[var(--muted)]/70"
+          className="w-full rounded-lg bg-[var(--accent)]/60 py-1.5 pl-8 pr-7 text-[13px] text-[var(--foreground)] outline-none transition-colors placeholder:text-[var(--muted-foreground)]/50 focus:bg-[var(--accent)]"
         />
         {query && (
           <button
             type="button"
             onClick={() => setQuery("")}
             aria-label={t("Clear")}
-            className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
           >
             <X className="h-3 w-3" />
           </button>
@@ -195,20 +201,21 @@ export default function SettingsNav() {
       <Row
         href={SETTINGS_HUB_HREF}
         label={t("Overview")}
+        icon={LayoutGrid}
         active={pathname === SETTINGS_HUB_HREF}
         tourId="tour-nav-overview"
       />
 
       {visible.length === 0 && (
-        <p className="px-2 text-[11.5px] leading-relaxed text-[var(--muted-foreground)]">
+        <p className="px-2.5 pt-2 text-[12px] leading-relaxed text-[var(--muted-foreground)]">
           {t("No settings match “{{query}}”.", { query: query.trim() })}
         </p>
       )}
 
       {visible.map((group) => (
-        <div key={group.key}>
+        <div key={group.key} className="mt-3.5 first:mt-3">
           {!group.standalone && (
-            <div className="px-2 pb-1 text-[11px] font-medium text-[var(--muted-foreground)]/70">
+            <div className="px-2.5 pb-1 text-[11.5px] font-normal text-[var(--muted-foreground)]/60">
               {tr(group.label)}
             </div>
           )}
@@ -218,6 +225,7 @@ export default function SettingsNav() {
                 key={leaf.key}
                 href={leaf.href}
                 label={tr(leaf.label)}
+                icon={leaf.icon}
                 active={pathname === leaf.href}
                 failing={failing(leaf)}
                 hint={tr(leaf.blurb)}
@@ -231,9 +239,17 @@ export default function SettingsNav() {
   );
 }
 
+/**
+ * One row, in the app sidebar's language rather than an invented one: the same
+ * icon + label pairing, radius, padding and accent-tinted active state that
+ * `SidebarShell` uses, a half-step smaller because this is second-level
+ * navigation. Without the icon the column was a wall of text with nothing to
+ * aim at, and every page already declares one in `settings-nav.ts`.
+ */
 function Row({
   href,
   label,
+  icon: Icon,
   active,
   failing,
   hint,
@@ -241,6 +257,7 @@ function Row({
 }: {
   href: string;
   label: string;
+  icon?: LucideIcon;
   active: boolean;
   failing?: boolean;
   /** The one-line description the old sub-hub tiles showed under each name. */
@@ -254,13 +271,19 @@ function Row({
       data-tour={tourId}
       title={hint}
       aria-current={active ? "page" : undefined}
-      className={`flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[12.5px] leading-tight transition-colors ${
+      className={`flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] leading-tight transition-colors ${
         active
-          ? "bg-[var(--muted)]/70 font-medium text-[var(--foreground)]"
-          : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]/35 hover:text-[var(--foreground)]"
+          ? "bg-[var(--accent)] font-medium text-[var(--foreground)]"
+          : "text-[var(--foreground)]/70 hover:bg-[var(--accent)]/50 hover:text-[var(--foreground)]"
       }`}
     >
-      <span className="truncate">{label}</span>
+      {Icon && (
+        <Icon
+          size={15}
+          className={`shrink-0 ${active ? "" : "opacity-70"}`}
+        />
+      )}
+      <span className="min-w-0 flex-1 truncate">{label}</span>
       {failing && (
         <span
           aria-hidden

@@ -142,7 +142,7 @@ export default function SettingsOverview() {
     <div>
       <header className="mb-6 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="font-serif text-[24px] font-semibold leading-tight tracking-tight text-[var(--foreground)]">
+          <h1 className="font-serif text-[22px] font-semibold tracking-tight text-[var(--foreground)]">
             {t("Settings")}
           </h1>
           <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--muted-foreground)]">

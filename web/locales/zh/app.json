@@ -1326,7 +1326,7 @@
   "FastAPI listens on this port.": "FastAPI 监听这个端口。",
   "Frontend port": "前端端口",
   "Next.js serves the Web UI on this port.": "Next.js 在这个端口提供 Web UI。",
-  "Browser API base": "浏览器 API base",
+  "Browser API base": "浏览器访问的 API 地址",
   "Set this when the browser cannot reach the backend through localhost, such as remote Docker or a reverse proxy.": "当浏览器不能通过 localhost 访问后端时填写，例如远程 Docker 或反向代理部署。",
   "Public API base": "公共 API base",
   "Leave blank for local Docker. Use the externally reachable backend URL, including any proxy path.": "本机 Docker 留空即可。远程部署填写浏览器可访问的后端 URL，可包含代理路径。",
