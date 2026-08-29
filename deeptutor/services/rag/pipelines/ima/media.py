@@ -9,7 +9,8 @@ tool read documents through exactly one implementation.
 Security boundary
 -----------------
 The download URL arrives inside an API response, so it is treated as untrusted
-input: it must be HTTPS and inside Tencent COS (:data:`_COS_ROOT_DOMAIN`), which
+input: it must be HTTPS and served from a trusted Tencent domain (Tencent COS
+or IMA's own resource host, :data:`_ALLOWED_MEDIA_ROOT_DOMAINS`), which
 prevents a tampered or buggy response from turning retrieval into an SSRF
 primitive. Redirects are not followed, IMA's own credentials are never attached
 to this separate client, and hop-by-hop / identity headers are stripped from
@@ -35,9 +36,10 @@ from deeptutor.utils.document_extractor import (
 
 from .envelope import ImaAPIError
 
-# Official IMA media links are short-lived Tencent COS URLs; the downloader
-# refuses anything outside that boundary.
-_COS_ROOT_DOMAIN = "myqcloud.com"
+# Official IMA media links are short-lived Tencent COS download URLs, and
+# note/file content is served from IMA's own resource host (res-pkb.ima.qq.com);
+# the downloader refuses anything outside these trusted Tencent domains.
+_ALLOWED_MEDIA_ROOT_DOMAINS = ("myqcloud.com", "ima.qq.com")
 
 # Headers we never forward, whatever the API response asks for: hop-by-hop
 # fields and anything that would carry identity to COS.
@@ -140,7 +142,9 @@ def validate_media_url(url: str) -> None:
     hostname = (parsed.hostname or "").rstrip(".").lower()
     if parsed.scheme != "https" or not hostname:
         raise ImaAPIError("IMA media URL must use HTTPS.")
-    if hostname != _COS_ROOT_DOMAIN and not hostname.endswith(f".{_COS_ROOT_DOMAIN}"):
+    if not any(
+        hostname == root or hostname.endswith(f".{root}") for root in _ALLOWED_MEDIA_ROOT_DOMAINS
+    ):
         raise ImaAPIError("IMA media URL is outside Tencent COS.")
 
 
