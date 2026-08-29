@@ -164,6 +164,7 @@ class LLMCallResult:
     visible_text: str = ""
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     finish_reason: str = ""
+    reasoning_content: str = ""
     deferred_chunk_metadata: dict[str, Any] | None = None
     deferred_completion_metadata: dict[str, Any] | None = None
 
@@ -367,7 +368,11 @@ class AgentLoop:
                     if result.visible_text:
                         continued_answer_parts.append(result.visible_text)
                     if result.text:
-                        messages.append({"role": "assistant", "content": result.text})
+                        self._append_assistant_turn(
+                            messages,
+                            content=result.text,
+                            reasoning_content=result.reasoning_content,
+                        )
                     self._append_loop_instruction(
                         messages,
                         self.pipeline._t(
@@ -400,7 +405,11 @@ class AgentLoop:
                         metadata={"trace_kind": "warning"},
                     )
                     if result.text:
-                        messages.append({"role": "assistant", "content": result.text})
+                        self._append_assistant_turn(
+                            messages,
+                            content=result.text,
+                            reasoning_content=result.reasoning_content,
+                        )
                     self._append_loop_instruction(
                         messages,
                         self.pipeline._t(
@@ -423,7 +432,11 @@ class AgentLoop:
                     if not finish_redirect_used:
                         finish_redirect_used = True
                         if result.text:
-                            messages.append({"role": "assistant", "content": result.text})
+                            self._append_assistant_turn(
+                                messages,
+                                content=result.text,
+                                reasoning_content=result.reasoning_content,
+                            )
                         self._append_loop_instruction(messages, finish_redirect)
                         continue
                     await self.stream.progress(
@@ -448,7 +461,13 @@ class AgentLoop:
                 )
 
             await self._release_deferred_output(result)
-            messages.append(assistant_message_with_tool_calls(result.text, result.tool_calls))
+            messages.append(
+                assistant_message_with_tool_calls(
+                    result.text,
+                    result.tool_calls,
+                    reasoning_content=result.reasoning_content or None,
+                )
+            )
             dispatch = await self.pipeline._dispatch_tool_calls(
                 tool_calls=result.tool_calls,
                 context=self.context,
@@ -516,6 +535,19 @@ class AgentLoop:
             messages[-1]["content"] = f"{prior}\n\n{instruction}" if prior else instruction
             return
         messages.append({"role": "user", "content": instruction})
+
+    @staticmethod
+    def _append_assistant_turn(
+        messages: list[dict[str, Any]],
+        *,
+        content: str,
+        reasoning_content: str = "",
+    ) -> None:
+        """Append an assistant row, replaying thinking-mode reasoning when present."""
+        message: dict[str, Any] = {"role": "assistant", "content": content}
+        if reasoning_content:
+            message["reasoning_content"] = reasoning_content
+        messages.append(message)
 
     def _fold_context_checkpoint(
         self,
@@ -741,6 +773,7 @@ class AgentLoop:
             # once, only after a successful attempt.
             usage_seen: Any = None
             text_parts: list[str] = []
+            reasoning_parts: list[str] = []
             tool_acc = ToolCallAccumulator()
             output_chars = 0
             finish_reason = ""
@@ -794,6 +827,7 @@ class AgentLoop:
                     if reasoning_text:
                         output_chars += len(reasoning_text)
                         output_emitted = True
+                        reasoning_parts.append(reasoning_text)
                         await self.stream.thinking(
                             reasoning_text, source="chat", stage=stage, metadata=chunk_meta
                         )
@@ -978,6 +1012,7 @@ class AgentLoop:
             visible_text="".join(visible_text_parts),
             tool_calls=tool_calls,
             finish_reason=finish_reason,
+            reasoning_content="".join(reasoning_parts),
             deferred_chunk_metadata=chunk_meta if defer_visible_output else None,
             deferred_completion_metadata=(
                 completion_event_metadata if defer_visible_output else None
