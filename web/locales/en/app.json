@@ -3614,5 +3614,20 @@
   "Put these settings into effect.": "Put these settings into effect.",
   "Go back to what is currently live.": "Go back to what is currently live.",
   "Could not save the draft: {{message}}": "Could not save the draft: {{message}}",
-  "Could not apply: {{message}}": "Could not apply: {{message}}"
+  "Could not apply: {{message}}": "Could not apply: {{message}}",
+  "Search settings": "Search settings",
+  "Settings sections": "Settings sections",
+  "No settings match “{{query}}”.": "No settings match “{{query}}”.",
+  "Nothing to do — everything configured is working.": "Nothing to do — everything configured is working.",
+  "A saved draft is waiting to be applied.": "A saved draft is waiting to be applied.",
+  "There are changes you have not saved anywhere yet.": "There are changes you have not saved anywhere yet.",
+  "{{service}} failed its last connection test.": "{{service}} failed its last connection test.",
+  "In use": "In use",
+  "Not set up yet": "Not set up yet",
+  "{{ready}} of {{total}} model services set up.": "{{ready}} of {{total}} model services set up.",
+  "Appearance, models, knowledge, chat, and memory.": "Appearance, models, knowledge, chat, and memory.",
+  "Take the tour": "Take the tour",
+  "Draft saved {{when}}": "Draft saved {{when}}",
+  "Set up with DeepTutor": "Set up with DeepTutor",
+  "Delete this profile and every model under it?": "Delete this profile and every model under it?"
 }

@@ -270,6 +270,21 @@ const AGENT_CHILDREN: SettingsLeaf[] = [
     adminOnly: true,
   },
   {
+    // Supported everywhere else — backend kind, icon, label, its own settings
+    // page — but missing from this list, so the page was reachable only by
+    // typing the URL. Gemini CLI is retired and this is what replaced it.
+    key: "agent-antigravity",
+    href: "/settings/agents/antigravity",
+    label: { zh: "Antigravity CLI", en: "Antigravity CLI" },
+    blurb: {
+      zh: "DeepTutor 调用本机 Antigravity CLI 时的模型与运行参数。",
+      en: "Model and run params for the local Antigravity CLI.",
+    },
+    icon: GeminiGlyph as unknown as LucideIcon,
+    tile: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+    adminOnly: true,
+  },
+  {
     key: "agent-kimi",
     href: "/settings/agents/kimi",
     label: { zh: "Kimi CLI", en: "Kimi CLI" },

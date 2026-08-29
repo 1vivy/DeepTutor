@@ -161,6 +161,7 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
     draft.services[service].active_profile_id === deepLink.to;
 
   const [showApiKey, setShowApiKey] = useState(false);
+  const [confirmingProfileDelete, setConfirmingProfileDelete] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [editingModelId, setEditingModelId] = useState<string | null>(null);
   const [editingModelName, setEditingModelName] = useState("");
@@ -177,6 +178,8 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
   if (lastProfileKey !== profileKey) {
     setLastProfileKey(profileKey);
     if (showApiKey) setShowApiKey(false);
+    // A pending confirmation must not carry over to a different profile.
+    if (confirmingProfileDelete) setConfirmingProfileDelete(false);
   }
 
   const searchProviderRaw =
@@ -521,9 +524,38 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
                 );
               })}
             </div>
+            {/* Deleting takes the whole provider with it — its key and every
+                model under it — and it sits one hairline below the list the
+                user is clicking through, so it asks first. */}
             <div className="mt-2 border-t border-[var(--border)]/40 pt-2">
+              {confirmingProfileDelete ? (
+                <div className="px-1.5 py-1">
+                  <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+                    {t("Delete this profile and every model under it?")}
+                  </p>
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingProfileDelete(false)}
+                      className="h-6 rounded-md px-2 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                    >
+                      {t("Cancel")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        removeActiveProfile(service);
+                        setConfirmingProfileDelete(false);
+                      }}
+                      className="h-6 rounded-md bg-red-500/10 px-2 text-[11px] font-medium text-red-600 transition-colors hover:bg-red-500/15 dark:text-red-400"
+                    >
+                      {t("Delete")}
+                    </button>
+                  </div>
+                </div>
+              ) : (
               <button
-                onClick={() => removeActiveProfile(service)}
+                onClick={() => setConfirmingProfileDelete(true)}
                 disabled={!activeProfile || isManagedCodex}
                 className="flex w-full items-center gap-1.5 rounded-lg px-3 py-1.5 text-left text-[11px] text-[var(--muted-foreground)]/60 transition-colors hover:bg-red-500/5 hover:text-red-500 disabled:opacity-30"
                 title={
@@ -539,6 +571,7 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
                     : t("Delete profile")}
                 </span>
               </button>
+              )}
             </div>
           </aside>
 

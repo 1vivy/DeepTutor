@@ -1,0 +1,205 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Search, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
+
+import { fetchAuthStatus } from "@/lib/auth";
+import {
+  SETTINGS_CATEGORIES,
+  SETTINGS_HUB_HREF,
+  type Lang,
+  type SettingsLeaf,
+} from "@/lib/settings-nav";
+import { serviceReadiness, useSettings } from "./SettingsContext";
+
+/**
+ * The settings navigator — one persistent column, every page one click away.
+ *
+ * Settings used to be a folder tree: the hub listed seven categories, four of
+ * those opened a second grid, and the leaf was the third click. Changing two
+ * things in different categories meant walking back up to the root in between,
+ * because nothing but a breadcrumb ever showed where else you could go. Every
+ * comparable product — VS Code, Slack, GitHub, Stripe, Dify, Open WebUI —
+ * keeps the whole map on screen instead, and so does this.
+ *
+ * Search filters to matching pages rather than opening a separate results
+ * view: with two dozen pages the question is almost always "which page is that
+ * on", and the answer is more useful in place.
+ */
+
+type Row = { leaf: SettingsLeaf; category: Lang };
+
+export default function SettingsNav() {
+  const pathname = usePathname() ?? "";
+  const { t, i18n } = useTranslation();
+  const zh = i18n.language?.toLowerCase().startsWith("zh");
+  const tr = useCallback((value: Lang) => (zh ? value.zh : value.en), [zh]);
+  const { catalog, catalogEditable, diagnosticsResults } = useSettings();
+
+  const [query, setQuery] = useState("");
+  const [hideAdminOnly, setHideAdminOnly] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAuthStatus().then((authStatus) => {
+      if (cancelled || !authStatus) return;
+      setHideAdminOnly(Boolean(authStatus.enabled) && !authStatus.is_admin);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // A category with children contributes its leaves; one without is itself a
+  // row, so a single-page category never costs an extra level of nesting.
+  const groups = useMemo(
+    () =>
+      SETTINGS_CATEGORIES.map((category) => ({
+        key: category.key,
+        label: category.label,
+        rows: (
+          category.children ?? [
+            {
+              key: category.key,
+              href: category.href,
+              label: category.label,
+              blurb: category.blurb,
+              icon: category.icon,
+              tile: "",
+            } satisfies SettingsLeaf,
+          ]
+        )
+          .filter((leaf) => !(leaf.adminOnly && hideAdminOnly))
+          .map((leaf) => ({ leaf, category: category.label }) satisfies Row),
+        standalone: !category.children,
+      })),
+    [hideAdminOnly],
+  );
+
+  const needle = query.trim().toLowerCase();
+  const matches = useCallback(
+    (row: Row) =>
+      !needle ||
+      [row.leaf.label.en, row.leaf.label.zh, row.leaf.blurb.en, row.leaf.blurb.zh]
+        .join(" ")
+        .toLowerCase()
+        .includes(needle),
+    [needle],
+  );
+
+  const visible = groups
+    .map((group) => ({ ...group, rows: group.rows.filter(matches) }))
+    .filter((group) => group.rows.length > 0);
+
+  // Only the failure state earns a mark here: "not configured yet" is the
+  // normal state of most of these services and would dot half the column.
+  const failing = useCallback(
+    (leaf: SettingsLeaf) =>
+      leaf.service !== undefined &&
+      catalogEditable === true &&
+      serviceReadiness(catalog, leaf.service, diagnosticsResults) === "failed",
+    [catalog, catalogEditable, diagnosticsResults],
+  );
+
+  return (
+    <nav
+      aria-label={t("Settings sections")}
+      className="flex h-full w-[196px] shrink-0 flex-col gap-3 overflow-y-auto pb-8 pr-1 pt-1"
+    >
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--muted-foreground)]/60" />
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={t("Search settings")}
+          aria-label={t("Search settings")}
+          className="w-full rounded-md bg-[var(--muted)]/40 py-1.5 pl-7 pr-6 text-[12px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]/60 focus:bg-[var(--muted)]/70"
+        />
+        {query && (
+          <button
+            type="button"
+            onClick={() => setQuery("")}
+            aria-label={t("Clear")}
+            className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+
+      <Row
+        href={SETTINGS_HUB_HREF}
+        label={t("Overview")}
+        active={pathname === SETTINGS_HUB_HREF}
+        tourId="tour-nav-overview"
+      />
+
+      {visible.length === 0 && (
+        <p className="px-2 text-[11.5px] leading-relaxed text-[var(--muted-foreground)]">
+          {t("No settings match “{{query}}”.", { query: query.trim() })}
+        </p>
+      )}
+
+      {visible.map((group) => (
+        <div key={group.key}>
+          {!group.standalone && (
+            <div className="px-2 pb-1 text-[11px] font-medium text-[var(--muted-foreground)]/70">
+              {tr(group.label)}
+            </div>
+          )}
+          <div className="space-y-px">
+            {group.rows.map(({ leaf }, index) => (
+              <Row
+                key={leaf.key}
+                href={leaf.href}
+                label={tr(leaf.label)}
+                active={pathname === leaf.href}
+                failing={failing(leaf)}
+                tourId={index === 0 ? `tour-nav-${group.key}` : undefined}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+function Row({
+  href,
+  label,
+  active,
+  failing,
+  tourId,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  failing?: boolean;
+  /** Only the first row of a group carries it, so the tour lands on the group. */
+  tourId?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      data-tour={tourId}
+      aria-current={active ? "page" : undefined}
+      className={`flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[12.5px] leading-tight transition-colors ${
+        active
+          ? "bg-[var(--muted)]/70 font-medium text-[var(--foreground)]"
+          : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]/35 hover:text-[var(--foreground)]"
+      }`}
+    >
+      <span className="truncate">{label}</span>
+      {failing && (
+        <span
+          aria-hidden
+          className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-400"
+        />
+      )}
+    </Link>
+  );
+}

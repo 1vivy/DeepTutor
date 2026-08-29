@@ -308,11 +308,10 @@ export type TourStep = {
   descKey: string;
 };
 
-// Tour step order broadly follows the category order in
-// ``web/lib/settings-nav.ts`` so the guided walk moves through the hub's
-// sections top to bottom. Each step names the route it lives on (the Status
-// step targets the resident module on the hub itself); the overlay resolves
-// the ``data-tour`` target after the page renders.
+// The walk now runs down the settings navigator, which is on screen for
+// every route, so each step points at the first row of a group rather than
+// at a hub block that no longer exists. The overlay resolves the
+// ``data-tour`` target after the page renders.
 export const TOUR_STEPS: TourStep[] = [
   {
     target: "tour-status",
@@ -321,37 +320,37 @@ export const TOUR_STEPS: TourStep[] = [
     descKey: "settingsTour.status.desc",
   },
   {
-    target: "tour-cat-appearance",
+    target: "tour-nav-appearance",
     route: "/settings",
     titleKey: "settingsTour.appearance.title",
     descKey: "settingsTour.appearance.desc",
   },
   {
-    target: "tour-cat-network",
+    target: "tour-nav-network",
     route: "/settings",
     titleKey: "settingsTour.network.title",
     descKey: "settingsTour.network.desc",
   },
   {
-    target: "tour-cat-models",
+    target: "tour-nav-models",
     route: "/settings",
     titleKey: "settingsTour.models.title",
     descKey: "settingsTour.models.desc",
   },
   {
-    target: "tour-cat-knowledge",
+    target: "tour-nav-knowledge",
     route: "/settings",
     titleKey: "settingsTour.knowledge.title",
     descKey: "settingsTour.knowledge.desc",
   },
   {
-    target: "tour-cat-chat",
+    target: "tour-nav-chat",
     route: "/settings",
     titleKey: "settingsTour.chat.title",
     descKey: "settingsTour.chat.desc",
   },
   {
-    target: "tour-cat-memory",
+    target: "tour-nav-memory",
     route: "/settings",
     titleKey: "settingsTour.memory.title",
     descKey: "settingsTour.memory.desc",
