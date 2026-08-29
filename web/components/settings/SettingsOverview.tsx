@@ -176,7 +176,7 @@ export default function SettingsOverview() {
         <>
           <Section title={t("Needs attention")}>
             {attention.length === 0 ? (
-              <div className="flex items-center gap-2 px-4 py-3 text-[12.5px] text-[var(--muted-foreground)]">
+              <div className="flex items-center gap-2 py-3 text-[12.5px] text-[var(--muted-foreground)]">
                 <Check className="h-3.5 w-3.5 text-emerald-500" />
                 {t("Nothing to do — everything configured is working.")}
               </div>
@@ -184,8 +184,8 @@ export default function SettingsOverview() {
               attention.map((item, index) => (
                 <div
                   key={item.key}
-                  className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 ${
-                    index === 0 ? "" : "border-t border-[var(--border)]"
+                  className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2.5 ${
+                    index === 0 ? "" : "border-t border-[var(--border)]/50"
                   }`}
                 >
                   <span className="text-[12.5px] text-[var(--foreground)]">
@@ -207,8 +207,8 @@ export default function SettingsOverview() {
             {states.map((item, index) => (
               <div
                 key={item.leaf.key}
-                className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2.5 ${
-                  index === 0 ? "" : "border-t border-[var(--border)]"
+                className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2.5 ${
+                  index === 0 ? "" : "border-t border-[var(--border)]/50"
                 }`}
               >
                 <Link
@@ -297,13 +297,11 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="mt-6">
+    <section className="mt-7">
       <h2 className="mb-2 text-[12px] font-medium text-[var(--muted-foreground)]">
         {title}
       </h2>
-      <div className="overflow-hidden rounded-xl border border-[var(--border)]">
-        {children}
-      </div>
+      <div className="border-t border-[var(--border)]/60">{children}</div>
     </section>
   );
 }

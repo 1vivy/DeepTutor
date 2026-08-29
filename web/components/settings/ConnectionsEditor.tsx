@@ -231,7 +231,7 @@ export function ConnectionsEditor() {
       )}
 
       {connections.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-[var(--border)]">
+        <div className="border-t border-[var(--border)]/60">
           {connections.map((connection, index) => (
             <ConnectionRow
               key={connection.id}
@@ -319,8 +319,8 @@ function ConnectionRow({
   );
 
   return (
-    <div className={first ? "" : "border-t border-[var(--border)]"}>
-      <div className="flex items-start gap-3 px-4 py-3.5">
+    <div className={first ? "" : "border-t border-[var(--border)]/50"}>
+      <div className="flex items-start gap-3 py-3.5">
         <ProviderIcon
           provider={connection.provider}
           size={18}

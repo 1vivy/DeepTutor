@@ -121,7 +121,7 @@ export function TaskModelsEditor() {
           </Link>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-[var(--border)]">
+        <div className="border-t border-[var(--border)]/60">
           {LLM_TASK_KEYS.map((task, index) => {
             const copy = TASK_COPY[task];
             const pinned = draft.services.llm.tasks?.[task];
@@ -137,8 +137,8 @@ export function TaskModelsEditor() {
             return (
               <div
                 key={task}
-                className={`flex flex-wrap items-start gap-x-6 gap-y-3 px-4 py-4 ${
-                  index === 0 ? "" : "border-t border-[var(--border)]"
+                className={`flex flex-wrap items-start gap-x-6 gap-y-3 py-3.5 ${
+                  index === 0 ? "" : "border-t border-[var(--border)]/50"
                 }`}
               >
                 <div className="min-w-0 flex-1 basis-64">
