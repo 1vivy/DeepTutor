@@ -253,6 +253,41 @@ def _mastery_path_id(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _topic_material_manifest(path_id: str) -> tuple[str, dict[str, str]]:
+    """Load a mastery topic's materials as (manifest, read_source index).
+
+    Storage-bound and synchronous; the caller runs it off the event loop. A
+    topic that cannot be loaded yields no manifest rather than failing the turn
+    — losing the materials degrades the lesson, losing the turn ends it.
+    """
+    try:
+        from deeptutor.learning.storage import LearningStore
+        from deeptutor.learning.topic_materials import (
+            build_topic_materials,
+            render_topic_manifest,
+        )
+
+        store = LearningStore()
+        progress = store.load(path_id)
+        if progress is None:
+            return "", {}
+        topic = store.get_topic(path_id, progress=progress)
+        if topic is None or not topic.sources:
+            return "", {}
+        materials = build_topic_materials(topic.sources)
+        if materials.warnings:
+            logger.warning(
+                "Mastery topic %s: %d material(s) could not be loaded: %s",
+                path_id,
+                len(materials.warnings),
+                ", ".join(materials.warnings),
+            )
+        return render_topic_manifest(materials)
+    except Exception:
+        logger.exception("Failed to build topic materials for mastery path %s", path_id)
+        return "", {}
+
+
 # Reading material ids are content hashes; anything else is a client bug or an
 # injection attempt, so the shape is enforced here rather than deeper in.
 _READING_ID_RE = re.compile(r"^[0-9a-f]{8,64}$")
@@ -2365,6 +2400,24 @@ class TurnRuntimeManager:
                 if context_parts:
                     context_parts.append(f"[User Question]\n{raw_user_content}")
                     effective_user_message = "\n\n".join(context_parts)
+
+            # A mastery topic carries materials the learner chose once, in the
+            # create-topic wizard. They grounded the outline and were then never
+            # seen again: the tutor taught the learner's own book from parametric
+            # memory while its prompt claimed to teach *from* it. Expressing them
+            # the way chat expresses attachments — manifest + read_source index —
+            # is enough to hand them to the tutor, because the explore_context
+            # pre-pass activates on a non-empty ``source_index`` and investigates
+            # them before the tutor's first LLM call.
+            #
+            # Guarded on an empty index so materials the learner attached to
+            # *this turn* (which took the chat path above) always win.
+            if capability_name == "mastery_path" and not source_index:
+                topic_path_id = _mastery_path_id(payload.get("mastery_path_id"))
+                if topic_path_id:
+                    source_manifest_text, source_index = await asyncio.to_thread(
+                        _topic_material_manifest, topic_path_id
+                    )
 
             conversation_history = list(history_result.conversation_history)
             conversation_context_text = history_result.context_text
