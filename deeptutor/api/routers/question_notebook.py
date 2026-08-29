@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import base64 as _b64
 import logging
+from typing import Literal
 import uuid as _uuid
 
 from fastapi import APIRouter, HTTPException, Query, Response
@@ -17,6 +18,8 @@ from deeptutor.services.storage import get_attachment_store
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+AssessmentSource = Literal["deep_question", "mastery_path", "immersive_reading"]
+ScoreTrend = Literal["new", "improved", "declined", "unchanged"]
 
 
 # ── Models ────────────────────────────────────────────────────────
@@ -56,7 +59,14 @@ class NotebookEntryItem(BaseModel):
     difficulty: str = ""
     user_answer: str = ""
     user_answer_images: list[AnswerImageItem] = []
+    source: AssessmentSource = "deep_question"
+    material_id: str = ""
+    material_title: str = ""
+    section_id: str = ""
+    section_title: str = ""
+    score_trend: ScoreTrend = "new"
     is_correct: bool = False
+    resolved: bool = False
     bookmarked: bool = False
     followup_session_id: str = ""
     ai_judgment: str = ""
@@ -74,6 +84,7 @@ class EntryUpdateRequest(BaseModel):
     bookmarked: bool | None = None
     followup_session_id: str | None = None
     ai_judgment: str | None = None
+    resolved: bool | None = None
 
 
 class CategoryCreateRequest(BaseModel):
@@ -103,8 +114,17 @@ class BulkCategoryRequest(BaseModel):
 class QuestionBankStats(BaseModel):
     total: int = 0
     wrong: int = 0
+    unresolved: int = 0
     bookmarked: int = 0
     uncategorized: int = 0
+
+
+class QuestionBankMaterial(BaseModel):
+    source: str
+    material_id: str
+    material_title: str
+    entry_count: int
+    unresolved_count: int
 
 
 class AnswerImageUpload(BaseModel):
@@ -138,6 +158,11 @@ class UpsertEntryRequest(BaseModel):
     # ``None`` means "don't touch any previously-stored images on update";
     # an empty list explicitly clears them.
     user_answer_images: list[AnswerImageUpload] | None = None
+    source: AssessmentSource = "deep_question"
+    material_id: str = ""
+    material_title: str = ""
+    section_id: str = ""
+    section_title: str = ""
     is_correct: bool = False
 
 
@@ -231,6 +256,11 @@ async def list_entries(
     ),
     bookmarked: bool | None = Query(default=None),
     is_correct: bool | None = Query(default=None),
+    source: str = Query(default="", pattern="^(deep_question|mastery_path|immersive_reading)?$"),
+    material_id: str = Query(default="", max_length=500),
+    section_id: str = Query(default="", max_length=500),
+    resolved: bool | None = Query(default=None),
+    score_trend: str = Query(default="", pattern="^(new|improved|declined|unchanged)?$"),
     search: str = Query(default="", max_length=200),
     sort: str = Query(default="recent", pattern="^(recent|oldest)$"),
     limit: int = Query(default=50, ge=1, le=200),
@@ -242,6 +272,11 @@ async def list_entries(
         uncategorized=uncategorized,
         bookmarked=bookmarked,
         is_correct=is_correct,
+        source=source,
+        material_id=material_id,
+        section_id=section_id,
+        resolved=resolved,
+        score_trend=score_trend,
         search=search,
         sort=sort,
         limit=limit,
@@ -350,6 +385,13 @@ async def question_bank_stats() -> QuestionBankStats:
     """Counts behind the filter chips; also the agent's one-call overview."""
     store = get_sqlite_session_store()
     return QuestionBankStats(**await store.question_bank_stats())
+
+
+@router.get("/materials", response_model=list[QuestionBankMaterial])
+async def list_question_bank_materials() -> list[QuestionBankMaterial]:
+    """Materials represented in the unified review history."""
+    store = get_sqlite_session_store()
+    return [QuestionBankMaterial(**item) for item in await store.list_question_bank_materials()]
 
 
 # ── Category CRUD ────────────────────────────────────────────────

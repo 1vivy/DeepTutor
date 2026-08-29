@@ -59,6 +59,8 @@ def _json_loads(value: str | None, default: Any) -> Any:
 # this id prefix as their discriminator (see ``SQLiteSessionStore._WHERE_*``).
 _IMPORTED_ID_PREFIX = "imported_"
 _ID_SAFE = re.compile(r"[^A-Za-z0-9_-]")
+ASSESSMENT_SOURCES = frozenset({"deep_question", "mastery_path", "immersive_reading"})
+SCORE_TRENDS = frozenset({"new", "improved", "declined", "unchanged"})
 
 
 def make_imported_session_id(source: str, external_id: str) -> str:
@@ -118,6 +120,11 @@ class QuestionBankQuery:
     uncategorized: bool = False
     bookmarked: bool | None = None
     is_correct: bool | None = None
+    source: str = ""
+    material_id: str = ""
+    section_id: str = ""
+    resolved: bool | None = None
+    score_trend: str = ""
     search: str = ""
     session_id: str | None = None
     sort: str = "recent"
@@ -131,6 +138,15 @@ class QuestionBankQuery:
             uncategorized=self.uncategorized and self.category_id is None,
             bookmarked=self.bookmarked,
             is_correct=self.is_correct,
+            source=(self.source or "").strip()
+            if (self.source or "").strip() in ASSESSMENT_SOURCES
+            else "",
+            material_id=(self.material_id or "").strip(),
+            section_id=(self.section_id or "").strip(),
+            resolved=self.resolved,
+            score_trend=(self.score_trend or "").strip()
+            if (self.score_trend or "").strip() in SCORE_TRENDS
+            else "",
             search=(self.search or "").strip()[:200],
             session_id=self.session_id,
             sort="oldest" if self.sort == "oldest" else "recent",
@@ -250,7 +266,14 @@ class SQLiteSessionStore:
                     difficulty TEXT DEFAULT '',
                     user_answer TEXT DEFAULT '',
                     user_answer_images_json TEXT DEFAULT '[]',
+                    source TEXT NOT NULL DEFAULT 'deep_question',
+                    material_id TEXT NOT NULL DEFAULT '',
+                    material_title TEXT NOT NULL DEFAULT '',
+                    section_id TEXT NOT NULL DEFAULT '',
+                    section_title TEXT NOT NULL DEFAULT '',
+                    score_trend TEXT NOT NULL DEFAULT 'new',
                     is_correct INTEGER DEFAULT 0,
+                    resolved INTEGER DEFAULT 0,
                     bookmarked INTEGER DEFAULT 0,
                     followup_session_id TEXT DEFAULT '',
                     ai_judgment TEXT DEFAULT '',
@@ -324,6 +347,7 @@ class SQLiteSessionStore:
             self._migrate_notebook_entries_add_turn_id(conn)
             self._migrate_notebook_entries_add_user_answer_images(conn)
             self._migrate_notebook_entries_add_ai_judgment(conn)
+            self._migrate_notebook_entries_add_assessment_review(conn)
             conn.commit()
 
     @staticmethod
@@ -440,6 +464,33 @@ class SQLiteSessionStore:
             return
         if "ai_judgment" not in cols:
             conn.execute("ALTER TABLE notebook_entries ADD COLUMN ai_judgment TEXT DEFAULT ''")
+
+    @staticmethod
+    def _migrate_notebook_entries_add_assessment_review(
+        conn: sqlite3.Connection,
+    ) -> None:
+        """Add provenance and review-state columns without rewriting history."""
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(notebook_entries)").fetchall()}
+        if not cols:
+            return
+        additions = {
+            "source": "TEXT NOT NULL DEFAULT 'deep_question'",
+            "material_id": "TEXT NOT NULL DEFAULT ''",
+            "material_title": "TEXT NOT NULL DEFAULT ''",
+            "section_id": "TEXT NOT NULL DEFAULT ''",
+            "section_title": "TEXT NOT NULL DEFAULT ''",
+            "score_trend": "TEXT NOT NULL DEFAULT 'new'",
+            "resolved": "INTEGER DEFAULT 0",
+        }
+        for name, definition in additions.items():
+            if name not in cols:
+                conn.execute(f"ALTER TABLE notebook_entries ADD COLUMN {name} {definition}")
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_notebook_entries_review
+            ON notebook_entries(source, material_id, resolved, created_at DESC)
+            """
+        )
 
     async def _run(self, fn, *args):
         async with self._lock:
@@ -1575,18 +1626,61 @@ class SQLiteSessionStore:
                 # upsert that only changes ``is_correct``).
                 images_value = item.get("user_answer_images")
                 images_json = _json_dumps(images_value) if isinstance(images_value, list) else None
+                source = str(item.get("source") or "deep_question")
+                if source not in ASSESSMENT_SOURCES:
+                    source = "deep_question"
+                is_correct = 1 if item.get("is_correct") else 0
+                existing = conn.execute(
+                    """
+                    SELECT is_correct FROM notebook_entries
+                    WHERE session_id = ? AND turn_id = ? AND question_id = ?
+                    """,
+                    (session_id, turn_id, question_id),
+                ).fetchone()
+                previous = bool(existing["is_correct"]) if existing is not None else None
+                if previous is None or previous == bool(is_correct):
+                    score_trend = "new" if previous is None else "unchanged"
+                else:
+                    score_trend = "improved" if is_correct else "declined"
+                provenance = (
+                    source,
+                    str(item.get("material_id") or ""),
+                    str(item.get("material_title") or ""),
+                    str(item.get("section_id") or ""),
+                    str(item.get("section_title") or ""),
+                    score_trend,
+                )
                 if images_json is None:
                     conn.execute(
                         """
                         INSERT INTO notebook_entries (
                             session_id, turn_id, question_id, question, question_type,
                             options_json, correct_answer, explanation, difficulty,
-                            user_answer, user_answer_images_json, is_correct,
-                            bookmarked, followup_session_id, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, 0, '', ?, ?)
+                            user_answer, user_answer_images_json, source, material_id,
+                            material_title, section_id, section_title, score_trend,
+                            is_correct, resolved, bookmarked, followup_session_id,
+                            created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?, 0, '', ?, ?)
                         ON CONFLICT(session_id, turn_id, question_id) DO UPDATE SET
+                            question = excluded.question,
+                            question_type = excluded.question_type,
+                            options_json = excluded.options_json,
+                            correct_answer = excluded.correct_answer,
+                            explanation = excluded.explanation,
+                            difficulty = excluded.difficulty,
                             user_answer = excluded.user_answer,
+                            source = excluded.source,
+                            material_id = excluded.material_id,
+                            material_title = excluded.material_title,
+                            section_id = excluded.section_id,
+                            section_title = excluded.section_title,
+                            score_trend = excluded.score_trend,
                             is_correct = excluded.is_correct,
+                            resolved = CASE
+                                WHEN excluded.is_correct = 1 THEN 1
+                                WHEN excluded.is_correct = 0 AND notebook_entries.is_correct = 1 THEN 0
+                                ELSE notebook_entries.resolved
+                            END,
                             updated_at = excluded.updated_at
                         """,
                         (
@@ -1600,7 +1694,9 @@ class SQLiteSessionStore:
                             item.get("explanation") or "",
                             item.get("difficulty") or "",
                             item.get("user_answer") or "",
-                            1 if item.get("is_correct") else 0,
+                            *provenance,
+                            is_correct,
+                            1 if is_correct else 0,
                             now,
                             now,
                         ),
@@ -1611,13 +1707,32 @@ class SQLiteSessionStore:
                         INSERT INTO notebook_entries (
                             session_id, turn_id, question_id, question, question_type,
                             options_json, correct_answer, explanation, difficulty,
-                            user_answer, user_answer_images_json, is_correct,
-                            bookmarked, followup_session_id, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '', ?, ?)
+                            user_answer, user_answer_images_json, source, material_id,
+                            material_title, section_id, section_title, score_trend,
+                            is_correct, resolved, bookmarked, followup_session_id,
+                            created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '', ?, ?)
                         ON CONFLICT(session_id, turn_id, question_id) DO UPDATE SET
+                            question = excluded.question,
+                            question_type = excluded.question_type,
+                            options_json = excluded.options_json,
+                            correct_answer = excluded.correct_answer,
+                            explanation = excluded.explanation,
+                            difficulty = excluded.difficulty,
                             user_answer = excluded.user_answer,
+                            source = excluded.source,
+                            material_id = excluded.material_id,
+                            material_title = excluded.material_title,
+                            section_id = excluded.section_id,
+                            section_title = excluded.section_title,
+                            score_trend = excluded.score_trend,
                             user_answer_images_json = excluded.user_answer_images_json,
                             is_correct = excluded.is_correct,
+                            resolved = CASE
+                                WHEN excluded.is_correct = 1 THEN 1
+                                WHEN excluded.is_correct = 0 AND notebook_entries.is_correct = 1 THEN 0
+                                ELSE notebook_entries.resolved
+                            END,
                             updated_at = excluded.updated_at
                         """,
                         (
@@ -1632,7 +1747,9 @@ class SQLiteSessionStore:
                             item.get("difficulty") or "",
                             item.get("user_answer") or "",
                             images_json,
-                            1 if item.get("is_correct") else 0,
+                            *provenance,
+                            is_correct,
+                            1 if is_correct else 0,
                             now,
                             now,
                         ),
@@ -1667,6 +1784,13 @@ class SQLiteSessionStore:
             "user_answer": row["user_answer"] or "",
             "user_answer_images": images,
             "is_correct": bool(row["is_correct"]),
+            "source": (row["source"] or "deep_question") if "source" in keys else "deep_question",
+            "material_id": (row["material_id"] or "") if "material_id" in keys else "",
+            "material_title": (row["material_title"] or "") if "material_title" in keys else "",
+            "section_id": (row["section_id"] or "") if "section_id" in keys else "",
+            "section_title": (row["section_title"] or "") if "section_title" in keys else "",
+            "score_trend": (row["score_trend"] or "new") if "score_trend" in keys else "new",
+            "resolved": bool(row["resolved"]) if "resolved" in keys else bool(row["is_correct"]),
             "bookmarked": bool(row["bookmarked"]),
             "followup_session_id": row["followup_session_id"] or "",
             "ai_judgment": (row["ai_judgment"] or "") if "ai_judgment" in keys else "",
@@ -1702,6 +1826,21 @@ class SQLiteSessionStore:
         if query.is_correct is not None:
             conditions.append("n.is_correct = ?")
             params.append(1 if query.is_correct else 0)
+        if query.source:
+            conditions.append("n.source = ?")
+            params.append(query.source)
+        if query.material_id:
+            conditions.append("n.material_id = ?")
+            params.append(query.material_id)
+        if query.section_id:
+            conditions.append("n.section_id = ?")
+            params.append(query.section_id)
+        if query.resolved is not None:
+            conditions.append("n.resolved = ?")
+            params.append(1 if query.resolved else 0)
+        if query.score_trend:
+            conditions.append("n.score_trend = ?")
+            params.append(query.score_trend)
         if query.session_id is not None:
             conditions.append("n.session_id = ?")
             params.append(query.session_id)
@@ -1753,7 +1892,9 @@ class SQLiteSessionStore:
                 n.id, n.session_id, COALESCE(s.title, '') AS session_title,
                 n.turn_id, n.question_id, n.question, n.question_type, n.options_json,
                 n.correct_answer, n.explanation, n.difficulty,
-                n.user_answer, n.user_answer_images_json, n.is_correct, n.bookmarked,
+                n.user_answer, n.user_answer_images_json, n.source, n.material_id,
+                n.material_title, n.section_id, n.section_title, n.score_trend,
+                n.is_correct, n.resolved, n.bookmarked,
                 n.followup_session_id, n.ai_judgment, n.created_at, n.updated_at
             FROM notebook_entries n
             LEFT JOIN sessions s ON s.id = n.session_id{join_sql}
@@ -1788,6 +1929,11 @@ class SQLiteSessionStore:
         offset: int = 0,
         *,
         session_id: str | None = None,
+        source: str = "",
+        material_id: str = "",
+        section_id: str = "",
+        resolved: bool | None = None,
+        score_trend: str = "",
         search: str = "",
         uncategorized: bool = False,
         sort: str = "recent",
@@ -1800,6 +1946,11 @@ class SQLiteSessionStore:
                 uncategorized=uncategorized,
                 bookmarked=bookmarked,
                 is_correct=is_correct,
+                source=source,
+                material_id=material_id,
+                section_id=section_id,
+                resolved=resolved,
+                score_trend=score_trend,
                 search=search,
                 session_id=session_id,
                 sort=sort,
@@ -1815,6 +1966,7 @@ class SQLiteSessionStore:
                 SELECT
                     COUNT(*) AS total,
                     COALESCE(SUM(CASE WHEN is_correct = 0 THEN 1 ELSE 0 END), 0) AS wrong,
+                    COALESCE(SUM(CASE WHEN is_correct = 0 AND resolved = 0 THEN 1 ELSE 0 END), 0) AS unresolved,
                     COALESCE(SUM(CASE WHEN bookmarked = 1 THEN 1 ELSE 0 END), 0) AS bookmarked,
                     COALESCE(SUM(
                         CASE WHEN NOT EXISTS (
@@ -1826,10 +1978,17 @@ class SQLiteSessionStore:
                 """
             ).fetchone()
         if row is None:
-            return {"total": 0, "wrong": 0, "bookmarked": 0, "uncategorized": 0}
+            return {
+                "total": 0,
+                "wrong": 0,
+                "unresolved": 0,
+                "bookmarked": 0,
+                "uncategorized": 0,
+            }
         return {
             "total": int(row["total"]),
             "wrong": int(row["wrong"]),
+            "unresolved": int(row["unresolved"]),
             "bookmarked": int(row["bookmarked"]),
             "uncategorized": int(row["uncategorized"]),
         }
@@ -1851,6 +2010,28 @@ class SQLiteSessionStore:
     async def question_bank_stats(self) -> dict[str, int]:
         """Counts behind the bank's filter chips (and the agent's overview)."""
         return await self._run(self._question_bank_stats_sync)
+
+    def _list_question_bank_materials_sync(self) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    source,
+                    material_id,
+                    COALESCE(NULLIF(MAX(material_title), ''), material_id, 'Unnamed material') AS material_title,
+                    COUNT(*) AS entry_count,
+                    COALESCE(SUM(CASE WHEN is_correct = 0 AND resolved = 0 THEN 1 ELSE 0 END), 0) AS unresolved_count
+                FROM notebook_entries
+                WHERE material_id != ''
+                GROUP BY source, material_id
+                ORDER BY material_title COLLATE NOCASE
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    async def list_question_bank_materials(self) -> list[dict[str, Any]]:
+        """Distinct materials for review filters, with wrong-review counts."""
+        return await self._run(self._list_question_bank_materials_sync)
 
     def _get_notebook_entry_sync(self, entry_id: int) -> dict[str, Any] | None:
         with self._connect() as conn:
@@ -1926,6 +2107,7 @@ class SQLiteSessionStore:
             "user_answer",
             "is_correct",
             "ai_judgment",
+            "resolved",
         }
         fields = {k: v for k, v in updates.items() if k in allowed}
         if not fields:
@@ -1935,6 +2117,8 @@ class SQLiteSessionStore:
             fields["bookmarked"] = 1 if fields["bookmarked"] else 0
         if "is_correct" in fields:
             fields["is_correct"] = 1 if fields["is_correct"] else 0
+        if "resolved" in fields:
+            fields["resolved"] = 1 if fields["resolved"] else 0
         set_clause = ", ".join(f"{k} = ?" for k in fields)
         values = list(fields.values()) + [entry_id]
         with self._connect() as conn:

@@ -92,10 +92,13 @@ export default function QuizBlock({
       <div className="space-y-3">
         {questions.map((q, idx) => (
           <QuizQuestionCard
-            key={q.question_id || idx}
+            key={q.question_id || `${block.id}:${idx + 1}`}
             index={idx}
             question={q}
-            previous={lastAttempts.get(q.question_id || "")}
+            questionId={q.question_id || `${block.id}:${idx + 1}`}
+            previous={lastAttempts.get(
+              q.question_id || `${block.id}:${idx + 1}`,
+            )}
             onAttempt={(args) => {
               if (args.isCorrect === false) setGotSomethingWrong(true);
               onAttempt?.(block, args);
@@ -131,11 +134,13 @@ export default function QuizBlock({
 function QuizQuestionCard({
   index,
   question,
+  questionId,
   previous,
   onAttempt,
 }: {
   index: number;
   question: QuizQuestion;
+  questionId: string;
   previous?: QuizAttempt;
   onAttempt?: (args: QuizAttemptArgs) => void;
 }) {
@@ -165,11 +170,11 @@ function QuizQuestionCard({
   // Choice questions grade themselves the moment the answer is revealed.
   useEffect(() => {
     if (!isChoice || !revealed || !selected || !onAttempt) return;
-    const reportKey = `${question.question_id || index}:${selected}`;
+    const reportKey = `${questionId}:${selected}`;
     if (reportedRef.current === reportKey) return;
     reportedRef.current = reportKey;
     onAttempt({
-      questionId: question.question_id,
+      questionId,
       userAnswer: selected,
       isCorrect: selected.toUpperCase() === correctChoiceKey,
     });
@@ -178,7 +183,7 @@ function QuizQuestionCard({
     revealed,
     selected,
     onAttempt,
-    question.question_id,
+    questionId,
     correctChoiceKey,
     index,
   ]);
@@ -186,7 +191,7 @@ function QuizQuestionCard({
   const recordSelfGrade = (isCorrect: boolean) => {
     setSelfGraded(isCorrect);
     onAttempt?.({
-      questionId: question.question_id,
+      questionId,
       userAnswer: isCorrect ? "self:correct" : "self:incorrect",
       isCorrect,
     });

@@ -3402,5 +3402,18 @@
   "Tutor threads": "Tutor threads",
   "Filter by archive status": "Filter by archive status",
   "Active and archived": "Active and archived",
-  "Loading conversations": "Loading conversations"
+  "Loading conversations": "Loading conversations",
+  "Needs Review": "Needs Review",
+  "All Sources": "All Sources",
+  "Deep Question": "Deep Question",
+  "All Materials": "All Materials",
+  "Score Trend": "Score Trend",
+  "All Trends": "All Trends",
+  "First Attempt": "First Attempt",
+  "Improved": "Improved",
+  "Declined": "Declined",
+  "Unchanged": "Unchanged",
+  "Resolved": "Resolved",
+  "Mark Resolved": "Mark Resolved",
+  "Reopen Review": "Reopen Review"
 }

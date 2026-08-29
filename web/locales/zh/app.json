@@ -3402,5 +3402,18 @@
   "Tutor threads": "小老师追问",
   "Filter by archive status": "按归档状态筛选",
   "Active and archived": "进行中与已归档",
-  "Loading conversations": "正在加载聊天"
+  "Loading conversations": "正在加载聊天",
+  "Needs Review": "待复习",
+  "All Sources": "全部来源",
+  "Deep Question": "深度提问",
+  "All Materials": "全部材料",
+  "Score Trend": "得分趋势",
+  "All Trends": "全部趋势",
+  "First Attempt": "首次作答",
+  "Improved": "已提升",
+  "Declined": "已下降",
+  "Unchanged": "无变化",
+  "Resolved": "已解决",
+  "Mark Resolved": "标记已解决",
+  "Reopen Review": "重新复习"
 }

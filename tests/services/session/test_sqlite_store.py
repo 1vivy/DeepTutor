@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 import sqlite3
+import time
 
 import pytest
 
@@ -49,6 +50,77 @@ def test_sqlite_store_migrates_legacy_chat_history_db(tmp_path: Path) -> None:
     finally:
         service._project_root = original_root
         service._user_data_dir = original_user_dir
+
+
+def test_store_migrates_legacy_notebook_review_columns(tmp_path: Path) -> None:
+    db_path = tmp_path / "legacy-notebook.db"
+    now = time.time()
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE sessions (
+                id TEXT PRIMARY KEY,
+                title TEXT DEFAULT '',
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL,
+                compressed_summary TEXT DEFAULT '',
+                summary_up_to_msg_id INTEGER DEFAULT 0
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE notebook_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                turn_id TEXT NOT NULL DEFAULT '',
+                question_id TEXT NOT NULL,
+                question TEXT NOT NULL,
+                question_type TEXT DEFAULT '',
+                options_json TEXT DEFAULT '{}',
+                correct_answer TEXT DEFAULT '',
+                explanation TEXT DEFAULT '',
+                difficulty TEXT DEFAULT '',
+                user_answer TEXT DEFAULT '',
+                user_answer_images_json TEXT DEFAULT '[]',
+                is_correct INTEGER DEFAULT 0,
+                bookmarked INTEGER DEFAULT 0,
+                followup_session_id TEXT DEFAULT '',
+                ai_judgment TEXT DEFAULT '',
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL,
+                UNIQUE(session_id, turn_id, question_id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO notebook_entries (
+                session_id,
+                turn_id,
+                question_id,
+                question,
+                is_correct,
+                created_at,
+                updated_at
+            ) VALUES ('session-1', '', 'q1', 'Legacy?', 0, ?, ?)
+            """,
+            (now, now),
+        )
+        conn.commit()
+
+    store = SQLiteSessionStore(db_path=db_path)
+    listing = asyncio.run(store.list_notebook_entries())
+
+    assert listing["total"] == 1
+    entry = listing["items"][0]
+    assert entry["source"] == "deep_question"
+    assert entry["score_trend"] == "new"
+    assert entry["resolved"] is False
+    assert all(not entry[key] for key in ("material_id", "section_id"))
+    with sqlite3.connect(db_path) as conn:
+        indexes = {row[1] for row in conn.execute("PRAGMA index_list(notebook_entries)")}
+    assert "idx_notebook_entries_review" in indexes
 
 
 @pytest.fixture
@@ -164,6 +236,90 @@ def test_list_entries_filters_is_correct(store: SQLiteSessionStore) -> None:
     wrong = asyncio.run(store.list_notebook_entries(is_correct=False))
     assert wrong["total"] == 1
     assert wrong["items"][0]["question_id"] == "q1"
+
+
+def test_notebook_review_metadata_filters_and_transitions(
+    store: SQLiteSessionStore,
+) -> None:
+    session = asyncio.run(store.create_session(title="Sources"))
+    asyncio.run(
+        store.upsert_notebook_entries(
+            session["id"],
+            [
+                {
+                    "question_id": "q1",
+                    "question": "Mastery?",
+                    "is_correct": False,
+                    "source": "mastery_path",
+                    "material_id": "path-1",
+                    "material_title": "Algebra",
+                    "section_id": "kp-1",
+                    "section_title": "Equations",
+                },
+                {
+                    "question_id": "q2",
+                    "question": "Reading?",
+                    "is_correct": True,
+                    "source": "immersive_reading",
+                    "material_id": "book-1",
+                    "material_title": "EPUB",
+                    "section_id": "page-1",
+                    "section_title": "Page 1",
+                },
+            ],
+        )
+    )
+
+    mastery = asyncio.run(
+        store.list_notebook_entries(source="mastery_path", material_id="path-1", section_id="kp-1")
+    )
+    assert mastery["total"] == 1
+    entry = mastery["items"][0]
+    assert entry["score_trend"] == "new"
+    assert entry["resolved"] is False
+    assert asyncio.run(store.question_bank_stats())["unresolved"] == 1
+    assert asyncio.run(store.list_question_bank_materials()) == [
+        {
+            "source": "mastery_path",
+            "material_id": "path-1",
+            "material_title": "Algebra",
+            "entry_count": 1,
+            "unresolved_count": 1,
+        },
+        {
+            "source": "immersive_reading",
+            "material_id": "book-1",
+            "material_title": "EPUB",
+            "entry_count": 1,
+            "unresolved_count": 0,
+        },
+    ]
+
+    eid = entry["id"]
+    assert asyncio.run(store.update_notebook_entry(eid, {"resolved": True}))
+    resolved = asyncio.run(store.list_notebook_entries(resolved=True))
+    assert {item["id"] for item in resolved["items"]} == {eid, entry["id"] + 1}
+
+    retry = {
+        "question_id": "q1",
+        "question": "Mastery?",
+        "is_correct": True,
+        "source": "mastery_path",
+        "material_id": "path-1",
+        "section_id": "kp-1",
+    }
+    asyncio.run(store.upsert_notebook_entries(session["id"], [retry]))
+    improved = asyncio.run(store.list_notebook_entries(score_trend="improved"))["items"][0]
+    assert improved["resolved"] is True
+
+    retry["is_correct"] = False
+    asyncio.run(store.upsert_notebook_entries(session["id"], [retry]))
+    declined = asyncio.run(store.list_notebook_entries(score_trend="declined"))["items"][0]
+    assert declined["resolved"] is False
+
+    asyncio.run(store.upsert_notebook_entries(session["id"], [retry]))
+    unchanged = asyncio.run(store.list_notebook_entries(score_trend="unchanged"))["items"][0]
+    assert unchanged["resolved"] is False
 
 
 def test_update_notebook_entry_bookmark_roundtrip(store: SQLiteSessionStore) -> None:
