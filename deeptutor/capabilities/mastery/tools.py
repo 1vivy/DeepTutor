@@ -719,7 +719,7 @@ class MasteryGradeTool(BaseTool):
             choice_options=choice_options,
             correct_answer=expected_answer,
             material_title=progress.name,
-            section_title=kp.title if kp else "",
+            section_title=kp.name if kp else "",
         )
         mastered = bool(kp and is_mastered(progress, kp))
         payload = {
