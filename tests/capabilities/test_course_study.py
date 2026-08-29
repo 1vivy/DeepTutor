@@ -1113,3 +1113,75 @@ async def test_handoff_keeps_a_ref_that_resolves(
     handoff = result.metadata["course_handoff"]
     assert handoff["ref_id"] == "path_abc"
     assert handoff["label"] == "Processes"
+
+
+def _course_context(**metadata: object) -> SimpleNamespace:
+    return SimpleNamespace(
+        active_capability="course_study",
+        metadata={"course_id": "course-1", **metadata},
+        config_overrides={},
+    )
+
+
+def test_recommendation_written_beside_the_handoff_becomes_the_answer() -> None:
+    """Reproduces the turn that ended on "no usable response".
+
+    This playbook asks the model to recommend, explain, and call
+    `course_handoff` — one thought, which models write in one round. The loop's
+    default treats prose beside a tool call as a preamble, so the whole
+    recommendation was dropped from the answer and left collapsed in the trace.
+    """
+    capability = CourseStudyLoopCapability()
+    context = _course_context()
+    recommendation = "同学，考试只考进程与内存，建议直接从「进程管理」开始。"
+
+    policy = capability.tool_round_output_policy(
+        context,
+        recommendation,
+        ("course_handoff",),
+    )
+
+    assert policy == "publish"
+    assert capability.final_text_override(context, "") == recommendation
+    # Must NOT claim the answer was already published. That flag suppresses the
+    # loop's final emit, and is only true for capabilities that buffer output
+    # behind a protocol. This mode buffers nothing — its prose went out during a
+    # tool round, which the transcript files under the collapsed trace, not as
+    # the reply. Setting it leaves the message body empty with the whole
+    # recommendation hidden a click away.
+    assert "_capability_answer_published" not in context.metadata
+
+
+def test_a_bare_handoff_call_leaves_the_loop_alone() -> None:
+    """With nothing said there is no answer to rescue.
+
+    Ending the turn here would replace a missing recommendation with silence;
+    the model still gets its ordinary finish round to write one.
+    """
+    capability = CourseStudyLoopCapability()
+    context = _course_context()
+
+    assert capability.tool_round_output_policy(context, "   ", ("course_handoff",)) == ""
+    assert capability.final_text_override(context, "") is None
+
+
+def test_prose_beside_a_sensing_tool_stays_a_preamble() -> None:
+    """`course_overview` fetches; its preamble is not the recommendation."""
+    capability = CourseStudyLoopCapability()
+    context = _course_context()
+
+    assert capability.tool_round_output_policy(context, "Let me look.", ("course_overview",)) == ""
+    assert capability.final_text_override(context, "") is None
+
+
+def test_hooks_stay_inert_without_a_bound_course() -> None:
+    """Loop capabilities are non-exclusive; an unbound turn is not ours."""
+    capability = CourseStudyLoopCapability()
+    context = SimpleNamespace(
+        active_capability="chat",
+        metadata={"course_id": "course-1"},
+        config_overrides={},
+    )
+
+    assert capability.tool_round_output_policy(context, "text", ("course_handoff",)) == ""
+    assert capability.final_text_override(context, "") is None

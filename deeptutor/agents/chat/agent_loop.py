@@ -457,11 +457,11 @@ class AgentLoop:
                 )
                 if final_override is not None:
                     await self._discard_deferred_output(result)
-                    if not self.context.metadata.get("_partner_group_formal_answer_published"):
+                    if not self.context.metadata.get("_capability_answer_published"):
                         await self.pipeline._emit_protocol_fallback_final_response(
                             self.stream, final_override
                         )
-                        self.context.metadata["_partner_group_formal_answer_published"] = True
+                        self.context.metadata["_capability_answer_published"] = True
                     return await self._finalize_finish(
                         final_override,
                         continued_answer_parts=continued_answer_parts,
@@ -526,11 +526,11 @@ class AgentLoop:
 
             final_override = self.pipeline._capability_final_text_override(self.context, "")
             if final_override is not None:
-                if not self.context.metadata.get("_partner_group_formal_answer_published"):
+                if not self.context.metadata.get("_capability_answer_published"):
                     await self.pipeline._emit_protocol_fallback_final_response(
                         self.stream, final_override
                     )
-                    self.context.metadata["_partner_group_formal_answer_published"] = True
+                    self.context.metadata["_capability_answer_published"] = True
                 return await self._finalize_finish(
                     final_override,
                     continued_answer_parts=continued_answer_parts,

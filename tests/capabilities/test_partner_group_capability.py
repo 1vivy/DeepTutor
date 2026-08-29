@@ -234,7 +234,7 @@ def test_answer_and_invoke_in_one_tool_round_saves_and_publishes_answer_once() -
 
     assert policy == "publish"
     assert context.metadata["_partner_group_formal_answer"] == "My complete answer."
-    assert context.metadata["_partner_group_formal_answer_published"] is True
+    assert context.metadata["_capability_answer_published"] is True
 
 
 def test_any_tool_call_consumes_the_single_private_decision_round() -> None:

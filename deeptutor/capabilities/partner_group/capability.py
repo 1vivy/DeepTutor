@@ -143,7 +143,7 @@ class PartnerGroupCapability:
             answer, _removed_request = self._save_formal_answer(context, answer)
             if context.metadata.get("_partner_group_invocation_decided"):
                 return "discard"
-            context.metadata["_partner_group_formal_answer_published"] = True
+            context.metadata["_capability_answer_published"] = True
             return "publish"
 
         if formal_answer and not context.metadata.get("_partner_group_invocation_decided"):

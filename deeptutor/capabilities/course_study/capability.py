@@ -37,6 +37,8 @@ logger = logging.getLogger(__name__)
 
 COURSE_STUDY_NAME = "course_study"
 COURSE_ID_KEY = "course_id"
+#: Where the recommendation is parked between the hand-off round and the finish.
+COURSE_ANSWER_KEY = "_course_study_answer"
 SUMMARY_CHAR_LIMIT = 3200
 
 #: How much of the learner's own course conventions rides in every turn's
@@ -419,6 +421,63 @@ class CourseStudyLoopCapability:
         if not self.is_active(context) or tool_name not in COURSE_STUDY_TOOL_NAMES:
             return kwargs
         return {**kwargs, COURSE_ID_KWARG: resolve_course_id(context)}
+
+    def tool_round_output_policy(
+        self,
+        context: UnifiedContext,
+        final_text: str,
+        tool_names: tuple[str, ...],
+    ) -> str:
+        """Treat the prose accompanying ``course_handoff`` as the answer itself.
+
+        The loop's default rule — text written alongside a tool call is a
+        preamble, and the answer is whatever a later tool-less round says — is
+        right for tools that *fetch* something. It is wrong here, because this
+        playbook asks for the opposite shape: recommend the next action, say why
+        it is timely, then call ``course_handoff``. The recommendation and the
+        call are one thought, and models write them in one round.
+
+        Left as a preamble, that round's prose was streamed into the trace and
+        dropped from the answer. The model, having already said its piece, had
+        nothing new for the next round and called ``course_handoff`` again —
+        three times in one observed turn — until the budget ran out and the turn
+        ended on "no usable response", with the real recommendation sitting
+        collapsed in the trace above it.
+
+        Same failure the partner-group capability documents for ``invoke_other``,
+        and the same remedy: save the prose, publish it, and let
+        :meth:`final_text_override` end the turn on it.
+        """
+        if not self.is_active(context) or "course_handoff" not in tool_names:
+            return ""
+        answer = str(final_text or "").strip()
+        if not answer:
+            # A bare tool call with nothing said. There is no answer to rescue,
+            # so leave the loop alone: the model still gets its ordinary finish
+            # round to write one.
+            return ""
+        context.metadata[COURSE_ANSWER_KEY] = answer
+        # Deliberately *not* setting ``_capability_answer_published``. That flag
+        # means "the learner has already been shown this text, do not emit it
+        # again as the answer", and it is true for capabilities that buffer
+        # their output behind a protocol. This mode buffers nothing: the prose
+        # went out during a tool round, which the transcript files under the
+        # collapsed trace rather than as the reply. Claiming it was published
+        # leaves the message body empty with the recommendation hidden a click
+        # away — the original symptom, differently caused.
+        return "publish"
+
+    def final_text_override(self, context: UnifiedContext, final_text: str) -> str | None:
+        """End the turn on the recommendation once the hand-off exists.
+
+        Returning a value here stops the loop, which is the point: after the card
+        is prepared there is nothing left for this mode to do, and every further
+        round is one more chance to repeat itself.
+        """
+        del final_text
+        if not self.is_active(context):
+            return None
+        return str(context.metadata.get(COURSE_ANSWER_KEY) or "").strip() or None
 
     def pre_loop_seed(self, context: UnifiedContext) -> str:
         _ = context
