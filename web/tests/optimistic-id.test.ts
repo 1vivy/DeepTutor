@@ -42,6 +42,29 @@ test("an optimistic message resolves from the returned refresh snapshot", async 
   assert.equal(optimistic[0].id, -100, "the state ref can still be stale");
 });
 
+// deleteTurn used to re-read stateRef after loadSession (same race as #739's
+// edit path). Both mutations must trust the refresh snapshot's id.
+test("deleteTurn-style resolution keeps working when the state ref is stale", async () => {
+  const staleRef = [
+    { id: -42, role: "user", content: "to delete", parentMessageId: 1 },
+    { id: -43, role: "assistant", content: "reply", parentMessageId: -42 },
+  ];
+  const serverSnapshot = [
+    { id: 201, role: "user", content: "to delete", parentMessageId: 1 },
+    { id: 202, role: "assistant", content: "reply", parentMessageId: 201 },
+  ];
+
+  const target = await resolvePersistedMessage(
+    staleRef,
+    -42,
+    "user",
+    async () => serverSnapshot,
+  );
+
+  assert.equal(target?.id, 201);
+  assert.equal(staleRef[0].id, -42);
+});
+
 // Issue #698: the user row and the assistant placeholder are minted
 // back-to-back (ADD_USER_MSG then STREAM_START). When they shared an id, the
 // remap in reconcileTurnIds collapsed both onto the user's persisted id, so
