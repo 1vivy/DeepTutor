@@ -7,6 +7,7 @@ import {
 import { reconcileTurnIds } from "../lib/turn-reconcile";
 import {
   buildVisiblePath,
+  persistedBranchSelections,
   selectChildBranch,
   tipMessageId,
 } from "../lib/message-branches";
@@ -212,5 +213,12 @@ test("the edited branch and its reply survive optimistic id reconciliation", () 
   assert.deepEqual(
     visible.messages.map((message) => message.content),
     ["q1", "a1", "edited q2", "edited a2"],
+  );
+});
+
+test("persisted branch selections drop optimistic ids", () => {
+  assert.deepEqual(
+    persistedBranchSelections({ null: -42, "10": 11, "11": -99, "12": 13 }),
+    { "10": 11, "12": 13 },
   );
 });

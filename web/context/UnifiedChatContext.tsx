@@ -31,6 +31,7 @@ import { normalizeMarkdownForDisplay } from "@/lib/markdown-display";
 import { normalizeMessageContent } from "@/lib/message-content";
 import {
   buildVisiblePath,
+  persistedBranchSelections,
   selectChildBranch,
   tipMessageId,
 } from "@/lib/message-branches";
@@ -1988,11 +1989,12 @@ export function UnifiedChatProvider({
         childId,
       });
       const sessionId = session.sessionId;
-      if (!sessionId) return;
-      const nextSelections = {
+      if (!sessionId || childId < 0) return;
+      const nextSelections = persistedBranchSelections({
         ...session.selectedBranches,
         [parentKey]: childId,
-      };
+      });
+      if (Object.keys(nextSelections).length === 0) return;
       // Fire-and-forget — local state is the source of truth for the UI;
       // the server copy only matters for reload-time hydration.
       updateBranchSelection(sessionId, nextSelections).catch((err) => {

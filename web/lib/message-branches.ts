@@ -155,6 +155,17 @@ export function buildVisiblePath(
   return { messages: visible, siblingsByMessageId };
 }
 
+/** Branch picks safe to persist — optimistic (negative) ids are client-only. */
+export function persistedBranchSelections(
+  selections: Record<string, number>,
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const [key, id] of Object.entries(selections)) {
+    if (Number.isInteger(id) && id > 0) result[key] = id;
+  }
+  return result;
+}
+
 /** Select a freshly-created child at a branch point.
  *
  * Sending a message can create a sibling even when the parent previously had
