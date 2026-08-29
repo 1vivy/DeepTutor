@@ -534,6 +534,9 @@ export default function ChatPage() {
   const [quizConfig, setQuizConfig] = useState<DeepQuestionFormConfig>({
     ...DEFAULT_QUIZ_CONFIG,
   });
+  const [quizValidationErrors, setQuizValidationErrors] = useState<string[]>(
+    [],
+  );
   const [quizPdf, setQuizPdf] = useState<File | null>(null);
   const [visualizeConfig, setVisualizeConfig] = useState<VisualizeFormConfig>({
     ...DEFAULT_VISUALIZE_CONFIG,
@@ -742,6 +745,7 @@ export default function ChatPage() {
   // CapabilityConfigCard don't churn on every keystroke.
   const handleChangeQuizConfig = useCallback((next: DeepQuestionFormConfig) => {
     setQuizConfig(next);
+    setQuizValidationErrors([]);
     setCapabilityConfigConfirmed(false);
   }, []);
   const handleUploadQuizPdf = useCallback((file: File | null) => {
@@ -1595,7 +1599,8 @@ export default function ChatPage() {
         <CapabilityConfigCard
           capability="deep_question"
           confirmed={capabilityConfigConfirmed}
-          canConfirm
+          canConfirm={quizValidationErrors.length === 0}
+          validationErrors={quizValidationErrors}
           onConfirm={handleConfirmCapabilityConfig}
         >
           <QuizConfigPanel
@@ -1648,6 +1653,7 @@ export default function ChatPage() {
     capabilityConfigConfirmed,
     handleConfirmCapabilityConfig,
     quizConfig,
+    quizValidationErrors,
     quizPdf,
     handleChangeQuizConfig,
     handleUploadQuizPdf,
@@ -1864,6 +1870,34 @@ export default function ChatPage() {
       )
         return;
 
+      const quizPrompt = content.trim().toLowerCase();
+      const isPlaceholderQuizPrompt = new Set([
+        "开始",
+        "开始生成",
+        "生成",
+        "生成题目",
+        "start",
+        "generate",
+      ]).has(quizPrompt);
+      const hasQuizSource = Boolean(content.trim()) && !isPlaceholderQuizPrompt;
+      if (
+        isQuizMode &&
+        quizConfig.mode === "custom" &&
+        !hasQuizSource &&
+        !attachments.length &&
+        !selectedBookReferences.length &&
+        !selectedNotebookRecords.length &&
+        !selectedHistorySessions.length &&
+        !selectedQuestionEntries.length &&
+        !selectedMemoryFiles.length
+      ) {
+        setQuizValidationErrors([
+          t("Please provide a topic, for example: generate questions about limits."),
+        ]);
+        ensureActivityPanelOpen();
+        return;
+      }
+
       let extraAttachments = attachments.map((a) => ({
         type: a.type,
         filename: a.filename,
@@ -1956,6 +1990,7 @@ export default function ChatPage() {
       quizPdf,
       researchConfig,
       researchValidation,
+      ensureActivityPanelOpen,
       selectedAgent,
       selectedHistorySessions.length,
       selectedAgentSessions.length,
