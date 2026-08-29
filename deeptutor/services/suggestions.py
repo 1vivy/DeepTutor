@@ -556,11 +556,11 @@ async def _generate(language: str, material: _Material) -> SuggestionSet:
 
     try:
         from deeptutor.services.llm import complete
-        from deeptutor.services.model_selection.tasks import TASK_STARTERS, task_llm_scope
+        from deeptutor.services.model_selection.tasks import task_llm_scope
 
-        # Pinned to its own model when Settings > Task models says so, and to
-        # the active default otherwise — which is what this always did.
-        with task_llm_scope(TASK_STARTERS):
+        # Runs on the task model when one is configured, and on the active
+        # default otherwise — which is what this always did.
+        with task_llm_scope():
             raw = await asyncio.wait_for(
                 complete(
                     prompt=user_prompt,

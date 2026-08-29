@@ -12,7 +12,7 @@ export default function TaskModelsSettingsPage() {
       <SettingsPageHeader
         title={t("Task models")}
         description={t(
-          "The model behind work DeepTutor starts on its own, rather than in a turn you asked for.",
+          "Conversation titles and home screen starting points. Configured like the LLM — pick a provider, then a model. Left empty, both use the LLM.",
         )}
       />
       <TaskModelsEditor />

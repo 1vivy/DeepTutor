@@ -3641,5 +3641,12 @@
   "{{n}} ctx": "{{n}} 上下文",
   "{{n}} dim": "{{n}} 维",
   "No model id yet": "还没填模型 ID",
-  "Set as active": "设为使用中"
+  "Set as active": "设为使用中",
+  "Task model": "任务模型",
+  "Nothing configured here, so both calls use the language model.": "这里没有配置，所以两处调用都使用语言模型。",
+  "No language model is configured yet.": "还没有配置语言模型。",
+  "Bring a provider over from the LLM": "从 LLM 引入一个供应商",
+  "Choose a provider to copy...": "选择要复制的供应商…",
+  "Copy over": "引入",
+  "Conversation titles and home screen starting points. Configured like the LLM — pick a provider, then a model. Left empty, both use the LLM.": "会话标题与主页起始建议。配置方式与 LLM 相同：先选供应商，再配模型。留空则两者都使用 LLM 的配置。"
 }

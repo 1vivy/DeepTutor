@@ -2594,10 +2594,10 @@ class TurnRuntimeManager:
 
         Runs only when the session still carries the ``New conversation``
         sentinel — once a user manually renames the chat (or this method
-        has already filled in a title), it short-circuits. Uses the model
-        pinned in Settings > Task models when there is one, and otherwise
-        the LLM scope already active on the calling task, which is the
-        user's currently selected model.
+        has already filled in a title), it short-circuits. Runs on the task
+        model when one is configured, and otherwise on the LLM scope already
+        active on the calling task, which is the user's currently selected
+        model.
         """
         if not session_id:
             return
@@ -2666,14 +2666,11 @@ class TurnRuntimeManager:
                     buf.append(c)
                 return "".join(buf)
 
-            from deeptutor.services.model_selection.tasks import (
-                TASK_SESSION_TITLE,
-                task_llm_scope,
-            )
+            from deeptutor.services.model_selection.tasks import task_llm_scope
 
             # The scope is entered before the task is created so `wait_for`'s
-            # inner task copies it; leaving it un-pinned yields a no-op.
-            with task_llm_scope(TASK_SESSION_TITLE):
+            # inner task copies it; with no task model configured it is a no-op.
+            with task_llm_scope():
                 raw_title = await asyncio.wait_for(_collect_title(), timeout=20.0)
             title = _sanitize_session_title(raw_title)
         except asyncio.TimeoutError:

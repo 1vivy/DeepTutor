@@ -33,6 +33,8 @@ import { setTheme as applyThemePreference } from "@/lib/theme";
 
 export type ServiceName =
   | "llm"
+  /** Same shape as `llm`; stands in for it on the calls DeepTutor makes itself. */
+  | "task"
   | "embedding"
   | "search"
   | "tts"
@@ -98,22 +100,10 @@ export type CatalogProfile = {
   models: CatalogModel[];
 };
 
-/**
- * LLM work the product starts on its own — naming a conversation, writing the
- * three starting points under the home composer. Blank ids mean "inherit".
- */
-export type LlmTaskKey = "session_title" | "starters";
-
-export const LLM_TASK_KEYS: LlmTaskKey[] = ["session_title", "starters"];
-
-export type LlmTaskSelection = { profile_id: string; model_id: string };
-
 export type CatalogService = {
   active_profile_id: string | null;
   active_model_id?: string | null;
   profiles: CatalogProfile[];
-  /** LLM only: per-task model pins. Absent entry = inherit. */
-  tasks?: Partial<Record<LlmTaskKey, LlmTaskSelection>>;
 };
 
 /**
@@ -152,6 +142,7 @@ export type ConnectionTarget = {
 /** Services a connection can supply, in the order the UI lists them. */
 export const CONNECTABLE_SERVICES: ServiceName[] = [
   "llm",
+  "task",
   "embedding",
   "tts",
   "stt",
@@ -164,6 +155,7 @@ export type Catalog = {
   connections?: CatalogConnection[];
   services: {
     llm: CatalogService;
+    task: CatalogService;
     embedding: CatalogService;
     search: CatalogService;
     tts: CatalogService;
@@ -384,6 +376,7 @@ export function defaultCatalog(): Catalog {
     connections: [],
     services: {
       llm: { active_profile_id: null, active_model_id: null, profiles: [] },
+      task: { active_profile_id: null, active_model_id: null, profiles: [] },
       embedding: {
         active_profile_id: null,
         active_model_id: null,
@@ -623,7 +616,6 @@ type SettingsContextValue = {
     >,
     requests: { service: ServiceName; model: string }[],
   ) => { created: ServiceName[]; activated: ServiceName[] };
-  setLlmTask: (task: LlmTaskKey, selection: LlmTaskSelection | null) => void;
   llmContextDetection: LlmContextWindowDetection | null;
   applyDetectedContextWindow: () => void;
 
@@ -703,6 +695,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     Record<ServiceName, ProviderOption[]>
   >({
     llm: [],
+    task: [],
     embedding: [],
     search: [],
     tts: [],
@@ -1295,21 +1288,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     [connectionTargets, draft, mutateCatalog],
   );
 
-  // ─── Task models ─────────────────────────────────────────────────────────
-
-  const setLlmTask = useCallback(
-    (task: LlmTaskKey, selection: LlmTaskSelection | null) => {
-      mutateCatalog((next) => {
-        const llm = next.services.llm;
-        const tasks = { ...(llm.tasks ?? {}) };
-        if (selection) tasks[task] = selection;
-        else delete tasks[task];
-        llm.tasks = tasks;
-      });
-    },
-    [mutateCatalog],
-  );
-
   const removeActiveModel = useCallback(
     (service: ServiceName, profileId?: string, modelId?: string) => {
       if (service === "search") return;
@@ -1889,7 +1867,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       removeConnection,
       unlinkProfile,
       linkConnectionToServices,
-      setLlmTask,
       llmContextDetection,
       applyDetectedContextWindow,
       saving,
@@ -1947,7 +1924,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       removeConnection,
       unlinkProfile,
       linkConnectionToServices,
-      setLlmTask,
       providers,
       registerExtension,
       removeActiveModel,

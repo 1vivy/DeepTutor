@@ -1,7 +1,7 @@
 """The two task call sites actually run inside the scope they claim to.
 
-Pinning a task model is only worth anything if the LLM call at the other end
-resolves the pinned config. Both tests assert the model *observed from inside
+Configuring a task model is only worth anything if the LLM call at the other
+end resolves it. Both tests assert the model *observed from inside
 the call*: a scope wrapped around the wrong statement, or a call site that was
 never wired at all, still looks correct from the outside.
 """
@@ -27,8 +27,8 @@ class _FakePathService:
         return self._root / "settings" / f"{name}.json"
 
 
-def _pin(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, tasks: dict[str, Any]) -> None:
-    """Point every catalog reader at a tmp catalog with *tasks* pinned.
+def _pin(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, task_model: str | None) -> None:
+    """Point every catalog reader at a tmp catalog, optionally with a task model.
 
     Patching the path service rather than ``get_model_catalog_service`` is
     deliberate: several modules import that function by value, so patching it
@@ -54,7 +54,19 @@ def _pin(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, tasks: dict[str, Any])
     ]
     catalog["services"]["llm"]["active_profile_id"] = "llm-1"
     catalog["services"]["llm"]["active_model_id"] = "model-default"
-    catalog["services"]["llm"]["tasks"] = tasks
+    if task_model:
+        catalog["services"]["task"]["profiles"] = [
+            {
+                "id": "task-1",
+                "name": "OpenAI",
+                "binding": "openai",
+                "base_url": "https://api.openai.com/v1",
+                "api_key": "sk-test",
+                "models": [{"id": "task-model", "model": task_model}],
+            }
+        ]
+        catalog["services"]["task"]["active_profile_id"] = "task-1"
+        catalog["services"]["task"]["active_model_id"] = "task-model"
     service.save(catalog)
 
     # get_instance memoizes per resolved path; every reader must land on the
@@ -72,10 +84,10 @@ def _clear_llm_cache() -> Any:
     clear_llm_config_cache()
 
 
-def test_starter_generation_calls_the_pinned_model(
+def test_starter_generation_calls_the_task_model(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _pin(tmp_path, monkeypatch, {"starters": {"profile_id": "llm-1", "model_id": "model-task"}})
+    _pin(tmp_path, monkeypatch, "gpt-5-mini")
 
     from deeptutor.services import suggestions
     import deeptutor.services.llm as llm
@@ -97,10 +109,10 @@ def test_starter_generation_calls_the_pinned_model(
     assert observed == ["gpt-5-mini"]
 
 
-def test_starter_generation_inherits_when_unpinned(
+def test_starter_generation_inherits_when_unconfigured(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _pin(tmp_path, monkeypatch, {})
+    _pin(tmp_path, monkeypatch, None)
 
     from deeptutor.services import suggestions
     import deeptutor.services.llm as llm
@@ -169,12 +181,10 @@ def _run_title(monkeypatch: pytest.MonkeyPatch, observed: list[str]) -> _Runtime
     return runtime
 
 
-def test_title_generation_calls_the_pinned_model(
+def test_title_generation_calls_the_task_model(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _pin(
-        tmp_path, monkeypatch, {"session_title": {"profile_id": "llm-1", "model_id": "model-task"}}
-    )
+    _pin(tmp_path, monkeypatch, "gpt-5-mini")
 
     observed: list[str] = []
     runtime = _run_title(monkeypatch, observed)
@@ -183,10 +193,10 @@ def test_title_generation_calls_the_pinned_model(
     assert runtime.store.title == "Chain rule basics"
 
 
-def test_title_generation_inherits_the_turn_model_when_unpinned(
+def test_title_generation_inherits_the_turn_model_when_unconfigured(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _pin(tmp_path, monkeypatch, {})
+    _pin(tmp_path, monkeypatch, None)
 
     from deeptutor.services.llm.config import (
         LLMConfig,

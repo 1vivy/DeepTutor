@@ -42,6 +42,7 @@ import { inputClass, selectClass, selectOptionClass } from "./shared";
 
 const SERVICE_LABEL: Record<ServiceName, { en: string; zh: string }> = {
   llm: { en: "LLM", zh: "LLM" },
+  task: { en: "Task model", zh: "任务模型" },
   embedding: { en: "Embedding", zh: "嵌入模型" },
   search: { en: "Search", zh: "搜索" },
   tts: { en: "Text-to-Speech", zh: "语音合成" },
@@ -52,6 +53,7 @@ const SERVICE_LABEL: Record<ServiceName, { en: string; zh: string }> = {
 
 const SERVICE_HREF: Record<ServiceName, string> = {
   llm: "/settings/llm",
+  task: "/settings/task-models",
   embedding: "/settings/embedding",
   search: "/settings/search",
   tts: "/settings/tts",

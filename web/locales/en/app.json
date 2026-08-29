@@ -3641,5 +3641,12 @@
   "{{n}} ctx": "{{n}} ctx",
   "{{n}} dim": "{{n}} dim",
   "No model id yet": "No model id yet",
-  "Set as active": "Set as active"
+  "Set as active": "Set as active",
+  "Task model": "Task model",
+  "Nothing configured here, so both calls use the language model.": "Nothing configured here, so both calls use the language model.",
+  "No language model is configured yet.": "No language model is configured yet.",
+  "Bring a provider over from the LLM": "Bring a provider over from the LLM",
+  "Choose a provider to copy...": "Choose a provider to copy...",
+  "Copy over": "Copy over",
+  "Conversation titles and home screen starting points. Configured like the LLM — pick a provider, then a model. Left empty, both use the LLM.": "Conversation titles and home screen starting points. Configured like the LLM — pick a provider, then a model. Left empty, both use the LLM."
 }

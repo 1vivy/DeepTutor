@@ -1,6 +1,13 @@
 "use client";
 
-import { ArrowLeft, Check, ChevronDown, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import ProviderIcon from "@/components/common/ProviderIcon";
@@ -116,7 +123,15 @@ export function AddCard({
   );
 }
 
-/** Shared chrome: the frame, the name row and the expand affordance. */
+/**
+ * Shared chrome: the frame, the name row and the expand affordance.
+ *
+ * A card that opens carries a chevron in its lower-right and lifts its border
+ * and tint on hover — without that it read as a panel that happened to be
+ * clickable, which is the same as not clickable. Cards that do not open (a
+ * search provider has no models under it) draw no chevron, so the two kinds
+ * are told apart before you click rather than after.
+ */
 function CardShell({
   expanded,
   inUse,
@@ -130,13 +145,17 @@ function CardShell({
 }) {
   return (
     <div
-      className={`group relative flex min-h-[86px] flex-col justify-between gap-2 rounded-xl border p-3 transition-colors ${
+      className={`group relative flex min-h-[86px] flex-col justify-between gap-2 rounded-xl border p-3 transition-[background-color,border-color,transform] duration-150 ${
         expanded
           ? "border-[var(--foreground)]/25 bg-[var(--accent)]/40"
           : inUse
             ? "border-[var(--border)] bg-[var(--accent)]/25"
             : "border-[var(--border)]/70"
-      } ${onOpen ? "cursor-pointer hover:border-[var(--foreground)]/25 hover:bg-[var(--accent)]/30" : ""}`}
+      } ${
+        onOpen
+          ? "cursor-pointer hover:border-[var(--foreground)]/40 hover:bg-[var(--accent)]/45 active:scale-[0.995]"
+          : ""
+      }`}
       onClick={onOpen}
       role={onOpen ? "button" : undefined}
       tabIndex={onOpen ? 0 : undefined}
@@ -152,6 +171,12 @@ function CardShell({
       }
     >
       {children}
+      {onOpen && (
+        <ChevronRight
+          aria-hidden
+          className="pointer-events-none absolute bottom-2.5 right-2.5 h-3.5 w-3.5 text-[var(--muted-foreground)]/35 transition-all duration-150 group-hover:translate-x-0.5 group-hover:text-[var(--foreground)]/70"
+        />
+      )}
     </div>
   );
 }
@@ -325,15 +350,17 @@ export function ProfileCard({
           {endpoint || t("Provider default endpoint")}
         </p>
       </div>
-      <UseRow
-        inUse={inUse}
-        onUse={onUse}
-        detail={
-          service === "search"
-            ? undefined
-            : t("{{count}} models", { count })
-        }
-      />
+      <div className={onOpen ? "pr-5" : ""}>
+        <UseRow
+          inUse={inUse}
+          onUse={onUse}
+          detail={
+            service === "search"
+              ? undefined
+              : t("{{count}} models", { count })
+          }
+        />
+      </div>
     </CardShell>
   );
 }

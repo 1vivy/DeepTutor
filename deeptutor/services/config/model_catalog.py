@@ -140,18 +140,30 @@ def _search_shell() -> dict[str, Any]:
     }
 
 
-# LLM work the product does on the user's behalf rather than in a turn they
-# started: naming a conversation, proposing the three lines under the home
-# composer. Both are short, frequent and latency-visible, so they are worth
-# pointing at a small fast model — but only when the user says so. An entry
-# missing (or with blank ids) means "inherit whatever the chat is using".
-LLM_TASKS: tuple[str, ...] = ("session_title", "starters")
-
+# Every service the catalog holds, in the order the settings UI lists them.
+SERVICE_NAMES: tuple[str, ...] = (
+    "llm",
+    "task",
+    "embedding",
+    "search",
+    "tts",
+    "stt",
+    "imagegen",
+    "videogen",
+)
 
 # Services whose profiles a connection can supply credentials to. ``search``
 # is excluded: its providers are a different namespace (Brave, Tavily, ...)
 # that happens to overlap by name with a handful of model vendors only.
-CONNECTABLE_SERVICES: tuple[str, ...] = ("llm", "embedding", "tts", "stt", "imagegen", "videogen")
+CONNECTABLE_SERVICES: tuple[str, ...] = (
+    "llm",
+    "task",
+    "embedding",
+    "tts",
+    "stt",
+    "imagegen",
+    "videogen",
+)
 
 # Where a connection's API base has to grow a path before a service's adapter
 # can post to it. Voice/generation adapters append their own path to an API
@@ -172,13 +184,8 @@ def _default_catalog() -> dict[str, Any]:
         "version": 1,
         "connections": [],
         "services": {
-            "llm": _service_shell(),
-            "embedding": _service_shell(),
-            "search": _search_shell(),
-            "tts": _service_shell(),
-            "stt": _service_shell(),
-            "imagegen": _service_shell(),
-            "videogen": _service_shell(),
+            name: _search_shell() if name == "search" else _service_shell()
+            for name in SERVICE_NAMES
         },
     }
 
@@ -257,43 +264,18 @@ class ModelCatalogService:
         current = self.save(catalog or self.load())
         return {"catalog_path": str(self.path), "services": list(current.get("services", {}))}
 
-    def _normalize_llm_tasks(self, catalog: dict[str, Any]) -> bool:
-        """Keep task-model pointers honest: unknown targets fall back to inherit."""
+    def _drop_legacy_llm_tasks(self, catalog: dict[str, Any]) -> bool:
+        """Remove the short-lived per-task pointers under ``services.llm``.
+
+        Task models briefly lived there as two independent {profile, model}
+        references. They are one service now — configured exactly like the LLM
+        it stands in for — so the old key is dead weight.
+        """
         service = catalog.get("services", {}).get("llm", {})
-        if not isinstance(service, dict):
-            return False
-        if "tasks" not in service:
-            return False
-        raw = service["tasks"]
-        if not isinstance(raw, dict):
-            service["tasks"] = {}
+        if isinstance(service, dict) and "tasks" in service:
+            service.pop("tasks")
             return True
-        available = {
-            str(profile.get("id")): {
-                str(model.get("id")) for model in profile.get("models", []) or []
-            }
-            for profile in service.get("profiles", []) or []
-            if isinstance(profile, dict)
-        }
-        changed = False
-        for task in list(raw):
-            if task not in LLM_TASKS:
-                raw.pop(task)
-                changed = True
-                continue
-            entry = raw[task]
-            if not isinstance(entry, dict):
-                raw.pop(task)
-                changed = True
-                continue
-            profile_id = str(entry.get("profile_id") or "")
-            model_id = str(entry.get("model_id") or "")
-            # A profile or model deleted out from under a task pointer must not
-            # strand it: an unresolvable task silently reverts to inheriting.
-            if not profile_id or model_id not in available.get(profile_id, set()):
-                raw.pop(task)
-                changed = True
-        return changed
+        return False
 
     def _normalize_connections(self, catalog: dict[str, Any]) -> dict[str, dict[str, Any]]:
         """Fill in connection defaults and return them keyed by id."""
@@ -362,14 +344,9 @@ class ModelCatalogService:
         services = catalog.setdefault("services", {})
         changed = False
         connections = self._normalize_connections(catalog)
-        services.setdefault("llm", _service_shell())
-        services.setdefault("embedding", _service_shell())
-        services.setdefault("search", _search_shell())
-        services.setdefault("tts", _service_shell())
-        services.setdefault("stt", _service_shell())
-        services.setdefault("imagegen", _service_shell())
-        services.setdefault("videogen", _service_shell())
-        for service_name in ("llm", "embedding", "search", "tts", "stt", "imagegen", "videogen"):
+        for name in SERVICE_NAMES:
+            services.setdefault(name, _search_shell() if name == "search" else _service_shell())
+        for service_name in SERVICE_NAMES:
             service = services[service_name]
             profiles = service.setdefault("profiles", [])
             for profile in profiles:
@@ -439,14 +416,14 @@ class ModelCatalogService:
             if profiles and service.get("active_profile_id") not in profile_ids:
                 service["active_profile_id"] = profiles[0]["id"]
                 changed = True
-            if service_name in {"llm", "embedding", "tts", "stt", "imagegen", "videogen"}:
+            if service_name != "search":
                 active_profile = self.get_active_profile(catalog, service_name)
                 models = (active_profile or {}).get("models") or []
                 model_ids = {model.get("id") for model in models}
                 if models and service.get("active_model_id") not in model_ids:
                     service["active_model_id"] = models[0]["id"]
                     changed = True
-        if self._normalize_llm_tasks(catalog):
+        if self._drop_legacy_llm_tasks(catalog):
             changed = True
         return changed
 
@@ -494,7 +471,7 @@ __all__ = [
     "CATALOG_PATH",
     "CATALOG_SECRET_MASK",
     "CONNECTABLE_SERVICES",
-    "LLM_TASKS",
+    "SERVICE_NAMES",
     "ModelCatalogService",
     "get_model_catalog_service",
     "redact_catalog_secrets",

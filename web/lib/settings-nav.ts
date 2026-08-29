@@ -106,8 +106,8 @@ const MODEL_CHILDREN: SettingsLeaf[] = [
     href: "/settings/task-models",
     label: { zh: "任务模型", en: "Task models" },
     blurb: {
-      zh: "会话标题与起始建议使用的模型。",
-      en: "The model behind conversation titles and starting points.",
+      zh: "DeepTutor 自己发起的调用使用的模型。",
+      en: "The model behind the calls DeepTutor makes on its own.",
     },
     icon: ListChecks,
     tile: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",

@@ -585,6 +585,8 @@ def _provider_choices() -> dict[str, list[dict[str, Any]]]:
     )
     return {
         "llm": llm,
+        # Same shape, same vendors: the task service stands in for the LLM.
+        "task": llm,
         "embedding": embedding,
         "search": search,
         "tts": tts,

@@ -66,6 +66,7 @@ import {
 
 const SERVICE_LABEL: Record<ServiceName, string> = {
   llm: "LLM",
+  task: "Task model",
   embedding: "Embedding",
   search: "Search",
   tts: "Text-to-Speech",
@@ -573,7 +574,7 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
             </>
           )}
 
-          <div className="min-w-0 space-y-7">
+          <div className="mt-7 min-w-0 space-y-7">
             {expandedProfile && !openedProfile && (
             <div className="mt-4">
               <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-[var(--border)]/60 pb-2">
@@ -1017,16 +1018,16 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
           </div>
         </div>
       ) : (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-[var(--border)] px-5 py-12 text-center text-[13px] text-[var(--muted-foreground)]">
-          <div>{t("No profiles configured. Add a profile to start.")}</div>
-          <button
-            type="button"
-            onClick={() => addProfile(service)}
-            className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)]/50 px-2.5 py-1 text-[12px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
-          >
-            <Plus className="h-3 w-3" />
-            {t("Profile")}
-          </button>
+        // Zero state in the same language as the populated one: the grid with
+        // only its add card in it, so starting out looks like what comes next.
+        <div>
+          <SectionHead title={t("Providers")} />
+          <CardGrid>
+            <AddCard
+              label={t("Add provider")}
+              onClick={() => addProfile(service)}
+            />
+          </CardGrid>
         </div>
       )}
     </div>
