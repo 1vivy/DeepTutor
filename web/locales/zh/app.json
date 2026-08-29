@@ -4091,5 +4091,21 @@
   "Bring a provider over from the LLM": "从 LLM 引入一个供应商",
   "Choose a provider to copy...": "选择要复制的供应商…",
   "Copy over": "引入",
-  "Conversation titles and home screen starting points. Configured like the LLM — pick a provider, then a model. Left empty, both use the LLM.": "会话标题与主页起始建议。配置方式与 LLM 相同：先选供应商，再配模型。留空则两者都使用 LLM 的配置。"
+  "Conversation titles and home screen starting points. Configured like the LLM — pick a provider, then a model. Left empty, both use the LLM.": "会话标题与主页起始建议。配置方式与 LLM 相同：先选供应商，再配模型。留空则两者都使用 LLM 的配置。",
+  "Pick a course": "选择课程",
+  "No courses yet — make one to group a subject's material.": "还没有课程——建一门，把一个科目的材料收在一起。",
+  "Not in a course": "不属于任何课程",
+  "Manage courses": "管理课程",
+  "nothing here yet — you'll set one up": "这里还是空的，去建一个",
+  "Nothing made yet to attach. Start one below and it joins this course as soon as it exists.": "还没有可挂接的东西。在下面新建一个，建好就会自动加入这门课。",
+  "Start something new": "新建",
+  "New mastery path": "新建精通之路",
+  "New reading collection": "新建阅读合集",
+  "How conversations here start": "这门课的对话怎么开场",
+  "Persona": "人格",
+  "Applied when a conversation opens from this course, along with its knowledge bases. You can change any of it once inside.": "从这门课打开对话时生效，连同它的知识库一起带上。进去之后随时可以改。",
+  "This course has no notebook yet": "这门课还没有笔记本",
+  "Make one here and it joins this course — its notes then travel with everything else in it.": "在这里新建一个，它就会加入这门课——笔记从此和这门课的其它东西放在一起。",
+  "Guided Solving": "主动辅导",
+  "Generate charts, diagrams, interactive pages, or math animations": "生成图表、示意图、交互页面或数学动画"
 }

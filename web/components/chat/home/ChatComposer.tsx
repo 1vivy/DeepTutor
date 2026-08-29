@@ -37,6 +37,9 @@ import {
   isSvgFilename,
 } from "@/lib/doc-attachments";
 import { useTranslation } from "react-i18next";
+
+import { CoursePill } from "@/components/chat/home/CoursePill";
+import type { StudyCourse } from "@/lib/courses-api";
 import type { SelectedHistorySession } from "@/components/chat/HistorySessionPicker";
 import type { SelectedQuestionEntry } from "@/components/chat/QuestionBankPicker";
 import type { SelectedRecord } from "@/lib/notebook-selection-types";
@@ -187,6 +190,9 @@ export default memo(function ChatComposer({
   dragCounter,
   dragging,
   capMenuOpen,
+  courses = [],
+  courseId = "",
+  onSelectCourse,
   spaceMenuOpen,
   hasMessages,
   attachments,
@@ -267,6 +273,12 @@ export default memo(function ChatComposer({
   dragCounter: RefObject<number>;
   dragging: boolean;
   capMenuOpen: boolean;
+  /* Course binding. Absent on the standalone composers (Mastery Path,
+     Immersive Reading), which are already inside one subject's surface and
+     have no course to choose. */
+  courses?: StudyCourse[];
+  courseId?: string;
+  onSelectCourse?: (courseId: string) => void;
   spaceMenuOpen: boolean;
   hasMessages: boolean;
   attachments: PendingAttachment[];
@@ -1015,6 +1027,20 @@ export default memo(function ChatComposer({
                   )}
                 </div>
               )}
+
+              {/* Which course this conversation belongs to. Sits beside the
+                  mode because the two are chosen together: Course Study
+                  without a course is an inert mode, and the learner should be
+                  able to see that from the composer rather than from a reply. */}
+              {onSelectCourse ? (
+                <CoursePill
+                  courses={courses}
+                  courseId={courseId}
+                  onSelect={onSelectCourse}
+                  needsCourse={activeCap.value === "course_study"}
+                  compact={composerCompact}
+                />
+              ) : null}
 
               <div className="relative flex min-w-0 flex-1 items-center">
                 <button

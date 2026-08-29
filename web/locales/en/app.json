@@ -4091,5 +4091,21 @@
   "Bring a provider over from the LLM": "Bring a provider over from the LLM",
   "Choose a provider to copy...": "Choose a provider to copy...",
   "Copy over": "Copy over",
-  "Conversation titles and home screen starting points. Configured like the LLM — pick a provider, then a model. Left empty, both use the LLM.": "Conversation titles and home screen starting points. Configured like the LLM — pick a provider, then a model. Left empty, both use the LLM."
+  "Conversation titles and home screen starting points. Configured like the LLM — pick a provider, then a model. Left empty, both use the LLM.": "Conversation titles and home screen starting points. Configured like the LLM — pick a provider, then a model. Left empty, both use the LLM.",
+  "Pick a course": "Pick a course",
+  "No courses yet — make one to group a subject's material.": "No courses yet — make one to group a subject's material.",
+  "Not in a course": "Not in a course",
+  "Manage courses": "Manage courses",
+  "nothing here yet — you'll set one up": "nothing here yet — you'll set one up",
+  "Nothing made yet to attach. Start one below and it joins this course as soon as it exists.": "Nothing made yet to attach. Start one below and it joins this course as soon as it exists.",
+  "Start something new": "Start something new",
+  "New mastery path": "New mastery path",
+  "New reading collection": "New reading collection",
+  "How conversations here start": "How conversations here start",
+  "Persona": "Persona",
+  "Applied when a conversation opens from this course, along with its knowledge bases. You can change any of it once inside.": "Applied when a conversation opens from this course, along with its knowledge bases. You can change any of it once inside.",
+  "This course has no notebook yet": "This course has no notebook yet",
+  "Make one here and it joins this course — its notes then travel with everything else in it.": "Make one here and it joins this course — its notes then travel with everything else in it.",
+  "Guided Solving": "Guided Solving",
+  "Generate charts, diagrams, interactive pages, or math animations": "Generate charts, diagrams, interactive pages, or math animations"
 }

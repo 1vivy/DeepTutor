@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import NotebookConsole, {
@@ -22,6 +22,14 @@ function NotebookRoute() {
   const courseId = searchParams.get("course")?.trim() ?? "";
   const [courseScope, setCourseScope] = useState<NotebookCourseScope | null>(
     null,
+  );
+
+  // Bumped after the console attaches something, so the scope re-reads and the
+  // notebook just created stops looking like it is outside the course.
+  const [scopeVersion, setScopeVersion] = useState(0);
+  const handleScopeChanged = useCallback(
+    () => setScopeVersion((version) => version + 1),
+    [],
   );
 
   useEffect(() => {
@@ -52,12 +60,13 @@ function NotebookRoute() {
     return () => {
       cancelled = true;
     };
-  }, [courseId]);
+  }, [courseId, scopeVersion]);
 
   return (
     <NotebookConsole
       initialNotebookId={requested}
       courseScope={courseScope}
+      onScopeChanged={handleScopeChanged}
     />
   );
 }

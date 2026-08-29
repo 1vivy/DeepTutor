@@ -54,7 +54,10 @@ const CourseHandoff = memo(function CourseHandoff({
   const router = useRouter();
   const [draft, setDraft] = useState(data.prompt);
   const Icon = TARGET_ICONS[data.target];
-  const acceptsPrompt = targetAcceptsPrompt(data.target);
+  const acceptsPrompt = targetAcceptsPrompt(data.target, data.ref_id);
+  const needsSetup =
+    !data.ref_id.trim() &&
+    (data.target === "mastery_path" || data.target === "immersive_reading");
   const place: string = {
     immersive_reading: t("Immersive Reading"),
     mastery_path: t("Mastery Path"),
@@ -81,6 +84,15 @@ const CourseHandoff = memo(function CourseHandoff({
           </div>
           <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
             {data.label ? `${place} · ${data.label}` : place}
+            {/* No resource named means this course has none of that kind yet.
+                Saying so beats letting the learner click through expecting the
+                tutor's opening line and finding an empty index instead. */}
+            {!data.label && needsSetup ? (
+              <span className="text-[var(--muted-foreground)]/75">
+                {" · "}
+                {t("nothing here yet — you'll set one up")}
+              </span>
+            ) : null}
           </div>
 
           {data.prompt && acceptsPrompt ? (

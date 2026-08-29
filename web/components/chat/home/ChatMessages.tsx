@@ -67,7 +67,10 @@ import { extractSetupCredential } from "@/lib/setup-signals";
 import { PartnerDraftCard } from "./PartnerDraftCard";
 import { extractPartnerDraft } from "@/lib/partner-draft";
 import { CourseHandoffCards } from "./CourseHandoffCard";
-import { extractCourseHandoffs } from "@/lib/course-handoff";
+import {
+  extractCourseHandoffs,
+  stripLeakedHandoffJson,
+} from "@/lib/course-handoff";
 import ContextReferenceTree, {
   type ContextTreeItem,
 } from "./ContextReferenceTree";
@@ -420,6 +423,19 @@ const AssistantMessage = memo(function AssistantMessage({
     [msg.events],
   );
 
+  // Some models write the hand-off out as literal JSON *and* call the tool, so
+  // the card's own contents appear above it as raw arguments. Only stripped
+  // once the turn is finished — mid-stream the text is still arriving and a
+  // partial object would not match anyway — and only from a message that really
+  // produced a card.
+  const body = useMemo(
+    () =>
+      courseHandoffs.length && !isStreaming
+        ? stripLeakedHandoffJson(msg.content)
+        : msg.content,
+    [courseHandoffs.length, isStreaming, msg.content],
+  );
+
   // Interleaved segments for the default chat surface — text emitted
   // before the ask_user call renders above the card; text emitted by
   // the resumed iteration renders below it. Only walked when this
@@ -568,7 +584,7 @@ const AssistantMessage = memo(function AssistantMessage({
           ),
         )
       ) : (
-        <AssistantResponse content={msg.content} isStreaming={isStreaming} />
+        <AssistantResponse content={body} isStreaming={isStreaming} />
       )}
       {/* Non-default branches (quiz, math animator, visualize) keep
           ask_user below the body. The default branch inlines the card

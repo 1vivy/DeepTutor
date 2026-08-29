@@ -22,6 +22,7 @@ export function LibraryShell({
   materialCount,
   actionLabel,
   onAction,
+  scopeChip,
   children,
 }: {
   view: "collections" | "materials";
@@ -29,6 +30,8 @@ export function LibraryShell({
   materialCount?: number;
   actionLabel: string;
   onAction: () => void;
+  /** Rendered beside the title when this visit belongs to one course. */
+  scopeChip?: ReactNode;
   children: ReactNode;
 }) {
   const { t } = useTranslation();
@@ -68,9 +71,12 @@ export function LibraryShell({
       <div className="mx-auto w-full max-w-[1180px] px-6 py-7 md:px-9 lg:py-9">
         <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
-            <h1 className="font-serif text-[27px] font-semibold tracking-[-0.02em] md:text-[30px]">
-              {t("Immersive Reading")}
-            </h1>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="font-serif text-[27px] font-semibold tracking-[-0.02em] md:text-[30px]">
+                {t("Immersive Reading")}
+              </h1>
+              {scopeChip}
+            </div>
             <p className="mt-1.5 max-w-2xl text-[12.5px] leading-relaxed text-[var(--muted-foreground)]">
               {t(
                 "Put PDFs, web pages and lectures into one collection and read them with an AI companion that can always point back to the source.",

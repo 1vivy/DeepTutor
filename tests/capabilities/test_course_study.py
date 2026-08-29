@@ -784,6 +784,7 @@ async def test_course_handoff_accepts_either_identifier_for_a_resource(
     """The turn's state summary lists resources by ``resource_id`` while the
     frontend routes on ``ref_id``. Reaching for the id that is actually in front
     of the model must not produce a link to a path that does not exist."""
+    import deeptutor.capabilities.course_study.tools as tools_module
     from deeptutor.services import courses
 
     course = _study_course(
@@ -816,11 +817,19 @@ async def test_course_handoff_accepts_either_identifier_for_a_resource(
     assert by_resource_id["ref_id"] == by_ref_id["ref_id"] == "path-1"
     assert by_resource_id["label"] == by_ref_id["label"] == "Eigenvalues mastery path"
 
-    # A target the course has not attached stays exactly as given: the tutor may
-    # legitimately point somewhere the course does not reference yet.
+    # A path the course has not attached, but which really exists, stays exactly
+    # as given: the tutor may legitimately point at one the learner built
+    # elsewhere. What is checked is existence, not membership of this course.
+    monkeypatch.setattr(
+        tools_module,
+        "_resolve_reference",
+        _resolver({"mastery_path": {"something-else": {"name": "Elsewhere"}}}),
+    )
     unattached = await handoff("something-else")
     assert unattached["ref_id"] == "something-else"
-    assert unattached["label"] == ""
+    # Named from the owning subsystem, so the card can say what it is opening
+    # even though this course has never referenced it.
+    assert unattached["label"] == "Elsewhere"
 
 
 def test_all_four_course_tools_are_declared() -> None:
@@ -891,3 +900,216 @@ def test_course_defaults_fill_absent_fields_and_preserve_explicit_choices() -> N
     assert active_session["persona"] == "learner-choice"
     assert active_session["knowledge_bases"] == ["learner-kb"]
     assert active_session["content"] == "continue"
+
+
+def test_summary_carries_learner_conventions_without_a_tool_call() -> None:
+    """The course page promises every conversation begins knowing these.
+
+    Before this they lived only in ``course_overview``'s output, so a turn the
+    model answered straight from the summary silently ignored what the learner
+    had written about how to teach them.
+    """
+    state = _course_state()
+    state["course"]["instructions"] = "Always use C. We follow POSIX."
+    state["course"]["agent_notes"] = "Keeps mixing up preemptive scheduling."
+
+    summary = summarize_course_state(state)
+
+    assert "Always use C. We follow POSIX." in summary
+    assert "Keeps mixing up preemptive scheduling." in summary
+    assert len(summary) <= SUMMARY_CHAR_LIMIT
+
+
+def test_summary_says_so_when_no_conventions_are_written() -> None:
+    state = _course_state()
+    state["course"].pop("instructions", None)
+    state["course"].pop("agent_notes", None)
+
+    assert "none written yet" in summarize_course_state(state)
+
+
+def test_long_conventions_are_clipped_and_point_at_the_tool() -> None:
+    """A term's worth of rules must not crowd out the state it contextualises."""
+    state = _course_state()
+    state["course"]["instructions"] = "x" * 4000
+
+    summary = summarize_course_state(state)
+
+    assert "clipped; full text via course_overview" in summary
+    assert len(summary) <= SUMMARY_CHAR_LIMIT
+
+
+@pytest.mark.asyncio
+async def test_course_edit_create_refuses_kinds_it_cannot_make() -> None:
+    """A mastery path costs a model round and produces a whole module tree.
+
+    Creating one is a deliberate act on its own surface, not something a routing
+    turn decides to spend; the error names what *is* creatable so the model
+    redirects instead of retrying.
+    """
+    import deeptutor.capabilities.course_study.tools as tools_module
+
+    with pytest.raises(ValueError) as excinfo:
+        await tools_module.course_edit(
+            "create",
+            _course_id="course-1",
+            kind="mastery_path",
+            label="Deadlocks",
+        )
+
+    message = str(excinfo.value)
+    assert "notebook" in message
+    assert "reading_workspace" in message
+
+
+@pytest.mark.asyncio
+async def test_course_edit_create_requires_a_name() -> None:
+    import deeptutor.capabilities.course_study.tools as tools_module
+
+    with pytest.raises(ValueError, match="label"):
+        await tools_module.course_edit(
+            "create",
+            _course_id="course-1",
+            kind="notebook",
+            label="   ",
+        )
+
+
+@pytest.mark.asyncio
+async def test_course_edit_create_makes_it_and_attaches_it_in_one_step(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A course with nowhere to put notes was blocked on a manual detour."""
+    import deeptutor.capabilities.course_study.tools as tools_module
+    from deeptutor.services import courses
+
+    service = Mock()
+    service.attach_resource.return_value = {
+        "id": "res-new",
+        "kind": "notebook",
+        "ref_id": "nb-1",
+        "label": "OS notes",
+    }
+    monkeypatch.setattr(courses, "get_course_service", lambda: service)
+
+    async def fake_create(kind: str, label: str) -> str:
+        assert (kind, label) == ("notebook", "OS notes")
+        return "nb-1"
+
+    monkeypatch.setattr(tools_module, "_create_resource", fake_create)
+
+    result = await tools_module.course_edit(
+        "create",
+        _course_id="course-1",
+        kind="notebook",
+        label="OS notes",
+    )
+
+    service.attach_resource.assert_called_once()
+    assert service.attach_resource.call_args.kwargs["ref_id"] == "nb-1"
+    assert result.metadata["created"] is True
+
+
+def _resolver(registry: dict[str, dict[str, dict[str, str]]]):
+    """Stand in for the destination subsystem's own index."""
+
+    async def resolve(kind: str, ref_id: str) -> dict[str, str] | None:
+        return registry.get(kind, {}).get(ref_id)
+
+    return resolve
+
+
+@pytest.mark.asyncio
+async def test_handoff_drops_a_ref_that_matches_nothing_attached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Observed live: a syllabus unit id handed in as a mastery path.
+
+    Both namespaces appear in the state summary and look alike. Passing the id
+    through builds a card pointing at /mastery/u2/study — a page that does not
+    exist — and, being non-empty, also tells the client the destination has a
+    composer, so the prepared opening line is stored for a surface that never
+    consumes it.
+    """
+    import deeptutor.capabilities.course_study.tools as tools_module
+    from deeptutor.services import courses
+
+    service = Mock()
+    service.get.return_value = SimpleNamespace(resources=[])
+    monkeypatch.setattr(courses, "get_course_service", lambda: service)
+    # No mastery path anywhere answers to "u2" — it is a syllabus unit id.
+    monkeypatch.setattr(tools_module, "_resolve_reference", _resolver({}))
+
+    result = await tools_module.course_handoff(
+        "mastery_path",
+        "Explain processes",
+        "Exam only covers processes and memory",
+        ref_id="u2",
+        _course_id="course-1",
+    )
+
+    assert result.metadata["course_handoff"]["ref_id"] == ""
+    # Said out loud, so a later round does not describe a destination the
+    # learner is not being sent to.
+    assert "u2" in result.content
+    assert "index" in result.content
+
+
+@pytest.mark.asyncio
+async def test_handoff_keeps_a_real_resource_the_course_has_not_attached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Existence, not membership, is what makes a link work."""
+    import deeptutor.capabilities.course_study.tools as tools_module
+    from deeptutor.services import courses
+
+    service = Mock()
+    service.get.return_value = SimpleNamespace(resources=[])
+    monkeypatch.setattr(courses, "get_course_service", lambda: service)
+    monkeypatch.setattr(
+        tools_module,
+        "_resolve_reference",
+        _resolver({"mastery_path": {"path_elsewhere": {"name": "Built elsewhere"}}}),
+    )
+
+    result = await tools_module.course_handoff(
+        "mastery_path",
+        "Continue",
+        "Already underway",
+        ref_id="path_elsewhere",
+        _course_id="course-1",
+    )
+
+    handoff = result.metadata["course_handoff"]
+    assert handoff["ref_id"] == "path_elsewhere"
+    assert handoff["label"] == "Built elsewhere"
+
+
+@pytest.mark.asyncio
+async def test_handoff_keeps_a_ref_that_resolves(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import deeptutor.capabilities.course_study.tools as tools_module
+    from deeptutor.services import courses
+
+    service = Mock()
+    service.get.return_value = SimpleNamespace(
+        resources=[
+            SimpleNamespace(id="res-1", ref_id="path_abc", label="Processes"),
+        ]
+    )
+    monkeypatch.setattr(courses, "get_course_service", lambda: service)
+
+    # The state summary lists resources by resource_id, so reaching for that one
+    # is the natural move; it must still resolve to the routable ref_id.
+    result = await tools_module.course_handoff(
+        "mastery_path",
+        "Continue",
+        "Half finished",
+        ref_id="res-1",
+        _course_id="course-1",
+    )
+
+    handoff = result.metadata["course_handoff"]
+    assert handoff["ref_id"] == "path_abc"
+    assert handoff["label"] == "Processes"

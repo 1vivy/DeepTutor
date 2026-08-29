@@ -99,6 +99,10 @@ export interface ChatState {
   llmSelection: LLMSelection | null;
   /** Persistent mastery state associated with this conversation. */
   masteryPathId: string | null;
+  /** Study course this conversation belongs to; "" = unclassified.
+   *  Read by the composer's course pill and sent with every turn, so Course
+   *  Study senses the same course the learner can see it is bound to. */
+  courseId: string;
   /** Session-level persona preference; "" = Default (no persona). Applies
    *  to every following message until changed (persisted on the session). */
   personaSelection: string;
@@ -115,6 +119,7 @@ export interface SessionConfiguration {
   capability?: string | null;
   knowledgeBases?: string[];
   masteryPathId?: string | null;
+  courseId?: string;
   enabledTools?: string[];
 }
 
@@ -206,6 +211,7 @@ interface SessionSnapshot {
   knowledgeBases?: string[];
   llmSelection?: LLMSelection | null;
   masteryPathId?: string | null;
+  courseId?: string;
   personaSelection?: string;
   language?: string;
   selectedBranches?: Record<string, number>;
@@ -220,6 +226,7 @@ type Action =
   // session that produced it, which may no longer be the selected one. The
   // composer omits it and means "the one on screen".
   | { type: "SET_MASTERY_PATH_ID"; masteryPathId: string | null; key?: string }
+  | { type: "SET_COURSE_ID"; courseId: string }
   | { type: "SET_PERSONA_SELECTION"; persona: string }
   | { type: "SET_LANGUAGE"; lang: string }
   | {
@@ -296,6 +303,7 @@ function createSessionEntry(
     knowledgeBases: [],
     llmSelection: null,
     masteryPathId: null,
+    courseId: "",
     personaSelection: "",
     messages: [],
     isStreaming: false,
@@ -353,6 +361,10 @@ function applySessionConfiguration(
       configuration.masteryPathId !== undefined
         ? configuration.masteryPathId
         : session.masteryPathId,
+    courseId:
+      configuration.courseId !== undefined
+        ? configuration.courseId
+        : session.courseId,
     enabledTools:
       configuration.enabledTools !== undefined
         ? [...configuration.enabledTools]
@@ -431,6 +443,11 @@ function reducer(state: ProviderState, action: Action): ProviderState {
         },
       };
     }
+    case "SET_COURSE_ID":
+      return updateSelectedSession(state, (session) => ({
+        ...session,
+        courseId: action.courseId,
+      }));
     case "SET_PERSONA_SELECTION":
       return updateSelectedSession(state, (session) => ({
         ...session,
@@ -718,6 +735,8 @@ function reducer(state: ProviderState, action: Action): ProviderState {
               action.masteryPathId !== undefined
                 ? action.masteryPathId
                 : existing.masteryPathId,
+            courseId:
+              action.courseId !== undefined ? action.courseId : existing.courseId,
             personaSelection:
               action.personaSelection !== undefined
                 ? action.personaSelection
@@ -902,6 +921,7 @@ interface ChatContextValue {
   setKBs: (kbs: string[]) => void;
   setLLMSelection: (selection: LLMSelection | null) => void;
   setMasteryPathId: (masteryPathId: string | null) => void;
+  setCourseId: (courseId: string) => void;
   setPersonaSelection: (persona: string) => void;
   setLanguage: (lang: string) => void;
   sendMessage: (
@@ -1502,6 +1522,13 @@ export function UnifiedChatProvider({
           typeof session.preferences?.mastery_path_id === "string"
             ? session.preferences.mastery_path_id
             : null,
+        // The server is the truth for which course a conversation belongs to:
+        // it is set from the launch URL, from the composer's pill, and from the
+        // sidebar's "move to course", and every one of those writes here.
+        courseId:
+          typeof session.preferences?.course_id === "string"
+            ? session.preferences.course_id
+            : "",
         personaSelection:
           typeof session.preferences?.persona === "string"
             ? session.preferences.persona
@@ -1923,6 +1950,7 @@ export function UnifiedChatProvider({
       knowledgeBases: current.knowledgeBases,
       llmSelection: current.llmSelection,
       masteryPathId: current.masteryPathId,
+      courseId: current.courseId,
       personaSelection: current.personaSelection,
       messages: current.messages,
       isStreaming: current.isStreaming,
@@ -1965,6 +1993,10 @@ export function UnifiedChatProvider({
   const setMasteryPathId = useCallback((masteryPathId: string | null) => {
     const normalized = masteryPathId?.trim() || null;
     dispatch({ type: "SET_MASTERY_PATH_ID", masteryPathId: normalized });
+  }, []);
+
+  const setCourseId = useCallback((courseId: string) => {
+    dispatch({ type: "SET_COURSE_ID", courseId: courseId.trim() });
   }, []);
 
   const setPersonaSelection = useCallback((persona: string) => {
@@ -2134,6 +2166,7 @@ export function UnifiedChatProvider({
       setKBs,
       setLLMSelection,
       setMasteryPathId,
+      setCourseId,
       setPersonaSelection,
       setLanguage,
       sendMessage,
@@ -2159,6 +2192,7 @@ export function UnifiedChatProvider({
       setKBs,
       setLLMSelection,
       setMasteryPathId,
+      setCourseId,
       setPersonaSelection,
       setLanguage,
       sendMessage,

@@ -71,8 +71,28 @@ const TARGETS_WITH_COMPOSER: ReadonlySet<CourseHandoffTarget> = new Set([
   "chat",
 ]);
 
-export function targetAcceptsPrompt(target: CourseHandoffTarget): boolean {
-  return TARGETS_WITH_COMPOSER.has(target);
+/**
+ * Targets whose composer only exists once a specific resource is named.
+ *
+ * `/mastery/<id>/study` and `/reading/<id>` have somewhere to type; the
+ * `/mastery` and `/reading` indexes they fall back to when the course has no
+ * such resource yet do not. Storing a prompt for those is worse than useless:
+ * `setPendingPrompt` is scoped per destination and consumed on arrival, so an
+ * opening line left behind by a card the learner never took resurfaces in
+ * whichever path or workspace they open next, weeks later, about a subject they
+ * were not studying.
+ */
+const TARGETS_NEEDING_REF: ReadonlySet<CourseHandoffTarget> = new Set([
+  "immersive_reading",
+  "mastery_path",
+]);
+
+export function targetAcceptsPrompt(
+  target: CourseHandoffTarget,
+  refId = "",
+): boolean {
+  if (!TARGETS_WITH_COMPOSER.has(target)) return false;
+  return Boolean(refId.trim()) || !TARGETS_NEEDING_REF.has(target);
 }
 
 function isTarget(value: unknown): value is CourseHandoffTarget {
@@ -156,11 +176,16 @@ export function courseHandoffHref(payload: CourseHandoffPayload): string {
   const ref = encodeURIComponent(payload.ref_id);
   switch (payload.target) {
     case "immersive_reading":
-      return payload.ref_id ? `/reading/${ref}` : "/reading";
+      // With nothing to open yet, the index is the honest destination — but it
+      // arrives course-scoped, so whatever the learner makes there attaches
+      // back here instead of stranding them one manual step from the course.
+      return payload.ref_id ? `/reading/${ref}` : `/reading?course=${course}`;
     case "mastery_path":
       // The study route, not the path overview: the overview has no composer,
       // so a prepared opening line would have nowhere to land.
-      return payload.ref_id ? `/mastery/${ref}/study` : "/mastery";
+      return payload.ref_id
+        ? `/mastery/${ref}/study`
+        : `/mastery?course=${course}`;
     case "question_bank":
       return `/space/questions?course=${course}`;
     case "notebook":
@@ -169,4 +194,32 @@ export function courseHandoffHref(payload: CourseHandoffPayload): string {
     case "chat":
       return `/home?course=${course}`;
   }
+}
+
+/**
+ * Remove a hand-off payload the model also printed as prose.
+ *
+ * Some models emit a tool call twice — once properly, and once as literal JSON
+ * in the answer text. The call works and the card renders; the learner is just
+ * shown the raw arguments above it, reading the same recommendation twice, the
+ * second time as machine output. Only applied to a message that really did
+ * produce a hand-off, and only to an object carrying this tool's own required
+ * keys, so ordinary JSON a learner asked about is never touched.
+ *
+ * The payload has no nested objects, which is what makes the brace-free inner
+ * match both sufficient and safe against runaway matching.
+ */
+const LEAKED_HANDOFF = new RegExp(
+  String.raw`(?:^|\n)[ \t]*(?:` +
+    String.raw`\x60\x60\x60(?:json)?[ \t]*\n)?[ \t]*` +
+    String.raw`\{[^{}]*?"target"[ \t]*:[ \t]*"(?:` +
+    COURSE_HANDOFF_TARGETS.join("|") +
+    String.raw`)"[^{}]*?"reason"[ \t]*:[^{}]*\}` +
+    String.raw`(?:[ \t]*\n\x60\x60\x60)?[ \t]*(?=\n|$)`,
+  "g",
+);
+
+export function stripLeakedHandoffJson(content: string): string {
+  if (!content.includes('"target"')) return content;
+  return content.replace(LEAKED_HANDOFF, "").replace(/\n{3,}/g, "\n\n").trim();
 }

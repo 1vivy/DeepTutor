@@ -5,6 +5,7 @@ import {
   courseHandoffFrom,
   courseHandoffHref,
   extractCourseHandoffs,
+  stripLeakedHandoffJson,
   targetAcceptsPrompt,
 } from "../lib/course-handoff";
 
@@ -102,7 +103,10 @@ test("mastery hand-offs land on the study route, which has a composer", () => {
   );
 });
 
-test("a hand-off with no ref falls back to the surface's index", () => {
+test("a hand-off with no ref falls back to the surface's index, still scoped", () => {
+  // The course has none of that kind yet, so the index is the honest
+  // destination — but it must arrive carrying the course, or whatever the
+  // learner builds there is stranded outside the course that sent them.
   const base = {
     prompt: "",
     reason: "",
@@ -112,11 +116,11 @@ test("a hand-off with no ref falls back to the surface's index", () => {
   };
   assert.equal(
     courseHandoffHref({ ...base, target: "immersive_reading" }),
-    "/reading",
+    "/reading?course=c1",
   );
   assert.equal(
     courseHandoffHref({ ...base, target: "mastery_path" }),
-    "/mastery",
+    "/mastery?course=c1",
   );
 });
 
@@ -144,9 +148,64 @@ test("global surfaces are handed the course so they can scope themselves", () =>
 test("only destinations with a composer are offered an opening line", () => {
   // Writing a prepared prompt for a list surface puts it in a slot nobody
   // reads — the card would promise an opening question that never arrives.
-  assert.equal(targetAcceptsPrompt("chat"), true);
-  assert.equal(targetAcceptsPrompt("mastery_path"), true);
-  assert.equal(targetAcceptsPrompt("immersive_reading"), true);
-  assert.equal(targetAcceptsPrompt("question_bank"), false);
-  assert.equal(targetAcceptsPrompt("notebook"), false);
+  assert.equal(targetAcceptsPrompt("chat", ""), true);
+  assert.equal(targetAcceptsPrompt("mastery_path", "path_1"), true);
+  assert.equal(targetAcceptsPrompt("immersive_reading", "rw_1"), true);
+  assert.equal(targetAcceptsPrompt("question_bank", "q"), false);
+  assert.equal(targetAcceptsPrompt("notebook", "n"), false);
+});
+
+test("a composer that only exists per-resource is not offered one without a ref", () => {
+  // Without a ref these route to an index, which has nothing to type into and
+  // never consumes the stored prompt. Offering one there does not merely fail
+  // quietly: `setPendingPrompt` is scoped per destination and consumed on
+  // arrival, so an opening line the learner declined would surface in whatever
+  // path or workspace they opened next.
+  assert.equal(targetAcceptsPrompt("mastery_path", ""), false);
+  assert.equal(targetAcceptsPrompt("immersive_reading", "   "), false);
+  // Chat's composer exists whether or not a resource is named.
+  assert.equal(targetAcceptsPrompt("chat", ""), true);
+});
+
+test("a hand-off the model also printed as prose is not shown twice", () => {
+  // Observed with gemini-3-flash-preview: the tool is called *and* its
+  // arguments are written into the answer, so the card's contents appear above
+  // it as raw JSON.
+  const leaked = [
+    "你目前正处于《操作系统》课程的起点。",
+    "",
+    '{ "target": "mastery_path", "reason": "这是大纲中的第一个单元。", "prompt": "请讲解操作系统的作用与目标。" }',
+  ].join("\n");
+  assert.equal(
+    stripLeakedHandoffJson(leaked),
+    "你目前正处于《操作系统》课程的起点。",
+  );
+
+  const fenced = [
+    "Here is what to do next.",
+    "",
+    "```json",
+    '{"target": "notebook", "reason": "collect these", "prompt": ""}',
+    "```",
+    "",
+    "Take it when you are ready.",
+  ].join("\n");
+  assert.equal(
+    stripLeakedHandoffJson(fenced),
+    "Here is what to do next.\n\nTake it when you are ready.",
+  );
+});
+
+test("stripping leaves JSON that is not a hand-off alone", () => {
+  // A learner asking about a config file must get their answer back intact.
+  const answer =
+    'The shape is:\n\n```json\n{"target": "build/out", "reason": "why"}\n```\n\nUse it like that.';
+  assert.equal(stripLeakedHandoffJson(answer), answer);
+
+  // Right target, but missing the key `course_handoff` always requires.
+  const partial = '{"target": "chat", "prompt": "hi"}';
+  assert.equal(stripLeakedHandoffJson(partial), partial);
+
+  const plain = "No JSON here at all.";
+  assert.equal(stripLeakedHandoffJson(plain), plain);
 });

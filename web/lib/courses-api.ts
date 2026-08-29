@@ -175,6 +175,8 @@ export async function createCourse(input: {
   description?: string;
   color?: string;
   instructions?: string;
+  default_capability?: string;
+  default_persona?: string;
 }): Promise<StudyCourse> {
   const response = await apiFetch(apiUrl("/api/v1/courses"), {
     method: "POST",
