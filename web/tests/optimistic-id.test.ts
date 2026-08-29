@@ -5,7 +5,11 @@ import {
   resolvePersistedMessage,
 } from "../lib/optimistic-id";
 import { reconcileTurnIds } from "../lib/turn-reconcile";
-import { buildVisiblePath, tipMessageId } from "../lib/message-branches";
+import {
+  buildVisiblePath,
+  selectChildBranch,
+  tipMessageId,
+} from "../lib/message-branches";
 import type { MessageItem } from "../context/UnifiedChatContext";
 
 test("optimistic ids are negative and strictly decreasing", () => {
@@ -124,5 +128,89 @@ test("the previous reply stays visible once the next turn is queued", () => {
   assert.deepEqual(
     visible.messages.map((m) => m.content),
     ["q1", "a1", "q2"],
+  );
+});
+
+test("a freshly edited sibling overrides the previously selected branch", () => {
+  const messages = [
+    { id: 10, role: "user" as const, content: "q1", parentMessageId: null },
+    {
+      id: 11,
+      role: "assistant" as const,
+      content: "a1",
+      parentMessageId: 10,
+    },
+    {
+      id: 12,
+      role: "user" as const,
+      content: "original q2",
+      parentMessageId: 11,
+    },
+    {
+      id: -20,
+      role: "user" as const,
+      content: "edited q2",
+      parentMessageId: 11,
+    },
+  ];
+
+  const selectedBranches = selectChildBranch({ "11": 12 }, 11, -20);
+  const visible = buildVisiblePath(
+    messages as unknown as MessageItem[],
+    selectedBranches,
+  );
+
+  assert.deepEqual(
+    visible.messages.map((message) => message.content),
+    ["q1", "a1", "edited q2"],
+  );
+});
+
+test("the edited branch and its reply survive optimistic id reconciliation", () => {
+  const editedId = nextOptimisticId();
+  const replyId = nextOptimisticId();
+  const messages = [
+    { id: 10, role: "user" as const, content: "q1", parentMessageId: null },
+    {
+      id: 11,
+      role: "assistant" as const,
+      content: "a1",
+      parentMessageId: 10,
+    },
+    {
+      id: 12,
+      role: "user" as const,
+      content: "original q2",
+      parentMessageId: 11,
+    },
+    {
+      id: editedId,
+      role: "user" as const,
+      content: "edited q2",
+      parentMessageId: 11,
+    },
+    {
+      id: replyId,
+      role: "assistant" as const,
+      content: "edited a2",
+      parentMessageId: editedId,
+      events: [{ turn_id: "turn_2" }],
+    },
+  ];
+
+  const reconciled = reconcileTurnIds(
+    messages as unknown as MessageItem[],
+    selectChildBranch({}, 11, editedId),
+    { turnId: "turn_2", userMessageId: 30, assistantMessageId: 31 },
+  );
+  const visible = buildVisiblePath(
+    reconciled.messages,
+    reconciled.selectedBranches,
+  );
+
+  assert.equal(reconciled.selectedBranches["11"], 30);
+  assert.deepEqual(
+    visible.messages.map((message) => message.content),
+    ["q1", "a1", "edited q2", "edited a2"],
   );
 });
