@@ -96,7 +96,13 @@ export default function CoursesShelf() {
   }, [sessions]);
 
   const saveCourse = useCallback(
-    async (input: { name: string; description: string; color: string }) => {
+    async (input: {
+      name: string;
+      description: string;
+      color: string;
+      default_capability: string;
+      default_persona: string;
+    }) => {
       const course = await createCourse(input);
       setCourses((previous) => [...previous, course]);
     },

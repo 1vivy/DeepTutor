@@ -28,6 +28,11 @@ class CreateCourseRequest(BaseModel):
     description: str = Field(default="", max_length=300)
     color: str = ""
     instructions: str = Field(default="", max_length=4000)
+    # A course declares the mode and persona its conversations open in. Settable
+    # at creation as well as on edit, so a course made for one way of studying
+    # does not have to be created and then immediately reopened to say so.
+    default_capability: str = Field(default="", max_length=64)
+    default_persona: str = Field(default="", max_length=80)
 
 
 class UpdateCourseRequest(BaseModel):

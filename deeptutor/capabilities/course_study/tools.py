@@ -27,6 +27,7 @@ COURSE_STUDY_TOOL_NAMES: tuple[str, ...] = (
 
 CourseEditAction = Literal[
     "attach",
+    "create",
     "detach",
     "set_instructions",
     "note",
@@ -35,12 +36,26 @@ CourseEditAction = Literal[
 ]
 COURSE_EDIT_ACTIONS: tuple[str, ...] = (
     "attach",
+    "create",
     "detach",
     "set_instructions",
     "note",
     "syllabus",
     "cover",
 )
+
+#: Resource kinds ``course_edit action="create"`` may bring into existence.
+#:
+#: Deliberately not every kind a course can reference. A notebook and a reading
+#: workspace are one-call creations whose whole content is a name — making one
+#: is exactly as reversible as attaching one, and a course with nowhere to put
+#: notes is blocked on a step the learner has no reason to perform by hand. A
+#: mastery path is not in that class: it is generated from a topic through a
+#: wizard that costs a model round and produces a whole module tree, so it stays
+#: a deliberate act on its own surface rather than something a routing turn can
+#: decide to spend. Knowledge bases and books need ingestion, and partners need
+#: authoring; none of those collapse into one argument.
+COURSE_CREATABLE_KINDS: tuple[str, ...] = ("notebook", "reading_workspace")
 
 CourseHandoffTarget = Literal[
     "immersive_reading",
@@ -56,6 +71,14 @@ COURSE_HANDOFF_TARGETS: tuple[str, ...] = (
     "notebook",
     "chat",
 )
+#: Targets whose route names a specific resource, and the kind that resource is.
+#:
+#: The others route on the course alone — the question bank and notebook filter
+#: by it, and chat simply belongs to it — so there is no id to check.
+HANDOFF_REF_KINDS: dict[str, str] = {
+    "immersive_reading": "reading_workspace",
+    "mastery_path": "mastery_path",
+}
 COURSE_HANDOFF_LABELS: dict[str, str] = {
     "immersive_reading": "Immersive Reading",
     "mastery_path": "Mastery Path",
@@ -70,6 +93,32 @@ async def _build_course_state(course_id: str) -> dict[str, Any]:
     from deeptutor.services.courses_state import build_course_state
 
     return await build_course_state(course_id)
+
+
+async def _resolve_reference(kind: str, ref_id: str) -> dict[str, Any] | None:
+    """Deferred bridge to the aggregator's single-reference lookup."""
+    from deeptutor.services.courses_state import resolve_resource_reference
+
+    return await resolve_resource_reference(kind, ref_id)
+
+
+async def _create_resource(kind: str, label: str) -> str:
+    """Create one empty resource of ``kind`` and return its reference id.
+
+    Imports are deferred per branch: this module is loaded whenever the course
+    tools register, and the reading catalog opens a SQLite connection on import
+    of its package.
+    """
+    if kind == "notebook":
+        from deeptutor.services.notebook.service import get_notebook_manager
+
+        notebook = await asyncio.to_thread(get_notebook_manager().create_notebook, label)
+        return str(_mapping(notebook).get("id") or "")
+
+    from deeptutor.reading import ReadingCatalogStore
+
+    workspace = await asyncio.to_thread(ReadingCatalogStore().create_workspace, label)
+    return str(getattr(workspace, "workspace_id", "") or "")
 
 
 def _require_course_id(course_id: str) -> str:
@@ -310,6 +359,37 @@ async def course_edit(
             metadata={"course_id": course_id, "action": clean_action, "resource": row},
         )
 
+    if clean_action == "create":
+        clean_kind = str(kind or "").strip()
+        clean_label = " ".join(str(label or "").split())[:160]
+        if clean_kind not in COURSE_CREATABLE_KINDS:
+            allowed = ", ".join(COURSE_CREATABLE_KINDS)
+            raise ValueError(
+                f"course_edit action 'create' cannot make a {clean_kind!r}; "
+                f"it supports: {allowed}. Anything else must be made on its own "
+                "surface and then attached."
+            )
+        if not clean_label:
+            raise ValueError("course_edit action 'create' requires a label to name the new one.")
+        new_ref_id = await _create_resource(clean_kind, clean_label)
+        resource = await asyncio.to_thread(
+            service.attach_resource,
+            course_id,
+            kind=clean_kind,
+            ref_id=new_ref_id,
+            label=clean_label,
+        )
+        row = _mapping(resource)
+        return ToolResult(
+            content=f"Created {clean_label} and attached it to the course.",
+            metadata={
+                "course_id": course_id,
+                "action": clean_action,
+                "resource": row,
+                "created": True,
+            },
+        )
+
     if clean_action == "detach":
         clean_resource_id = str(resource_id or "").strip()
         if not clean_resource_id:
@@ -399,6 +479,7 @@ async def course_handoff(
     course_id = _require_course_id(_course_id)
     clean_ref_id = str(ref_id or "").strip()
     label = ""
+    unresolved_ref = ""
     if clean_ref_id:
         # Read the registry directly rather than through ``build_course_state``:
         # what is needed is already stored on the attached resource, while the
@@ -426,7 +507,34 @@ async def course_handoff(
         if match is not None:
             clean_ref_id = match.ref_id
             label = match.label
+        elif clean_target in HANDOFF_REF_KINDS:
+            # Not attached here — which is not the same as not existing. A
+            # mastery path the learner built outside this course routes
+            # perfectly well, so the question to ask is whether the destination
+            # subsystem knows the id at all, not whether this course references
+            # it. Observed live: "u2", a *syllabus unit* id handed in as a
+            # mastery path, because both namespaces appear in the state summary
+            # and look alike. Passed through it builds a card pointing at
+            # /mastery/u2/study — a page that does not exist — and, being
+            # non-empty, also tells the client that destination has a composer
+            # waiting for the prepared opening line.
+            detail = await _resolve_reference(HANDOFF_REF_KINDS[clean_target], clean_ref_id)
+            if detail is None:
+                unresolved_ref = clean_ref_id
+                clean_ref_id = ""
+            else:
+                label = str(detail.get("title") or detail.get("name") or "")
     destination = COURSE_HANDOFF_LABELS[clean_target]
+    # Said plainly rather than silently corrected: the model asked for something
+    # specific, and a later round that assumes it was honoured would describe a
+    # destination the learner is not being sent to.
+    unresolved_note = (
+        f" No {destination} exists with id {unresolved_ref!r}, so the card opens "
+        "that surface's index instead; create the resource first if a specific "
+        "one was meant, and do not pass syllabus unit ids here."
+        if unresolved_ref
+        else ""
+    )
     return ToolResult(
         # Names the destination so the next round knows what was offered, and
         # states who decides — the card is a proposal the learner may decline.
@@ -434,6 +542,7 @@ async def course_handoff(
             f"Handoff card prepared: {destination}"
             f"{f' · {label}' if label else ''}. "
             "The learner chooses whether to take it."
+            f"{unresolved_note}"
         ),
         metadata={
             "course_handoff": {
@@ -499,6 +608,7 @@ class CourseEditTool(BaseTool):
             name=self.name,
             description=(
                 "Edit the bound course using one safe action: attach/detach a reference, "
+                "create an empty notebook or reading workspace and attach it, "
                 "replace learner instructions or the syllabus, toggle learner-directed unit "
                 "coverage, or append an assistant learner note."
             ),
@@ -512,7 +622,10 @@ class CourseEditTool(BaseTool):
                 ToolParameter(
                     name="kind",
                     type="string",
-                    description="Resource kind for attach.",
+                    description=(
+                        "Resource kind for attach. For create, one of: "
+                        f"{', '.join(COURSE_CREATABLE_KINDS)}."
+                    ),
                     required=False,
                 ),
                 ToolParameter(
@@ -524,7 +637,10 @@ class CourseEditTool(BaseTool):
                 ToolParameter(
                     name="label",
                     type="string",
-                    description="Optional display label for attach.",
+                    description=(
+                        "Display label for attach (optional); the name of the new "
+                        "resource for create (required)."
+                    ),
                     required=False,
                 ),
                 ToolParameter(

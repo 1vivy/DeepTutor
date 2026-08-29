@@ -83,7 +83,9 @@ import { hasPendingAskUser } from "@/lib/ask-user-state";
 import { useChatAutoScroll } from "@/hooks/useChatAutoScroll";
 import { useMeasuredHeight } from "@/hooks/useMeasuredHeight";
 import { useSetupSync } from "@/hooks/useSetupSync";
+import { listCourses, type StudyCourse } from "@/lib/courses-api";
 import { consumePendingPrompt } from "@/lib/pending-prompt";
+import { updateSessionOrganization } from "@/lib/session-api";
 import {
   loadCapabilityPlaygroundConfigs,
   resolveCapabilityPlaygroundConfig,
@@ -442,6 +444,7 @@ export default function ChatPage() {
     loadSession,
     showCachedSession,
     renameSessionTitle,
+    setCourseId,
   } = useUnifiedChat();
 
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
@@ -462,14 +465,25 @@ export default function ChatPage() {
         ? null
         : new URLSearchParams(window.location.search).get("agent");
   }
-  // A course-page "New course chat" link carries the destination only until
-  // the first turn creates its durable session. Consume it once so later
-  // messages cannot undo an explicit move made from the sidebar.
-  const pendingCourseRef = useRef<string | null | undefined>(undefined);
+  // Which course this conversation belongs to. Lives in chat state (not a
+  // one-shot ref) because the binding is now visible and changeable in the
+  // composer for the whole life of the conversation, not only on the turn that
+  // created it: a `?course=` link seeds it, the pill edits it, and the server's
+  // session preferences are the truth whenever an existing session is opened.
+  const courseId = state.courseId;
+  const [courses, setCourses] = useState<StudyCourse[]>([]);
+  // The course this conversation was *launched* into, and whether its defaults
+  // have been applied. A course declares the mode and persona its conversations
+  // start in; applying them to an existing transcript would silently rewrite
+  // how an ongoing conversation behaves, so they only ever seed a fresh one.
+  const launchCourseRef = useRef<string | null>(null);
+  const courseDefaultsAppliedRef = useRef(false);
   useEffect(() => {
-    pendingCourseRef.current = new URLSearchParams(window.location.search).get(
-      "course",
-    );
+    void listCourses()
+      .then(setCourses)
+      // No courses to offer is a legitimate answer, and the pill degrades to
+      // an empty menu with a link to make one.
+      .catch(() => setCourses([]));
   }, []);
   const agentPreselectDoneRef = useRef(false);
   const {
@@ -1354,6 +1368,13 @@ export default function ChatPage() {
       );
       return;
     }
+    const launchCourse = new URLSearchParams(window.location.search)
+      .get("course")
+      ?.trim();
+    if (launchCourse) {
+      setCourseId(launchCourse);
+      launchCourseRef.current = launchCourse;
+    }
     if (intent.capability !== null) handleSelectCapability(intent.capability);
     else if (intent.tools.length) {
       const valid = intent.tools.filter((t): t is ToolName =>
@@ -1363,6 +1384,46 @@ export default function ChatPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* What a conversation inherits from the course it opens in: its mode, its
+     persona, and its material.
+     
+     The server has always been willing to supply these (`_apply_course_defaults`
+     in turn_runtime) — but only for a payload that omits the fields, and this
+     composer always sends all three, so the branch never ran for anyone using
+     the app. Doing it here instead also puts the inheritance where the learner
+     can see it: the mode chip and the knowledge-base selection visibly become
+     the course's before they type, and stay theirs to override.
+     
+     Applied once, and only to a conversation launched into the course with
+     nothing said yet: an explicit `?capability=` is the learner being specific
+     and outranks the course, and a transcript already underway keeps whatever
+     it has been running as. */
+  useEffect(() => {
+    if (courseDefaultsAppliedRef.current) return;
+    const launched = launchCourseRef.current;
+    if (!launched || !courses.length || hasMessages) return;
+    const course = courses.find((item) => item.id === launched);
+    if (!course) return;
+    courseDefaultsAppliedRef.current = true;
+    const explicitCapability = readChatLaunchIntent(
+      window.location.search,
+    ).capability;
+    if (explicitCapability === null && course.default_capability) {
+      handleSelectCapability(course.default_capability);
+    }
+    if (course.default_persona) setPersonaSelection(course.default_persona);
+    // The course's own reading is what a conversation inside it should be able
+    // to search. Only seeds an untouched selection — never clears one the
+    // learner already made.
+    const courseKbs = course.resources
+      .filter((resource) => resource.kind === "knowledge_base")
+      .map((resource) => resource.ref_id);
+    if (courseKbs.length && state.knowledgeBases.length === 0) {
+      setKBs(courseKbs);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courses, hasMessages]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -1404,6 +1465,26 @@ export default function ChatPage() {
   }, [activeCap.allowedTools, setTools, state.enabledTools, userEnabledTools]);
 
   /* ---- handlers ---- */
+
+  /* Changing the course from the composer. An existing conversation is moved
+     right away rather than at the next turn: the sidebar groups by this, so a
+     move the learner made but never "confirmed" by typing would look like it
+     did not take. A conversation with no session yet has nothing to write to —
+     its binding rides along with the first turn's `_course_id`. */
+  const handleSelectCourse = useCallback(
+    (nextCourseId: string) => {
+      setCourseId(nextCourseId);
+      const sid = state.sessionId;
+      if (!sid) return;
+      void updateSessionOrganization(sid, {
+        course_id: nextCourseId,
+      }).catch(() => {
+        // The turn's own `_course_id` still carries the change, so a failed
+        // eager write costs the sidebar an immediate regroup, nothing more.
+      });
+    },
+    [setCourseId, state.sessionId],
+  );
 
   const handleSelectCapability = useCallback(
     (value: string) => {
@@ -1928,10 +2009,11 @@ export default function ChatPage() {
       if (selectedAgent && subagentBudget) {
         config = { ...(config ?? {}), subagent_consult_budget: subagentBudget };
       }
-      const launchCourseId = pendingCourseRef.current?.trim();
-      if (launchCourseId) {
-        config = { ...(config ?? {}), _course_id: launchCourseId };
-      }
+      // Sent on every turn, including empty to mean "not in a course". The
+      // server treats the key's presence as explicit and writes it to the
+      // session's preferences, so the pill's state and the conversation's real
+      // binding can never drift apart — and detaching actually detaches.
+      config = { ...(config ?? {}), _course_id: courseId };
 
       const memoryPayload = [...memoryReferencesPayload];
       const messageContent =
@@ -1961,7 +2043,6 @@ export default function ChatPage() {
         undefined,
         memoryPayload,
       );
-      pendingCourseRef.current = null;
       shouldAutoScrollRef.current = true;
       setAttachments([]);
       setSelectedBookReferences([]);
@@ -1974,6 +2055,7 @@ export default function ChatPage() {
     [
       attachments,
       bookReferencesPayload,
+      courseId,
       historyReferencesPayload,
       isQuizMode,
       isResearchMode,
@@ -2455,6 +2537,9 @@ export default function ChatPage() {
                 dragCounter={dragCounter}
                 dragging={dragging}
                 capMenuOpen={capMenuOpen}
+                courses={courses}
+                courseId={courseId}
+                onSelectCourse={handleSelectCourse}
                 spaceMenuOpen={spaceMenuOpen}
                 hasMessages={hasMessages}
                 attachments={attachments}

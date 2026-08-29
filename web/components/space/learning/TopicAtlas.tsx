@@ -22,12 +22,15 @@ export function TopicAtlas({
   error,
   onCreate,
   onRetry,
+  scopeChip,
 }: {
   topics: MasteryTopic[];
   loading: boolean;
   error: string | null;
   onCreate: (trigger: HTMLButtonElement) => void;
   onRetry: () => void;
+  /** Rendered beside the eyebrow when this visit belongs to one course. */
+  scopeChip?: React.ReactNode;
 }) {
   const { t } = useTranslation();
   const activeTopics = topics.filter((topic) => topic.metadata.status === "active");
@@ -45,9 +48,12 @@ export function TopicAtlas({
       <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
         <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-[var(--muted-foreground)]">
-              <Compass className="h-4 w-4" />
-              {t("Mastery Path")}
+            <div className="mb-2 flex items-center gap-2 text-[11px] font-medium text-[var(--muted-foreground)]">
+              <span className="inline-flex items-center gap-1.5">
+                <Compass className="h-4 w-4" />
+                {t("Mastery Path")}
+              </span>
+              {scopeChip}
             </div>
             <h1 className="font-serif text-[22px] font-semibold tracking-[-0.01em] text-[var(--foreground)]">
               {t("Your learning topics")}

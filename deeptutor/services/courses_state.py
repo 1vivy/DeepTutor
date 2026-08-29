@@ -181,17 +181,41 @@ async def _partner_index() -> ResourceIndex:
     return result
 
 
+async def resolve_resource_reference(kind: str, ref_id: str) -> dict[str, Any] | None:
+    """Look one reference up in the system that owns that kind.
+
+    Membership of a *course* is the wrong question for "can this be opened?" —
+    a mastery path the learner built outside this course is perfectly routable.
+    What must be checked is that the id exists at all in the subsystem the link
+    points at. Loads only the one index it needs; enumerating all seven walks
+    four other subsystems for a single lookup.
+    """
+    loader = _INDEX_LOADERS.get(kind)
+    clean_ref = str(ref_id or "").strip()
+    if loader is None or not clean_ref:
+        return None
+    index = await _safe_index(kind, loader)
+    detail = index.get(clean_ref)
+    return dict(detail) if isinstance(detail, dict) else None
+
+
+#: One loader per kind that has a registry to enumerate. Shared by the whole-set
+#: aggregate and the single-reference lookup above, so the two can never
+#: disagree about what a kind's ids are.
+_INDEX_LOADERS: dict[str, Callable[[], Awaitable[ResourceIndex]]] = {
+    "knowledge_base": _knowledge_base_index,
+    "book": _book_index,
+    "notebook": _notebook_index,
+    "mastery_path": _mastery_path_index,
+    "reading_workspace": _reading_workspace_index,
+    "partner": _partner_index,
+}
+
+
 async def _resource_indexes() -> dict[str, ResourceIndex]:
     from deeptutor.services.courses import COURSE_RESOURCE_KINDS
 
-    loaders: dict[str, Callable[[], Awaitable[ResourceIndex]]] = {
-        "knowledge_base": _knowledge_base_index,
-        "book": _book_index,
-        "notebook": _notebook_index,
-        "mastery_path": _mastery_path_index,
-        "reading_workspace": _reading_workspace_index,
-        "partner": _partner_index,
-    }
+    loaders = _INDEX_LOADERS
     loaded = await asyncio.gather(*(_safe_index(kind, loader) for kind, loader in loaders.items()))
     indexes = {kind: index for kind, index in zip(loaders, loaded, strict=True)}
     # No partner-group registry exists in the partner subsystem yet. Keep the

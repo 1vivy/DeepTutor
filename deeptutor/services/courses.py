@@ -346,6 +346,8 @@ class CourseService:
         description: str = "",
         color: str = "",
         instructions: str = "",
+        default_capability: str = "",
+        default_persona: str = "",
     ) -> StudyCourse:
         with self._lock:
             courses = self._load()
@@ -360,6 +362,8 @@ class CourseService:
                 created_at=now,
                 updated_at=now,
                 instructions=_clip(instructions, INSTRUCTIONS_LIMIT),
+                default_capability=str(default_capability or "").strip()[:64],
+                default_persona=str(default_persona or "").strip()[:80],
             )
             courses.append(course)
             self._save(courses)

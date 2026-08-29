@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
   BookOpen,
   Bot,
@@ -55,11 +56,50 @@ function useKindNames(): Record<CourseResourceKind, string> {
   };
 }
 
+/**
+ * Ways to bring something new into a course, rather than only reference what
+ * already exists.
+ *
+ * A brand-new course used to offer nothing but an empty picker: every tile told
+ * the learner to attach a path or a workspace, and the only place to make one
+ * was a surface that did not know the course existed — so whatever they built
+ * there stayed there. Each of these carries `?course=`, which those surfaces now
+ * read: the thing created arrives already attached.
+ */
+const CREATE_ROUTES: {
+  kind: CourseResourceKind;
+  href: (courseId: string) => string;
+  label: string;
+}[] = [
+  {
+    kind: "knowledge_base",
+    href: () => "/knowledge",
+    label: "New knowledge base",
+  },
+  {
+    kind: "mastery_path",
+    href: (courseId) => `/mastery?course=${encodeURIComponent(courseId)}`,
+    label: "New mastery path",
+  },
+  {
+    kind: "reading_workspace",
+    href: (courseId) => `/reading?course=${encodeURIComponent(courseId)}`,
+    label: "New reading collection",
+  },
+  {
+    kind: "notebook",
+    href: (courseId) => `/notebook?course=${encodeURIComponent(courseId)}`,
+    label: "New notebook",
+  },
+];
+
 export default function CourseResources({
+  courseId,
   resources,
   onAttach,
   onDetach,
 }: {
+  courseId: string;
   resources: CourseResourceState[];
   onAttach: (input: {
     kind: CourseResourceKind;
@@ -201,14 +241,15 @@ export default function CourseResources({
             <p className="text-[11.5px] text-[var(--muted-foreground)]">
               {t("Loading")}
             </p>
-          ) : candidateCount === 0 ? (
-            <p className="text-[11.5px] text-[var(--muted-foreground)]">
-              {t(
-                "Nothing available to attach yet — create a knowledge base, book, or mastery path first.",
-              )}
-            </p>
           ) : (
             <div className="space-y-3">
+              {candidateCount === 0 ? (
+                <p className="text-[11.5px] leading-relaxed text-[var(--muted-foreground)]">
+                  {t(
+                    "Nothing made yet to attach. Start one below and it joins this course as soon as it exists.",
+                  )}
+                </p>
+              ) : null}
               {(Object.keys(candidates) as CourseResourceKind[]).map((kind) => {
                 const rows = candidates[kind] ?? [];
                 if (rows.length === 0) return null;
@@ -239,6 +280,27 @@ export default function CourseResources({
                   </div>
                 );
               })}
+
+              <div className="border-t border-[var(--border)]/70 pt-3">
+                <p className="text-[10.5px] text-[var(--muted-foreground)]/80">
+                  {t("Start something new")}
+                </p>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {CREATE_ROUTES.map((route) => {
+                    const Icon = KIND_ICONS[route.kind];
+                    return (
+                      <Link
+                        key={route.kind}
+                        href={route.href(courseId)}
+                        className="inline-flex max-w-[220px] items-center gap-1.5 rounded-lg border border-dashed border-[var(--border)] px-2 py-1 text-[11.5px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--ring)] hover:text-[var(--foreground)]"
+                      >
+                        <Icon size={12} strokeWidth={1.7} className="shrink-0" />
+                        <span className="truncate">{t(route.label)}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           )}
         </div>

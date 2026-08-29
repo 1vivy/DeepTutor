@@ -260,7 +260,14 @@ export default function CourseDetailPage() {
             {menuOpen ? (
               <div className="absolute right-0 top-10 z-20 w-40 rounded-xl border border-[var(--border)] bg-[var(--popover)] p-1.5 text-[12px] shadow-xl">
                 <Link
-                  href={`/home?course=${encodeURIComponent(course.id)}`}
+                  // Carries the course's declared starting mode, so "a new chat
+                  // in this course" opens the way this course is studied rather
+                  // than in whatever mode the composer was last left in.
+                  href={`/home?course=${encodeURIComponent(course.id)}${
+                    course.default_capability
+                      ? `&capability=${encodeURIComponent(course.default_capability)}`
+                      : ""
+                  }`}
                   onClick={() => setMenuOpen(false)}
                   className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-[var(--muted)]"
                 >
@@ -323,6 +330,7 @@ export default function CourseDetailPage() {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <CourseResources
+          courseId={course.id}
           resources={state?.resources ?? []}
           onAttach={attachResource}
           onDetach={detachResource}

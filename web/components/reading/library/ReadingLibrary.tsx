@@ -23,6 +23,11 @@ import {
   type ReadingWorkspace,
 } from "@/lib/reading-workspace-api";
 
+import {
+  CourseScopeChip,
+  useCourseScope,
+} from "@/components/courses/CourseScope";
+
 import { AddMaterialsDialog } from "./AddMaterialsDialog";
 import { LibraryShell } from "./LibraryShell";
 import { MaterialGlyph, relativeDate } from "./shared";
@@ -43,6 +48,9 @@ export function ReadingLibraryPage() {
   const [deleteTarget, setDeleteTarget] = useState<ReadingWorkspace | null>(
     null,
   );
+
+  // Present when opened from a course page or a Course Study hand-off.
+  const scope = useCourseScope();
 
   const refresh = useCallback(async () => {
     setError("");
@@ -85,23 +93,31 @@ export function ReadingLibraryPage() {
     [materials],
   );
 
+  // Opened inside a course, this is that course's shelf: only the collections
+  // it references, and anything made here joins it. A course that references
+  // none shows the empty pitch, which is now a real offer rather than a dead
+  // end — creating from it attaches on the way out.
   const rows = useMemo(() => {
-    const sorted = [...collections];
+    const allowed = scope ? new Set(scope.refIds("reading_workspace")) : null;
+    const sorted = collections.filter(
+      (collection) => !allowed || allowed.has(collection.workspace_id),
+    );
     sorted.sort((a, b) =>
       sort === "name"
         ? a.title.localeCompare(b.title, i18n.language)
         : b.updated_at - a.updated_at,
     );
     return sorted;
-  }, [collections, i18n.language, sort]);
+  }, [collections, i18n.language, scope, sort]);
 
   return (
     <LibraryShell
       view="collections"
-      collectionCount={collections.length}
+      collectionCount={rows.length}
       materialCount={materials.length}
       actionLabel={t("New collection")}
       onAction={() => setShowAdd(true)}
+      scopeChip={scope ? <CourseScopeChip scope={scope} /> : null}
     >
       <div className="mt-5 flex flex-col gap-3 border-b border-[var(--border)] pb-3 sm:flex-row sm:items-center">
         <label className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-[var(--border)] px-2.5 sm:max-w-[330px]">
@@ -127,7 +143,7 @@ export function ReadingLibraryPage() {
         </label>
         <div className="flex items-center gap-2 sm:ml-auto">
           <span className="text-[11px] text-[var(--muted-foreground)]">
-            {t("{{count}} collections", { count: collections.length })}
+            {t("{{count}} collections", { count: rows.length })}
           </span>
           <div className="flex overflow-hidden rounded-md border border-[var(--border)]">
             <SortButton
@@ -209,10 +225,16 @@ export function ReadingLibraryPage() {
         <AddMaterialsDialog
           mode="create"
           onClose={() => setShowAdd(false)}
-          onDone={({ workspace }) => {
+          onDone={async ({ workspace }) => {
             setShowAdd(false);
-            if (workspace) router.push(`/reading/${workspace.workspace_id}`);
-            else void refresh();
+            if (workspace) {
+              await scope?.attach(
+                "reading_workspace",
+                workspace.workspace_id,
+                workspace.title,
+              );
+              router.push(`/reading/${workspace.workspace_id}`);
+            } else void refresh();
           }}
         />
       )}

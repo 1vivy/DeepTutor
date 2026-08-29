@@ -106,6 +106,56 @@ export default function OrganizedSessionList({
     [nested, sessions],
   );
 
+  /* Roots gathered under the course they belong to.
+   *
+   * Assigning a conversation to a course used to be write-only: the ⋯ menu
+   * could move it, and nothing anywhere then showed where it had gone. Filing
+   * you cannot read back is not filing, so the list groups by it — a course is
+   * the container everything else in the product hangs off, and this is the one
+   * place a learner passes every day.
+   *
+   * Courses keep the order the shelf gives them (so the sidebar and the Courses
+   * page agree), each holding its conversations in their existing recency
+   * order; anything unfiled stays at the top, ungrouped, because most
+   * conversations never belong to a course and must not be pushed under a
+   * heading to reach them.
+   */
+  const { ungrouped, grouped } = useMemo(() => {
+    const byCourse = new Map<string, SessionSummary[]>();
+    const loose: SessionSummary[] = [];
+    for (const session of roots) {
+      const id = String(session.preferences?.course_id || "");
+      if (!id) {
+        loose.push(session);
+        continue;
+      }
+      const bucket = byCourse.get(id);
+      if (bucket) bucket.push(session);
+      else byCourse.set(id, [session]);
+    }
+    const known = courses
+      .filter((course) => byCourse.has(course.id))
+      .map((course) => ({ course, rows: byCourse.get(course.id) ?? [] }));
+    // A conversation whose course was deleted is unclassified in every other
+    // view; hiding it here instead would lose it entirely.
+    const knownIds = new Set(courses.map((course) => course.id));
+    for (const [id, rows] of byCourse) {
+      if (!knownIds.has(id)) loose.push(...rows);
+    }
+    return { ungrouped: loose, grouped: known };
+  }, [courses, roots]);
+
+  const [collapsedCourses, setCollapsedCourses] = useState<Set<string>>(
+    new Set(),
+  );
+  const toggleCourse = (courseId: string) =>
+    setCollapsedCourses((previous) => {
+      const next = new Set(previous);
+      if (next.has(courseId)) next.delete(courseId);
+      else next.add(courseId);
+      return next;
+    });
+
   useEffect(() => {
     if (!openMenuId) return;
     const closeMenu = () => {
@@ -388,7 +438,43 @@ export default function OrganizedSessionList({
   };
 
   return (
-    <div className="py-0.5">{roots.map((session) => renderRow(session))}</div>
+    <div className="py-0.5">
+      {ungrouped.map((session) => renderRow(session))}
+      {grouped.map(({ course, rows }) => {
+        const collapsed = collapsedCourses.has(course.id);
+        return (
+          <div key={course.id} className="mt-1.5 first:mt-0.5">
+            <button
+              type="button"
+              onClick={() => toggleCourse(course.id)}
+              aria-expanded={!collapsed}
+              className="flex w-full min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-1 text-left text-[10.5px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]/75 transition-colors hover:bg-[var(--background)]/40 hover:text-[var(--foreground)]"
+            >
+              <ChevronRight
+                size={11}
+                className={`shrink-0 transition-transform ${collapsed ? "" : "rotate-90"}`}
+              />
+              <span
+                aria-hidden
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: course.color }}
+              />
+              <span className="min-w-0 flex-1 truncate normal-case">
+                {course.name}
+              </span>
+              <span className="shrink-0 tabular-nums opacity-70">
+                {rows.length}
+              </span>
+            </button>
+            {collapsed ? null : (
+              <div className="ml-1.5 border-l border-[var(--border)]/50 pl-1">
+                {rows.map((session) => renderRow(session))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

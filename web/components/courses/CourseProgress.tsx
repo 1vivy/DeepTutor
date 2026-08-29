@@ -55,10 +55,13 @@ export default function CourseProgress({
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <Tile
+        // The index carries the course so it opens as this course's shelf: what
+        // gets built there attaches back here instead of stranding the learner
+        // one manual step away from the container they started in.
         href={
           paths.length === 1
             ? `/mastery/${encodeURIComponent(paths[0].path_id)}`
-            : "/mastery"
+            : `/mastery?course=${course}`
         }
         icon={GraduationCap}
         label={t("Mastery Path")}
@@ -101,7 +104,7 @@ export default function CourseProgress({
         href={
           workspaces.length === 1
             ? `/reading/${encodeURIComponent(workspaces[0].workspace_id)}`
-            : "/reading"
+            : `/reading?course=${course}`
         }
         icon={ScrollText}
         label={t("Immersive Reading")}
