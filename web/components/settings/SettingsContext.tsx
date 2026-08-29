@@ -561,26 +561,44 @@ type SettingsContextValue = {
   // Catalog mutation
   mutateCatalog: (mutator: (next: Catalog) => void) => void;
   addProfile: (service: ServiceName) => void;
-  removeActiveProfile: (service: ServiceName) => void;
-  addModel: (service: ServiceName) => void;
-  removeActiveModel: (service: ServiceName) => void;
+  /** Omitting the id targets whatever is in use — the historical meaning. */
+  removeActiveProfile: (service: ServiceName, profileId?: string) => void;
+  addModel: (service: ServiceName, profileId?: string) => void;
+  removeActiveModel: (
+    service: ServiceName,
+    profileId?: string,
+    modelId?: string,
+  ) => void;
   updateProfileField: (
     service: ServiceName,
     field: keyof CatalogProfile,
     value: string,
+    profileId?: string,
   ) => void;
   updateModelField: (
     service: ServiceName,
     field: keyof CatalogModel,
     value: string,
+    profileId?: string,
+    modelId?: string,
   ) => void;
   updateModelBoolField: (
     service: ServiceName,
     field: keyof CatalogModel,
     value: boolean,
+    profileId?: string,
+    modelId?: string,
   ) => void;
-  updateContextWindowField: (value: string) => void;
-  updateReasoningEffort: (value: string) => void;
+  updateContextWindowField: (
+    value: string,
+    profileId?: string,
+    modelId?: string,
+  ) => void;
+  updateReasoningEffort: (
+    value: string,
+    profileId?: string,
+    modelId?: string,
+  ) => void;
 
   // Connections + task models
   connectionTargets: ConnectionTarget[];
@@ -1028,15 +1046,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   );
 
   const removeActiveProfile = useCallback(
-    (service: ServiceName) => {
+    (service: ServiceName, profileId?: string) => {
       mutateCatalog((next) => {
         const target = next.services[service];
+        const doomed = profileId ?? target.active_profile_id;
         target.profiles = target.profiles.filter(
-          (profile) => profile.id !== target.active_profile_id,
+          (profile) => profile.id !== doomed,
         );
-        target.active_profile_id = target.profiles[0]?.id ?? null;
-        if (service !== "search") {
-          target.active_model_id = target.profiles[0]?.models?.[0]?.id ?? null;
+        // Deleting a profile that was not in use leaves the selection alone.
+        if (target.active_profile_id === doomed) {
+          target.active_profile_id = target.profiles[0]?.id ?? null;
+          if (service !== "search") {
+            target.active_model_id = target.profiles[0]?.models?.[0]?.id ?? null;
+          }
         }
       });
     },
@@ -1044,14 +1066,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   );
 
   const addModel = useCallback(
-    (service: ServiceName) => {
+    (service: ServiceName, profileId?: string) => {
       if (service === "search") return;
       mutateCatalog((next) => {
         const target = next.services[service];
-        const profile =
-          target.profiles.find(
-            (item) => item.id === target.active_profile_id,
-          ) ?? null;
+        const profile = profileId
+          ? (target.profiles.find((item) => item.id === profileId) ?? null)
+          : (target.profiles.find(
+              (item) => item.id === target.active_profile_id,
+            ) ?? null);
         if (!profile) return;
         const providerOption = (providers[service] || []).find(
           (p) => p.value === profile.binding,
@@ -1077,7 +1100,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
               }
             : {}),
         });
-        target.active_model_id = modelId;
+        // A model added to the profile in use becomes the one in use; adding
+        // to any other profile must not move what chat resolves.
+        if (profile.id === target.active_profile_id) {
+          target.active_model_id = modelId;
+        }
       });
     },
     [embeddingDefaultDim, language, mutateCatalog, providers],
@@ -1284,64 +1311,121 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   );
 
   const removeActiveModel = useCallback(
-    (service: ServiceName) => {
+    (service: ServiceName, profileId?: string, modelId?: string) => {
       if (service === "search") return;
       mutateCatalog((next) => {
         const target = next.services[service];
-        const profile =
-          target.profiles.find(
-            (item) => item.id === target.active_profile_id,
-          ) ?? null;
+        const profile = profileId
+          ? (target.profiles.find((item) => item.id === profileId) ?? null)
+          : (target.profiles.find(
+              (item) => item.id === target.active_profile_id,
+            ) ?? null);
         if (!profile) return;
-        profile.models = profile.models.filter(
-          (item) => item.id !== target.active_model_id,
-        );
-        target.active_model_id = profile.models[0]?.id ?? null;
+        const doomed = modelId ?? target.active_model_id;
+        profile.models = profile.models.filter((item) => item.id !== doomed);
+        if (target.active_model_id === doomed) {
+          target.active_model_id =
+            profile.id === target.active_profile_id
+              ? (profile.models[0]?.id ?? null)
+              : target.active_model_id;
+        }
       });
     },
     [mutateCatalog],
   );
 
+  /**
+   * Which profile/model an edit lands on.
+   *
+   * Everything here used to write to whatever was *active*, because selecting
+   * a profile and putting it into use were the same act. The model pages now
+   * let you open a profile without adopting it, so an edit has to name its
+   * target — omitting it keeps the old meaning, so no existing caller changes.
+   */
+  const targetProfile = useCallback(
+    (next: Catalog, service: ServiceName, profileId?: string) =>
+      profileId
+        ? (next.services[service].profiles.find(
+            (item) => item.id === profileId,
+          ) ?? null)
+        : getActiveProfile(next, service),
+    [],
+  );
+
+  const targetModel = useCallback(
+    (
+      next: Catalog,
+      service: ServiceName,
+      profileId?: string,
+      modelId?: string,
+    ) => {
+      if (!profileId && !modelId) return getActiveModel(next, service);
+      const profile = targetProfile(next, service, profileId);
+      if (!profile) return null;
+      return modelId
+        ? (profile.models.find((item) => item.id === modelId) ?? null)
+        : (profile.models[0] ?? null);
+    },
+    [targetProfile],
+  );
+
   const updateProfileField = useCallback(
-    (service: ServiceName, field: keyof CatalogProfile, value: string) => {
+    (
+      service: ServiceName,
+      field: keyof CatalogProfile,
+      value: string,
+      profileId?: string,
+    ) => {
       mutateCatalog((next) => {
-        const profile = getActiveProfile(next, service);
+        const profile = targetProfile(next, service, profileId);
         if (!profile) return;
         (profile[field] as string | undefined) = value;
       });
     },
-    [mutateCatalog],
+    [mutateCatalog, targetProfile],
   );
 
   const updateModelField = useCallback(
-    (service: ServiceName, field: keyof CatalogModel, value: string) => {
+    (
+      service: ServiceName,
+      field: keyof CatalogModel,
+      value: string,
+      profileId?: string,
+      modelId?: string,
+    ) => {
       if (service === "search") return;
       mutateCatalog((next) => {
-        const model = getActiveModel(next, service);
+        const model = targetModel(next, service, profileId, modelId);
         if (!model) return;
         (model[field] as string | undefined) = value;
       });
     },
-    [mutateCatalog],
+    [mutateCatalog, targetModel],
   );
 
   const updateModelBoolField = useCallback(
-    (service: ServiceName, field: keyof CatalogModel, value: boolean) => {
+    (
+      service: ServiceName,
+      field: keyof CatalogModel,
+      value: boolean,
+      profileId?: string,
+      modelId?: string,
+    ) => {
       if (service === "search") return;
       mutateCatalog((next) => {
-        const model = getActiveModel(next, service);
+        const model = targetModel(next, service, profileId, modelId);
         if (!model) return;
         (model[field] as boolean | undefined) = value;
       });
     },
-    [mutateCatalog],
+    [mutateCatalog, targetModel],
   );
 
   const updateContextWindowField = useCallback(
-    (value: string) => {
+    (value: string, profileId?: string, modelId?: string) => {
       const normalized = value.replace(/[^\d]/g, "");
       mutateCatalog((next) => {
-        const model = getActiveModel(next, "llm");
+        const model = targetModel(next, "llm", profileId, modelId);
         if (!model) return;
         if (normalized) {
           model.context_window = normalized;
@@ -1354,18 +1438,18 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         }
       });
     },
-    [mutateCatalog],
+    [mutateCatalog, targetModel],
   );
 
   const updateReasoningEffort = useCallback(
-    (value: string) => {
+    (value: string, profileId?: string, modelId?: string) => {
       mutateCatalog((next) => {
-        const model = getActiveModel(next, "llm");
+        const model = targetModel(next, "llm", profileId, modelId);
         if (!model) return;
         setModelReasoningEffort(model, value);
       });
     },
-    [mutateCatalog],
+    [mutateCatalog, targetModel],
   );
 
   const applyDetectedContextWindow = useCallback(() => {

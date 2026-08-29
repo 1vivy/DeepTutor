@@ -3631,5 +3631,15 @@
   "Set up with DeepTutor": "让 DeepTutor 帮我配置",
   "Delete this profile and every model under it?": "删除这个配置，以及它下面的所有模型？",
   "Model services": "模型服务",
-  "Test passed": "测试通过"
+  "Test passed": "测试通过",
+  "Providers": "供应商",
+  "Add provider": "添加供应商",
+  "Add model": "添加模型",
+  "All providers": "全部供应商",
+  "Edit model": "编辑模型",
+  "Provider default endpoint": "供应商默认地址",
+  "{{n}} ctx": "{{n}} 上下文",
+  "{{n}} dim": "{{n}} 维",
+  "No model id yet": "还没填模型 ID",
+  "Set as active": "设为使用中"
 }

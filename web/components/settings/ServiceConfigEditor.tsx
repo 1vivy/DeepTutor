@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Terminal,
   Trash2,
+  X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -43,6 +44,15 @@ import {
   useSettings,
 } from "./SettingsContext";
 import { DimensionField } from "./DimensionField";
+import {
+  AddCard,
+  BackRow,
+  CardAction,
+  CardGrid,
+  ModelCard,
+  ProfileCard,
+  SectionHead,
+} from "./ModelCards";
 import { nextProfileName } from "./profile-naming";
 import { searchProviderFields } from "./search-providers";
 import {
@@ -81,19 +91,76 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
     removeActiveProfile,
     addModel,
     removeActiveModel,
-    updateProfileField,
-    updateModelField,
-    updateModelBoolField,
-    updateContextWindowField,
-    updateReasoningEffort,
+    updateProfileField: setProfileField,
+    updateModelField: setModelField,
+    updateModelBoolField: setModelBoolField,
+    updateContextWindowField: setContextWindowField,
+    updateReasoningEffort: setReasoningEffort,
     llmContextDetection,
     applyDetectedContextWindow,
     runDetailedTest,
     setToast,
   } = useSettings();
 
-  const activeProfile = getActiveProfile(draft, service);
-  const activeModel = getActiveModel(draft, service);
+  const profiles = draft.services[service].profiles;
+  const inUseProfileId = draft.services[service].active_profile_id;
+  const inUseModelId = draft.services[service].active_model_id;
+
+  // ── Browsing vs using ───────────────────────────────────────────────────
+  //
+  // A page opens on its providers. Opening one drills into its models;
+  // expanding one edits its connection in place. Neither adopts it — "in use"
+  // is now a separate, deliberate act, which is what lets you look at a
+  // provider you are not currently running on without switching to it.
+  const [openProfileId, setOpenProfileId] = useState<string | null>(null);
+  const [expandedProfileId, setExpandedProfileId] = useState<string | null>(
+    null,
+  );
+  const [expandedModelId, setExpandedModelId] = useState<string | null>(null);
+
+  const openedProfile = profiles.find((item) => item.id === openProfileId) ?? null;
+  const expandedProfile =
+    profiles.find((item) => item.id === expandedProfileId) ?? null;
+
+  // Whatever the field editors below are pointed at. Falling back to the
+  // profile in use keeps every reference working before anything is opened.
+  const activeProfile =
+    openedProfile ?? expandedProfile ?? getActiveProfile(draft, service);
+  const activeModel = openedProfile
+    ? ((expandedModelId
+        ? openedProfile.models.find((item) => item.id === expandedModelId)
+        : null) ?? null)
+    : getActiveModel(draft, service);
+
+  // The context's mutators write to whatever is in use unless told otherwise.
+  // Binding them to what is on screen here means the ~300 lines of field
+  // editors below need no knowledge of any of this.
+  const updateProfileField = useCallback(
+    (svc: ServiceName, field: keyof CatalogProfile, value: string) =>
+      setProfileField(svc, field, value, activeProfile?.id),
+    [setProfileField, activeProfile?.id],
+  );
+  const updateModelField = useCallback(
+    (svc: ServiceName, field: keyof CatalogModel, value: string) =>
+      setModelField(svc, field, value, activeProfile?.id, activeModel?.id),
+    [setModelField, activeProfile?.id, activeModel?.id],
+  );
+  const updateModelBoolField = useCallback(
+    (svc: ServiceName, field: keyof CatalogModel, value: boolean) =>
+      setModelBoolField(svc, field, value, activeProfile?.id, activeModel?.id),
+    [setModelBoolField, activeProfile?.id, activeModel?.id],
+  );
+  const updateContextWindowField = useCallback(
+    (value: string) =>
+      setContextWindowField(value, activeProfile?.id, activeModel?.id),
+    [setContextWindowField, activeProfile?.id, activeModel?.id],
+  );
+  const updateReasoningEffort = useCallback(
+    (value: string) =>
+      setReasoningEffort(value, activeProfile?.id, activeModel?.id),
+    [setReasoningEffort, activeProfile?.id, activeModel?.id],
+  );
+
   const activeProviderValue =
     service === "search"
       ? activeProfile?.provider || ""
@@ -119,10 +186,11 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
   // The query is read from `window.location` rather than `useSearchParams()`
   // so no settings page needs a Suspense boundary for something that only
   // exists after hydration.
+  // Arriving from Settings > Connections with ?profile=<id>: open that
+  // provider's connection panel. It used to have to *adopt* the profile to
+  // show it, because selecting and using were the same act — with the two
+  // separated, following the link costs nothing and needs no warning.
   const deepLinkHandled = useRef(false);
-  const [deepLink, setDeepLink] = useState<{ from: string; to: string } | null>(
-    null,
-  );
   useEffect(() => {
     if (deepLinkHandled.current) return;
     const requested = new URLSearchParams(window.location.search).get("profile");
@@ -130,35 +198,14 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
       deepLinkHandled.current = true;
       return;
     }
-    const bucket = draft.services[service];
-    const target = bucket.profiles.find((item) => item.id === requested);
     // The catalog may still be loading; leave the flag down and retry.
-    if (!target) return;
+    if (!profiles.some((item) => item.id === requested)) return;
     deepLinkHandled.current = true;
-    // Drop the query so a refresh does not re-apply a switch already undone.
+    // Drop the query so a refresh does not re-open something already closed.
     window.history.replaceState(null, "", window.location.pathname);
-    const previous = bucket.active_profile_id;
-    if (previous === requested) return;
-    setDeepLink({ from: previous ?? "", to: requested });
-    mutateCatalog((next) => {
-      next.services[service].active_profile_id = requested;
-      if (service !== "search") {
-        next.services[service].active_model_id = target.models[0]?.id ?? null;
-      }
-    });
-  }, [draft, service, mutateCatalog]);
+    setExpandedProfileId(requested);
+  }, [profiles]);
 
-  const deepLinkFromProfile = deepLink
-    ? (draft.services[service].profiles.find(
-        (item) => item.id === deepLink.from,
-      ) ?? null)
-    : null;
-  // Only while the deep-linked profile is still the selected one — once the
-  // user picks something else the offer to go back would name the wrong thing.
-  const showDeepLinkNotice =
-    deepLink !== null &&
-    deepLinkFromProfile !== null &&
-    draft.services[service].active_profile_id === deepLink.to;
 
   const [showApiKey, setShowApiKey] = useState(false);
   const [confirmingProfileDelete, setConfirmingProfileDelete] = useState(false);
@@ -377,219 +424,169 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
 
   return (
     <div data-tour={`tour-${service}`} className="space-y-5">
-      {showDeepLinkNotice && deepLink && deepLinkFromProfile && (
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-[var(--border)] bg-[var(--muted)]/25 px-4 py-2.5">
-          <span className="text-[11.5px] leading-relaxed text-[var(--muted-foreground)]">
-            {t(
-              "Opened from Connections. Applying will also make this the {{service}} profile in use.",
-              { service: t(SERVICE_LABEL[service]) },
-            )}
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              const back = deepLinkFromProfile;
-              mutateCatalog((next) => {
-                next.services[service].active_profile_id = back.id;
-                if (service !== "search") {
-                  next.services[service].active_model_id =
-                    back.models[0]?.id ?? null;
-                }
-              });
-              setDeepLink(null);
-            }}
-            className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 text-[11.5px] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
-          >
-            <ArrowLeft className="h-3 w-3" />
-            {t("Back to {{name}}", { name: deepLinkFromProfile.name })}
-          </button>
-        </div>
-      )}
       {activeProfile ? (
-        <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-[200px_minmax(0,1fr)]">
-          {/* ── Profile list (sticky so it stays put while the editor scrolls;
-                 stacked above the editor when there is no room beside it) ── */}
-          <aside className="self-start rounded-xl bg-[var(--accent)]/40 p-2 md:sticky md:top-4">
-            <div className="px-2 pb-2 pt-1 text-[11px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]/70">
-              {t("Profiles")}
-            </div>
-            <div className="space-y-0.5">
-              {draft.services[service].profiles.map((profile) => {
-                const isActive =
-                  profile.id === draft.services[service].active_profile_id;
-                const profileDetail = activeProfileDetail(profile, service, t);
-                const isManagedProfile = isManagedCodexProfile(profile);
-                const isEditing =
-                  editingProfileId === profile.id && !isManagedProfile;
-                return (
-                  <div
+        <div>
+          {/* ── Level 1: the providers configured for this service ──────────
+                 A card is a place, not a switch: opening one drills into its
+                 models, the chevron edits its connection in place, and
+                 neither one changes which provider the app is running on.
+                 That is what "In use" is for. */}
+          {!openedProfile && (
+            <>
+              <SectionHead
+                title={t("Providers")}
+                action={
+                  <CardAction onClick={() => addProfile(service)}>
+                    <Plus className="h-3 w-3" />
+                    {t("Add provider")}
+                  </CardAction>
+                }
+              />
+              <CardGrid>
+                {profiles.map((profile) => (
+                  <ProfileCard
                     key={profile.id}
-                    role="button"
-                    tabIndex={isEditing ? -1 : 0}
-                    onClick={() => {
-                      if (isEditing) return;
+                    profile={profile}
+                    service={service}
+                    inUse={profile.id === inUseProfileId}
+                    expanded={profile.id === expandedProfileId}
+                    renaming={editingProfileId === profile.id}
+                    renameValue={editingProfileName}
+                    onRenameChange={setEditingProfileName}
+                    onRenameCommit={() => commitProfileRename(profile.id)}
+                    onRenameCancel={cancelProfileRename}
+                    onRenameStart={() => startProfileRename(profile)}
+                    onOpen={
+                      service === "search"
+                        ? undefined
+                        : () => {
+                            setOpenProfileId(profile.id);
+                            setExpandedProfileId(null);
+                            setExpandedModelId(
+                              profile.id === inUseProfileId
+                                ? (inUseModelId ?? null)
+                                : (profile.models[0]?.id ?? null),
+                            );
+                          }
+                    }
+                    onToggleExpand={() => {
+                      setExpandedProfileId(
+                        profile.id === expandedProfileId ? null : profile.id,
+                      );
+                    }}
+                    onUse={() =>
                       mutateCatalog((next) => {
                         next.services[service].active_profile_id = profile.id;
                         if (service !== "search") {
                           next.services[service].active_model_id =
                             profile.models[0]?.id ?? null;
                         }
-                      });
-                    }}
-                    onDoubleClick={() => {
-                      if (!isManagedProfile) startProfileRename(profile);
-                    }}
-                    onKeyDown={(e) => {
-                      if (isEditing) return;
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        mutateCatalog((next) => {
-                          next.services[service].active_profile_id = profile.id;
-                          if (service !== "search") {
-                            next.services[service].active_model_id =
-                              profile.models[0]?.id ?? null;
-                          }
-                        });
-                      }
-                    }}
-                    title={
-                      isEditing || isManagedProfile
-                        ? undefined
-                        : t("Double-click to rename")
+                      })
                     }
-                    className={`group relative cursor-pointer rounded-lg px-3 py-2 text-left transition-colors ${
-                      isActive
-                        ? "bg-[var(--muted)]/70 text-[var(--foreground)]"
-                        : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]/30"
-                    }`}
-                  >
-                    {isActive && (
-                      <span className="absolute inset-y-2 left-0 w-0.5 rounded-r-full bg-[var(--foreground)]/80" />
-                    )}
-                    {isEditing ? (
-                      <input
-                        autoFocus
-                        className="block w-full rounded border border-[var(--border)] bg-[var(--background)] px-1.5 py-0.5 text-[13px] font-medium text-[var(--foreground)] outline-none focus:border-[var(--ring)]"
-                        value={editingProfileName}
-                        onChange={(e) => setEditingProfileName(e.target.value)}
-                        onBlur={() => commitProfileRename(profile.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.currentTarget.blur();
-                          }
-                          if (e.key === "Escape") {
-                            e.preventDefault();
-                            cancelProfileRename();
-                          }
-                        }}
-                        aria-label={t("Rename profile")}
-                      />
-                    ) : (
-                      <div className="flex items-center gap-1.5">
-                        <ProviderIcon
-                          provider={
-                            service === "search"
-                              ? profile.provider
-                              : profile.binding
-                          }
-                          size={13}
-                        />
-                        <div
-                          className={`min-w-0 flex-1 truncate text-[13px] leading-tight ${
-                            isActive ? "font-semibold" : "font-medium"
-                          }`}
-                        >
-                          {profile.name}
-                        </div>
-                        {!isManagedProfile && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startProfileRename(profile);
-                            }}
-                            className="-mr-1 shrink-0 rounded-md p-1 text-[var(--muted-foreground)]/60 transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-                            aria-label={t("Rename profile")}
-                            title={t("Rename profile")}
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    <div className="mt-0.5 truncate text-[11px] leading-tight text-[var(--muted-foreground)]/70">
-                      {profileDetail}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            {/* Deleting takes the whole provider with it — its key and every
-                model under it — and it sits one hairline below the list the
-                user is clicking through, so it asks first. */}
-            <div className="mt-2 border-t border-[var(--border)]/40 pt-2">
-              {confirmingProfileDelete ? (
-                <div className="px-1.5 py-1">
-                  <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-                    {t("Delete this profile and every model under it?")}
-                  </p>
-                  <div className="mt-1.5 flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setConfirmingProfileDelete(false)}
-                      className="h-6 rounded-md px-2 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                    >
-                      {t("Cancel")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        removeActiveProfile(service);
-                        setConfirmingProfileDelete(false);
-                      }}
-                      className="h-6 rounded-md bg-red-500/10 px-2 text-[11px] font-medium text-red-600 transition-colors hover:bg-red-500/15 dark:text-red-400"
-                    >
-                      {t("Delete")}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-              <button
-                onClick={() => setConfirmingProfileDelete(true)}
-                disabled={!activeProfile || isManagedCodex}
-                className="flex w-full items-center gap-1.5 rounded-lg px-3 py-1.5 text-left text-[11px] text-[var(--muted-foreground)]/60 transition-colors hover:bg-red-500/5 hover:text-red-500 disabled:opacity-30"
-                title={
-                  activeProfile && !isManagedCodex
-                    ? t("Permanently remove the currently selected profile.")
-                    : undefined
-                }
-              >
-                <Trash2 className="h-3 w-3 shrink-0" />
-                <span className="truncate">
-                  {activeProfile
-                    ? t("Delete “{{name}}”", { name: activeProfile.name })
-                    : t("Delete profile")}
-                </span>
-              </button>
-              )}
-            </div>
-          </aside>
+                  />
+                ))}
+                <AddCard
+                  label={t("Add provider")}
+                  onClick={() => addProfile(service)}
+                />
+              </CardGrid>
+            </>
+          )}
 
-          {/* ── Editor ── */}
+          {/* ── Level 2: the models under one provider ─────────────────── */}
+          {openedProfile && (
+            <>
+              <BackRow
+                label={t("All providers")}
+                current={openedProfile.name}
+                onBack={() => {
+                  setOpenProfileId(null);
+                  setExpandedModelId(null);
+                }}
+              />
+              <SectionHead
+                title={t("Models")}
+                action={
+                  <span className="flex items-center gap-2">
+                    {service === "llm" &&
+                      openedProfile.binding === "codebuddy" && (
+                        <CardAction
+                          onClick={() => void syncProviderModels()}
+                          disabled={modelsSyncing}
+                        >
+                          <RefreshCw
+                            className={`h-3 w-3 ${modelsSyncing ? "animate-spin" : ""}`}
+                          />
+                          {t("Sync models")}
+                        </CardAction>
+                      )}
+                    <CardAction
+                      onClick={() => addModel(service, openedProfile.id)}
+                    >
+                      <Plus className="h-3 w-3" />
+                      {t("Add model")}
+                    </CardAction>
+                  </span>
+                }
+              />
+              <CardGrid>
+                {openedProfile.models.map((model, index) => (
+                  <ModelCard
+                    key={model.id}
+                    model={model}
+                    service={service}
+                    language={language}
+                    index={index}
+                    inUse={
+                      openedProfile.id === inUseProfileId &&
+                      model.id === inUseModelId
+                    }
+                    expanded={model.id === expandedModelId}
+                    renaming={editingModelId === model.id}
+                    renameValue={editingModelName}
+                    onRenameChange={setEditingModelName}
+                    onRenameCommit={() => commitModelRename(model.id)}
+                    onRenameCancel={cancelModelRename}
+                    onRenameStart={() => startModelRename(model)}
+                    onToggleExpand={() =>
+                      setExpandedModelId(
+                        model.id === expandedModelId ? null : model.id,
+                      )
+                    }
+                    onUse={() =>
+                      mutateCatalog((next) => {
+                        next.services[service].active_profile_id =
+                          openedProfile.id;
+                        next.services[service].active_model_id = model.id;
+                      })
+                    }
+                    onDelete={() =>
+                      removeActiveModel(service, openedProfile.id, model.id)
+                    }
+                  />
+                ))}
+                <AddCard
+                  label={t("Add model")}
+                  onClick={() => addModel(service, openedProfile.id)}
+                />
+              </CardGrid>
+            </>
+          )}
+
           <div className="min-w-0 space-y-7">
-            <div>
+            {expandedProfile && !openedProfile && (
+            <div className="mt-4">
               <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-[var(--border)]/60 pb-2">
                 <div className="text-[13px] font-medium text-[var(--foreground)]">
                   {t("Provider connection")}
                 </div>
                 <button
                   type="button"
-                  onClick={() => addProfile(service)}
+                  onClick={() => setExpandedProfileId(null)}
                   className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)]/50 px-2.5 py-1 text-[12px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
                 >
-                  <Plus className="h-3 w-3" />
-                  {t("Profile")}
+                  <X className="h-3 w-3" />
+                  {t("Close")}
                 </button>
               </div>
               <ProfileFields
@@ -642,129 +639,23 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
                 }}
               />
             </div>
+            )}
 
-            {service !== "search" && (
+            {service !== "search" && openedProfile && (
               <div>
-                <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-[var(--border)]/60 pb-2">
-                  <div className="text-[13px] font-medium text-[var(--foreground)]">
-                    {t("Models")}
-                  </div>
-                  {!isCodexOAuth && (
-                    <div className="flex items-center gap-2">
-                      {service === "llm" &&
-                        activeProfile.binding === "codebuddy" && (
-                          <button
-                            type="button"
-                            onClick={() => void syncProviderModels()}
-                            disabled={modelsSyncing}
-                            className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)]/50 px-2.5 py-1 text-[12px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:opacity-40"
-                          >
-                            <RefreshCw
-                              className={`h-3 w-3 ${modelsSyncing ? "animate-spin" : ""}`}
-                            />
-                            {t("Sync models")}
-                          </button>
-                        )}
-                      <button
-                        type="button"
-                        onClick={() => addModel(service)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)]/50 px-2.5 py-1 text-[12px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
-                      >
-                        <Plus className="h-3 w-3" />
-                        {t("Model")}
-                      </button>
-                      <button
-                        onClick={() => removeActiveModel(service)}
-                        disabled={!activeModel}
-                        className="inline-flex items-center gap-1 text-[11px] text-[var(--muted-foreground)]/40 transition-colors hover:text-red-500 disabled:opacity-30"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                        {t("Delete")}
-                      </button>
+                {activeModel && (!isCodexOAuth || isBoundManagedCodex) && (
+                  <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-[var(--border)]/60 pb-2">
+                    <div className="min-w-0 truncate text-[13px] font-medium text-[var(--foreground)]">
+                      {(activeModel.name || "").trim() || t("Model")}
                     </div>
-                  )}
-                </div>
-                {activeProfile.models.length > 0 && (
-                  <div className="mb-4 flex flex-wrap items-center gap-1.5">
-                    {activeProfile.models.map((model, index) => {
-                      const isActive =
-                        model.id === draft.services[service].active_model_id;
-                      const label =
-                        (model.name || "").trim() ||
-                        defaultModelLabel(language, index + 1);
-                      const metric =
-                        service === "llm"
-                          ? formatCompactTokens(model.context_window)
-                          : service === "embedding"
-                            ? formatDimensionBadge(model.dimension)
-                            : service === "tts"
-                              ? formatVoiceBadge(model.voice)
-                              : "";
-                      return (
-                        <div key={model.id} className="min-w-0">
-                          {editingModelId === model.id && !isCodexOAuth ? (
-                            <input
-                              autoFocus
-                              className="h-8 w-60 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 text-[12.5px] text-[var(--foreground)] outline-none focus:border-[var(--ring)]"
-                              value={editingModelName}
-                              onChange={(e) =>
-                                setEditingModelName(e.target.value)
-                              }
-                              onBlur={() => commitModelRename(model.id)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.currentTarget.blur();
-                                }
-                                if (e.key === "Escape") {
-                                  e.preventDefault();
-                                  cancelModelRename();
-                                }
-                              }}
-                              aria-label={t("Rename model")}
-                            />
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                mutateCatalog((next) => {
-                                  next.services[service].active_model_id =
-                                    model.id;
-                                })
-                              }
-                              onDoubleClick={() => {
-                                if (!isCodexOAuth) startModelRename(model);
-                              }}
-                              title={
-                                isCodexOAuth
-                                  ? undefined
-                                  : t("Double-click to rename")
-                              }
-                              className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12.5px] transition-colors ${
-                                isActive
-                                  ? "bg-[var(--muted)] text-[var(--foreground)]"
-                                  : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]/40"
-                              }`}
-                            >
-                              {isActive && (
-                                <CheckCircle2 className="h-3 w-3 shrink-0 text-[var(--foreground)]/70" />
-                              )}
-                              <span
-                                className={`max-w-[280px] truncate leading-none ${
-                                  isActive ? "font-medium" : ""
-                                }`}
-                              >
-                                {label}
-                              </span>
-                              {metric && (
-                                <span className="shrink-0 text-[10.5px] tabular-nums leading-none text-[var(--muted-foreground)]/80">
-                                  {metric}
-                                </span>
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
+                    <button
+                      type="button"
+                      onClick={() => setExpandedModelId(null)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)]/50 px-2.5 py-1 text-[12px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
+                    >
+                      <X className="h-3 w-3" />
+                      {t("Close")}
+                    </button>
                   </div>
                 )}
                 {activeModel && (!isCodexOAuth || isBoundManagedCodex) && (

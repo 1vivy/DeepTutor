@@ -3631,5 +3631,15 @@
   "Set up with DeepTutor": "Set up with DeepTutor",
   "Delete this profile and every model under it?": "Delete this profile and every model under it?",
   "Model services": "Model services",
-  "Test passed": "Test passed"
+  "Test passed": "Test passed",
+  "Providers": "Providers",
+  "Add provider": "Add provider",
+  "Add model": "Add model",
+  "All providers": "All providers",
+  "Edit model": "Edit model",
+  "Provider default endpoint": "Provider default endpoint",
+  "{{n}} ctx": "{{n}} ctx",
+  "{{n}} dim": "{{n}} dim",
+  "No model id yet": "No model id yet",
+  "Set as active": "Set as active"
 }

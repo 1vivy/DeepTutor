@@ -83,7 +83,7 @@ export function SettingsToolbar() {
           className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
         >
           <Rocket className="h-3 w-3" />
-          {t("Tour")}
+          <span className="max-sm:hidden">{t("Tour")}</span>
         </button>
         {canApply && (
           <button
@@ -93,7 +93,7 @@ export function SettingsToolbar() {
             className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)]/50 px-3 py-1.5 text-[12px] font-medium text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)] disabled:opacity-40"
           >
             <Undo2 className="h-3 w-3" />
-            {t("Discard")}
+            <span className="max-sm:hidden">{t("Discard")}</span>
           </button>
         )}
         <button
@@ -107,7 +107,7 @@ export function SettingsToolbar() {
           ) : (
             <Save className="h-3 w-3" />
           )}
-          {t("Save draft")}
+          <span className="max-sm:hidden">{t("Save draft")}</span>
         </button>
         <button
           data-tour="tour-actions"
@@ -121,7 +121,7 @@ export function SettingsToolbar() {
           ) : (
             <Wand2 className="h-3 w-3" />
           )}
-          {t("Apply")}
+          <span className="max-sm:hidden">{t("Apply")}</span>
         </button>
       </div>
     </div>
