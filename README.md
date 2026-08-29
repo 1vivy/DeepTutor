@@ -829,7 +829,11 @@ Because DeepTutor speaks the open Agent-Skills format, **[ClawHub](https://clawh
 ```bash
 deeptutor skill search "git release notes" --hub clawhub
 deeptutor skill install clawhub:git-release-notes@1.0.1
+deeptutor skill install clawhub:udiedrichsen/stock-analysis
 ```
+
+When several publishers share the same slug, search shows each publisher and a
+fully scoped install ref (`clawhub:<ownerHandle>/<slug>`).
 
 Add more registries in `settings/skill_hubs.json`: a `type: "clawhub"` entry points at any compatible HTTP API (EduHub and ClawHub both speak it), `type: "command"` wraps whatever fetch CLI a registry ships, and `"default"` chooses the hub used for bare slugs. All of them feed the same import gate.
 
