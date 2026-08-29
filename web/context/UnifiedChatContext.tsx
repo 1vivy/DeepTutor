@@ -29,7 +29,11 @@ import {
 } from "@/lib/session-api";
 import { normalizeMarkdownForDisplay } from "@/lib/markdown-display";
 import { normalizeMessageContent } from "@/lib/message-content";
-import { buildVisiblePath, tipMessageId } from "@/lib/message-branches";
+import {
+  buildVisiblePath,
+  selectChildBranch,
+  tipMessageId,
+} from "@/lib/message-branches";
 import { nextOptimisticId, resolvePersistedMessage } from "@/lib/optimistic-id";
 import { reconcileTurnIds } from "@/lib/turn-reconcile";
 import {
@@ -392,6 +396,11 @@ function reducer(state: ProviderState, action: Action): ProviderState {
     case "ADD_USER_MSG": {
       const session =
         state.sessions[action.key] ?? createSessionEntry(action.key);
+      const userId = nextOptimisticId();
+      const parentId =
+        action.parentMessageId === undefined
+          ? null
+          : action.parentMessageId;
       return {
         ...state,
         sessions: {
@@ -401,14 +410,11 @@ function reducer(state: ProviderState, action: Action): ProviderState {
             messages: [
               ...session.messages,
               {
-                id: nextOptimisticId(),
+                id: userId,
                 role: "user",
                 content: action.content,
                 capability: action.capability || "",
-                parentMessageId:
-                  action.parentMessageId === undefined
-                    ? null
-                    : action.parentMessageId,
+                parentMessageId: parentId,
                 ...(action.attachments?.length
                   ? { attachments: action.attachments }
                   : {}),
@@ -417,6 +423,11 @@ function reducer(state: ProviderState, action: Action): ProviderState {
                   : {}),
               },
             ],
+            selectedBranches: selectChildBranch(
+              session.selectedBranches,
+              parentId,
+              userId,
+            ),
             updatedAt: Date.now(),
           },
         },
@@ -1999,20 +2010,25 @@ export function UnifiedChatProvider({
       const session = currentState.sessions[key];
       if (!session || !session.sessionId) return;
       if (session.isStreaming) return;
-      let effectiveId = messageId;
-      if (messageId < 0) {
-        const origIdx = session.messages.findIndex((m) => m.id === messageId);
-        if (origIdx === -1) return;
-        try {
-          await loadSession(session.sessionId);
-        } catch {
-          return;
-        }
-        const refreshed = stateRef.current.sessions[key];
-        const realId = refreshed?.messages[origIdx]?.id;
-        if (realId == null || realId < 0) return;
-        effectiveId = realId;
+      // Same optimistic-id race as editMessage (#739): after loadSession
+      // dispatches, stateRef can still hold the negative sentinel until
+      // React commits. Resolve from the returned snapshot instead.
+      let target: MessageItem | undefined;
+      try {
+        target = await resolvePersistedMessage(
+          session.messages,
+          messageId,
+          "user",
+          async () =>
+            session.sessionId
+              ? await loadSession(session.sessionId)
+              : undefined,
+        );
+      } catch {
+        return;
       }
+      if (!target || typeof target.id !== "number" || target.id < 0) return;
+      const effectiveId = target.id;
       try {
         await deleteMessage(session.sessionId, effectiveId);
         dispatch({ type: "DELETE_TURN", key, messageId: effectiveId });
