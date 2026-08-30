@@ -15,6 +15,14 @@ const api = readFileSync(
   path.resolve(process.cwd(), "lib/reading-api.ts"),
   "utf8",
 );
+const english = readFileSync(
+  path.resolve(process.cwd(), "locales/en/app.json"),
+  "utf8",
+);
+const chinese = readFileSync(
+  path.resolve(process.cwd(), "locales/zh/app.json"),
+  "utf8",
+);
 
 test("the Reader toolbar is empty when no extension is installed", () => {
   assert.match(component, /if \(actions\.length === 0\) return null/);
@@ -37,4 +45,11 @@ test("a malformed extension catalog cannot crash the whole reader", () => {
     api,
     /Array\.isArray\(\(row as ReadingExtensionManifest\)\.actions\)/,
   );
+});
+
+test("the built-in reading-quiz action is localized", () => {
+  assert.match(component, /extensionId === "quiz" && actionId === "start"/);
+  assert.match(component, /t\(builtInLabel\)/);
+  assert.match(english, /"Quiz me": "Quiz me"/);
+  assert.match(chinese, /"Quiz me": "测一测"/);
 });
