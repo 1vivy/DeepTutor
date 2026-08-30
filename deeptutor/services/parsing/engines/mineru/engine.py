@@ -13,12 +13,13 @@ from typing import Callable, Optional
 from ...base import ReadinessReport
 from ...signature import ParserSignature
 from .._versions import package_version
-from .config import MinerUConfig, resolve_mineru_config
+from .config import MINERU_SUPPORTED_SUFFIXES, MinerUConfig, resolve_mineru_config
 from .readiness import mineru_readiness
 
 
 class MinerUParser:
-    """PDF → multimodal ``content_list`` via the MinerU CLI or cloud API."""
+    """PDF/Office/image → multimodal ``content_list`` via the MinerU CLI or
+    cloud API."""
 
     name = "mineru"
     needs_local_models = True
@@ -34,7 +35,7 @@ class MinerUParser:
         return resolve_mineru_config()
 
     def supported_formats(self) -> frozenset[str]:
-        return frozenset({".pdf"})
+        return MINERU_SUPPORTED_SUFFIXES
 
     def signature(self, config: MinerUConfig) -> ParserSignature:
         version = f"cloud:{config.api_base_url}" if config.is_cloud else package_version("mineru")

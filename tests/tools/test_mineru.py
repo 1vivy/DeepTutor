@@ -223,6 +223,56 @@ def test_pdf_parser_streams_output_lines(tmp_path: Path, monkeypatch: pytest.Mon
     assert (out / "exam" / "auto" / "exam.md").exists()
 
 
+def test_pdf_parser_accepts_office_and_image_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from deeptutor.services.parsing.engines.mineru import local as pdf_parser
+
+    doc = tmp_path / "notes.docx"
+    doc.write_bytes(b"PK\x05\x06")
+    out = tmp_path / "out"
+
+    spawned: list[list[str]] = []
+
+    class FakeProcess:
+        def __init__(self, cmd, **kwargs):  # noqa: ANN002, ANN003
+            spawned.append(cmd)
+            target = Path(cmd[cmd.index("-o") + 1]) / "notes"
+            (target / "auto").mkdir(parents=True, exist_ok=True)
+            (target / "auto" / "notes.md").write_text("# parsed", encoding="utf-8")
+            self.stdout = iter(["parsing page 1/2\n"])
+
+        def wait(self):
+            return 0
+
+    monkeypatch.setattr(pdf_parser, "check_mineru_installed", lambda: "mineru")
+    monkeypatch.setattr(pdf_parser.subprocess, "Popen", FakeProcess)
+
+    ok = pdf_parser.parse_pdf_with_mineru(str(doc), str(out))
+
+    assert ok is True
+    # The .docx reached the CLI instead of being rejected as "not PDF".
+    assert spawned and spawned[0][spawned[0].index("-p") + 1] == str(doc.resolve())
+
+
+def test_pdf_parser_rejects_unsupported_suffixes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from deeptutor.services.parsing.engines.mineru import local as pdf_parser
+
+    doc = tmp_path / "archive.zip"
+    doc.write_bytes(b"PK\x05\x06")
+
+    monkeypatch.setattr(pdf_parser, "check_mineru_installed", lambda: "mineru")
+    monkeypatch.setattr(
+        pdf_parser.subprocess, "Popen", lambda *a, **k: pytest.fail("CLI must not spawn")
+    )
+
+    ok = pdf_parser.parse_pdf_with_mineru(str(doc), str(tmp_path / "out"))
+
+    assert ok is False
+
+
 def test_parse_cloud_reports_progress(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     pdf = tmp_path / "exam.pdf"
     pdf.write_bytes(b"%PDF-1.4")

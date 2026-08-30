@@ -93,7 +93,8 @@ _ENGINE_META: Dict[str, Dict[str, Any]] = {
         "name": "MinerU",
         "description": (
             "Highest-fidelity multimodal parsing (layout, tables, formulas). "
-            "Local CLI downloads models, or use the hosted cloud API. PDF only."
+            "Local CLI downloads models, or use the hosted cloud API. "
+            "PDF, images, and modern Office (docx/pptx/xlsx)."
         ),
         "needs_local_models": True,
     },

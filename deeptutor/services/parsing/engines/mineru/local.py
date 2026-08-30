@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """
-Parse PDF files using MinerU and save results to reference_papers directory
+Parse documents (PDF/Office/images) using MinerU and save results to
+reference_papers directory
 """
 
 import argparse
@@ -12,6 +13,8 @@ import shutil
 import subprocess
 import sys
 import time
+
+from .config import MINERU_SUPPORTED_SUFFIXES
 
 # Minimum seconds between on_output callbacks. MinerU's CLI emits tqdm-style
 # progress that universal-newline decoding turns into many lines per second;
@@ -61,10 +64,10 @@ def parse_pdf_with_mineru(
     extra_env: dict[str, str] | None = None,
 ):
     """
-    Parse PDF file using MinerU
+    Parse a document (PDF/Office/image) using MinerU
 
     Args:
-        pdf_path: Path to PDF file
+        pdf_path: Path to the document to parse
         output_base_dir: Base path for output directory, defaults to reference_papers
         on_output: Optional callback invoked (rate-limited) with each line of
             the CLI's combined stdout/stderr, so callers can surface live
@@ -96,11 +99,11 @@ def parse_pdf_with_mineru(
 
     pdf_file = Path(pdf_path).resolve()
     if not pdf_file.exists():
-        print(f"✗ Error: PDF file does not exist: {pdf_file}")
+        print(f"✗ Error: file does not exist: {pdf_file}")
         return False
 
-    if not pdf_file.suffix.lower() == ".pdf":
-        print(f"✗ Error: File is not PDF format: {pdf_file}")
+    if pdf_file.suffix.lower() not in MINERU_SUPPORTED_SUFFIXES:
+        print(f"✗ Error: unsupported file type for MinerU: {pdf_file.suffix or '(no extension)'}")
         return False
 
     # Project root is 3 levels up from deeptutor/tools/question/
@@ -119,7 +122,7 @@ def parse_pdf_with_mineru(
         print(f"⚠️ Directory already exists, replacing: {output_dir.name}")
         shutil.rmtree(output_dir)
 
-    print(f"📄 PDF file: {pdf_file}")
+    print(f"📄 Input file: {pdf_file}")
     print(f"📁 Output directory: {output_dir}")
     print("→ Starting parsing...")
 

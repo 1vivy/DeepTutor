@@ -93,6 +93,17 @@ def test_mineru_cloud_readiness_needs_token() -> None:
     assert mineru_readiness(MinerUConfig(mode="cloud", api_token="tok")).ready is True
 
 
+def test_mineru_supported_formats_include_office_and_images() -> None:
+    parser = factory.get_parser("mineru")
+    formats = parser.supported_formats()
+    assert ".pdf" in formats
+    assert {".docx", ".pptx", ".xlsx"} <= formats
+    assert {".png", ".jpg", ".jpeg"} <= formats
+    # Legacy Office stays off the routing path: the local CLI does not accept
+    # .doc/.ppt/.xls, so the engine must not claim them either.
+    assert not {".doc", ".ppt", ".xls"} & formats
+
+
 def test_docling_signature_distinguishes_local_and_remote() -> None:
     parser = factory.get_parser("docling")
     from deeptutor.services.parsing.engines.docling.config import DoclingConfig

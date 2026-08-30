@@ -26,6 +26,28 @@ class MinerUError(RuntimeError):
     surfaces it as a stream error."""
 
 
+# MinerU's documented input contract (github.com/opendatalab/MinerU): PDF,
+# images, and the modern Office formats. Shared by the engine's
+# ``supported_formats`` routing gate and the local CLI's suffix check so the
+# two never drift apart. Legacy .doc/.ppt/.xls stay off the routing path —
+# the local CLI does not accept them (the cloud API does).
+MINERU_SUPPORTED_SUFFIXES = frozenset(
+    {
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".jp2",
+        ".webp",
+        ".gif",
+        ".bmp",
+        ".docx",
+        ".pptx",
+        ".xlsx",
+    }
+)
+
+
 @dataclass(frozen=True)
 class MinerUConfig:
     """Validated MinerU parsing configuration.
