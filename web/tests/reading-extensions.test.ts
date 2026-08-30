@@ -38,3 +38,26 @@ test("a malformed extension catalog cannot crash the whole reader", () => {
     /Array\.isArray\(\(row as ReadingExtensionManifest\)\.actions\)/,
   );
 });
+
+test("the built-in vocabulary action is localized", () => {
+  assert.match(component, /extensionId === "vocabulary" && actionId === "explain"/);
+  const english = readFileSync(
+    path.resolve(process.cwd(), "locales/en/app.json"),
+    "utf8",
+  );
+  const chinese = readFileSync(
+    path.resolve(process.cwd(), "locales/zh/app.json"),
+    "utf8",
+  );
+  assert.match(english, /"Explain vocabulary": "Explain vocabulary"/);
+  assert.match(chinese, /"Explain vocabulary": "解释词汇"/);
+});
+
+test("vocabulary terms are visible in the result card", () => {
+  assert.match(component, /result\.payload\.terms/);
+  assert.match(component, /String\(term\.term \|\| ""\)/);
+  assert.match(component, /terms\.map\(\(term, index\) =>/);
+  assert.match(component, /<dt className="font-medium">\{term\.term\}<\/dt>/);
+  assert.match(component, /\{term\.meaning\}/);
+  assert.match(component, /\{term\.usage\}/);
+});

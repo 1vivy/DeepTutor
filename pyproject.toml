@@ -83,6 +83,9 @@ dependencies = [
 [project.scripts]
 deeptutor = "deeptutor_cli.main:main"
 
+[project.entry-points."deeptutor.reading_extensions"]
+vocabulary = "deeptutor.reading.vocabulary:VocabularyExtension"
+
 [project.optional-dependencies]
 # Compatibility extra for source installs and older docs. These packages are
 # already included in the public `deeptutor` wheel; the local CLI-only project

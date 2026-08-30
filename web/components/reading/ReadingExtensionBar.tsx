@@ -10,6 +10,12 @@ import {
   type ReadingExtensionResult,
 } from "@/lib/reading-api";
 
+type VocabularyTerm = {
+  term: string;
+  meaning: string;
+  usage: string;
+};
+
 export function ReadingExtensionBar({
   materialId,
   locator,
@@ -97,6 +103,7 @@ export function ReadingExtensionBar({
           const disabled =
             Boolean(busy) ||
             (action.requires.includes("selection") && !selection?.trim());
+          const builtInLabel = builtInActionLabel(extension.id, action.id);
           return (
             <button
               key={key}
@@ -110,7 +117,9 @@ export function ReadingExtensionBar({
               ) : (
                 <Sparkles size={14} />
               )}
-              <span className="truncate">{action.label}</span>
+              <span className="truncate">
+                {builtInLabel ? t(builtInLabel) : action.label}
+              </span>
             </button>
           );
         })}
@@ -124,6 +133,13 @@ export function ReadingExtensionBar({
       ) : null}
     </>
   );
+}
+
+function builtInActionLabel(extensionId: string, actionId: string) {
+  if (extensionId === "vocabulary" && actionId === "explain") {
+    return "Explain vocabulary";
+  }
+  return "";
 }
 
 function ExtensionResult({
@@ -145,6 +161,19 @@ function ExtensionResult({
   const items = Array.isArray(result.payload.items)
     ? result.payload.items.map(String)
     : [];
+  const terms: VocabularyTerm[] = Array.isArray(result.payload.terms)
+    ? result.payload.terms
+        .map((row) => {
+          if (typeof row !== "object" || row === null) return null;
+          const term = row as Partial<VocabularyTerm>;
+          return {
+            term: String(term.term || ""),
+            meaning: String(term.meaning || ""),
+            usage: String(term.usage || ""),
+          };
+        })
+        .filter((row): row is VocabularyTerm => row !== null)
+    : [];
   const body = String(result.payload.body || result.payload.overview || "");
   return (
     <section className="relative shrink-0 border-b border-[var(--border)] bg-[var(--card)] px-3 py-3 text-xs text-[var(--foreground)]">
@@ -163,10 +192,28 @@ function ExtensionResult({
       {body ? <p className="mt-2 whitespace-pre-wrap">{body}</p> : null}
       {items.length ? (
         <ul className="mt-2 list-disc space-y-1 pl-5">
-          {items.map((item) => (
-            <li key={item}>{item}</li>
+          {items.map((item, index) => (
+            <li key={`${index}-${item}`}>{item}</li>
           ))}
         </ul>
+      ) : null}
+      {terms.length ? (
+        <dl className="mt-2 space-y-2">
+          {terms.map((term, index) => (
+            <div
+              key={`${index}-${term.term}`}
+              className="border-t border-[var(--border)] pt-2 first:border-t-0 first:pt-0"
+            >
+              <dt className="font-medium">{term.term}</dt>
+              <dd className="mt-1 text-[var(--muted-foreground)]">
+                {term.meaning}
+              </dd>
+              <dd className="mt-1 text-[var(--muted-foreground)]">
+                {term.usage}
+              </dd>
+            </div>
+          ))}
+        </dl>
       ) : null}
       {questions.map((question, index) => (
         <div key={question.id || index} className="mt-3">
