@@ -178,9 +178,10 @@ def test_snapshot_assets_are_served_with_sniffed_private_headers(client: TestCli
     assert response.headers["content-type"] == "image/png"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["cache-control"].startswith("private")
-    assert client.get(
-        f"/api/v1/reading/materials/{material_id}/assets/not-an-image.svg"
-    ).status_code == 404
+    assert (
+        client.get(f"/api/v1/reading/materials/{material_id}/assets/not-an-image.svg").status_code
+        == 404
+    )
 
 
 def test_delete_material_is_idempotent_then_404s(client: TestClient) -> None:

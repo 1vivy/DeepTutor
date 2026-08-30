@@ -105,10 +105,13 @@ async def test_web_import_is_rich_localizes_images_and_preserves_old_revision(st
     assert manifest.revision == 2
     assert "<!-- source:" not in current
     assert "/api/v1/reading/materials/" in current
-    assert reading.asset_path(
-        ready.material_id,
-        next((reading._dir(ready.material_id) / "assets").iterdir()).name,
-    ) is not None
+    assert (
+        reading.asset_path(
+            ready.material_id,
+            next((reading._dir(ready.material_id) / "assets").iterdir()).name,
+        )
+        is not None
+    )
     revisions = reading.revisions(ready.material_id)
     assert [row.revision for row in revisions] == [1]
     assert "# Old snapshot" in reading.revision_unit_text(ready.material_id, 1, 1)

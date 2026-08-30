@@ -995,9 +995,7 @@ async def list_material_revisions(material_id: str) -> list[dict[str, Any]]:
     "/materials/{material_id}/revisions/{revision}/units/{locator}",
     response_model=UnitText,
 )
-async def get_revision_unit(
-    material_id: str, revision: int, locator: int
-) -> UnitText:
+async def get_revision_unit(material_id: str, revision: int, locator: int) -> UnitText:
     store = _store()
     try:
         manifest = next(

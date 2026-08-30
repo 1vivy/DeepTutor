@@ -47,8 +47,7 @@ async def test_localizes_safe_images_and_never_leaves_failed_hotlinks() -> None:
         return None
 
     markdown, assets = await localize_snapshot_images(
-        "![Diagram](https://cdn.example.com/ok.png)\n"
-        "![Tracker](https://cdn.example.com/bad.svg)",
+        "![Diagram](https://cdn.example.com/ok.png)\n![Tracker](https://cdn.example.com/bad.svg)",
         "0123456789abcdef",
         fetcher=fetcher,
     )
