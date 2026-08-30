@@ -385,7 +385,7 @@ My Agentsは他のエージェントをDeepTutorのコンテキストにし、2�
 <img src="../../assets/figs/web-1.4.6+/co-writer/00-overview.png" alt="DeepTutor Co-Writerワークスペース" width="900">
 </div>
 
-Co-Writerはレポート、チュートリアル、メモ、長文学習コンテンツのための分割表示Markdownワークスペースです。ドキュメントは自動保存され、ライブプレビュー（KaTeXの数式、図表フェンス）を表示し、下書きが再利用可能なコンテキストになったときにノートブックに保存できます。
+Co-Writerはレポート、チュートリアル、メモ、長文学習コンテンツのための分割表示Markdownワークスペースです。ドキュメントは自動保存され、ライブプレビュー（KaTeXの数式、図表フェンス）を表示し、下書きが再利用可能なコンテキストになったときにノートブックに保存できます。`.docx` を取り込んで新しい下書きを始め、現在のエディタを Markdown または Word として書き出せます。
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/co-writer/01-edit%20panel.png" alt="Co-Writerエディターとライブプレビュー" width="900">

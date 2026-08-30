@@ -407,7 +407,7 @@ My Agents transforme d'autres agents en contexte pour DeepTutor, et fait deux ch
 <img src="../../assets/figs/web-1.4.6+/co-writer/00-overview.png" alt="Espace de travail Co-Writer de DeepTutor" width="900">
 </div>
 
-Co-Writer est un espace de travail Markdown à vue divisée pour les rapports, tutoriels, notes et artefacts d'apprentissage longs. Les documents se sauvegardent automatiquement et affichent un aperçu en direct (math KaTeX, clôtures de diagrammes), et peuvent être enregistrés dans des carnets quand un brouillon devient un contexte réutilisable.
+Co-Writer est un espace de travail Markdown à vue divisée pour les rapports, tutoriels, notes et artefacts d'apprentissage longs. Les documents se sauvegardent automatiquement et affichent un aperçu en direct (math KaTeX, clôtures de diagrammes), et peuvent être enregistrés dans des carnets quand un brouillon devient un contexte réutilisable. Importez un `.docx` pour démarrer un brouillon, et exportez l'éditeur actuel en Markdown ou Word.
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/co-writer/01-edit%20panel.png" alt="Éditeur Co-Writer avec aperçu en direct" width="900">

@@ -15,6 +15,7 @@ import {
   Code2,
   Download,
   Eraser,
+  FileDown,
   FileText,
   Heading1,
   Heading2,
@@ -44,6 +45,7 @@ import { useParams, useRouter } from "next/navigation";
 import { apiFetch, apiUrl } from "@/lib/api";
 import { listKnowledgeBases } from "@/lib/knowledge-api";
 import {
+  exportCoWriterDocx,
   getCoWriterDocument,
   updateCoWriterDocument,
 } from "@/lib/co-writer-api";
@@ -168,6 +170,7 @@ export default function CoWriterPage() {
   const [docNotFound, setDocNotFound] = useState(false);
   const [isLoadingDoc, setIsLoadingDoc] = useState(true);
   const [isSavingDoc, setIsSavingDoc] = useState(false);
+  const [isExportingDocx, setIsExportingDocx] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const previewScrollRef = useRef<HTMLDivElement>(null);
@@ -808,6 +811,34 @@ export default function CoWriterPage() {
     anchor.click();
     URL.revokeObjectURL(url);
   };
+
+  const handleExportDocx = useCallback(async () => {
+    if (isExportingDocx) return;
+    setIsExportingDocx(true);
+    setError("");
+    try {
+      const blob = await exportCoWriterDocx({
+        title: docTitle || "co-writer",
+        content: markdown,
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      const safeTitle = (docTitle || "co-writer")
+        .trim()
+        .replace(/[\\/:*?"<>|]/g, "-")
+        .slice(0, 80);
+      anchor.download = `${safeTitle || "co-writer"}.docx`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t("Failed to export Word document."),
+      );
+    } finally {
+      setIsExportingDocx(false);
+    }
+  }, [docTitle, isExportingDocx, markdown, t]);
 
   const handleOpenSaveToNotebook = useCallback(() => {
     if (!markdown.trim()) {
@@ -1781,6 +1812,19 @@ export default function CoWriterPage() {
             <Download size={17} strokeWidth={1.7} />
           </ToolbarIconBtn>
           <ToolbarIconBtn
+            title={t("Export Word")}
+            onClick={() => {
+              void handleExportDocx();
+            }}
+            disabled={isExportingDocx}
+          >
+            {isExportingDocx ? (
+              <Loader2 size={17} strokeWidth={1.7} className="animate-spin" />
+            ) : (
+              <FileDown size={17} strokeWidth={1.7} />
+            )}
+          </ToolbarIconBtn>
+          <ToolbarIconBtn
             title={t("Save to Notebook")}
             onClick={handleOpenSaveToNotebook}
           >
@@ -2463,11 +2507,13 @@ function ToolbarIconBtn({
   onClick,
   children,
   tone = "default",
+  disabled = false,
 }: {
   title: string;
   onClick: () => void;
   children: React.ReactNode;
   tone?: "default" | "danger" | "warning";
+  disabled?: boolean;
 }) {
   const toneClass =
     tone === "danger"
@@ -2481,7 +2527,8 @@ function ToolbarIconBtn({
       type="button"
       aria-label={title}
       onClick={onClick}
-      className={`group relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/35 ${toneClass}`}
+      disabled={disabled}
+      className={`group relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/35 disabled:opacity-50 ${toneClass}`}
     >
       {children}
       <span

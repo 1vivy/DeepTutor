@@ -385,7 +385,7 @@ My Agents เปลี่ยน agent อื่น ๆ ให้กลายเ�
 <img src="../../assets/figs/web-1.4.6+/co-writer/00-overview.png" alt="DeepTutor workspace Co-Writer" width="900">
 </div>
 
-Co-Writer คือ workspace Markdown แบบ split-view สำหรับรายงาน, บทเรียน, บันทึก และ artifacts การเรียนรู้แบบยาว เอกสารบันทึกอัตโนมัติและแสดงตัวอย่างสด (คณิตศาสตร์ KaTeX, diagram fences) และสามารถบันทึกกลับเข้า notebooks เมื่อร่างกลายเป็นบริบทที่นำมาใช้ซ้ำได้
+Co-Writer คือ workspace Markdown แบบ split-view สำหรับรายงาน, บทเรียน, บันทึก และ artifacts การเรียนรู้แบบยาว เอกสารบันทึกอัตโนมัติและแสดงตัวอย่างสด (คณิตศาสตร์ KaTeX, diagram fences) และสามารถบันทึกกลับเข้า notebooks เมื่อร่างกลายเป็นบริบทที่นำมาใช้ซ้ำได้ นำเข้า `.docx` เพื่อเริ่มร่างใหม่ และส่งออกตัวแก้ไขปัจจุบันเป็น Markdown หรือ Word
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/co-writer/01-edit%20panel.png" alt="Co-Writer editor พร้อม live preview" width="900">

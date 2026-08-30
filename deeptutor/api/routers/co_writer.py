@@ -2,15 +2,23 @@ import asyncio
 from datetime import datetime
 import json
 import logging
+from pathlib import Path
 import re
 import traceback
 from typing import AsyncGenerator, Literal
+import urllib.parse
 import uuid
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
+# ``docx_converter`` imports python-docx lazily, so this stays import-cheap.
+from deeptutor.co_writer.docx_converter import (
+    DocxConversionError,
+    docx_to_markdown,
+    markdown_to_docx,
+)
 from deeptutor.co_writer.edit_agent import (
     EditAgent,
     append_history,
@@ -66,6 +74,8 @@ def get_edit_agent() -> EditAgent:
 _MAX_DOC_CHARS = 600_000
 _MAX_SELECTION_CHARS = 120_000
 _MAX_INSTRUCTION_CHARS = 10_000
+_MAX_DOCX_UPLOAD_BYTES = 20 * 1024 * 1024
+_DOCX_UPLOAD_CHUNK = 1024 * 1024
 
 
 class EditRequest(BaseModel):
@@ -596,6 +606,101 @@ async def create_document(request: CreateDocumentRequest) -> DocumentResponse:
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class ExportDocxRequest(BaseModel):
+    title: str = ""
+    content: str = Field(default="", max_length=_MAX_DOC_CHARS)
+
+
+def _docx_download_filename(title: str) -> str:
+    raw = (title or "co-writer").strip() or "co-writer"
+    safe = re.sub(r'[\\/:*?"<>|\x00-\x1f\x7f]', "-", raw).strip(" .")[:80]
+    safe = safe or "co-writer"
+    if not safe.lower().endswith(".docx"):
+        safe = f"{safe}.docx"
+    return safe
+
+
+def _content_disposition(filename: str) -> str:
+    """Build a header that survives non-ASCII titles (RFC 6266 / RFC 5987).
+
+    Header values are latin-1 encoded on the wire, so a CJK or accented title
+    must go in the ``filename*`` parameter with an ASCII ``filename`` fallback.
+    """
+    ascii_name = filename.encode("ascii", "ignore").decode("ascii").strip(" .")
+    if not ascii_name.lower().endswith(".docx"):
+        ascii_name = f"{ascii_name}.docx" if ascii_name else "co-writer.docx"
+    quoted = urllib.parse.quote(filename, safe="")
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quoted}"
+
+
+@router.post("/documents/import/docx", response_model=DocumentResponse)
+async def import_docx(file: UploadFile = File(...)) -> DocumentResponse:
+    filename = (file.filename or "").strip()
+    if not filename:
+        raise HTTPException(status_code=400, detail="The upload has no filename.")
+    ext = Path(filename).suffix.lower()
+    if ext == ".doc":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Legacy .doc files are not supported yet. "
+                "Please save the document as .docx and try again."
+            ),
+        )
+    if ext != ".docx":
+        raise HTTPException(status_code=400, detail="Only .docx files can be imported.")
+
+    chunks: list[bytes] = []
+    written = 0
+    while chunk := await file.read(_DOCX_UPLOAD_CHUNK):
+        written += len(chunk)
+        if written > _MAX_DOCX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"{filename} exceeds the {_MAX_DOCX_UPLOAD_BYTES // (1024 * 1024)} MB limit."
+                ),
+            )
+        chunks.append(chunk)
+    if written == 0:
+        raise HTTPException(status_code=400, detail=f"{filename} is empty.")
+
+    data = b"".join(chunks)
+    try:
+        markdown = await asyncio.to_thread(docx_to_markdown, data, filename)
+    except DocxConversionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    title = Path(filename).stem.strip()[:120] or None
+    try:
+        storage = get_co_writer_storage()
+        document = storage.create_document(title=title, content=markdown)
+        return DocumentResponse.from_model(document)
+    except Exception as exc:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/documents/export/docx")
+async def export_docx(request: ExportDocxRequest) -> Response:
+    try:
+        data = await asyncio.to_thread(markdown_to_docx, request.content, request.title)
+    except DocxConversionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    filename = _docx_download_filename(request.title)
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": _content_disposition(filename)},
+    )
 
 
 @router.get("/documents/{doc_id}", response_model=DocumentResponse)
