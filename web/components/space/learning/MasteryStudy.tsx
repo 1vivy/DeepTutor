@@ -62,9 +62,11 @@ function currentWaypoint(topic: MasteryTopic, fallback: string, t: Translate) {
 export function MasteryStudy({
   pathId,
   routeSessionId,
+  courseId = "",
 }: {
   pathId: string;
   routeSessionId?: string;
+  courseId?: string;
 }) {
   const { t } = useTranslation();
   const {
@@ -77,7 +79,7 @@ export function MasteryStudy({
     switchBranch,
   } = useUnifiedChat();
   const { topic, topicError, knowledgeBases, sessionError, sessionLoading } =
-    useMasteryStudySession(pathId, routeSessionId);
+    useMasteryStudySession(pathId, routeSessionId, courseId);
   const hasMessages = state.messages.length > 0;
   const prefillInputRef = useRef<((text: string) => void) | null>(null);
   /* ── Transcript scrolling ────────────────────────────────────────────

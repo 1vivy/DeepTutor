@@ -51,6 +51,7 @@ import {
   normalizeBookReferences,
   type BookReferencePayload,
 } from "@/lib/book-references";
+import { courseTurnConfiguration } from "@/lib/course-session-scope";
 
 type SessionRuntimeStatus =
   | "idle"
@@ -1787,10 +1788,14 @@ export function UnifiedChatProvider({
         });
       }
       dispatch({ type: "STREAM_START", key });
-      const effectiveTurnConfig =
+      const effectiveTurnConfig = courseTurnConfiguration(
+        effectiveConfig,
+        session.courseId,
+      );
+      const finalTurnConfig =
         options?.persistUserMessage === false
-          ? { ...(effectiveConfig || {}), _persist_user_message: false }
-          : effectiveConfig;
+          ? { ...effectiveTurnConfig, _persist_user_message: false }
+          : effectiveTurnConfig;
       sendThroughRunner(key, {
         type: "start_turn",
         content,
@@ -1834,8 +1839,8 @@ export function UnifiedChatProvider({
         ...(effectiveLLMSelection
           ? { llm_selection: effectiveLLMSelection }
           : {}),
-        ...(effectiveTurnConfig && Object.keys(effectiveTurnConfig).length > 0
-          ? { config: effectiveTurnConfig }
+        ...(Object.keys(finalTurnConfig).length > 0
+          ? { config: finalTurnConfig }
           : {}),
         // Send ``parent_message_id`` only when we have a real (positive)
         // server id to chain under, or when the caller explicitly pinned

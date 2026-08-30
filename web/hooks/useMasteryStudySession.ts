@@ -18,6 +18,7 @@ import {
   isMasteryDraftSessionReady,
   type MasteryDraftRouteGuard,
 } from "@/lib/mastery-study-route";
+import { courseSessionConfiguration } from "@/lib/course-session-scope";
 
 /**
  * Resolves which topic and which chat session a study route is showing.
@@ -31,6 +32,7 @@ import {
 export function useMasteryStudySession(
   pathId: string,
   routeSessionId?: string,
+  courseId = "",
 ) {
   const router = useRouter();
   const { t } = useTranslation();
@@ -106,7 +108,7 @@ export function useMasteryStudySession(
         routeKey,
         previousSessionId: state.sessionId,
       };
-      newSession(sessionConfiguration);
+      newSession(courseSessionConfiguration(sessionConfiguration, courseId));
       return;
     }
 
@@ -146,6 +148,7 @@ export function useMasteryStudySession(
         });
       });
   }, [
+    courseId,
     configureSession,
     currentRouteKey,
     loadSession,
@@ -173,12 +176,18 @@ export function useMasteryStudySession(
       })
     )
       return;
+    const courseQuery = courseId
+      ? `?course=${encodeURIComponent(courseId)}`
+      : "";
     router.replace(
-      `/mastery/${encodeURIComponent(pathId)}/study/${encodeURIComponent(newSessionId)}`,
+      `/mastery/${encodeURIComponent(pathId)}/study/${encodeURIComponent(
+        newSessionId,
+      )}${courseQuery}`,
       { scroll: false },
     );
   }, [
     currentRouteKey,
+    courseId,
     pathId,
     routeSessionId,
     router,
