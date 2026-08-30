@@ -51,6 +51,10 @@ import {
   normalizeBookReferences,
   type BookReferencePayload,
 } from "@/lib/book-references";
+import {
+  normalizeWorkspaceMode,
+  type WorkspaceMode,
+} from "@/lib/workspace-mode";
 
 type SessionRuntimeStatus =
   | "idle"
@@ -95,6 +99,8 @@ export interface ChatState {
   sessionTitle: string;
   enabledTools: string[];
   activeCapability: string | null;
+  /** Stable product surface; per-turn capability selection is orthogonal. */
+  workspaceMode: WorkspaceMode | null;
   knowledgeBases: string[];
   llmSelection: LLMSelection | null;
   /** Persistent mastery state associated with this conversation. */
@@ -117,6 +123,7 @@ export interface ChatState {
 
 export interface SessionConfiguration {
   capability?: string | null;
+  workspaceMode?: WorkspaceMode | null;
   knowledgeBases?: string[];
   masteryPathId?: string | null;
   courseId?: string;
@@ -152,6 +159,7 @@ export interface MessageAttachment {
 export interface MessageRequestSnapshot {
   content: string;
   capability?: string | null;
+  workspaceMode?: WorkspaceMode | null;
   enabledTools: string[];
   knowledgeBases: string[];
   language: string;
@@ -208,6 +216,7 @@ interface SessionSnapshot {
   status?: SessionRuntimeStatus;
   tools?: string[];
   capability?: string | null;
+  workspaceMode?: WorkspaceMode | null;
   knowledgeBases?: string[];
   llmSelection?: LLMSelection | null;
   masteryPathId?: string | null;
@@ -300,6 +309,7 @@ function createSessionEntry(
     sessionTitle: "",
     enabledTools: [],
     activeCapability: null,
+    workspaceMode: null,
     knowledgeBases: [],
     llmSelection: null,
     masteryPathId: null,
@@ -353,6 +363,10 @@ function applySessionConfiguration(
       configuration.capability !== undefined
         ? configuration.capability
         : session.activeCapability,
+    workspaceMode:
+      configuration.workspaceMode !== undefined
+        ? configuration.workspaceMode
+        : session.workspaceMode,
     knowledgeBases:
       configuration.knowledgeBases !== undefined
         ? [...configuration.knowledgeBases]
@@ -724,6 +738,10 @@ function reducer(state: ProviderState, action: Action): ProviderState {
               action.capability !== undefined
                 ? action.capability
                 : existing.activeCapability,
+            workspaceMode:
+              action.workspaceMode !== undefined
+                ? action.workspaceMode
+                : existing.workspaceMode,
             knowledgeBases: action.knowledgeBases ?? existing.knowledgeBases,
             llmSelection:
               action.llmSelection !== undefined
@@ -1089,6 +1107,10 @@ function hydrateRequestSnapshot(
       typeof stored.capability === "string"
         ? stored.capability
         : message.capability || "",
+    workspaceMode: normalizeWorkspaceMode(
+      stored.workspaceMode ?? stored.workspace_mode,
+      stored.capability ?? message.capability,
+    ),
     enabledTools: asStringArray(stored.enabledTools),
     knowledgeBases: asStringArray(stored.knowledgeBases),
     language: typeof stored.language === "string" ? stored.language : "en",
@@ -1500,6 +1522,10 @@ export function UnifiedChatProvider({
         if (!local || local.isStreaming || local.status === "running") return;
       }
       const messages = hydrateMessages(session.messages ?? []);
+      const loadedWorkspaceMode = normalizeWorkspaceMode(
+        session.preferences?.workspace_mode,
+        session.preferences?.capability,
+      );
       dispatch({
         type: options?.revalidate ? "REVALIDATE_SESSION" : "LOAD_SESSION",
         key,
@@ -1513,7 +1539,14 @@ export function UnifiedChatProvider({
         tools: Array.isArray(session.preferences?.tools)
           ? session.preferences.tools
           : [],
-        capability: session.preferences?.capability || null,
+        // Old sessions stored Reading/Mastery as the capability itself. Once
+        // promoted to a workspace mode, that value means the default Chat
+        // action rather than a hidden legacy entry in the action picker.
+        capability:
+          session.preferences?.capability === loadedWorkspaceMode
+            ? null
+            : session.preferences?.capability || null,
+        workspaceMode: loadedWorkspaceMode,
         knowledgeBases: Array.isArray(session.preferences?.knowledge_bases)
           ? session.preferences.knowledge_bases
           : [],
@@ -1678,6 +1711,8 @@ export function UnifiedChatProvider({
       const replaySnapshot = options?.requestSnapshotOverride;
       const effectiveCapability =
         replaySnapshot?.capability ?? session.activeCapability;
+      const effectiveWorkspaceMode =
+        replaySnapshot?.workspaceMode ?? session.workspaceMode;
       const effectiveTools =
         replaySnapshot?.enabledTools ?? session.enabledTools;
       const effectiveKnowledgeBases =
@@ -1718,6 +1753,7 @@ export function UnifiedChatProvider({
       const requestSnapshot: MessageRequestSnapshot = replaySnapshot ?? {
         content,
         capability: effectiveCapability,
+        workspaceMode: effectiveWorkspaceMode,
         enabledTools: [...effectiveTools],
         knowledgeBases: [...effectiveKnowledgeBases],
         language: effectiveLanguage,
@@ -1796,6 +1832,7 @@ export function UnifiedChatProvider({
         content,
         tools: effectiveTools,
         capability: effectiveCapability,
+        workspace_mode: effectiveWorkspaceMode ?? "",
         knowledge_bases: effectiveKnowledgeBases,
         session_id: session.sessionId,
         attachments: effectiveAttachments,
@@ -1817,12 +1854,12 @@ export function UnifiedChatProvider({
         ...(effectiveMasteryPathId
           ? { mastery_path_id: effectiveMasteryPathId }
           : {}),
-        // Immersive reading. Gated on the capability as well as on an open
-        // document: the reader outlives both a mode switch and a new session, so
-        // without the capability check every later turn would still carry it.
+        // Immersive reading. Gated on the stable workspace mode as well as on
+        // an open document: the reader outlives action switches and new
+        // sessions, so Home must never inherit its source context.
         // Read from a module cell rather than context state so scrolling the
         // reader never re-renders the chat.
-        ...readingTurnFields(effectiveCapability),
+        ...readingTurnFields(effectiveWorkspaceMode),
         // Always sent (possibly ""): an explicit key is the backend's signal
         // to persist the value into session.preferences — "" clears back to
         // Default. Omitting the key would make the backend fall back to the
@@ -1947,6 +1984,7 @@ export function UnifiedChatProvider({
       sessionTitle: current.sessionTitle,
       enabledTools: current.enabledTools,
       activeCapability: current.activeCapability,
+      workspaceMode: current.workspaceMode,
       knowledgeBases: current.knowledgeBases,
       llmSelection: current.llmSelection,
       masteryPathId: current.masteryPathId,

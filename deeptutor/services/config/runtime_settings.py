@@ -14,6 +14,11 @@ from .origins import normalize_origins
 
 DEFAULT_SYSTEM_SETTINGS: dict[str, Any] = {
     "version": 1,
+    # About → Updates performs at most one release lookup per process/day.
+    # Operators may disable even that explicit network boundary for offline or
+    # audited deployments; DEEPTUTOR_VERSION_CHECK_ENABLED is the deployment
+    # override for read-only settings volumes.
+    "version_check_enabled": True,
     "backend_port": 8001,
     "frontend_port": 3782,
     "next_public_api_base_external": "",
@@ -579,6 +584,7 @@ class RuntimeSettingsService:
         auth = self.load_auth()
         integrations = self.load_integrations()
         return {
+            "DEEPTUTOR_VERSION_CHECK_ENABLED": _bool_env(system["version_check_enabled"]),
             "BACKEND_PORT": str(system["backend_port"]),
             "FRONTEND_PORT": str(system["frontend_port"]),
             "NEXT_PUBLIC_API_BASE_EXTERNAL": system["next_public_api_base_external"],
@@ -687,6 +693,8 @@ class RuntimeSettingsService:
 
     def _apply_system_process_overrides(self, settings: dict[str, Any]) -> dict[str, Any]:
         payload = dict(settings)
+        if value := self._process_env_value("DEEPTUTOR_VERSION_CHECK_ENABLED"):
+            payload["version_check_enabled"] = value
         if value := self._process_env_value("BACKEND_PORT"):
             payload["backend_port"] = value
         if value := self._process_env_value("FRONTEND_PORT"):
@@ -1035,6 +1043,7 @@ class RuntimeSettingsService:
         max_total_mb = max(max_total_mb, max_file_mb)
         return {
             "version": 1,
+            "version_check_enabled": _coerce_bool(settings.get("version_check_enabled"), True),
             "backend_port": _coerce_port(settings.get("backend_port"), 8001),
             "frontend_port": _coerce_port(settings.get("frontend_port"), 3782),
             "next_public_api_base_external": public_api_base,

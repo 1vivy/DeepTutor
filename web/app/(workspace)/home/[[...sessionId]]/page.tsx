@@ -12,23 +12,8 @@ import {
 import { useParams, useRouter } from "next/navigation";
 
 import {
-  BarChart3,
-  BrainCircuit,
-  CircleHelp,
-  Clapperboard,
-  Code2,
-  Compass,
-  Database,
-  FileSearch,
-  Globe,
   GraduationCap,
-  Image as ImageIcon,
-  Lightbulb,
-  MessageSquare,
-  Microscope,
   PenLine,
-  Signpost,
-  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -118,6 +103,13 @@ import {
   getEnabledOptionalTools,
   invalidateEnabledOptionalToolsCache,
 } from "@/lib/tools-settings";
+import {
+  ALL_TOOLS,
+  CHAT_CAPABILITIES,
+  VISIBLE_CHAT_CAPABILITIES,
+  getChatCapability,
+  type ToolName,
+} from "@/lib/chat-capabilities";
 import { downloadChatMarkdown } from "@/lib/chat-export";
 import { buildChatOutline } from "@/lib/chat-outline";
 import { isPlaceholderSessionTitle } from "@/lib/session-title";
@@ -200,171 +192,6 @@ const ResearchConfigPanel = dynamic(
 /*  Type & data definitions                                           */
 /* ------------------------------------------------------------------ */
 
-type ToolName =
-  | "brainstorm"
-  | "geogebra_analysis"
-  | "web_search"
-  | "code_execution"
-  | "reason"
-  | "paper_search"
-  | "imagegen"
-  | "videogen";
-
-interface ToolDef {
-  name: ToolName;
-  label: string;
-  icon: LucideIcon;
-}
-
-const ALL_TOOLS: ToolDef[] = [
-  { name: "brainstorm", label: "Brainstorm", icon: Lightbulb },
-  { name: "geogebra_analysis", label: "GeoGebra", icon: Compass },
-  { name: "web_search", label: "Web Search", icon: Globe },
-  { name: "code_execution", label: "Code", icon: Code2 },
-  { name: "reason", label: "Reason", icon: Sparkles },
-  { name: "paper_search", label: "Arxiv Search", icon: FileSearch },
-  { name: "imagegen", label: "Image Gen", icon: ImageIcon },
-  { name: "videogen", label: "Video Gen", icon: Clapperboard },
-];
-
-interface CapabilityDef {
-  value: string;
-  label: string;
-  description: string;
-  icon: LucideIcon;
-  allowedTools: ToolName[];
-  defaultTools: ToolName[];
-  /**
-   * Collapse this capability into the picker's "More" flyout instead of listing
-   * it directly.
-   *
-   * Purely about presentation — which handful of modes deserve to be one click
-   * away. It used to key off whether a capability ran on the chat agent loop,
-   * which conflated an implementation detail with menu order and meant the menu
-   * could not be reordered without lying about the engine.
-   */
-  secondary?: boolean;
-
-  /**
-   * Keep this capability resolvable but stop offering it as a new choice.
-   *
-   * A capability that graduated into its own workspace still has sessions in
-   * people's history. Deleting the entry outright would make those sessions
-   * render under the wrong label while still sending the old capability to the
-   * server. So the definition stays — for naming and icons — and only the
-   * picker hides it.
-   */
-  legacy?: boolean;
-}
-
-const CAPABILITIES: CapabilityDef[] = [
-  {
-    value: "",
-    label: "Chat",
-    description: "Flexible conversation with any tool",
-    icon: MessageSquare,
-    allowedTools: [
-      "brainstorm",
-      "geogebra_analysis",
-      "web_search",
-      "code_execution",
-      "reason",
-      "paper_search",
-      "imagegen",
-      "videogen",
-    ],
-    defaultTools: [],
-  },
-  {
-    value: "deep_solve",
-    label: "Solve",
-    description: "Multi-step reasoning & problem solving",
-    icon: BrainCircuit,
-    allowedTools: ["web_search", "code_execution", "reason"],
-    defaultTools: ["web_search", "code_execution", "reason"],
-    secondary: true,
-  },
-  {
-    value: "ask_questions",
-    label: "Ask Questions",
-    description: "Let the model ask you questions to fill in missing context",
-    icon: CircleHelp,
-    allowedTools: [
-      "brainstorm",
-      "geogebra_analysis",
-      "web_search",
-      "code_execution",
-      "reason",
-      "paper_search",
-      "imagegen",
-      "videogen",
-    ],
-    defaultTools: [],
-  },
-  {
-    value: "deep_question",
-    label: "Quiz",
-    description: "Auto-validated question generation",
-    icon: PenLine,
-    allowedTools: ["web_search", "code_execution"],
-    defaultTools: ["web_search", "code_execution"],
-  },
-  {
-    value: "deep_research",
-    label: "Research",
-    description: "Comprehensive multi-agent research",
-    icon: Microscope,
-    allowedTools: ["web_search", "paper_search", "code_execution"],
-    defaultTools: ["web_search", "paper_search", "code_execution"],
-    secondary: true,
-  },
-  {
-    value: "visualize",
-    label: "Visualize",
-    description:
-      "Generate charts, diagrams, interactive pages, or math animations",
-    icon: BarChart3,
-    allowedTools: [],
-    defaultTools: [],
-  },
-  {
-    value: "course_study",
-    label: "Course Study",
-    description: "See where a course stands and what to do next",
-    icon: Signpost,
-    // The four course tools auto-mount server-side once the conversation
-    // belongs to a course; this mode orchestrates and hands off, so it keeps
-    // the ordinary tools for understanding a request well enough to route it.
-    allowedTools: ["web_search", "code_execution", "reason"],
-    defaultTools: [],
-  },
-  {
-    value: "mastery_path",
-    label: "Mastery Path",
-    description: "Mastery-based tutoring with a hard gate",
-    icon: GraduationCap,
-    // The mastery tools (status/quiz/grade/assess/build) auto-mount server-side
-    // when this capability is active; rag auto-mounts when a KB is attached.
-    // These are only the extra optional tools the tutor may also reach for.
-    allowedTools: ["web_search", "code_execution"],
-    defaultTools: [],
-    // Mastery Path is its own workspace now (/mastery). Started from
-    // here it had no topic to belong to, so `resolve_mastery_path_id` minted a
-    // path keyed by the session id — a learning path whose identity was an
-    // accident of whichever chat happened to open it, and whose map, review
-    // trail and evidence lived on a screen the learner was not looking at.
-    // Existing sessions keep working; the picker just no longer starts new ones.
-    legacy: true,
-  },
-];
-
-// Course Study hidden from the mode picker pending further product work; the
-// entry stays in CAPABILITIES so a conversation already bound to it (e.g. via
-// the course page's deep link) still resolves correctly.
-const VISIBLE_CAPABILITIES = CAPABILITIES.filter(
-  (cap) => cap.value !== "course_study",
-);
-
 interface KnowledgeBase {
   name: string;
   is_default?: boolean;
@@ -392,10 +219,6 @@ interface PendingAttachment {
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
 /* ------------------------------------------------------------------ */
-
-function getCapability(value: string | null): CapabilityDef {
-  return CAPABILITIES.find((c) => c.value === (value || "")) ?? CAPABILITIES[0];
-}
 
 /**
  * Read the context-window measurement a finished turn attached to its
@@ -750,7 +573,7 @@ export default function ChatPage() {
   }, [handlePrefillComposer]);
 
   const activeCap = useMemo(
-    () => getCapability(state.activeCapability),
+    () => getChatCapability(state.activeCapability),
     [state.activeCapability],
   );
   const isQuizMode = activeCap.value === "deep_question";
@@ -1517,7 +1340,7 @@ export default function ChatPage() {
   const handleSelectCapability = useCallback(
     (value: string) => {
       const cap =
-        CAPABILITIES.find((c) => c.value === value) ?? CAPABILITIES[0];
+        CHAT_CAPABILITIES.find((c) => c.value === value) ?? CHAT_CAPABILITIES[0];
       const storageKey = cap.value || "chat";
       const config = resolveCapabilityPlaygroundConfig(
         capabilityConfigs,
@@ -2606,7 +2429,7 @@ export default function ChatPage() {
                 capabilityNeedsConfig={capabilityNeedsConfig}
                 capabilityConfigConfirmed={capabilityConfigConfirmed}
                 onRequestConfigConfirm={ensureActivityPanelOpen}
-                capabilities={VISIBLE_CAPABILITIES}
+                capabilities={VISIBLE_CHAT_CAPABILITIES}
                 onSetCapMenuOpen={setCapMenuOpen}
                 onSetSpaceMenuOpen={setSpaceMenuOpen}
                 onToggleKB={handleToggleKB}

@@ -39,14 +39,19 @@ import { useTranslation } from "react-i18next";
 
 import { ChatMessageList } from "@/components/chat/home/ChatMessages";
 import { buildSessionActivity } from "@/components/chat/home/SessionActivityPanel";
-import SessionViewerPanel from "@/components/chat/home/SessionViewerPanel";
+import SessionViewerPanel, {
+  type SessionViewerPanelHandle,
+} from "@/components/chat/home/SessionViewerPanel";
+import { ChatViewerBridges } from "@/components/chat/home/ChatViewerBridges";
 import Tooltip from "@/components/common/Tooltip";
 import { useUnifiedChat } from "@/context/UnifiedChatContext";
 import { useChatAutoScroll } from "@/hooks/useChatAutoScroll";
 import { useMeasuredHeight } from "@/hooks/useMeasuredHeight";
+import { useResearchOutlineContinuation } from "@/hooks/useResearchOutlineContinuation";
 import { buildChatOutline } from "@/lib/chat-outline";
 import { downloadChatMarkdown } from "@/lib/chat-export";
 import { setReadingViewport } from "@/lib/reading-turn-state";
+import { workspaceActionNeedsConfiguration } from "@/lib/workspace-mode";
 import {
   fetchReadingAskHint,
   fetchReadingOpeners,
@@ -113,17 +118,30 @@ export function ReadingCompanion({
     editMessage,
     switchBranch,
   } = useUnifiedChat();
+  const confirmResearchOutline = useResearchOutlineContinuation();
 
   const [showSessions, setShowSessions] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuView, setMenuView] = useState<MenuView>("actions");
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const viewerPanelRef = useRef<SessionViewerPanelHandle | null>(null);
 
   const closeMenu = useCallback(() => {
     setMenuOpen(false);
     setMenuView("actions");
   }, []);
+
+  const handleWelcomeAction = useCallback(
+    (prompt: string) => {
+      if (workspaceActionNeedsConfiguration(state.activeCapability)) {
+        prefillInputRef.current?.(prompt);
+        return;
+      }
+      onQuickPrompt(prompt);
+    },
+    [onQuickPrompt, prefillInputRef, state.activeCapability],
+  );
 
   /* ── Transcript scrolling ────────────────────────────────────────────
      The pin-to-bottom hook /home uses. The companion used to be a bare
@@ -530,12 +548,13 @@ export function ReadingCompanion({
             onEditMessage={editMessage}
             onSwitchBranch={switchBranch}
             onSubmitUserReply={submitUserReply}
+            onConfirmOutline={confirmResearchOutline}
             showModeBadge={false}
           />
         ) : (
           <CompanionWelcome
             title={material?.title ?? ""}
-            onAction={onQuickPrompt}
+            onAction={handleWelcomeAction}
             suggestions={openers}
           />
         )}
@@ -594,12 +613,14 @@ export function ReadingCompanion({
           the companion rather than squeezing it: at this width a third column
           would leave nothing readable. */}
       <SessionViewerPanel
+        ref={viewerPanelRef}
         open={viewerOpen}
         sessionId={state.sessionId}
         activity={sessionActivity}
         onClose={() => setViewerOpen(false)}
         onAutoOpen={() => setViewerOpen(true)}
       />
+      <ChatViewerBridges viewerPanelRef={viewerPanelRef} />
     </aside>
   );
 }

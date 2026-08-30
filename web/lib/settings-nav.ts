@@ -10,6 +10,7 @@ import {
   Database,
   FileScan,
   Image as ImageIcon,
+  Info,
   KeyRound,
   Library,
   ListChecks,
@@ -390,13 +391,26 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     icon: BrainCircuit,
     href: "/settings/memory",
   },
+  {
+    key: "about",
+    label: { zh: "关于", en: "About" },
+    blurb: {
+      zh: "版本、更新与项目资源",
+      en: "Version, updates, and project resources",
+    },
+    icon: Info,
+    href: "/settings/about",
+  },
 ];
 
 export const SETTINGS_HUB_HREF = "/settings";
 const HUB_LABEL: Lang = { zh: "设置", en: "Settings" };
 
 /** Routes that are pure navigation (the hub) — no Save/Apply toolbar. */
-const NAV_ONLY_ROUTES = new Set<string>([SETTINGS_HUB_HREF]);
+const NAV_ONLY_ROUTES = new Set<string>([
+  SETTINGS_HUB_HREF,
+  "/settings/about",
+]);
 
 export function isNavOnlyRoute(pathname: string): boolean {
   return NAV_ONLY_ROUTES.has(pathname);
