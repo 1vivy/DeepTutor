@@ -1284,6 +1284,13 @@ class TurnRuntimeManager:
                 preferences=preferences,
             )
 
+        try:
+            from deeptutor.multi_user.learning_access import apply_learning_policy
+
+            payload = apply_learning_policy(payload)
+        except PermissionError as exc:
+            raise RuntimeError(str(exc)) from exc
+
         capability = str(payload.get("capability") or "chat")
         try:
             from deeptutor.runtime.request_contracts import validate_capability_config

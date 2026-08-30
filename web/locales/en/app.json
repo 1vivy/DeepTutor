@@ -4119,5 +4119,22 @@
   "Move to More": "Move to More",
   "Move out of More": "Move out of More",
   "Reset sidebar order": "Reset sidebar order",
-  "Reset chat order": "Reset chat order"
+  "Reset chat order": "Reset chat order",
+  "Account preset": "Account preset",
+  "Learner": "Learner",
+  "Preset: {{preset}}": "Preset: {{preset}}",
+  "Chat and Immersive Reading only, with uploads and tools disabled until assigned.": "Chat and Immersive Reading only, with uploads and tools disabled until assigned.",
+  "Create an ordinary account, then customize its assignments.": "Create an ordinary account, then customize its assignments.",
+  "Create an ordinary account with the default workspace behavior.": "Create an ordinary account with the default workspace behavior.",
+  "Learning policy": "Learning policy",
+  "Enable learning policy": "Enable learning policy",
+  "Teacher persona; Chat and Immersive Reading only": "Teacher persona; Chat and Immersive Reading only",
+  "Age band": "Age band",
+  "Teacher": "Teacher",
+  "Modes": "Modes",
+  "Chat · Immersive Reading": "Chat · Immersive Reading",
+  "Assigned reading materials": "Assigned reading materials",
+  "Upload books in Reading before assigning them.": "Upload books in Reading before assigning them.",
+  "Allow learner uploads": "Allow learner uploads",
+  "Reading extensions": "Reading extensions"
 }

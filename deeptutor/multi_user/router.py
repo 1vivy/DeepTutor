@@ -3,24 +3,30 @@
 from __future__ import annotations
 
 import asyncio
+import os
+from pathlib import Path
+import shutil
 from typing import Any
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, StrictBool
 
 from deeptutor.api.routers.auth import require_admin
 from deeptutor.knowledge.manager import KnowledgeBaseManager
+from deeptutor.reading import ReadingStore
+from deeptutor.reading.extensions import get_reading_extension_registry
 from deeptutor.services.config.model_catalog import ModelCatalogService
 from deeptutor.services.skill.service import SkillService
 
 from .audit import log_admin_action
 from .book_permission import BookDefaultLevel, BookPermission, BookPermissionLevel
 from .context import get_current_user
-from .grants import load_grant, save_grant
+from .grants import load_grant, normalize_grant, save_grant, validate_grant
 from .identity import get_user_by_id, list_user_info, set_book_permission
 from .knowledge_access import admin_kb_base_dir
 from .model_access import is_owner_bound
-from .paths import get_admin_path_service
+from .paths import get_admin_path_service, get_path_service_for_scope, scope_for_user
 
 router = APIRouter()
 
@@ -117,6 +123,60 @@ def _admin_partner_summary() -> list[dict[str, Any]]:
     ]
 
 
+def _reading_root(service: Any) -> Path:
+    return service.get_workspace_feature_dir("reading")
+
+
+def _admin_reading_summary() -> list[dict[str, Any]]:
+    store = ReadingStore(_reading_root(get_admin_path_service()))
+    return [manifest.to_dict() for manifest in store.list_materials()]
+
+
+def _stage_assigned_materials(user_id: str, grant: dict[str, Any]) -> None:
+    """Copy newly assigned admin books without touching learner-owned state."""
+    policy = grant.get("learning_policy")
+    reading = policy.get("reading") if isinstance(policy, dict) else None
+    if not isinstance(reading, dict):
+        return
+    material_ids = set(reading.get("material_ids") or [])
+    material_ids.discard("*")
+    if not material_ids:
+        return
+
+    admin_root = _reading_root(get_admin_path_service())
+    admin_store = ReadingStore(admin_root)
+    user_service = get_path_service_for_scope(scope_for_user(user_id, is_admin=False))
+    target_root = _reading_root(user_service)
+    target_root.mkdir(parents=True, exist_ok=True)
+    for material_id in sorted(material_ids):
+        try:
+            admin_store.manifest(material_id)
+        except Exception as exc:
+            raise ValueError(f"Unknown admin reading material: {material_id}") from exc
+        target = target_root / material_id
+        if target.exists():
+            continue
+        stage = target_root / f".{material_id}.{uuid.uuid4().hex[:8]}.staging"
+        try:
+            shutil.copytree(admin_root / material_id, stage)
+            os.replace(stage, target)
+        finally:
+            shutil.rmtree(stage, ignore_errors=True)
+
+
+def _validate_reading_policy(grant: dict[str, Any]) -> None:
+    policy = grant.get("learning_policy")
+    reading = policy.get("reading") if isinstance(policy, dict) else None
+    if not isinstance(reading, dict):
+        return
+    allowed_extensions = {
+        extension.manifest.id for extension in get_reading_extension_registry().all()
+    }
+    unknown = sorted(set(reading.get("extensions") or []) - allowed_extensions)
+    if unknown:
+        raise ValueError(f"Unknown reading extensions: {', '.join(unknown)}")
+
+
 def _require_assignable_user(user_id: str) -> tuple[str, dict[str, Any]]:
     user_record = get_user_by_id(user_id)
     if user_record is None:
@@ -142,6 +202,10 @@ async def admin_resources(_: object = Depends(require_admin)) -> dict[str, Any]:
         "knowledge_bases": _admin_kb_summary(),
         "skills": _admin_skill_summary(),
         "partners": _admin_partner_summary(),
+        "reading_materials": _admin_reading_summary(),
+        "reading_extensions": [
+            extension.manifest.model_dump() for extension in get_reading_extension_registry().all()
+        ],
         "tools": tool_options["tools"],
         "mcp_tools": tool_options["mcp_tools"],
     }
@@ -166,9 +230,18 @@ async def put_user_grants(
     payload: GrantPayload,
     _: object = Depends(require_admin),
 ) -> dict[str, Any]:
-    _require_assignable_user(user_id)
+    user_record = _require_assignable_user(user_id)
     try:
-        grant = save_grant(user_id, payload.grant)
+        grant = normalize_grant(user_id, payload.grant)
+        if (
+            str(user_record[1].get("preset") or "standard") == "learner"
+            and grant.get("learning_policy") is None
+        ):
+            raise ValueError("Learner accounts must retain a learning policy.")
+        validate_grant(grant)
+        _validate_reading_policy(grant)
+        _stage_assigned_materials(user_id, grant)
+        grant = save_grant(user_id, grant)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     log_admin_action(
@@ -184,6 +257,7 @@ async def put_user_grants(
                 None if grant.get("mcp_tools") is None else len(grant.get("mcp_tools") or [])
             ),
             "exec_enabled": grant.get("exec_enabled"),
+            "learning_policy": grant.get("learning_policy"),
         },
     )
     return {"grant": grant}

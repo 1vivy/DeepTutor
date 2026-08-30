@@ -4119,5 +4119,22 @@
   "Move to More": "收进「更多」",
   "Move out of More": "移出「更多」",
   "Reset sidebar order": "恢复默认排列",
-  "Reset chat order": "恢复默认顺序"
+  "Reset chat order": "恢复默认顺序",
+  "Account preset": "账户预设",
+  "Learner": "学习者",
+  "Preset: {{preset}}": "预设：{{preset}}",
+  "Chat and Immersive Reading only, with uploads and tools disabled until assigned.": "仅可用 Chat 和沉浸阅读；上传与工具在分配前保持关闭。",
+  "Create an ordinary account, then customize its assignments.": "创建普通账户，之后自定义可用资源。",
+  "Create an ordinary account with the default workspace behavior.": "创建使用默认工作区行为的普通账户。",
+  "Learning policy": "学习策略",
+  "Enable learning policy": "启用学习策略",
+  "Teacher persona; Chat and Immersive Reading only": "教师人格；仅可用 Chat 和沉浸阅读",
+  "Age band": "年龄段",
+  "Teacher": "教师",
+  "Modes": "模式",
+  "Chat · Immersive Reading": "Chat · 沉浸阅读",
+  "Assigned reading materials": "已分配阅读材料",
+  "Upload books in Reading before assigning them.": "请先在阅读区上传书籍，再分配给学习者。",
+  "Allow learner uploads": "允许学习者上传",
+  "Reading extensions": "阅读扩展"
 }
