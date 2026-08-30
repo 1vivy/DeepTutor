@@ -51,3 +51,9 @@ test("the built-in study-guidance action is localized", () => {
   assert.match(english, /"Guide me": "Guide me"/);
   assert.match(chinese, /"Guide me": "引导我"/);
 });
+
+test("study-guidance steps are visible in the result card", () => {
+  assert.match(component, /result\.payload\.steps/);
+  assert.match(component, /steps\.map\(\(step, index\) =>/);
+  assert.match(component, /list-decimal/);
+});
