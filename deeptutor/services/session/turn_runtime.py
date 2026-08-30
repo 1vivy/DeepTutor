@@ -1685,11 +1685,15 @@ class TurnRuntimeManager:
         await self._recover_orphan_running_turns_for_session(session["id"])
         preference_update: dict[str, Any] = {
             "capability": capability,
-            "workspace_mode": workspace_mode,
             "tools": list(payload.get("tools") or []),
             "knowledge_bases": list(payload.get("knowledge_bases") or []),
             "language": str(payload.get("language") or "en"),
         }
+        # Missing legacy chat fields should not manufacture an empty stored
+        # preference. Explicit empties still clear a workspace, while a
+        # non-empty legacy capability is persisted as part of migration.
+        if workspace_mode_explicit or workspace_mode:
+            preference_update["workspace_mode"] = workspace_mode
         if course_id_explicit:
             preference_update["course_id"] = requested_course_id
 
