@@ -24,7 +24,7 @@ def mu_isolated_root(tmp_path, monkeypatch) -> Path:
     Also clears the ``_path_services`` cache so ``get_path_service()`` can be
     re-resolved per test without leaking instances created in earlier tests.
     """
-    from deeptutor.multi_user import grants, identity, paths
+    from deeptutor.multi_user import device_credentials, grants, identity, paths
 
     project_root = tmp_path
     admin_root = (project_root / "data").resolve()
@@ -55,6 +55,11 @@ def mu_isolated_root(tmp_path, monkeypatch) -> Path:
     )
 
     monkeypatch.setattr(grants, "GRANTS_DIR", system_root / "grants")
+    monkeypatch.setattr(
+        device_credentials,
+        "DEVICE_CREDENTIALS_FILE",
+        system_root / "auth" / "device_credentials.json",
+    )
 
     # The ``auth.json`` bootstrap admin is process-global state rather than a
     # path, and it now takes part in the first-user promotion decision (#849).

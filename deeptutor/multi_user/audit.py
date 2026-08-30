@@ -6,19 +6,19 @@ from datetime import datetime, timezone
 import json
 from typing import Any
 
+from . import paths
 from .context import get_current_user
-from .paths import SYSTEM_ROOT, ensure_system_dirs
 
 
 def _audit_file():
     # Resolved per call so monkey-patched SYSTEM_ROOT (e.g. in tests) takes
     # effect without a module reload.
-    return SYSTEM_ROOT / "audit" / "usage.jsonl"
+    return paths.SYSTEM_ROOT / "audit" / "usage.jsonl"
 
 
 def _write(payload: dict[str, Any]) -> None:
     try:
-        ensure_system_dirs()
+        paths.ensure_system_dirs()
         with _audit_file().open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
     except Exception:
