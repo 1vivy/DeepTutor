@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timezone
 import json
 import logging
@@ -325,12 +326,37 @@ def remove_book_permission_overrides(book_id: str) -> list[str]:
 def delete_user(username: str) -> bool:
     if not USERS_FILE.exists():
         return False
-    users = load_users()
-    if username not in users:
-        return False
-    users.pop(username, None)
-    _write_users(users)
+    with _USERS_WRITE_LOCK:
+        users = load_users()
+        record = users.get(username)
+        if record is None:
+            return False
+        user_id = str(record.get("id") or "")
+        users.pop(username, None)
+        _write_users(users)
+    try:
+        from .guardians import revoke_relationships_for_user
+
+        # Route guards also revalidate both accounts, so a rare cleanup failure
+        # can never make a deleted-user relationship usable.
+        revoke_relationships_for_user(user_id, reason="user_deleted")
+    except Exception:
+        logger.exception("Could not revoke guardian relationships after user deletion")
     return True
+
+
+def set_password(username: str, hashed_password: str) -> dict[str, Any] | None:
+    """Replace one account's password hash without changing its identity fields."""
+    if not USERS_FILE.exists():
+        return None
+    with _USERS_WRITE_LOCK:
+        users = load_users()
+        record = users.get(username)
+        if record is None:
+            return None
+        record["hash"] = hashed_password
+        _write_users(users)
+        return deepcopy(record)
 
 
 def set_avatar(username: str, avatar: str) -> bool:
