@@ -43,6 +43,7 @@ SOURCE_BUILD_EXCLUDED_DIRS = {
     "test-results",
     "coverage",
 }
+LOOPBACK_HOSTS = ("127.0.0.1", "::1")
 
 
 def _apply_single_user_allocator_env(env: dict[str, str]) -> None:
@@ -217,12 +218,16 @@ def _spawn(command: list[str], *, cwd: Path, env: dict[str, str], name: str) -> 
     return ManagedProcess(name=name, process=process, pgid=_get_pgid(process.pid))
 
 
-def _port_accepts_connection(port: int) -> bool:
+def _host_accepts_connection(host: str, port: int) -> bool:
     try:
-        with socket.create_connection(("127.0.0.1", port), timeout=0.25):
+        with socket.create_connection((host, port), timeout=0.25):
             return True
     except OSError:
         return False
+
+
+def _port_accepts_connection(port: int) -> bool:
+    return any(_host_accepts_connection(host, port) for host in LOOPBACK_HOSTS)
 
 
 def _port_listeners(port: int) -> list[tuple[int, str]]:
