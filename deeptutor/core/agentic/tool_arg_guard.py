@@ -109,6 +109,33 @@ def required_args(definition: ToolDefinition) -> list[RequiredArg]:
     ]
 
 
+def unsatisfied_required_args(
+    definition: ToolDefinition,
+    args: dict[str, Any],
+) -> tuple[list[RequiredArg], list[RequiredArg]]:
+    """Split unsatisfied required parameters into absent vs present-but-blank.
+
+    Thinking models sometimes deliberately pass ``""`` (scaffold now, fill
+    later). Framing that as "missing" contradicts the model's own view of
+    the call and drives verbatim retries (#1101). The rejection still
+    blocks dispatch — only the corrective wording differs.
+    """
+    absent: list[RequiredArg] = []
+    blank: list[RequiredArg] = []
+    for arg in required_args(definition):
+        if arg.name not in args:
+            absent.append(arg)
+            continue
+        value = args[arg.name]
+        if value is None:
+            absent.append(arg)
+        elif isinstance(value, str) and not value.strip():
+            blank.append(arg)
+        elif not _is_supplied(value):
+            absent.append(arg)
+    return absent, blank
+
+
 def missing_required_args(
     definition: ToolDefinition,
     args: dict[str, Any],
@@ -119,21 +146,50 @@ def missing_required_args(
     augmentation — so an argument the pipeline injects on the model's behalf
     counts as supplied.
     """
-    return [arg for arg in required_args(definition) if not _is_supplied(args.get(arg.name))]
+    absent, blank = unsatisfied_required_args(definition, args)
+    return [*absent, *blank]
 
 
-def missing_args_message(tool_name: str, missing: list[RequiredArg]) -> str:
+def missing_args_message(
+    tool_name: str,
+    missing: list[RequiredArg],
+    *,
+    empty: list[RequiredArg] | None = None,
+) -> str:
     """Corrective ``role=tool`` body for a call that was never dispatched.
 
-    Names the missing arguments and their accepted shape, and says plainly
-    that repeating the same call will fail again — the model's failure mode
-    here is retrying verbatim, not misreading the schema.
+    Names the missing / empty arguments and their accepted shape, and says
+    plainly that repeating the same call will fail again — the model's
+    failure mode here is retrying verbatim, not misreading the schema.
+
+    Pass *absent* keys in ``missing`` and *present-but-blank* keys in
+    ``empty`` so thinking models that deliberately sent ``""`` get feedback
+    that matches what they did (#1101). Legacy callers that only pass a
+    combined ``missing`` list keep the original "without its required
+    argument(s)" framing.
     """
-    named = ", ".join(f"`{arg.name}`" for arg in missing)
-    shapes = "; ".join(arg.describe() for arg in missing)
+    absent = list(missing)
+    blank = list(empty or [])
+
+    clauses: list[str] = []
+    if absent:
+        named = ", ".join(f"`{arg.name}`" for arg in absent)
+        shapes = "; ".join(arg.describe() for arg in absent)
+        clauses.append(
+            f"`{tool_name}` was called without its required argument(s): {named}. "
+            f"Expected: {shapes}."
+        )
+    if blank:
+        named = ", ".join(f"`{arg.name}`" for arg in blank)
+        shapes = "; ".join(arg.describe() for arg in blank)
+        clauses.append(
+            f"`{tool_name}` received empty value(s) for required argument(s): {named}. "
+            "Those keys were present but blank — supply non-empty content "
+            f"(do not re-emit the same empty string). Expected: {shapes}."
+        )
+    body = " ".join(clauses) if clauses else f"`{tool_name}` was called with incomplete arguments."
     return (
-        f"(tool call not dispatched — `{tool_name}` was called without its required "
-        f"argument(s): {named}. Expected: {shapes}. Re-emit the call with those "
+        f"(tool call not dispatched — {body} Re-emit the call with those "
         "arguments filled in; an identical call with empty arguments will be "
         "rejected again without running.)"
     )

@@ -28,7 +28,7 @@ from typing import Any
 
 from deeptutor.core.agentic.tool_arg_guard import (
     missing_args_message,
-    missing_required_args,
+    unsatisfied_required_args,
 )
 from deeptutor.core.context import UnifiedContext
 from deeptutor.core.stream_bus import StreamBus
@@ -371,24 +371,40 @@ async def _reject_if_args_missing(
     if definition is None:
         return None
 
-    missing = missing_required_args(definition, exec_args)
-    if not missing:
+    absent, blank = unsatisfied_required_args(definition, exec_args)
+    if not absent and not blank:
         return None
 
-    message = missing_args_message(tool_name, missing)
-    logger.warning(
-        "Rejected %s before dispatch: missing required args %s",
-        tool_name,
-        [arg.name for arg in missing],
-    )
+    message = missing_args_message(tool_name, absent, empty=blank)
+    if blank and not absent:
+        logger.warning(
+            "Rejected %s before dispatch: empty required args %s",
+            tool_name,
+            [arg.name for arg in blank],
+        )
+    elif blank:
+        logger.warning(
+            "Rejected %s before dispatch: missing required args %s; empty required args %s",
+            tool_name,
+            [arg.name for arg in absent],
+            [arg.name for arg in blank],
+        )
+    else:
+        logger.warning(
+            "Rejected %s before dispatch: missing required args %s",
+            tool_name,
+            [arg.name for arg in absent],
+        )
     if trace_meta is not None:
         # Close the sub-trace with a terminal state, as the raising path in
         # ``execute_tool_call`` does — a rejected call must not leave a row
         # that reads as still running. ``progress`` (not ``error``): this is
         # a recoverable per-call correction, and a stream ERROR makes a
         # partner turn re-run the whole turn on its backup model.
+        unsatisfied = [*absent, *blank]
+        reason = "empty" if blank and not absent else "missing"
         await stream.progress(
-            f"{tool_name} not dispatched: missing {', '.join(arg.name for arg in missing)}",
+            f"{tool_name} not dispatched: {reason} {', '.join(arg.name for arg in unsatisfied)}",
             source=source,
             stage=stage,
             metadata=derive_trace_metadata(
