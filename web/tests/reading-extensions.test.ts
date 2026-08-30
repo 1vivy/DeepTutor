@@ -38,3 +38,29 @@ test("a malformed extension catalog cannot crash the whole reader", () => {
     /Array\.isArray\(\(row as ReadingExtensionManifest\)\.actions\)/,
   );
 });
+
+test("the built-in translation action is localized", () => {
+  assert.match(
+    component,
+    /extensionId === "translation" && actionId === "translate"/,
+  );
+  const english = readFileSync(
+    path.resolve(process.cwd(), "locales/en/app.json"),
+    "utf8",
+  );
+  const chinese = readFileSync(
+    path.resolve(process.cwd(), "locales/zh/app.json"),
+    "utf8",
+  );
+  assert.match(english, /"Translate selection": "Translate selection"/);
+  assert.match(chinese, /"Translate selection": "翻译选段"/);
+});
+
+test("translation results are rendered as text in the result card", () => {
+  assert.match(component, /String\(result\.payload\.translation \|\| ""\)/);
+  assert.match(component, /result\.payload\.alternatives/);
+  assert.match(component, /String\(result\.payload\.note \|\| ""\)/);
+  assert.match(component, /\{translation\.translation\}/);
+  assert.match(component, /\{translation\.note\}/);
+  assert.match(component, /translation\.alternatives\.map/);
+});

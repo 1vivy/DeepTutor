@@ -10,6 +10,12 @@ import {
   type ReadingExtensionResult,
 } from "@/lib/reading-api";
 
+type TranslationResult = {
+  translation: string;
+  alternatives: string[];
+  note: string;
+};
+
 export function ReadingExtensionBar({
   materialId,
   locator,
@@ -97,6 +103,7 @@ export function ReadingExtensionBar({
           const disabled =
             Boolean(busy) ||
             (action.requires.includes("selection") && !selection?.trim());
+          const builtInLabel = builtInActionLabel(extension.id, action.id);
           return (
             <button
               key={key}
@@ -110,7 +117,9 @@ export function ReadingExtensionBar({
               ) : (
                 <Sparkles size={14} />
               )}
-              <span className="truncate">{action.label}</span>
+              <span className="truncate">
+                {builtInLabel ? t(builtInLabel) : action.label}
+              </span>
             </button>
           );
         })}
@@ -124,6 +133,13 @@ export function ReadingExtensionBar({
       ) : null}
     </>
   );
+}
+
+function builtInActionLabel(extensionId: string, actionId: string) {
+  if (extensionId === "translation" && actionId === "translate") {
+    return "Translate selection";
+  }
+  return "";
 }
 
 function ExtensionResult({
@@ -145,6 +161,13 @@ function ExtensionResult({
   const items = Array.isArray(result.payload.items)
     ? result.payload.items.map(String)
     : [];
+  const translation: TranslationResult = {
+    translation: String(result.payload.translation || ""),
+    alternatives: Array.isArray(result.payload.alternatives)
+      ? result.payload.alternatives.map(String)
+      : [],
+    note: String(result.payload.note || ""),
+  };
   const body = String(result.payload.body || result.payload.overview || "");
   return (
     <section className="relative shrink-0 border-b border-[var(--border)] bg-[var(--card)] px-3 py-3 text-xs text-[var(--foreground)]">
@@ -161,6 +184,21 @@ function ExtensionResult({
         <p className="mt-1 text-[var(--muted-foreground)]">{result.message}</p>
       ) : null}
       {body ? <p className="mt-2 whitespace-pre-wrap">{body}</p> : null}
+      {translation.translation ? (
+        <p className="mt-2 whitespace-pre-wrap font-medium">
+          {translation.translation}
+        </p>
+      ) : null}
+      {translation.note ? (
+        <p className="mt-1 text-[var(--muted-foreground)]">{translation.note}</p>
+      ) : null}
+      {translation.alternatives.length ? (
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-[var(--muted-foreground)]">
+          {translation.alternatives.map((alternative, index) => (
+            <li key={`${index}-${alternative}`}>{alternative}</li>
+          ))}
+        </ul>
+      ) : null}
       {items.length ? (
         <ul className="mt-2 list-disc space-y-1 pl-5">
           {items.map((item) => (
