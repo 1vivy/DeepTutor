@@ -505,6 +505,12 @@ async def resolve_material(
             or 0
         )
     )
+    learning: dict[str, Any] = (
+        existing["learning"]
+        if isinstance(existing.get("learning"), dict)
+        else {"last_position": request.entry_time_seconds}
+    )
+    learning.setdefault("last_position", request.entry_time_seconds)
     material = {
         "version": 1,
         "type": "timed_media",
@@ -539,12 +545,9 @@ async def resolve_material(
             "cues": cues,
         },
         "segments": build_segments(cues),
-        "learning": existing.get("learning")
-        if isinstance(existing.get("learning"), dict)
-        else {"last_position": request.entry_time_seconds},
+        "learning": learning,
         "provider_cache": {"invidious_formats": formats} if formats else {},
     }
-    material["learning"].setdefault("last_position", request.entry_time_seconds)
     with store.lock(material_id):
         # Network resolution happens outside the file lock. Re-read only the
         # mutable learning state so a concurrent progress save cannot be lost.

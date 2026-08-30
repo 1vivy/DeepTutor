@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  masteryPathIdOf,
-  readingWorkspaceIdOf,
-} from "../lib/mastery-session";
+import { masteryPathIdOf, readingWorkspaceIdOf } from "../lib/mastery-session";
 import type { SessionSummary } from "../lib/session-api";
 import { workspaceActionNeedsConfiguration } from "../lib/workspace-mode";
 

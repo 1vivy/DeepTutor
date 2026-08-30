@@ -480,7 +480,7 @@ def test_start_uses_ipv4_loopback_for_frontend_proxy(
         interface_json_path=settings_dir / "interface.json",
         system_json_path=settings_dir / "system.json",
     )
-    captured_env: dict[str, str] = {}
+    captured_envs: dict[str, dict[str, str]] = {}
 
     monkeypatch.setattr(launcher, "_relax_console_encoding", lambda: None)
     monkeypatch.setattr(launcher, "_reset_runtime_singletons", lambda: None)
@@ -497,10 +497,11 @@ def test_start_uses_ipv4_loopback_for_frontend_proxy(
     monkeypatch.setattr(launcher, "resolve_language", lambda: "en")
     monkeypatch.setattr(launcher, "print_banner", lambda **_kwargs: None)
     monkeypatch.setattr(launcher, "_log", lambda _message: None)
+    monkeypatch.setenv("DEEPTUTOR_NEXT_DIST_DIR", ".next-inherited")
     monkeypatch.setattr(
         launcher,
         "_resolve_frontend",
-        lambda *_args, **_kwargs: launcher.FrontendRuntime("source", ["npm"], tmp_path),
+        lambda *_args, **_kwargs: launcher.FrontendRuntime("source-production", ["node"], tmp_path),
     )
     monkeypatch.setattr(launcher, "_detect_existing_source_frontend", lambda _runtime: None)
     monkeypatch.setattr(
@@ -515,10 +516,10 @@ def test_start_uses_ipv4_loopback_for_frontend_proxy(
 
     def _capture_spawn(_command, *, cwd, env, name):
         assert cwd == tmp_path
+        captured_envs[name] = dict(env)
         if name == "backend":
             return launcher.ManagedProcess("backend", object(), None)
         assert name == "frontend"
-        captured_env.update(env)
         raise RuntimeError("captured launch environment")
 
     monkeypatch.setattr(launcher, "_spawn", _capture_spawn)
@@ -526,4 +527,8 @@ def test_start_uses_ipv4_loopback_for_frontend_proxy(
     with pytest.raises(RuntimeError, match="captured launch environment"):
         launcher.start(tmp_path)
 
-    assert captured_env["DEEPTUTOR_API_BASE_URL"] == (f"http://127.0.0.1:{resolved_backend_port}")
+    assert captured_envs["frontend"]["DEEPTUTOR_API_BASE_URL"] == (
+        f"http://127.0.0.1:{resolved_backend_port}"
+    )
+    assert "DEEPTUTOR_NEXT_DIST_DIR" not in captured_envs["backend"]
+    assert "DEEPTUTOR_NEXT_DIST_DIR" not in captured_envs["frontend"]

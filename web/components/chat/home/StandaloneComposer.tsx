@@ -681,12 +681,15 @@ function StandaloneComposerImpl({
     }));
   }, [capabilities, t]);
   const activeCap =
-    resolvedCapabilities.find((capability) => capability.value === activeCapValue) ??
-    resolvedCapabilities[0];
+    resolvedCapabilities.find(
+      (capability) => capability.value === activeCapValue,
+    ) ?? resolvedCapabilities[0];
   const isQuizMode = activeCap.value === "deep_question";
   const isVisualizeMode = activeCap.value === "visualize";
   const isResearchMode = activeCap.value === "deep_research";
-  const capabilityNeedsConfig = workspaceActionNeedsConfiguration(activeCap.value);
+  const capabilityNeedsConfig = workspaceActionNeedsConfiguration(
+    activeCap.value,
+  );
   const researchValidation = useMemo(
     () => validateResearchConfig(researchConfig),
     [researchConfig],

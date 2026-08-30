@@ -29,9 +29,12 @@ import {
 import {
   ClaudeGlyph,
   CodexGlyph,
+  DeepSeekGlyph,
   GeminiGlyph,
+  HermesGlyph,
   KimiGlyph,
   MimoGlyph,
+  OpenClawGlyph,
   OpencodeGlyph,
 } from "@/components/agents/agent-icons";
 import type { ServiceName } from "@/components/settings/SettingsContext";
@@ -271,21 +274,7 @@ const AGENT_CHILDREN: SettingsLeaf[] = [
     adminOnly: true,
   },
   {
-    key: "agent-gemini",
-    href: "/settings/agents#agent-gemini",
-    label: { zh: "Gemini CLI", en: "Gemini CLI" },
-    blurb: {
-      zh: "DeepTutor 调用本机 Gemini CLI 时的模型与运行参数。",
-      en: "Model and run params for the local Gemini CLI.",
-    },
-    icon: GeminiGlyph as unknown as LucideIcon,
-    tile: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
-    adminOnly: true,
-  },
-  {
-    // Supported everywhere else — backend kind, icon, label, its own settings
-    // page — but missing from this list, so the page was reachable only by
-    // typing the URL. Gemini CLI is retired and this is what replaced it.
+    // Gemini CLI's supported replacement.
     key: "agent-antigravity",
     href: "/settings/agents#agent-antigravity",
     label: { zh: "Antigravity CLI", en: "Antigravity CLI" },
@@ -331,6 +320,42 @@ const AGENT_CHILDREN: SettingsLeaf[] = [
     },
     icon: MimoGlyph as unknown as LucideIcon,
     tile: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+    adminOnly: true,
+  },
+  {
+    key: "agent-hermes",
+    href: "/settings/agents#agent-hermes",
+    label: { zh: "Hermes Agent", en: "Hermes Agent" },
+    blurb: {
+      zh: "DeepTutor 调用本机 Hermes Agent 时的模型、推理强度与运行参数。",
+      en: "Model, reasoning effort, and run params for the local Hermes Agent.",
+    },
+    icon: HermesGlyph as unknown as LucideIcon,
+    tile: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+    adminOnly: true,
+  },
+  {
+    key: "agent-openclaw",
+    href: "/settings/agents#agent-openclaw",
+    label: { zh: "OpenClaw", en: "OpenClaw" },
+    blurb: {
+      zh: "DeepTutor 通过 Gateway 或本地模式调用 OpenClaw 的运行参数。",
+      en: "Gateway or local-mode run params for the local OpenClaw agent.",
+    },
+    icon: OpenClawGlyph as unknown as LucideIcon,
+    tile: "bg-red-500/10 text-red-600 dark:text-red-400",
+    adminOnly: true,
+  },
+  {
+    key: "agent-deepseek-harness",
+    href: "/settings/agents#agent-deepseek-harness",
+    label: { zh: "DeepSeek Harness", en: "DeepSeek Harness" },
+    blurb: {
+      zh: "DeepTutor 通过 Python SDK 或 headless CLI 调用 DeepSeek Harness。",
+      en: "Python SDK or headless CLI settings for DeepSeek Harness.",
+    },
+    icon: DeepSeekGlyph as unknown as LucideIcon,
+    tile: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
     adminOnly: true,
   },
 ];
@@ -418,11 +443,13 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
 export const SETTINGS_HUB_HREF = "/settings";
 const HUB_LABEL: Lang = { zh: "设置", en: "Settings" };
 
-/** Routes that are pure navigation (the hub) — no Save/Apply toolbar. */
-const NAV_ONLY_ROUTES = new Set<string>([
-  SETTINGS_HUB_HREF,
-  "/settings/about",
-]);
+/** The canonical in-document URL used by the persistent settings navigator. */
+export function settingsAnchorHref(key: string): string {
+  return `${SETTINGS_HUB_HREF}#${key}`;
+}
+
+/** Legacy standalone routes that do not edit the shared settings draft. */
+const NAV_ONLY_ROUTES = new Set<string>(["/settings/about"]);
 
 export function isNavOnlyRoute(pathname: string): boolean {
   return NAV_ONLY_ROUTES.has(pathname);
@@ -457,6 +484,14 @@ const STORAGE_PATHS: Record<string, string> = {
   "/settings/video-learning": "data/user/settings/video_learning.json",
   "/settings/document-parsing": "data/user/settings/document_parsing.json",
   "/settings/memory": "data/user/settings/main.yaml",
+  appearance: "data/user/settings/interface.json",
+  network: "data/user/settings/system.json",
+  connections: "data/user/settings/model_catalog.json",
+  "task-models": "data/user/settings/model_catalog.json",
+  knowledge: "data/user/settings/document_parsing.json",
+  "video-learning": "data/user/settings/video_learning.json",
+  starters: "data/user/settings/interface.json",
+  memory: "data/user/settings/main.yaml",
   llm: "data/user/settings/model_catalog.json",
   embedding: "data/user/settings/model_catalog.json",
   search: "data/user/settings/model_catalog.json",
@@ -469,7 +504,6 @@ const STORAGE_PATHS: Record<string, string> = {
   capabilities: "data/user/settings/main.yaml · agents.yaml",
   "agent-claude-code": "data/user/settings/subagent.json",
   "agent-codex": "data/user/settings/subagent.json",
-  "agent-gemini": "data/user/settings/subagent.json",
   "agent-antigravity": "data/user/settings/subagent.json",
   "agent-kimi": "data/user/settings/subagent.json",
   "agent-opencode": "data/user/settings/subagent.json",
@@ -480,7 +514,7 @@ export function storagePathFor(
   pathname: string,
   activeSection?: string | null,
 ): string | null {
-  if (MERGED_CATEGORY_HREFS.has(pathname)) {
+  if (pathname === SETTINGS_HUB_HREF || MERGED_CATEGORY_HREFS.has(pathname)) {
     return activeSection ? (STORAGE_PATHS[activeSection] ?? null) : null;
   }
   return STORAGE_PATHS[pathname] ?? null;

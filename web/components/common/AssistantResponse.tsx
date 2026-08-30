@@ -55,36 +55,33 @@ function AssistantResponseImpl({
     () => verifiedReadingLocators(events, readingMaterialId),
     [events, readingMaterialId],
   );
-  const citedContent = useMemo(
-    () => {
-      if (watching.active && watching.material) {
-        return linkifyVideoTimestamps(displayContent);
-      }
-      if (
-        material?.unit === "segment" &&
-        (!readingMaterialId || material.material_id === readingMaterialId)
-      ) {
-        return linkifyMediaTimestamps(displayContent);
-      }
-      return readingMaterialId && verifiedLocators.size > 0
-        ? linkifyLocatorCitations(displayContent, {
-            materialId: readingMaterialId,
-            allowedLocators: verifiedLocators,
-            ...(material?.material_id === readingMaterialId
-              ? { maxLocator: material.unit_count }
-              : {}),
-          })
-        : displayContent;
-    },
-    [
-      displayContent,
-      material,
-      readingMaterialId,
-      verifiedLocators,
-      watching.active,
-      watching.material,
-    ],
-  );
+  const citedContent = useMemo(() => {
+    if (watching.active && watching.material) {
+      return linkifyVideoTimestamps(displayContent);
+    }
+    if (
+      material?.unit === "segment" &&
+      (!readingMaterialId || material.material_id === readingMaterialId)
+    ) {
+      return linkifyMediaTimestamps(displayContent);
+    }
+    return readingMaterialId && verifiedLocators.size > 0
+      ? linkifyLocatorCitations(displayContent, {
+          materialId: readingMaterialId,
+          allowedLocators: verifiedLocators,
+          ...(material?.material_id === readingMaterialId
+            ? { maxLocator: material.unit_count }
+            : {}),
+        })
+      : displayContent;
+  }, [
+    displayContent,
+    material,
+    readingMaterialId,
+    verifiedLocators,
+    watching.active,
+    watching.material,
+  ]);
   const segments = useMemo(
     () => parseModelThinkingSegments(stripArtifactAnnotations(citedContent)),
     [citedContent],

@@ -272,7 +272,6 @@ async def get_runtime_topology():
         ],
         "isolated_subsystems": [
             {"router": "co_writer", "mode": "independent_subsystem"},
-            {"router": "plugins_api", "mode": "playground_transport"},
         ],
     }
 

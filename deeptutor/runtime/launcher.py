@@ -1116,8 +1116,14 @@ def start(home: str | Path | None = None, *, dev: bool = False) -> None:
     common_env[SUPERVISOR_PID_ENV] = str(os.getpid())
     common_env[LAUNCHER_PID_ENV] = str(os.getpid())
     _apply_single_user_allocator_env(common_env)
-    if frontend.kind == "source-production":
-        common_env["DEEPTUTOR_NEXT_DIST_DIR"] = SOURCE_PRODUCTION_DIST_DIR
+    # ``DEEPTUTOR_NEXT_DIST_DIR`` is a build-only override.  In particular it
+    # must not leak into the backend: commands launched by agent tools inherit
+    # the backend environment, and an ordinary ``npm run build`` would then
+    # clean the live ``.next-deeptutor`` tree out from under the standalone
+    # server.  The generated server.js already embeds its distDir in
+    # ``__NEXT_PRIVATE_STANDALONE_CONFIG``, so neither long-running child needs
+    # this variable after the build has completed.
+    common_env.pop("DEEPTUTOR_NEXT_DIST_DIR", None)
 
     backend_cmd = [
         sys.executable,

@@ -332,7 +332,9 @@ export function ReadingCompanion({
             label={
               activeConversation
                 ? t("Link earlier reading conversations")
-                : t("Send a message first, then link earlier reading conversations")
+                : t(
+                    "Send a message first, then link earlier reading conversations",
+                  )
             }
           >
             <button
@@ -515,7 +517,9 @@ export function ReadingCompanion({
           const container = messagesContainerRef.current;
           if (!container) return;
           const distanceFromBottom =
-            container.scrollHeight - container.scrollTop - container.clientHeight;
+            container.scrollHeight -
+            container.scrollTop -
+            container.clientHeight;
           // Arm-only while streaming: the exported handler decides "did the
           // user move?" by distance-from-bottom alone, a fine proxy in a
           // 960px column but not in this 380px one — a single paragraph
@@ -567,7 +571,10 @@ export function ReadingCompanion({
       >
         {selection && (
           <div className="mx-4 mb-2 flex items-start gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-2.5 py-2 dark:border-[var(--border)] dark:bg-[var(--card)]">
-            <Highlighter size={12} className="mt-0.5 shrink-0 text-[var(--primary)]" />
+            <Highlighter
+              size={12}
+              className="mt-0.5 shrink-0 text-[var(--primary)]"
+            />
             <p className="line-clamp-2 min-w-0 flex-1 text-[10.5px] leading-relaxed text-[var(--muted-foreground)]">
               {selection.quote}
             </p>

@@ -14,6 +14,7 @@ import subprocess  # nosec B404 - every launched argv is generated internally
 import sys
 import time
 from typing import Any, Callable, Literal, Sequence
+from urllib.parse import unquote, urljoin, urlsplit
 import uuid
 
 import httpx
@@ -23,6 +24,7 @@ from deeptutor.runtime.home import get_runtime_home
 from deeptutor.services.file_io import atomic_write_json
 
 GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/HKUDS/DeepTutor/releases/latest"
+GITHUB_LATEST_RELEASE_WEB_URL = "https://github.com/HKUDS/DeepTutor/releases/latest"
 VERSION_CHECK_TTL_SECONDS = 24 * 60 * 60
 LAUNCHER_PID_ENV = "DEEPTUTOR_LAUNCHER_PID"
 
@@ -222,12 +224,14 @@ class VersionCheckService:
         self,
         *,
         api_url: str = GITHUB_LATEST_RELEASE_URL,
+        latest_url: str = GITHUB_LATEST_RELEASE_WEB_URL,
         timeout: float = 8.0,
         ttl_seconds: float = VERSION_CHECK_TTL_SECONDS,
         clock: Callable[[], float] = time.time,
         client_factory: Callable[[], httpx.AsyncClient] | None = None,
     ) -> None:
         self._api_url = api_url
+        self._latest_url = latest_url
         self._timeout = timeout
         self._ttl_seconds = ttl_seconds
         self._clock = clock
@@ -265,8 +269,8 @@ class VersionCheckService:
                 follow_redirects=True,
             )
         )
-        try:
-            async with factory() as client:
+        async with factory() as client:
+            try:
                 response = await client.get(
                     self._api_url,
                     headers={
@@ -277,9 +281,30 @@ class VersionCheckService:
                 )
                 response.raise_for_status()
                 payload = response.json()
-        except (httpx.HTTPError, ValueError):
-            raise VersionCheckError("Unable to check for updates") from None
+            except (httpx.HTTPError, ValueError):
+                return await self._fetch_latest_redirect(client)
         return _release_from_payload(payload)
+
+    async def _fetch_latest_redirect(self, client: httpx.AsyncClient) -> ReleaseInfo:
+        """Resolve GitHub's rate-limit-free latest-release redirect."""
+
+        try:
+            response = await client.head(
+                self._latest_url,
+                headers={"User-Agent": "DeepTutor-Version-Check"},
+                follow_redirects=False,
+            )
+            if response.is_redirect:
+                location = response.headers.get("location", "").strip()
+                if not location:
+                    raise VersionCheckError("The latest stable release is unavailable")
+                release_url = urljoin(str(response.url), location)
+            else:
+                response.raise_for_status()
+                release_url = str(response.url)
+        except httpx.HTTPError:
+            raise VersionCheckError("Unable to check for updates") from None
+        return _release_from_latest_url(release_url)
 
 
 def _release_from_payload(payload: Any) -> ReleaseInfo:
@@ -308,6 +333,41 @@ def _release_from_payload(payload: Any) -> ReleaseInfo:
         url=url,
         excerpt=excerpt,
         migration_warning=migration_warning,
+    )
+
+
+def _release_from_latest_url(value: str) -> ReleaseInfo:
+    """Build minimal release metadata from GitHub's trusted latest redirect."""
+
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError:
+        raise VersionCheckError("The latest release has an invalid URL") from None
+    prefix = "/HKUDS/DeepTutor/releases/tag/"
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname != "github.com"
+        or parsed.username is not None
+        or parsed.password is not None
+        or port not in {None, 443}
+        or not parsed.path.startswith(prefix)
+    ):
+        raise VersionCheckError("The latest release has an invalid URL")
+    tag = unquote(parsed.path.removeprefix(prefix))
+    if not tag or "/" in tag:
+        raise VersionCheckError("The latest release has an invalid version")
+    try:
+        version = _normalise_stable_version(tag)
+    except ValueError:
+        raise VersionCheckError("The latest release has an invalid version") from None
+    return ReleaseInfo(
+        version=version,
+        name=f"DeepTutor {version}",
+        published_at="",
+        url=f"https://github.com{parsed.path}",
+        excerpt="",
+        migration_warning=False,
     )
 
 

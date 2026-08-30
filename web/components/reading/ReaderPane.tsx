@@ -18,9 +18,7 @@ import {
   READER_TURN_END_EVENT,
   type ReaderActionPayload,
 } from "@/lib/reading-reader-action";
-import {
-  citationTargetFromHref,
-} from "@/lib/reading-citations";
+import { citationTargetFromHref } from "@/lib/reading-citations";
 import {
   fetchExport,
   type AnnotationColor,
@@ -164,10 +162,7 @@ export function ReaderPane({
     async (href: string | null | undefined) => {
       const target = citationTargetFromHref(href);
       if (!target) return false;
-      if (
-        target.materialId &&
-        target.materialId !== material?.material_id
-      ) {
+      if (target.materialId && target.materialId !== material?.material_id) {
         const opened = await openMaterial(target.materialId);
         if (!opened) return true;
       }

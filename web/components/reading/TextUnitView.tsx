@@ -563,9 +563,7 @@ export function TextUnitView({
             ref={articleRef}
             className={`mx-auto leading-[1.75] selection:bg-[var(--primary)]/20 ${
               isWebMarkdown ? "" : "whitespace-pre-wrap "
-            }${
-              serif ? "font-serif" : "font-sans"
-            }`}
+            }${serif ? "font-serif" : "font-sans"}`}
             style={{
               maxWidth: `${lineWidth}ch`,
               fontSize: `${fontSize}px`,

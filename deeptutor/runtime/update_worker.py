@@ -100,7 +100,9 @@ def _launch_restart(job: UpdateJob, *, log_path: Path) -> None:
     else:
         kwargs["start_new_session"] = True
     with log_path.open("a", encoding="utf-8") as log:
-        subprocess.Popen(command, stdout=log, **kwargs)  # type: ignore[arg-type] # nosec B603
+        subprocess.Popen(  # type: ignore[arg-type,call-overload] # nosec B603
+            command, stdout=log, **kwargs
+        )
 
 
 def run_update_worker(

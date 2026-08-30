@@ -378,7 +378,6 @@ from deeptutor.api.routers import (
     partner_groups,
     partners,
     personas,
-    plugins_api,
     question,
     question_notebook,
     quiz_judge,
@@ -393,6 +392,7 @@ from deeptutor.api.routers import (
     system,
     unified_ws,
     video_learning,
+    visualizers,
     voice,
 )
 from deeptutor.api.routers import (
@@ -536,7 +536,10 @@ app.include_router(
     dependencies=_auth,
 )
 app.include_router(
-    plugins_api.router, prefix="/api/v1/plugins", tags=["plugins"], dependencies=_auth
+    visualizers.router,
+    prefix="/api/v1/visualizers",
+    tags=["visualizers"],
+    dependencies=_auth,
 )
 app.include_router(
     agent_config.router, prefix="/api/v1/agent-config", tags=["agent-config"], dependencies=_auth

@@ -43,10 +43,14 @@ test("changing the per-turn action does not detach the reading workspace", () =>
   setReadingViewport({ locator: 3 });
 
   for (const capability of ["", "deep_solve", "deep_research", "visualize"]) {
-    assert.deepEqual(readingTurnFields(READING_WORKSPACE_MODE), {
-      reading_material_id: "d138eacaad029843",
-      reading_viewport: { locator: 3 },
-    }, capability);
+    assert.deepEqual(
+      readingTurnFields(READING_WORKSPACE_MODE),
+      {
+        reading_material_id: "d138eacaad029843",
+        reading_viewport: { locator: 3 },
+      },
+      capability,
+    );
   }
 });
 

@@ -11,9 +11,7 @@ import {
   READER_ACTION_EVENT,
   type ReaderActionPayload,
 } from "@/lib/reading-reader-action";
-import {
-  setReadingWorkspace,
-} from "@/lib/reading-turn-state";
+import { setReadingWorkspace } from "@/lib/reading-turn-state";
 import { READING_WORKSPACE_MODE } from "@/lib/workspace-mode";
 import {
   activateReadingMaterial,
@@ -328,7 +326,13 @@ export function useReadingWorkspace(
     cancelStreamingTurn();
     newSession({ ...sessionConfiguration, capability: null });
     router.push(`/reading/${workspace.workspace_id}`);
-  }, [cancelStreamingTurn, newSession, router, sessionConfiguration, workspace]);
+  }, [
+    cancelStreamingTurn,
+    newSession,
+    router,
+    sessionConfiguration,
+    workspace,
+  ]);
 
   // When the first turn assigns a session id, put it in the URL and let the
   // conversation menu see the row the backend just attached. Mirrors the

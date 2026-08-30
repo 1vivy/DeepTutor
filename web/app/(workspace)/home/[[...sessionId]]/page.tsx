@@ -11,11 +11,7 @@ import {
 } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import {
-  GraduationCap,
-  PenLine,
-  type LucideIcon,
-} from "lucide-react";
+import { GraduationCap, PenLine, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { SelectedRecord } from "@/lib/notebook-selection-types";
 import type { SelectedHistorySession } from "@/components/chat/HistorySessionPicker";
@@ -78,11 +74,6 @@ import {
   fetchSessionAskHint,
   updateSessionOrganization,
 } from "@/lib/session-api";
-import {
-  loadCapabilityPlaygroundConfigs,
-  resolveCapabilityPlaygroundConfig,
-  type CapabilityPlaygroundConfigMap,
-} from "@/lib/playground-config";
 import {
   DEFAULT_QUIZ_CONFIG,
   buildQuizWSConfig,
@@ -331,8 +322,6 @@ export default function ChatPage() {
     error: llmOptionsError,
     refresh: refreshLLMOptions,
   } = useLLMOptions();
-  const [capabilityConfigs, setCapabilityConfigs] =
-    useState<CapabilityPlaygroundConfigMap>({});
   // User-toggleable tools the user has enabled in /settings/tools. This is
   // the single source of truth for which optional tools the chat agent may
   // use; the chat composer no longer exposes a picker.
@@ -1229,10 +1218,6 @@ export default function ChatPage() {
     };
   }, [refreshKnowledgeBases, refreshLLMOptions, refreshUserEnabledTools]);
 
-  useEffect(() => {
-    setCapabilityConfigs(loadCapabilityPlaygroundConfigs());
-  }, []);
-
   /* Composer setup requested by the URL that opened this page (capability,
      tools, persistent mastery path). Runs once: from here on the composer is
      the user's to change. */
@@ -1368,33 +1353,24 @@ export default function ChatPage() {
   const handleSelectCapability = useCallback(
     (value: string) => {
       const cap =
-        CHAT_CAPABILITIES.find((c) => c.value === value) ?? CHAT_CAPABILITIES[0];
-      const storageKey = cap.value || "chat";
-      const config = resolveCapabilityPlaygroundConfig(
-        capabilityConfigs,
-        storageKey,
-        cap.allowedTools,
-      );
+        CHAT_CAPABILITIES.find((c) => c.value === value) ??
+        CHAT_CAPABILITIES[0];
       setCapability(cap.value || null);
       // Per-capability tool selection now derives from the user's saved
       // settings (/settings/tools) intersected with the capability's
-      // allow-list. Playground-saved configs still override when the user
-      // explicitly pinned tools in the playground for this capability.
+      // allow-list.
       const baseline =
         userEnabledTools === null ? cap.allowedTools : userEnabledTools;
-      const enabledToolsForCap = capabilityConfigs[storageKey]
-        ? [...config.enabledTools]
-        : baseline.filter((tool) =>
-            cap.allowedTools.includes(tool as ToolName),
-          );
+      const enabledToolsForCap = baseline.filter((tool) =>
+        cap.allowedTools.includes(tool as ToolName),
+      );
       setTools(enabledToolsForCap);
-      if (config.knowledgeBase) setKBs([config.knowledgeBase]);
       // Switching capability invalidates any prior config confirmation —
       // the new capability has its own form that needs explicit confirm.
       setCapabilityConfigConfirmed(false);
       setCapMenuOpen(false);
     },
-    [capabilityConfigs, setCapability, setKBs, setTools, userEnabledTools],
+    [setCapability, setTools, userEnabledTools],
   );
 
   const fileToAttachment = useCallback(

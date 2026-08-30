@@ -638,8 +638,7 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
                             mutateCatalog((next) => {
                               next.services[service].active_profile_id =
                                 openedProfile.id;
-                              next.services[service].active_model_id =
-                                model.id;
+                              next.services[service].active_model_id = model.id;
                             })
                           }
                           onDelete={() =>
@@ -678,297 +677,316 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
                     )}
                     {activeModel && (!isCodexOAuth || isBoundManagedCodex) && (
                       <div className="grid gap-4 sm:grid-cols-2">
-                    {!isCodexOAuth && (
-                      <div>
-                        <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                          {t("Model ID")}
-                        </div>
-                        <input
-                          className={inputClass}
-                          value={activeModel.model}
-                          onChange={(e) =>
-                            updateModelField(service, "model", e.target.value)
-                          }
-                          placeholder="gpt-4o"
-                        />
-                      </div>
-                    )}
-                    {service === "llm" && (
-                      <>
                         {!isCodexOAuth && (
+                          <div>
+                            <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
+                              {t("Model ID")}
+                            </div>
+                            <input
+                              className={inputClass}
+                              value={activeModel.model}
+                              onChange={(e) =>
+                                updateModelField(
+                                  service,
+                                  "model",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="gpt-4o"
+                            />
+                          </div>
+                        )}
+                        {service === "llm" && (
+                          <>
+                            {!isCodexOAuth && (
+                              <>
+                                <div>
+                                  <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
+                                    {t("Context Window")}
+                                  </div>
+                                  <input
+                                    className={inputClass}
+                                    inputMode="numeric"
+                                    value={activeModel.context_window || ""}
+                                    onChange={(e) =>
+                                      updateContextWindowField(e.target.value)
+                                    }
+                                    placeholder="65536"
+                                  />
+                                  <ContextWindowMeta model={activeModel} />
+                                </div>
+                                <ContextWindowDetectionBanner
+                                  model={activeModel}
+                                  detection={activeLlmDetection}
+                                  onApply={applyDetectedContextWindow}
+                                />
+                              </>
+                            )}
+                            {reasoningOptions.length > 0 && (
+                              <div>
+                                <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
+                                  {t("Reasoning effort")}
+                                </div>
+                                <div className="relative">
+                                  <select
+                                    className={selectClass}
+                                    value={activeModel.reasoning_effort || ""}
+                                    onChange={(event) =>
+                                      updateReasoningEffort(event.target.value)
+                                    }
+                                  >
+                                    {reasoningOptions.map((option) => (
+                                      <option
+                                        className={selectOptionClass}
+                                        key={option.value || "auto"}
+                                        value={option.value}
+                                      >
+                                        {t(option.label)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                                </div>
+                                <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+                                  {t(
+                                    "Sets this model's default reasoning depth. Auto leaves the choice to the provider.",
+                                  )}
+                                </p>
+                              </div>
+                            )}
+                          </>
+                        )}
+                        {service === "embedding" && (
+                          <div>
+                            <div className="mb-1.5 flex items-center justify-between gap-2">
+                              <span className="text-[12px] text-[var(--muted-foreground)]">
+                                {t("Dimension")}
+                              </span>
+                              <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] text-[var(--muted-foreground)] select-none">
+                                <input
+                                  type="checkbox"
+                                  className="h-3 w-3 cursor-pointer accent-[var(--foreground)]"
+                                  checked={
+                                    activeModel.send_dimensions !== false
+                                  }
+                                  onChange={(e) =>
+                                    updateModelBoolField(
+                                      service,
+                                      "send_dimensions",
+                                      e.target.checked,
+                                    )
+                                  }
+                                />
+                                <span>{t("Send dimensions")}</span>
+                                <span
+                                  tabIndex={0}
+                                  className="group/info relative inline-flex cursor-help focus:outline-none"
+                                >
+                                  <Info className="h-3 w-3 opacity-50 transition-opacity group-hover/info:opacity-100 group-focus/info:opacity-100" />
+                                  <span
+                                    role="tooltip"
+                                    className="pointer-events-none absolute top-full left-1/2 z-20 mt-1.5 w-64 -translate-x-1/2 rounded-lg border border-[var(--border)] bg-[var(--card)] p-2.5 text-[11px] leading-relaxed text-[var(--foreground)] opacity-0 shadow-lg transition-opacity duration-75 group-hover/info:opacity-100 group-focus/info:opacity-100"
+                                  >
+                                    {t(
+                                      "Some embedding models (e.g. Qwen text-embedding-v4) reject the `dimensions` request param. Turn this off if your provider returns HTTP 400.",
+                                    )}
+                                  </span>
+                                </span>
+                              </label>
+                            </div>
+                            <DimensionField
+                              activeModel={activeModel}
+                              activeBinding={activeProfile?.binding}
+                              capabilities={embeddingCapabilities}
+                              embeddingDefaultDim={embeddingDefaultDim}
+                              inputClass={inputClass}
+                              onChangeDimension={(value) =>
+                                updateModelField(service, "dimension", value)
+                              }
+                            />
+                          </div>
+                        )}
+                        {service === "tts" && (
                           <>
                             <div>
                               <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                                {t("Context Window")}
+                                {t("Voice")}
                               </div>
                               <input
                                 className={inputClass}
-                                inputMode="numeric"
-                                value={activeModel.context_window || ""}
+                                value={activeModel.voice || ""}
                                 onChange={(e) =>
-                                  updateContextWindowField(e.target.value)
+                                  updateModelField(
+                                    service,
+                                    "voice",
+                                    e.target.value,
+                                  )
                                 }
-                                placeholder="65536"
+                                placeholder="alloy"
                               />
-                              <ContextWindowMeta model={activeModel} />
+                              <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
+                                {t(
+                                  "Provider-specific voice name, e.g. alloy (OpenAI) or model:voice (SiliconFlow).",
+                                )}
+                              </p>
                             </div>
-                            <ContextWindowDetectionBanner
-                              model={activeModel}
-                              detection={activeLlmDetection}
-                              onApply={applyDetectedContextWindow}
-                            />
+                            <div>
+                              <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
+                                {t("Output format")}
+                              </div>
+                              <div className="relative">
+                                <select
+                                  className={selectClass}
+                                  value={activeModel.response_format || "mp3"}
+                                  onChange={(e) =>
+                                    updateModelField(
+                                      service,
+                                      "response_format",
+                                      e.target.value,
+                                    )
+                                  }
+                                >
+                                  {[
+                                    "mp3",
+                                    "wav",
+                                    "opus",
+                                    "aac",
+                                    "flac",
+                                    "pcm",
+                                  ].map((fmt) => (
+                                    <option
+                                      className={selectOptionClass}
+                                      key={fmt}
+                                      value={fmt}
+                                    >
+                                      {fmt}
+                                    </option>
+                                  ))}
+                                </select>
+                                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                              </div>
+                            </div>
                           </>
                         )}
-                        {reasoningOptions.length > 0 && (
-                          <div>
-                            <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                              {t("Reasoning effort")}
-                            </div>
-                            <div className="relative">
-                              <select
-                                className={selectClass}
-                                value={activeModel.reasoning_effort || ""}
-                                onChange={(event) =>
-                                  updateReasoningEffort(event.target.value)
+                        {service === "imagegen" && (
+                          <>
+                            <div>
+                              <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
+                                {t("Image size")}
+                              </div>
+                              <input
+                                className={inputClass}
+                                value={activeModel.size || ""}
+                                onChange={(e) =>
+                                  updateModelField(
+                                    service,
+                                    "size",
+                                    e.target.value,
+                                  )
                                 }
-                              >
-                                {reasoningOptions.map((option) => (
-                                  <option
-                                    className={selectOptionClass}
-                                    key={option.value || "auto"}
-                                    value={option.value}
-                                  >
-                                    {t(option.label)}
-                                  </option>
-                                ))}
-                              </select>
-                              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted-foreground)]" />
-                            </div>
-                            <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-                              {t(
-                                "Sets this model's default reasoning depth. Auto leaves the choice to the provider.",
-                              )}
-                            </p>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    {service === "embedding" && (
-                      <div>
-                        <div className="mb-1.5 flex items-center justify-between gap-2">
-                          <span className="text-[12px] text-[var(--muted-foreground)]">
-                            {t("Dimension")}
-                          </span>
-                          <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] text-[var(--muted-foreground)] select-none">
-                            <input
-                              type="checkbox"
-                              className="h-3 w-3 cursor-pointer accent-[var(--foreground)]"
-                              checked={activeModel.send_dimensions !== false}
-                              onChange={(e) =>
-                                updateModelBoolField(
-                                  service,
-                                  "send_dimensions",
-                                  e.target.checked,
-                                )
-                              }
-                            />
-                            <span>{t("Send dimensions")}</span>
-                            <span
-                              tabIndex={0}
-                              className="group/info relative inline-flex cursor-help focus:outline-none"
-                            >
-                              <Info className="h-3 w-3 opacity-50 transition-opacity group-hover/info:opacity-100 group-focus/info:opacity-100" />
-                              <span
-                                role="tooltip"
-                                className="pointer-events-none absolute top-full left-1/2 z-20 mt-1.5 w-64 -translate-x-1/2 rounded-lg border border-[var(--border)] bg-[var(--card)] p-2.5 text-[11px] leading-relaxed text-[var(--foreground)] opacity-0 shadow-lg transition-opacity duration-75 group-hover/info:opacity-100 group-focus/info:opacity-100"
-                              >
+                                placeholder="1024x1024"
+                              />
+                              <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
                                 {t(
-                                  "Some embedding models (e.g. Qwen text-embedding-v4) reject the `dimensions` request param. Turn this off if your provider returns HTTP 400.",
+                                  "Default pixel size sent with each request. Leave empty for the provider default.",
                                 )}
-                              </span>
-                            </span>
-                          </label>
-                        </div>
-                        <DimensionField
-                          activeModel={activeModel}
-                          activeBinding={activeProfile?.binding}
-                          capabilities={embeddingCapabilities}
-                          embeddingDefaultDim={embeddingDefaultDim}
-                          inputClass={inputClass}
-                          onChangeDimension={(value) =>
-                            updateModelField(service, "dimension", value)
-                          }
-                        />
+                              </p>
+                            </div>
+                            <div>
+                              <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
+                                {t("Quality / Style")}
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <input
+                                  className={inputClass}
+                                  value={activeModel.quality || ""}
+                                  onChange={(e) =>
+                                    updateModelField(
+                                      service,
+                                      "quality",
+                                      e.target.value,
+                                    )
+                                  }
+                                  placeholder={t("quality (e.g. hd)")}
+                                />
+                                <input
+                                  className={inputClass}
+                                  value={activeModel.style || ""}
+                                  onChange={(e) =>
+                                    updateModelField(
+                                      service,
+                                      "style",
+                                      e.target.value,
+                                    )
+                                  }
+                                  placeholder={t("style (e.g. vivid)")}
+                                />
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        {service === "videogen" && (
+                          <>
+                            <div>
+                              <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
+                                {t("Aspect ratio")}
+                              </div>
+                              <input
+                                className={inputClass}
+                                value={activeModel.aspect_ratio || ""}
+                                onChange={(e) =>
+                                  updateModelField(
+                                    service,
+                                    "aspect_ratio",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="16:9"
+                              />
+                              <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
+                                {t(
+                                  "Defaults sent with each request. Leave empty for the provider default.",
+                                )}
+                              </p>
+                            </div>
+                            <div>
+                              <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
+                                {t("Duration / Resolution")}
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <input
+                                  className={inputClass}
+                                  inputMode="numeric"
+                                  value={activeModel.duration || ""}
+                                  onChange={(e) =>
+                                    updateModelField(
+                                      service,
+                                      "duration",
+                                      e.target.value,
+                                    )
+                                  }
+                                  placeholder={t("seconds")}
+                                />
+                                <input
+                                  className={inputClass}
+                                  value={activeModel.resolution || ""}
+                                  onChange={(e) =>
+                                    updateModelField(
+                                      service,
+                                      "resolution",
+                                      e.target.value,
+                                    )
+                                  }
+                                  placeholder="720p"
+                                />
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
-                    )}
-                    {service === "tts" && (
-                      <>
-                        <div>
-                          <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                            {t("Voice")}
-                          </div>
-                          <input
-                            className={inputClass}
-                            value={activeModel.voice || ""}
-                            onChange={(e) =>
-                              updateModelField(service, "voice", e.target.value)
-                            }
-                            placeholder="alloy"
-                          />
-                          <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
-                            {t(
-                              "Provider-specific voice name, e.g. alloy (OpenAI) or model:voice (SiliconFlow).",
-                            )}
-                          </p>
-                        </div>
-                        <div>
-                          <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                            {t("Output format")}
-                          </div>
-                          <div className="relative">
-                            <select
-                              className={selectClass}
-                              value={activeModel.response_format || "mp3"}
-                              onChange={(e) =>
-                                updateModelField(
-                                  service,
-                                  "response_format",
-                                  e.target.value,
-                                )
-                              }
-                            >
-                              {["mp3", "wav", "opus", "aac", "flac", "pcm"].map(
-                                (fmt) => (
-                                  <option
-                                    className={selectOptionClass}
-                                    key={fmt}
-                                    value={fmt}
-                                  >
-                                    {fmt}
-                                  </option>
-                                ),
-                              )}
-                            </select>
-                            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted-foreground)]" />
-                          </div>
-                        </div>
-                      </>
-                    )}
-                    {service === "imagegen" && (
-                      <>
-                        <div>
-                          <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                            {t("Image size")}
-                          </div>
-                          <input
-                            className={inputClass}
-                            value={activeModel.size || ""}
-                            onChange={(e) =>
-                              updateModelField(service, "size", e.target.value)
-                            }
-                            placeholder="1024x1024"
-                          />
-                          <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
-                            {t(
-                              "Default pixel size sent with each request. Leave empty for the provider default.",
-                            )}
-                          </p>
-                        </div>
-                        <div>
-                          <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                            {t("Quality / Style")}
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <input
-                              className={inputClass}
-                              value={activeModel.quality || ""}
-                              onChange={(e) =>
-                                updateModelField(
-                                  service,
-                                  "quality",
-                                  e.target.value,
-                                )
-                              }
-                              placeholder={t("quality (e.g. hd)")}
-                            />
-                            <input
-                              className={inputClass}
-                              value={activeModel.style || ""}
-                              onChange={(e) =>
-                                updateModelField(
-                                  service,
-                                  "style",
-                                  e.target.value,
-                                )
-                              }
-                              placeholder={t("style (e.g. vivid)")}
-                            />
-                          </div>
-                        </div>
-                      </>
-                    )}
-                    {service === "videogen" && (
-                      <>
-                        <div>
-                          <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                            {t("Aspect ratio")}
-                          </div>
-                          <input
-                            className={inputClass}
-                            value={activeModel.aspect_ratio || ""}
-                            onChange={(e) =>
-                              updateModelField(
-                                service,
-                                "aspect_ratio",
-                                e.target.value,
-                              )
-                            }
-                            placeholder="16:9"
-                          />
-                          <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
-                            {t(
-                              "Defaults sent with each request. Leave empty for the provider default.",
-                            )}
-                          </p>
-                        </div>
-                        <div>
-                          <div className="mb-1.5 text-[12px] text-[var(--muted-foreground)]">
-                            {t("Duration / Resolution")}
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <input
-                              className={inputClass}
-                              inputMode="numeric"
-                              value={activeModel.duration || ""}
-                              onChange={(e) =>
-                                updateModelField(
-                                  service,
-                                  "duration",
-                                  e.target.value,
-                                )
-                              }
-                              placeholder={t("seconds")}
-                            />
-                            <input
-                              className={inputClass}
-                              value={activeModel.resolution || ""}
-                              onChange={(e) =>
-                                updateModelField(
-                                  service,
-                                  "resolution",
-                                  e.target.value,
-                                )
-                              }
-                              placeholder="720p"
-                            />
-                          </div>
-                        </div>
-                      </>
                     )}
                   </div>
                 )}
-              </div>
-            )}
               </div>
             </Modal>
           )}

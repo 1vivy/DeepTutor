@@ -118,8 +118,7 @@ function rewriteRangePreferringKatexLatex(range: Range): string {
   ).filter(
     (element) =>
       !(
-        element.classList.contains("katex") &&
-        element.closest(".katex-display")
+        element.classList.contains("katex") && element.closest(".katex-display")
       ),
   );
 

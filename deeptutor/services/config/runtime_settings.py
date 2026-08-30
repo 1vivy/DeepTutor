@@ -308,6 +308,15 @@ DEFAULT_LIGHTRAG_SETTINGS: dict[str, Any] = {
     "entity_extract_max_gleaning": 1,
 }
 
+# LightRAG Server connection defaults. Individual knowledge bases remain free
+# to override the URL/key when they are connected; this account-level slice is
+# the reusable starting point shown on the engine page and in the create flow.
+DEFAULT_LIGHTRAG_SERVER_SETTINGS: dict[str, Any] = {
+    "version": 1,
+    "server_url": "",
+    "api_key": "",
+}
+
 IGNORE_PROCESS_OVERRIDES_ENV = "DEEPTUTOR_IGNORE_PROCESS_ENV_OVERRIDES"
 TRUTHY = {"1", "true", "yes", "on"}
 FALSY = {"0", "false", "no", "off"}
@@ -567,6 +576,18 @@ class RuntimeSettingsService:
         _atomic_write_json(self.path_for("lightrag"), payload)
         return payload
 
+    def load_lightrag_server(self) -> dict[str, Any]:
+        return self._load_or_create(
+            "lightrag_server",
+            DEFAULT_LIGHTRAG_SERVER_SETTINGS,
+            self._normalize_lightrag_server,
+        )
+
+    def save_lightrag_server(self, settings: dict[str, Any]) -> dict[str, Any]:
+        payload = self._normalize_lightrag_server({**DEFAULT_LIGHTRAG_SERVER_SETTINGS, **settings})
+        _atomic_write_json(self.path_for("lightrag_server"), payload)
+        return payload
+
     def ensure_defaults(self) -> None:
         self.load_system(include_process_overrides=False)
         self.load_auth(include_process_overrides=False)
@@ -577,6 +598,7 @@ class RuntimeSettingsService:
         self.load_llamaindex(include_process_overrides=False)
         self.load_graphrag()
         self.load_lightrag()
+        self.load_lightrag_server()
 
     def render_environment(self) -> dict[str, str]:
         """Render non-model settings into process env names for subprocesses."""
@@ -875,6 +897,13 @@ class RuntimeSettingsService:
             "entity_extract_max_gleaning": _coerce_clamped_int(
                 settings.get("entity_extract_max_gleaning"), 1, 0, 5
             ),
+        }
+
+    def _normalize_lightrag_server(self, settings: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "version": 1,
+            "server_url": _string(settings.get("server_url")).rstrip("/"),
+            "api_key": _string(settings.get("api_key")),
         }
 
     def _normalize_document_parsing(self, settings: dict[str, Any]) -> dict[str, Any]:
@@ -1212,6 +1241,10 @@ def load_lightrag_settings() -> dict[str, Any]:
     return get_runtime_settings_service().load_lightrag()
 
 
+def load_lightrag_server_settings() -> dict[str, Any]:
+    return get_runtime_settings_service().load_lightrag_server()
+
+
 def load_document_parsing_settings() -> dict[str, Any]:
     return get_runtime_settings_service().load_document_parsing()
 
@@ -1230,6 +1263,7 @@ __all__ = [
     "DEFAULT_IMA_SETTINGS",
     "DEFAULT_INTEGRATIONS_SETTINGS",
     "DEFAULT_LIGHTRAG_SETTINGS",
+    "DEFAULT_LIGHTRAG_SERVER_SETTINGS",
     "DEFAULT_LLAMAINDEX_SETTINGS",
     "DEFAULT_MINERU_SETTINGS",
     "DEFAULT_PAGEINDEX_SETTINGS",
@@ -1259,6 +1293,7 @@ __all__ = [
     "load_graphrag_settings",
     "load_integrations_settings",
     "load_lightrag_settings",
+    "load_lightrag_server_settings",
     "load_llamaindex_settings",
     "load_mineru_settings",
     "load_system_settings",

@@ -113,8 +113,8 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
           typeof candidate === "string"
             ? await getMaterial(candidate)
             : "outline" in candidate
-            ? (candidate as MaterialDetail)
-            : await getMaterial(candidate.material_id);
+              ? (candidate as MaterialDetail)
+              : await getMaterial(candidate.material_id);
         const marks = await listAnnotations(detail.material_id);
         if (token !== openTokenRef.current) return false;
         setMaterial(detail);

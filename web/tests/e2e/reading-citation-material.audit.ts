@@ -119,16 +119,24 @@ test.beforeEach(async ({ page }) => {
     }
     if (path === "/api/v1/sessions") return json({ sessions: [] });
     if (path === "/api/v1/reading/supported-formats") {
-      return json({ extensions: [".md"], max_bytes: 1024, raw_view_extensions: [] });
+      return json({
+        extensions: [".md"],
+        max_bytes: 1024,
+        raw_view_extensions: [],
+      });
     }
     if (path === "/api/v1/reading/extensions") return json([]);
     if (path === "/api/v1/reading/materials") {
       return json([materialB, materialA]);
     }
-    if (path === `/api/v1/reading/materials/${MATERIAL_A}`) return json(materialA);
-    if (path === `/api/v1/reading/materials/${MATERIAL_B}`) return json(materialB);
+    if (path === `/api/v1/reading/materials/${MATERIAL_A}`)
+      return json(materialA);
+    if (path === `/api/v1/reading/materials/${MATERIAL_B}`)
+      return json(materialB);
     if (path.endsWith("/annotations")) return json([]);
-    const unit = /\/api\/v1\/reading\/materials\/([^/]+)\/units\/(\d+)/.exec(path);
+    const unit = /\/api\/v1\/reading\/materials\/([^/]+)\/units\/(\d+)/.exec(
+      path,
+    );
     if (unit) {
       const [, materialId, locator] = unit;
       return json({
@@ -155,7 +163,10 @@ test("historical citation reopens its turn material and unsupported locator stay
   );
   await expect(page.getByRole("link", { name: "p.1" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: /Immersive Reading/ }).last().click();
+  await page
+    .getByRole("button", { name: /Immersive Reading/ })
+    .last()
+    .click();
   await page.getByRole("button", { name: "Open a document to read" }).click();
   await page.getByText("Current material B.md").click();
   await expect(page.getByText("Wrong material text.")).toBeVisible();

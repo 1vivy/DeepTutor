@@ -56,6 +56,49 @@ async def test_version_check_caches_success_for_the_ttl() -> None:
 
 
 @pytest.mark.asyncio
+async def test_version_check_falls_back_to_latest_redirect_when_api_is_rate_limited() -> None:
+    requests: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append((request.method, str(request.url)))
+        if request.url.host == "api.github.com":
+            return httpx.Response(403, json={"message": "API rate limit exceeded"})
+        return httpx.Response(
+            302,
+            headers={"location": "https://github.com/HKUDS/DeepTutor/releases/tag/v1.6.1"},
+        )
+
+    service = VersionCheckService(
+        client_factory=lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+
+    result = await service.check()
+
+    assert requests == [
+        ("GET", app_update.GITHUB_LATEST_RELEASE_URL),
+        ("HEAD", app_update.GITHUB_LATEST_RELEASE_WEB_URL),
+    ]
+    assert result.release.version == "1.6.1"
+    assert result.release.url == "https://github.com/HKUDS/DeepTutor/releases/tag/v1.6.1"
+    assert result.update_available is False
+
+
+@pytest.mark.asyncio
+async def test_version_check_rejects_untrusted_latest_redirect() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.github.com":
+            return httpx.Response(403, json={"message": "API rate limit exceeded"})
+        return httpx.Response(302, headers={"location": "https://example.com/tag/v9.9.9"})
+
+    service = VersionCheckService(
+        client_factory=lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+
+    with pytest.raises(VersionCheckError, match="invalid URL"):
+        await service.check()
+
+
+@pytest.mark.asyncio
 async def test_version_check_rejects_prereleases_and_untrusted_urls() -> None:
     prerelease = VersionCheckService(
         client_factory=_client_factory(_release(prerelease=True)),

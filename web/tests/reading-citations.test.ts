@@ -198,7 +198,10 @@ test("citationTargetFromHref restores material-aware and legacy targets", () => 
   assert.deepEqual(citationTargetFromHref(`${LOCATOR_HREF_PREFIX}3`), {
     locator: 3,
   });
-  assert.equal(citationTargetFromHref("#dt-material-not-an-id-locator-3"), null);
+  assert.equal(
+    citationTargetFromHref("#dt-material-not-an-id-locator-3"),
+    null,
+  );
 });
 
 test("verifiedReadingLocators uses only matching reading-tool evidence", () => {

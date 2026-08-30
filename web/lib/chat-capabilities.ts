@@ -167,7 +167,8 @@ export const WORKSPACE_CHAT_CAPABILITIES = CHAT_CAPABILITIES.filter(
 
 export function getChatCapability(value: string | null): ChatCapabilityDef {
   return (
-    CHAT_CAPABILITIES.find((capability) => capability.value === (value || "")) ??
-    CHAT_CAPABILITIES[0]
+    CHAT_CAPABILITIES.find(
+      (capability) => capability.value === (value || ""),
+    ) ?? CHAT_CAPABILITIES[0]
   );
 }

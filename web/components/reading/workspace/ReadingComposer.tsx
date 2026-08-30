@@ -50,11 +50,8 @@ export function ReadingComposer({
     setLLMSelection,
     setPersonaSelection,
   } = useUnifiedChat();
-  const {
-    capabilities,
-    activeCapabilityValue,
-    selectCapability,
-  } = useWorkspaceChatActions();
+  const { capabilities, activeCapabilityValue, selectCapability } =
+    useWorkspaceChatActions();
 
   const awaitingUserReply = hasPendingAskUser(
     state.messages[state.messages.length - 1]?.events,

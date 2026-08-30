@@ -44,11 +44,8 @@ export function MasteryComposer({
     setLLMSelection,
     setPersonaSelection,
   } = useUnifiedChat();
-  const {
-    capabilities,
-    activeCapabilityValue,
-    selectCapability,
-  } = useWorkspaceChatActions();
+  const { capabilities, activeCapabilityValue, selectCapability } =
+    useWorkspaceChatActions();
 
   // A turn paused on an ask_user card is still "streaming", but typing an
   // answer is exactly how it moves forward — the composer stays live.
