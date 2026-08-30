@@ -25,6 +25,7 @@ from deeptutor.services.session.protocol import SessionStoreProtocol
 
 if TYPE_CHECKING:
     from deeptutor.learning.storage import MasteryPathLease
+    from deeptutor.services.app_update import UpdateJob
     from deeptutor.services.llm.config import LLMConfig
 
 logger = logging.getLogger(__name__)
@@ -253,6 +254,38 @@ def _mastery_path_id(value: Any) -> str:
     return str(value or "").strip()
 
 
+WORKSPACE_MODE_READING = "immersive_reading"
+WORKSPACE_MODE_MASTERY = "mastery_path"
+_WORKSPACE_MODES = {WORKSPACE_MODE_READING, WORKSPACE_MODE_MASTERY}
+_MASTERY_AGENTIC_ACTIONS = {
+    "chat",
+    "ask_questions",
+    "deep_solve",
+    "course_study",
+    # Backward-compatible top-level workspace capabilities.
+    "mastery_path",
+    "immersive_reading",
+}
+
+
+def _workspace_mode(value: Any, *, capability: str = "") -> str:
+    """Normalize the stable workspace independently of the per-turn action.
+
+    Older clients sent Reading/Mastery as the capability itself, so those two
+    values remain a fallback while stored sessions migrate naturally.
+    """
+    candidate = str(value or "").strip()
+    if candidate in _WORKSPACE_MODES:
+        return candidate
+    legacy = str(capability or "").strip()
+    return legacy if legacy in _WORKSPACE_MODES else ""
+
+
+def _mastery_loop_managed(workspace_mode: str, capability: str) -> bool:
+    """Whether this action can mutate mastery state and therefore needs a lease."""
+    return workspace_mode == WORKSPACE_MODE_MASTERY and capability in _MASTERY_AGENTIC_ACTIONS
+
+
 def _topic_material_manifest(path_id: str) -> tuple[str, dict[str, str]]:
     """Load a mastery topic's materials as (manifest, read_source index).
 
@@ -286,6 +319,92 @@ def _topic_material_manifest(path_id: str) -> tuple[str, dict[str, str]]:
     except Exception:
         logger.exception("Failed to build topic materials for mastery path %s", path_id)
         return "", {}
+
+
+def _reading_action_context(
+    material_id: str,
+    viewport: dict[str, Any],
+    question: str,
+) -> str:
+    """Bounded document evidence for non-agentic Reading actions."""
+    if not material_id:
+        return "The Reading workspace has no material open."
+    try:
+        from deeptutor.reading import ReadingStore, material_summary, search_material
+
+        store = ReadingStore()
+        manifest = store.manifest(material_id)
+        lines = [f"Open material: {material_summary(manifest)}"]
+        locator = int(viewport.get("locator") or 0)
+        selection = str(viewport.get("selection") or "").strip()
+        if selection:
+            lines.append(f"Selected quote at {manifest.unit} {locator or '?'}: {selection}")
+        if 1 <= locator <= manifest.unit_count:
+            visible = _clip_text(store.unit_text(material_id, locator), limit=5_000)
+            lines.append(f"Visible {manifest.unit} {locator}:\n{visible}")
+        result = search_material(store, material_id, question, limit=4)
+        if result.hits:
+            lines.append("Relevant matches:")
+            lines.extend(f"- {manifest.unit} {hit.locator}: {hit.snippet}" for hit in result.hits)
+        lines.append(f"Treat these excerpts as source evidence and cite {manifest.unit} locators.")
+        return "\n\n".join(lines)
+    except Exception:
+        logger.info("Reading action context unavailable for %s", material_id, exc_info=True)
+        return "The open Reading material is unavailable."
+
+
+def _mastery_action_context(
+    path_id: str,
+    manifest: str,
+    source_index: dict[str, str],
+) -> str:
+    """Bounded topic/progress context for Quiz/Research/Visualize actions."""
+    if not path_id:
+        return ""
+    lines = [f"Mastery topic id: {path_id}"]
+    try:
+        from deeptutor.learning.storage import LearningStore
+
+        store = LearningStore()
+        progress = store.load(path_id)
+        topic = store.get_topic(path_id, progress=progress) if progress else None
+        if topic is not None:
+            lines.append(
+                f"Goal: {topic.metadata.goal or topic.metadata.description or progress.name}"
+            )
+        if progress is not None:
+            lines.append(f"Current learning stage: {progress.current_stage.value}")
+            module = next(
+                (item for item in progress.modules if item.id == progress.current_module_id),
+                None,
+            )
+            if module is not None:
+                lines.append(f"Current module: {module.name}")
+                if 0 <= progress.current_kp_index < len(module.knowledge_points):
+                    lines.append(
+                        "Current knowledge point: "
+                        + module.knowledge_points[progress.current_kp_index].name
+                    )
+    except Exception:
+        logger.info("Mastery action state unavailable for %s", path_id, exc_info=True)
+    if manifest:
+        lines.append("Topic source manifest:\n" + manifest)
+    remaining = 12_000
+    excerpts: list[str] = []
+    for source_id, text in source_index.items():
+        if remaining <= 0:
+            break
+        excerpt = _clip_text(text, limit=min(4_000, remaining))
+        if excerpt:
+            excerpts.append(f"--- {source_id} ---\n{excerpt}")
+            remaining -= len(excerpt)
+    if excerpts:
+        lines.append("Topic source excerpts:\n" + "\n\n".join(excerpts))
+    lines.append(
+        "Use this topic as context for the requested action. Do not change mastery progress "
+        "unless the turn is running the guided tutor loop."
+    )
+    return "\n\n".join(lines)
 
 
 # Reading material ids are content hashes; anything else is a client bug or an
@@ -470,6 +589,9 @@ def _request_snapshot_metadata(
         "knowledgeBases": _string_list(payload.get("knowledge_bases")),
         "language": str(payload.get("language", "en") or "en"),
     }
+    workspace_mode = _workspace_mode(payload.get("workspace_mode"), capability=capability)
+    if workspace_mode:
+        snapshot["workspaceMode"] = workspace_mode
     if attachments:
         snapshot["attachments"] = attachments
     if config:
@@ -1070,6 +1192,7 @@ class TurnRuntimeManager:
         self.store = store or get_session_store()
         self._lock = asyncio.Lock()
         self._executions: dict[str, _TurnExecution] = {}
+        self._accepting_turns = True
         # Per-turn reply queues used by tools that pause the agentic
         # loop (e.g. ``ask_user``). Queue is created in ``_run_turn``
         # before the orchestrator is invoked and cleaned up in the
@@ -1089,6 +1212,72 @@ class TurnRuntimeManager:
         ``_lock`` / ``_executions`` directly.
         """
         return await self._has_live_execution(turn_id)
+
+    async def has_live_executions(self) -> bool:
+        """Return whether any turn is still owned by this process.
+
+        Managed application updates use this coarse process-level signal before
+        stopping the server. Placeholders without a task still count as live:
+        they represent turns paused between setup and execution or awaiting a
+        resume path, and interrupting either would lose learner-visible work.
+        """
+        async with self._lock:
+            return any(
+                execution.task is None or not execution.task.done()
+                for execution in self._executions.values()
+            )
+
+    async def reserve_managed_update(
+        self,
+        reserve: Callable[[], UpdateJob],
+    ) -> UpdateJob | None:
+        """Atomically reserve an update only while this process is idle.
+
+        The same lock publishes new turn ownership. Once ``reserve`` creates
+        the durable update marker, later turns are rejected until the launcher
+        replaces this process. A failed handoff removes that marker, allowing
+        the next turn request to thaw the runtime automatically.
+        """
+        async with self._lock:
+            if any(
+                execution.task is None or not execution.task.done()
+                for execution in self._executions.values()
+            ):
+                return None
+            job = reserve()
+            self._accepting_turns = False
+            return job
+
+    @staticmethod
+    def _managed_update_is_active() -> bool:
+        from deeptutor.services.app_update import UpdateJobStore, update_store_root
+
+        store = UpdateJobStore(update_store_root())
+        try:
+            job = store.load()
+        except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+            return False
+        return store.active_path.exists() and job.status in {
+            "pending",
+            "handoff",
+            "running",
+            "restarting",
+        }
+
+    def _turns_blocked_for_update_locked(self) -> bool:
+        if self._accepting_turns:
+            return False
+        if not self._managed_update_is_active():
+            self._accepting_turns = True
+            return False
+        return True
+
+    async def _ensure_accepting_turns(self) -> None:
+        async with self._lock:
+            if self._turns_blocked_for_update_locked():
+                raise RuntimeError(
+                    "DeepTutor is preparing an update; try again after it reconnects"
+                )
 
     async def _has_live_execution(self, turn_id: str) -> bool:
         """Whether this process still owns the turn's in-memory runner."""
@@ -1226,6 +1415,7 @@ class TurnRuntimeManager:
             )
 
     async def start_turn(self, payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        await self._ensure_accepting_turns()
         persona_explicit = "persona" in payload
         if not payload.get("language"):
             from deeptutor.services.settings.interface_settings import (
@@ -1285,6 +1475,13 @@ class TurnRuntimeManager:
             )
 
         capability = str(payload.get("capability") or "chat")
+        workspace_mode_explicit = "workspace_mode" in payload
+        workspace_mode = _workspace_mode(
+            payload.get("workspace_mode")
+            if workspace_mode_explicit
+            else preferences.get("workspace_mode"),
+            capability=capability,
+        )
         try:
             from deeptutor.runtime.request_contracts import validate_capability_config
 
@@ -1294,6 +1491,7 @@ class TurnRuntimeManager:
         payload = {
             **payload,
             "capability": capability,
+            "workspace_mode": workspace_mode,
             "course_id": requested_course_id,
             # Rendered here, where the course is already loaded and validated,
             # and carried on the payload so the run phase needs no second read.
@@ -1308,7 +1506,7 @@ class TurnRuntimeManager:
         }
         reading_workspace_id = _reading_workspace_id(payload.get("reading_workspace_id"))
         reading_material_id = _reading_material_id(payload.get("reading_material_id"))
-        if capability == "immersive_reading" and reading_workspace_id:
+        if workspace_mode == WORKSPACE_MODE_READING and reading_workspace_id:
             from deeptutor.reading import ReadingCatalogStore
 
             reading_catalog = ReadingCatalogStore()
@@ -1343,7 +1541,7 @@ class TurnRuntimeManager:
             else preferences.get("mastery_path_id")
         )
         mastery_binding = None
-        if capability == "mastery_path":
+        if workspace_mode == WORKSPACE_MODE_MASTERY:
             from deeptutor.learning.identity import resolve_mastery_path_binding
 
             mastery_binding = resolve_mastery_path_binding(
@@ -1359,7 +1557,14 @@ class TurnRuntimeManager:
             )
         else:
             mastery_path_id = configured_mastery_path_id
-        payload = {**payload, "mastery_path_id": mastery_path_id}
+        mastery_lease_managed = bool(
+            mastery_binding is not None and _mastery_loop_managed(workspace_mode, capability)
+        )
+        payload = {
+            **payload,
+            "mastery_path_id": mastery_path_id,
+            "mastery_path_lease_managed": mastery_lease_managed,
+        }
         # Persona is a session-level preference (mirrors llm_selection): an
         # explicit ``persona`` key in the payload — including an empty string,
         # which means "Default" / no persona — wins and is persisted below.
@@ -1461,6 +1666,7 @@ class TurnRuntimeManager:
         await self._recover_orphan_running_turns_for_session(session["id"])
         preference_update: dict[str, Any] = {
             "capability": capability,
+            "workspace_mode": workspace_mode,
             "tools": list(payload.get("tools") or []),
             "knowledge_bases": list(payload.get("knowledge_bases") or []),
             "language": str(payload.get("language") or "en"),
@@ -1517,12 +1723,24 @@ class TurnRuntimeManager:
             # Mastery turns persist their fully resolved path so a later turn
             # cannot silently fall back to a different aggregate.
             preference_update["mastery_path_id"] = mastery_path_id
-        if capability == "immersive_reading" and reading_workspace_id:
+        if workspace_mode == WORKSPACE_MODE_READING and reading_workspace_id:
             preference_update.update(
                 {
                     "session_kind": "immersive_reading",
                     "reading_workspace_id": reading_workspace_id,
                     "reading_material_id": reading_material_id,
+                }
+            )
+        elif (
+            workspace_mode_explicit
+            and not workspace_mode
+            and preferences.get("session_kind") == "immersive_reading"
+        ):
+            preference_update.update(
+                {
+                    "session_kind": "chat",
+                    "reading_workspace_id": "",
+                    "reading_material_id": "",
                 }
             )
         await self.store.update_session_preferences(session["id"], preference_update)
@@ -1538,9 +1756,19 @@ class TurnRuntimeManager:
         # turn row is created but before its task is registered, causing the
         # second caller to misclassify that healthy turn as a restart orphan.
         async with self._lock:
-            self._executions[turn["id"]] = execution
+            update_blocked = self._turns_blocked_for_update_locked()
+            if not update_blocked:
+                self._executions[turn["id"]] = execution
+        if update_blocked:
+            with contextlib.suppress(Exception):
+                await self.store.update_turn_status(
+                    turn["id"],
+                    "rejected",
+                    "DeepTutor is preparing an update; try again after it reconnects",
+                )
+            raise RuntimeError("DeepTutor is preparing an update; try again after it reconnects")
         mastery_lease_acquired = False
-        if mastery_binding is not None:
+        if mastery_binding is not None and mastery_lease_managed:
             try:
                 await self._acquire_mastery_path_lease(
                     path_id=mastery_binding.path_id,
@@ -1696,10 +1924,17 @@ class TurnRuntimeManager:
             if "mastery_path_id" in overrides
             else snapshot.get("masteryPathId") or preferences.get("mastery_path_id")
         )
+        workspace_mode = _workspace_mode(
+            overrides.get("workspace_mode")
+            if "workspace_mode" in overrides
+            else snapshot.get("workspaceMode") or preferences.get("workspace_mode"),
+            capability=capability,
+        )
 
         payload: dict[str, Any] = {
             "session_id": session_id,
             "capability": capability,
+            "workspace_mode": workspace_mode,
             "content": str(last_user.get("content", "") or ""),
             "tools": tools,
             "knowledge_bases": knowledge_bases,
@@ -1959,6 +2194,8 @@ class TurnRuntimeManager:
         payload = execution.payload
         session_id = execution.session_id
         capability_name = execution.capability
+        workspace_mode = _workspace_mode(payload.get("workspace_mode"), capability=capability_name)
+        mastery_lease_managed = bool(payload.get("mastery_path_lease_managed"))
         turn_id = execution.turn_id
         attachments = []
         attachment_records = []
@@ -2420,11 +2657,43 @@ class TurnRuntimeManager:
             # Guarded on an empty chat-path index so materials the learner
             # attached to *this turn* (which took the chat path above) always win.
             mastery_topic_source_index: dict[str, str] = {}
-            if capability_name == "mastery_path" and not source_index:
+            if workspace_mode == WORKSPACE_MODE_MASTERY and not source_index:
                 topic_path_id = _mastery_path_id(payload.get("mastery_path_id"))
                 if topic_path_id:
                     source_manifest_text, mastery_topic_source_index = await asyncio.to_thread(
                         _topic_material_manifest, topic_path_id
+                    )
+
+            # Agentic actions receive workspace behavior through loop
+            # capabilities and tools. Standalone pipelines (Quiz, Research,
+            # Visualize) cannot call those hooks, so give them a bounded,
+            # explicit snapshot of the same workspace instead.
+            if not is_chat_capability and capability_name not in {
+                "ask_questions",
+                "deep_solve",
+                "immersive_reading",
+                "mastery_path",
+                "course_study",
+            }:
+                workspace_context = ""
+                if workspace_mode == WORKSPACE_MODE_READING:
+                    workspace_context = await asyncio.to_thread(
+                        _reading_action_context,
+                        _reading_material_id(payload.get("reading_material_id")),
+                        _reading_viewport(payload.get("reading_viewport")),
+                        raw_user_content,
+                    )
+                elif workspace_mode == WORKSPACE_MODE_MASTERY:
+                    workspace_context = await asyncio.to_thread(
+                        _mastery_action_context,
+                        _mastery_path_id(payload.get("mastery_path_id")),
+                        source_manifest_text,
+                        mastery_topic_source_index,
+                    )
+                if workspace_context:
+                    effective_user_message = (
+                        f"[Workspace Context]\n{workspace_context}\n\n"
+                        f"[User Question]\n{effective_user_message}"
                     )
 
             conversation_history = list(history_result.conversation_history)
@@ -2499,7 +2768,8 @@ class TurnRuntimeManager:
                     "course_id": str(payload.get("course_id") or ""),
                     "course_conventions": str(payload.get("course_conventions") or ""),
                     "mastery_path_id": _mastery_path_id(payload.get("mastery_path_id")),
-                    "mastery_path_lease_managed": capability_name == "mastery_path",
+                    "mastery_mode": workspace_mode == WORKSPACE_MODE_MASTERY,
+                    "mastery_path_lease_managed": mastery_lease_managed,
                     # Immersive reading: the open material activates the reading
                     # capability and binds its tools; the viewport tells the
                     # model where the user is actually looking.
@@ -2507,6 +2777,7 @@ class TurnRuntimeManager:
                     "reading_workspace_id": _reading_workspace_id(
                         payload.get("reading_workspace_id")
                     ),
+                    "immersive_reading_mode": workspace_mode == WORKSPACE_MODE_READING,
                     "reading_viewport": _reading_viewport(payload.get("reading_viewport")),
                     "book_context": book_context,
                     "book_context_warnings": book_context_result.warnings,
@@ -2575,6 +2846,7 @@ class TurnRuntimeManager:
                 capability_name=capability_name,
                 started_on=_mastery_path_id(payload.get("mastery_path_id")),
                 ended_on=str(context.metadata.get("mastery_path_id") or ""),
+                mastery_mode=mastery_lease_managed,
             )
 
             # Office binaries the browser cannot render need their text pulled
@@ -2769,7 +3041,7 @@ class TurnRuntimeManager:
             # that finds the queue gone will return ``False`` rather than
             # accumulating on a dead turn.
             self._reply_queues.pop(turn_id, None)
-            if capability_name == "mastery_path":
+            if bool(payload.get("mastery_path_lease_managed")):
                 from deeptutor.learning.storage import LearningStore
 
                 # By turn, not by the path the turn started on: mastery_switch
@@ -2801,9 +3073,14 @@ class TurnRuntimeManager:
         capability_name: str,
         started_on: str,
         ended_on: str,
+        mastery_mode: bool = False,
     ) -> None:
         """Announce a path the turn moved onto, so the client stops lying."""
-        if capability_name != "mastery_path" or not ended_on or ended_on == started_on:
+        if (
+            not (capability_name == "mastery_path" or mastery_mode)
+            or not ended_on
+            or ended_on == started_on
+        ):
             return
         await self._publish_live_event(
             execution,

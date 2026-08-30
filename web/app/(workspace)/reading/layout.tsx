@@ -3,12 +3,11 @@ import { QuizFollowupProvider } from "@/context/QuizFollowupContext";
 import { UnifiedChatProvider } from "@/context/UnifiedChatContext";
 
 /**
- * The chat engine is scoped to the study session, not to the whole Mastery
- * workspace. The atlas and the topic detail page never talk to it, and it owns
- * a WebSocket plus the streaming reducer — mounting it around them made every
- * map view pay for a connection it does not use.
+ * Reading owns its conversation runtime. The workspace shell above also hosts
+ * Home's provider so Home can keep a turn alive while navigation occurs, but a
+ * reader must never render that provider's transcript or live stream.
  */
-export default function MasteryStudyLayout({
+export default function ReadingLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (

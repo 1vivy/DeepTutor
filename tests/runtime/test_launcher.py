@@ -7,6 +7,7 @@ import pytest
 
 from deeptutor.runtime import launcher
 from deeptutor.runtime.home import validate_runtime_home
+from deeptutor.services.app_update import UpdateJobStore, update_store_root
 
 
 class _FakeTty:
@@ -59,6 +60,40 @@ def test_start_does_not_create_nested_data_tree(monkeypatch, tmp_path: Path) -> 
         launcher.start(bad_home)
 
     assert not bad_home.exists()
+
+
+def test_launcher_hands_pending_update_to_worker(tmp_path: Path) -> None:
+    store = UpdateJobStore(update_store_root(tmp_path))
+    pending = store.create(current_version="1.6.1", target_version="1.7.0")
+    launched: list[Path] = []
+
+    handed_off = launcher._handoff_pending_update(
+        tmp_path,
+        restart_argv=["start", "--home", str(tmp_path.resolve())],
+        worker_launcher=launched.append,
+    )
+
+    assert handed_off is True
+    assert launched == [store.root]
+    job = store.load()
+    assert job.id == pending.id
+    assert job.status == "handoff"
+    assert job.restart_home == str(tmp_path.resolve())
+
+
+def test_launcher_completes_update_only_after_restart(tmp_path: Path) -> None:
+    store = UpdateJobStore(update_store_root(tmp_path))
+    pending = store.create(current_version="1.6.1", target_version="1.7.0")
+    store.prepare_handoff(
+        pending.id,
+        home=tmp_path,
+        restart_argv=["start", "--home", str(tmp_path.resolve())],
+    )
+    store.mark_running(pending.id)
+    store.mark_restarting(pending.id)
+
+    assert launcher._complete_restarted_update(tmp_path) is True
+    assert store.load().status == "succeeded"
 
 
 def test_packaged_web_cache_refreshes_when_public_settings_change(tmp_path: Path) -> None:

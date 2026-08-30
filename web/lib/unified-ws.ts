@@ -54,6 +54,8 @@ export interface StartTurnMessage {
   content: string;
   tools?: string[];
   capability?: string | null;
+  /** Stable product surface; capability remains the action for this turn. */
+  workspace_mode?: "immersive_reading" | "mastery_path" | "";
   knowledge_bases?: string[];
   session_id?: string | null;
   attachments?: {
