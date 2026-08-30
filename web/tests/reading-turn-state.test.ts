@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   READING_WORKSPACE_MODE,
   getReadingTurnState,
+  normalizeReadingMaterialId,
   readingTurnFields,
   resetReadingTurnState,
   setReadingMaterial,
@@ -11,6 +12,16 @@ import {
 } from "../lib/reading-turn-state";
 
 test.beforeEach(() => resetReadingTurnState());
+
+test("normalizes persisted reading material ids and rejects unsafe values", () => {
+  assert.equal(
+    normalizeReadingMaterialId(" 0123456789ABCDEF "),
+    "0123456789abcdef",
+  );
+  assert.equal(normalizeReadingMaterialId("../../etc/passwd"), null);
+  assert.equal(normalizeReadingMaterialId("0123"), null);
+  assert.equal(normalizeReadingMaterialId(null), null);
+});
 
 test("carries the document and viewport for every action inside reading", () => {
   setReadingMaterial("d138eacaad029843");

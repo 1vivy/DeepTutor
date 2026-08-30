@@ -45,7 +45,10 @@ import {
 import { hasPendingAskUserInMessages } from "@/lib/ask-user-state";
 import { notify } from "@/lib/notifications";
 import { forwardReaderAction } from "@/lib/reading-reader-action";
-import { readingTurnFields } from "@/lib/reading-turn-state";
+import {
+  normalizeReadingMaterialId,
+  readingTurnFields,
+} from "@/lib/reading-turn-state";
 import i18n from "i18next";
 import {
   normalizeBookReferences,
@@ -173,6 +176,8 @@ export interface MessageRequestSnapshot {
   persona?: string;
   memoryReferences?: MemoryReferencePayload;
   llmSelection?: LLMSelection | null;
+  /** Stable identity of the material open for this turn. */
+  readingMaterialId?: string;
 }
 
 export interface MessageItem {
@@ -1134,6 +1139,9 @@ function hydrateRequestSnapshot(
     typeof (stored.masteryPathId ?? stored.mastery_path_id) === "string"
       ? String(stored.masteryPathId ?? stored.mastery_path_id).trim()
       : "";
+  const readingMaterialId = normalizeReadingMaterialId(
+    stored.readingMaterialId ?? stored.reading_material_id,
+  );
 
   if (config && Object.keys(config).length) snapshot.config = config;
   if (notebookReferences.length)
@@ -1147,6 +1155,9 @@ function hydrateRequestSnapshot(
   if (memoryReferences.length) snapshot.memoryReferences = memoryReferences;
   if (llmSelection) snapshot.llmSelection = llmSelection;
   if (masteryPathId) snapshot.masteryPathId = masteryPathId;
+  if (readingMaterialId) {
+    snapshot.readingMaterialId = readingMaterialId;
+  }
   return snapshot;
 }
 
@@ -1750,6 +1761,10 @@ export function UnifiedChatProvider({
       const effectiveQuestionNotebookReferences =
         replaySnapshot?.questionNotebookReferences ??
         questionNotebookReferences;
+      const liveReadingFields = readingTurnFields(effectiveWorkspaceMode);
+      const effectiveReadingMaterialId =
+        replaySnapshot?.readingMaterialId ??
+        liveReadingFields.reading_material_id;
       const requestSnapshot: MessageRequestSnapshot = replaySnapshot ?? {
         content,
         capability: effectiveCapability,
@@ -1788,6 +1803,9 @@ export function UnifiedChatProvider({
           : {}),
         ...(effectiveLLMSelection
           ? { llmSelection: effectiveLLMSelection }
+          : {}),
+        ...(effectiveReadingMaterialId
+          ? { readingMaterialId: effectiveReadingMaterialId }
           : {}),
       };
       // Default the new message's parent to the tip of the currently-
@@ -1859,7 +1877,9 @@ export function UnifiedChatProvider({
         // sessions, so Home must never inherit its source context.
         // Read from a module cell rather than context state so scrolling the
         // reader never re-renders the chat.
-        ...readingTurnFields(effectiveWorkspaceMode),
+        ...(replaySnapshot?.readingMaterialId
+          ? { reading_material_id: replaySnapshot.readingMaterialId }
+          : liveReadingFields),
         // Always sent (possibly ""): an explicit key is the backend's signal
         // to persist the value into session.preferences — "" clears back to
         // Default. Omitting the key would make the backend fall back to the

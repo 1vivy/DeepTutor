@@ -120,6 +120,7 @@ import {
 } from "@/lib/book-references";
 import {
   normalizeSelectedText,
+  textFromDomSelection,
   type SelectionTutorContext,
 } from "@/lib/selection-tutor";
 
@@ -1635,7 +1636,7 @@ export default function ChatPage() {
       setSelectionTutorPrompt(null);
       return;
     }
-    const text = normalizeSelectedText(selection.toString());
+    const text = textFromDomSelection(selection);
     if (text.length < 2) {
       setSelectionTutorPrompt(null);
       return;
@@ -1702,6 +1703,26 @@ export default function ChatPage() {
     setSelectionTutorPrompt(null);
     window.getSelection()?.removeAllRanges();
   }, [selectionTutorPrompt, state.language, state.sessionId]);
+
+  const handleMessagesCopy = useCallback(
+    (event: React.ClipboardEvent<HTMLDivElement>) => {
+      const selection = window.getSelection();
+      const container = messagesContainerRef.current;
+      if (!selection || !container || selection.isCollapsed) return;
+      if (
+        !selection.rangeCount ||
+        !container.contains(selection.getRangeAt(0).commonAncestorContainer)
+      ) {
+        return;
+      }
+      const remapped = textFromDomSelection(selection);
+      const raw = normalizeSelectedText(selection.toString());
+      if (!remapped || remapped === raw) return;
+      event.clipboardData.setData("text/plain", remapped);
+      event.preventDefault();
+    },
+    [messagesContainerRef],
+  );
 
   const handleClosePreview = useCallback(() => {
     setPreviewSource(null);
@@ -2299,6 +2320,7 @@ export default function ChatPage() {
                       handleMessagesScroll();
                     }}
                     onClick={handleMessagesClick}
+                    onCopy={handleMessagesCopy}
                     onMouseUp={handleMessagesSelection}
                     onKeyUp={handleMessagesSelection}
                     // `both-edges` reserves the scrollbar gutter on both sides so
