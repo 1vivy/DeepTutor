@@ -49,6 +49,7 @@ import {
   normalizeReadingMaterialId,
   readingTurnFields,
 } from "@/lib/reading-turn-state";
+import { watchingTurnFields } from "@/lib/watching-turn-state";
 import i18n from "i18next";
 import {
   normalizeBookReferences,
@@ -173,6 +174,7 @@ export interface MessageRequestSnapshot {
   questionNotebookReferences?: QuestionNotebookReferencePayload;
   bookReferences?: BookReferencePayload[];
   masteryPathId?: string;
+  timedMediaId?: string;
   persona?: string;
   memoryReferences?: MemoryReferencePayload;
   llmSelection?: LLMSelection | null;
@@ -1142,6 +1144,10 @@ function hydrateRequestSnapshot(
   const readingMaterialId = normalizeReadingMaterialId(
     stored.readingMaterialId ?? stored.reading_material_id,
   );
+  const timedMediaId =
+    typeof (stored.timedMediaId ?? stored.timed_media_id) === "string"
+      ? String(stored.timedMediaId ?? stored.timed_media_id).trim()
+      : "";
 
   if (config && Object.keys(config).length) snapshot.config = config;
   if (notebookReferences.length)
@@ -1158,6 +1164,7 @@ function hydrateRequestSnapshot(
   if (readingMaterialId) {
     snapshot.readingMaterialId = readingMaterialId;
   }
+  if (timedMediaId) snapshot.timedMediaId = timedMediaId;
   return snapshot;
 }
 
@@ -1453,7 +1460,10 @@ export function UnifiedChatProvider({
                 i18n.t(
                   "Connection lost while generating. Please retry your message.",
                 ),
-                { tone: "error", durationMs: 6000 },
+                {
+                  tone: "error",
+                  durationMs: 6000,
+                },
               );
             }
           },
@@ -1484,7 +1494,10 @@ export function UnifiedChatProvider({
             i18n.t(
               "Couldn't reach the server. Please check your connection and retry.",
             ),
-            { tone: "error", durationMs: 6000 },
+            {
+              tone: "error",
+              durationMs: 6000,
+            },
           );
           return;
         }
@@ -1765,6 +1778,9 @@ export function UnifiedChatProvider({
       const effectiveReadingMaterialId =
         replaySnapshot?.readingMaterialId ??
         liveReadingFields.reading_material_id;
+      const liveWatchingFields = watchingTurnFields(effectiveCapability);
+      const effectiveTimedMediaId =
+        replaySnapshot?.timedMediaId ?? liveWatchingFields.timed_media_id;
       const requestSnapshot: MessageRequestSnapshot = replaySnapshot ?? {
         content,
         capability: effectiveCapability,
@@ -1806,6 +1822,9 @@ export function UnifiedChatProvider({
           : {}),
         ...(effectiveReadingMaterialId
           ? { readingMaterialId: effectiveReadingMaterialId }
+          : {}),
+        ...(effectiveTimedMediaId
+          ? { timedMediaId: effectiveTimedMediaId }
           : {}),
       };
       // Default the new message's parent to the tip of the currently-
@@ -1880,6 +1899,9 @@ export function UnifiedChatProvider({
         ...(replaySnapshot?.readingMaterialId
           ? { reading_material_id: replaySnapshot.readingMaterialId }
           : liveReadingFields),
+        ...(replaySnapshot?.timedMediaId
+          ? { timed_media_id: replaySnapshot.timedMediaId }
+          : liveWatchingFields),
         // Always sent (possibly ""): an explicit key is the backend's signal
         // to persist the value into session.preferences — "" clears back to
         // Default. Omitting the key would make the backend fall back to the

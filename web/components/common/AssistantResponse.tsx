@@ -6,6 +6,7 @@ import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import ModelThinkingCard from "@/components/common/ModelThinkingCard";
 import { useReading } from "@/context/ReadingContext";
 import type { StreamEvent } from "@/lib/unified-ws";
+import { useWatching } from "@/context/WatchingContext";
 import {
   hasVisibleMarkdownContent,
   repairMalformedStrongEmphasis,
@@ -16,6 +17,7 @@ import {
   verifiedReadingLocators,
 } from "@/lib/reading-citations";
 import { linkifyMediaTimestamps } from "@/lib/reading-media-citations";
+import { linkifyVideoTimestamps } from "@/lib/watching-citations";
 import { parseModelThinkingSegments } from "@/lib/think-segments";
 import { useSmoothStreamText } from "@/hooks/useSmoothStreamText";
 
@@ -48,12 +50,16 @@ function AssistantResponseImpl({
   // currently open material is used only for an extra range check; it never
   // supplies identity for a historical answer.
   const { material } = useReading();
+  const watching = useWatching();
   const verifiedLocators = useMemo(
     () => verifiedReadingLocators(events, readingMaterialId),
     [events, readingMaterialId],
   );
   const citedContent = useMemo(
     () => {
+      if (watching.active && watching.material) {
+        return linkifyVideoTimestamps(displayContent);
+      }
       if (
         material?.unit === "segment" &&
         (!readingMaterialId || material.material_id === readingMaterialId)
@@ -70,7 +76,14 @@ function AssistantResponseImpl({
           })
         : displayContent;
     },
-    [displayContent, material, readingMaterialId, verifiedLocators],
+    [
+      displayContent,
+      material,
+      readingMaterialId,
+      verifiedLocators,
+      watching.active,
+      watching.material,
+    ],
   );
   const segments = useMemo(
     () => parseModelThinkingSegments(stripArtifactAnnotations(citedContent)),

@@ -21,6 +21,7 @@ from deeptutor.capabilities.reading import ReadingCapability
 from deeptutor.capabilities.setup import SetupCapability
 from deeptutor.capabilities.solve import SolveLoopCapability
 from deeptutor.capabilities.subagent import SubagentCapability
+from deeptutor.capabilities.watching import WatchingCapability
 from deeptutor.core.context import UnifiedContext
 from deeptutor.core.entry_points import load_entry_point_group
 
@@ -47,6 +48,7 @@ LOOP_CAPABILITIES: tuple[LoopCapability, ...] = (
     # state sensing and closed-set hand-offs. Its strict mode + course-id gate
     # keeps these tools out of every other mode.
     CourseStudyLoopCapability(),
+    WatchingCapability(),
     ExploreContextCapability(),
     # Additive as well: configuring the app is something the user asks for in
     # the middle of other work, so the turn keeps its normal surface. Activation

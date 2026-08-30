@@ -186,6 +186,18 @@ const MODEL_CHILDREN: SettingsLeaf[] = [
 
 const CHAT_CHILDREN: SettingsLeaf[] = [
   {
+    key: "video-learning",
+    href: "/settings/video-learning",
+    label: { zh: "视频学习", en: "Video Learning" },
+    blurb: {
+      zh: "原生 YouTube 与本地 Invidious 播放供应商。",
+      en: "Native YouTube and local Invidious playback providers.",
+    },
+    icon: Clapperboard,
+    tile: "bg-red-500/10 text-red-600 dark:text-red-400",
+    adminOnly: true,
+  },
+  {
     key: "tools",
     href: "/settings/chat#tools",
     label: { zh: "工具", en: "Tools" },
@@ -435,6 +447,14 @@ export const MERGED_CATEGORY_HREFS = new Set(
 const STORAGE_PATHS: Record<string, string> = {
   "/settings/appearance": "data/user/settings/interface.json",
   "/settings/network": "data/user/settings/system.json",
+  "/settings/llm": "data/user/settings/model_catalog.json",
+  "/settings/embedding": "data/user/settings/model_catalog.json",
+  "/settings/search": "data/user/settings/model_catalog.json",
+  "/settings/tts": "data/user/settings/model_catalog.json",
+  "/settings/stt": "data/user/settings/model_catalog.json",
+  "/settings/image": "data/user/settings/model_catalog.json",
+  "/settings/video": "data/user/settings/model_catalog.json",
+  "/settings/video-learning": "data/user/settings/video_learning.json",
   "/settings/document-parsing": "data/user/settings/document_parsing.json",
   "/settings/memory": "data/user/settings/main.yaml",
   llm: "data/user/settings/model_catalog.json",
