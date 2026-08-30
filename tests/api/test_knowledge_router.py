@@ -4,6 +4,7 @@ import asyncio
 import importlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -1412,6 +1413,179 @@ def test_reindex_error_status_bypasses_existing_match_noop(monkeypatch, tmp_path
     assert body["noop"] is False
     assert isinstance(body.get("task_id"), str) and body["task_id"]
     assert manager.config["knowledge_bases"]["failed-kb"]["status"] == "initializing"
+
+
+def test_reindex_task_persists_completed_progress(monkeypatch, tmp_path: Path) -> None:
+    base_dir = tmp_path / "knowledge_bases"
+    raw_dir = base_dir / "kb" / "raw"
+    raw_dir.mkdir(parents=True)
+    (raw_dir / "fixture.txt").write_text("synthetic fixture", encoding="utf-8")
+    (base_dir / "kb_config.json").write_text(
+        json.dumps(
+            {
+                "knowledge_bases": {
+                    "kb": {
+                        "path": "kb",
+                        "rag_provider": "lightrag",
+                        "status": "processing",
+                        "needs_reindex": True,
+                        "embedding_mismatch": {"reason": "test"},
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _SuccessfulRagService:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        async def initialize(self, *_args, **kwargs) -> bool:
+            kwargs["progress_callback"](1, 1)
+            return True
+
+    rag_service_module = importlib.import_module("deeptutor.services.rag.service")
+    manager_module = importlib.import_module("deeptutor.knowledge.manager")
+    manager = manager_module.KnowledgeBaseManager(base_dir=str(base_dir))
+    monkeypatch.setattr(rag_service_module, "RAGService", _SuccessfulRagService)
+    monkeypatch.setattr(
+        knowledge_router_module,
+        "get_kb_manager",
+        lambda: manager,
+    )
+
+    asyncio.run(
+        knowledge_router_module.run_reindex_task(
+            kb_name="kb",
+            base_dir=str(base_dir),
+            task_id="reindex-success-test",
+            signature_hash="lightrag",
+        )
+    )
+
+    progress = json.loads((base_dir / "kb" / ".progress.json").read_text(encoding="utf-8"))
+    assert progress == {
+        "kb_name": "kb",
+        "task_id": "reindex-success-test",
+        "stage": "completed",
+        "message": "Re-index complete",
+        "current": 1,
+        "total": 1,
+        "file_name": "",
+        "progress_percent": 100,
+        "timestamp": progress["timestamp"],
+        "indexed_count": 1,
+        "index_changed": True,
+        "index_action": "reindex",
+    }
+    monkeypatch.setattr(
+        knowledge_router_module,
+        "resolve_kb",
+        lambda _name: SimpleNamespace(name="kb", base_dir=base_dir),
+    )
+    with TestClient(_build_app()) as client:
+        response = client.get("/api/v1/knowledge/kb/progress")
+    assert response.status_code == 200
+    assert response.json() == progress
+
+    persisted = json.loads((base_dir / "kb_config.json").read_text(encoding="utf-8"))
+    entry = persisted["knowledge_bases"]["kb"]
+    assert entry["status"] == "ready"
+    assert "progress" not in entry
+    assert entry["last_indexed_count"] == 1
+    assert entry["last_indexed_action"] == "reindex"
+    assert entry["needs_reindex"] is False
+    assert "embedding_mismatch" not in entry
+
+
+@pytest.mark.parametrize("failed_sink", ["progress_file", "central_config"])
+def test_reindex_task_fails_closed_when_terminal_progress_is_not_persisted(
+    monkeypatch, tmp_path: Path, failed_sink: str
+) -> None:
+    base_dir = tmp_path / "knowledge_bases"
+    raw_dir = base_dir / "kb" / "raw"
+    raw_dir.mkdir(parents=True)
+    (raw_dir / "fixture.txt").write_text("synthetic fixture", encoding="utf-8")
+    (base_dir / "kb_config.json").write_text(
+        json.dumps(
+            {
+                "knowledge_bases": {
+                    "kb": {
+                        "path": "kb",
+                        "rag_provider": "lightrag",
+                        "status": "processing",
+                        "needs_reindex": True,
+                        "embedding_mismatch": {"reason": "test"},
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _SuccessfulRagService:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        async def initialize(self, *_args, **kwargs) -> bool:
+            kwargs["progress_callback"](1, 1)
+            return True
+
+    rag_service_module = importlib.import_module("deeptutor.services.rag.service")
+    manager_module = importlib.import_module("deeptutor.knowledge.manager")
+    progress_module = importlib.import_module("deeptutor.knowledge.progress_tracker")
+    task_manager = knowledge_router_module.TaskIDManager.get_instance()
+    task_id = knowledge_router_module._build_unique_task_id(
+        "kb_reindex", f"terminal-persistence-{failed_sink}"
+    )
+    manager = manager_module.KnowledgeBaseManager(base_dir=str(base_dir))
+    monkeypatch.setattr(rag_service_module, "RAGService", _SuccessfulRagService)
+    monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
+
+    if failed_sink == "progress_file":
+        original_atomic_write_json = progress_module.atomic_write_json
+
+        def _fail_completed_progress_file(path: Path, payload: dict) -> None:
+            if path.name == ".progress.json" and payload.get("stage") == "completed":
+                raise OSError("synthetic completed progress failure")
+            original_atomic_write_json(path, payload)
+
+        monkeypatch.setattr(progress_module, "atomic_write_json", _fail_completed_progress_file)
+    else:
+        original_update_kb_status = manager_module.KnowledgeBaseManager.update_kb_status
+
+        def _fail_ready_status(self, name: str, status: str, progress=None) -> None:
+            if name == "kb" and status == "ready":
+                raise OSError("synthetic ready status failure")
+            original_update_kb_status(self, name=name, status=status, progress=progress)
+
+        monkeypatch.setattr(
+            manager_module.KnowledgeBaseManager,
+            "update_kb_status",
+            _fail_ready_status,
+        )
+
+    asyncio.run(
+        knowledge_router_module.run_reindex_task(
+            kb_name="kb",
+            base_dir=str(base_dir),
+            task_id=task_id,
+            signature_hash="lightrag",
+        )
+    )
+
+    task = task_manager.get_task_metadata(task_id)
+    assert task is not None
+    assert task["status"] == "error"
+    assert "terminal state" in task["error"]
+    progress = json.loads((base_dir / "kb" / ".progress.json").read_text(encoding="utf-8"))
+    assert progress["stage"] == "error"
+    persisted = json.loads((base_dir / "kb_config.json").read_text(encoding="utf-8"))
+    entry = persisted["knowledge_bases"]["kb"]
+    assert entry["status"] == "error"
+    assert entry["needs_reindex"] is True
+    assert entry["embedding_mismatch"] == {"reason": "test"}
 
 
 def test_retry_error_status_queues_reindex(monkeypatch, tmp_path: Path) -> None:
