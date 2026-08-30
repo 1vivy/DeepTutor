@@ -79,6 +79,39 @@ def test_transcript_normalization_enforces_the_storage_budget(monkeypatch) -> No
     assert [cue["text"] for cue in cues] == ["1234", "5678"]
 
 
+def test_webvtt_preserves_caption_after_leading_blank_and_inline_tags() -> None:
+    cues = service.parse_webvtt(
+        "WEBVTT\n\n00:00:00.000 --> 00:00:02.000\n \nOpening <c>idea</c>\nand continuation\n"
+    )
+
+    assert cues == [
+        {
+            "start": 0.0,
+            "end": 2.0,
+            "text": "Opening idea and continuation",
+        }
+    ]
+
+
+def test_webvtt_keeps_ordinary_cues_and_accepts_timing_settings() -> None:
+    cues = service.parse_webvtt(
+        """WEBVTT
+
+first-cue
+00:01.000 --> 00:02.500 line:90% position:50% align:middle
+Ordinary caption
+
+00:03.000 --> 00:04.000
+Second line
+"""
+    )
+
+    assert cues == [
+        {"start": 1.0, "end": 2.5, "text": "Ordinary caption"},
+        {"start": 3.0, "end": 4.0, "text": "Second line"},
+    ]
+
+
 def test_invidious_caption_choice_accepts_the_real_snake_case_schema() -> None:
     captions = [
         {"label": "English (auto-generated)", "language_code": "en", "auto_generated": True},

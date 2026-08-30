@@ -28,6 +28,10 @@ MAX_SEGMENT_SECONDS = 90
 YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"}
 VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
 MATERIAL_ID_RE = re.compile(r"^[0-9a-f]{16,64}$")
+WEBVTT_TIMING_RE = re.compile(
+    r"^\s*(?P<start>\d{2}:\d{2}(?::\d{2})?[.,]\d{3})\s+-->\s+"
+    r"(?P<end>\d{2}:\d{2}(?::\d{2})?[.,]\d{3})(?:[ \t]+.*)?$"
+)
 
 
 class TimedMediaError(RuntimeError):
@@ -235,14 +239,37 @@ def build_segments(cues: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def parse_webvtt(text: str) -> list[dict[str, Any]]:
-    pattern = re.compile(
-        r"(?m)^(?P<start>\d{2}:\d{2}(?::\d{2})?[.,]\d{3})\s+-->\s+"
-        r"(?P<end>\d{2}:\d{2}(?::\d{2})?[.,]\d{3}).*\n(?P<body>.*?)(?=\n\s*\n|\Z)",
-        re.DOTALL,
-    )
+    """Parse Invidious WebVTT while tolerating malformed leading blanks.
+
+    Some caption endpoints insert a whitespace-only line between a cue timing
+    line and its payload. Treat those as leading padding, then collect all
+    consecutive payload lines until the next blank separator or timing line.
+    """
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     result: list[dict[str, Any]] = []
-    for match in pattern.finditer(text):
-        body = re.sub(r"<[^>]+>", "", match.group("body")).strip().replace("\n", " ")
+    index = 0
+    while index < len(lines):
+        match = WEBVTT_TIMING_RE.match(lines[index])
+        if match is None:
+            index += 1
+            continue
+
+        index += 1
+        body_lines: list[str] = []
+        while index < len(lines):
+            line = lines[index]
+            if WEBVTT_TIMING_RE.match(line):
+                break
+            if not line.strip():
+                index += 1
+                if body_lines:
+                    break
+                continue
+            body_lines.append(line)
+            index += 1
+
+        body = re.sub(r"<[^>]+>", "", "\n".join(body_lines))
+        body = re.sub(r"\s+", " ", body).strip()
         if body:
             result.append(
                 {
