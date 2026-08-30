@@ -263,6 +263,7 @@ export default memo(function ChatComposer({
   onCancelStreaming,
   prefillInputRef,
   inputPlaceholder,
+  inputPlaceholderCompletion,
   showCapabilityChip = true,
 }: {
   composerRef: RefObject<HTMLDivElement | null>;
@@ -386,6 +387,8 @@ export default memo(function ChatComposer({
   prefillInputRef?: React.MutableRefObject<((text: string) => void) | null>;
   /** Override the composer placeholder (e.g. quiz follow-up). */
   inputPlaceholder?: string;
+  /** A line Tab accepts while the composer is empty. See ComposerInput. */
+  inputPlaceholderCompletion?: string;
   /**
    * Hide the capability chip. A surface that only ever runs one capability
    * — and names it in its own chrome — gains nothing from a picker that
@@ -789,6 +792,7 @@ export default memo(function ChatComposer({
                 : undefined
             }
             placeholder={inputPlaceholder}
+            placeholderCompletion={inputPlaceholderCompletion}
             minHeight={hasMessages ? 28 : 64}
           />
 

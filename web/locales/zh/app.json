@@ -3757,6 +3757,7 @@
   "Currently unavailable": "当前不可用",
   "Module {{n}}": "模块 {{n}}",
   "Ask your tutor about “{{waypoint}}”…": "问导师关于「{{waypoint}}」的问题…",
+  "Tab to ask this": "按 Tab 直接问这句",
   "Mastered “{{name}}”": "已掌握「{{name}}」",
   "Due {{relative}} · {{absolute}}": "{{relative}}复习 · {{absolute}}",
   "interval {{interval}} · {{streak}} in a row": "第 {{interval}} 档 · 连对 {{streak}}",

@@ -17,6 +17,11 @@ import {
   type SessionSummary,
 } from "@/lib/session-api";
 import { listCourses, type StudyCourse } from "@/lib/courses-api";
+import {
+  fetchMasteryTopicIndex,
+  type MasteryTopicLabel,
+} from "@/lib/learning-api";
+import { sessionRoute } from "@/lib/mastery-session";
 
 export default function WorkspaceSidebar() {
   const { t } = useTranslation();
@@ -30,6 +35,7 @@ export default function WorkspaceSidebar() {
   } = useUnifiedChat();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [courses, setCourses] = useState<StudyCourse[]>([]);
+  const [masteryTopics, setMasteryTopics] = useState<MasteryTopicLabel[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const hasLoadedSessionsRef = useRef(false);
 
@@ -38,12 +44,17 @@ export default function WorkspaceSidebar() {
       setLoadingSessions(true);
     }
     try {
-      const [nextSessions, nextCourses] = await Promise.all([
+      // Topic labels only name a group heading, so a failure to load them must
+      // not cost the session list: the conversations then read as ungrouped
+      // rather than as missing.
+      const [nextSessions, nextCourses, nextTopics] = await Promise.all([
         listSessions(50, 0, { force: true }),
         listCourses({ force: true }),
+        fetchMasteryTopicIndex().catch(() => [] as MasteryTopicLabel[]),
       ]);
       setSessions(nextSessions);
       setCourses(nextCourses);
+      setMasteryTopics(nextTopics);
       hasLoadedSessionsRef.current = true;
     } catch (error) {
       console.error("Failed to load sessions", error);
@@ -91,11 +102,15 @@ export default function WorkspaceSidebar() {
     router.push("/home");
   }, [cancelStreamingTurn, newSession, router]);
 
+  // A study conversation opens on its own path, not in the main chat: the
+  // outline, the waypoint header and the tutor's own composer are the context
+  // it was held in, and /home would drop all three.
   const handleSelectSession = useCallback(
     async (sessionId: string) => {
-      router.push(`/home/${sessionId}`);
+      const session = sessions.find((item) => item.session_id === sessionId);
+      router.push(session ? sessionRoute(session) : `/home/${sessionId}`);
     },
-    [router],
+    [router, sessions],
   );
 
   const handleRenameSession = useCallback(
@@ -155,6 +170,7 @@ export default function WorkspaceSidebar() {
       showSessions
       sessions={orderedSessions}
       courses={courses}
+      masteryTopics={masteryTopics}
       activeSessionId={selectedSessionId}
       loadingSessions={loadingSessions}
       onNewChat={handleNewChat}

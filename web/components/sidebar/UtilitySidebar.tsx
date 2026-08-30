@@ -17,6 +17,11 @@ import {
   type SessionSummary,
 } from "@/lib/session-api";
 import { listCourses, type StudyCourse } from "@/lib/courses-api";
+import {
+  fetchMasteryTopicIndex,
+  type MasteryTopicLabel,
+} from "@/lib/learning-api";
+import { sessionRoute } from "@/lib/mastery-session";
 
 export default function UtilitySidebar() {
   const { t } = useTranslation();
@@ -24,6 +29,7 @@ export default function UtilitySidebar() {
   const { activeSessionId, setActiveSessionId } = useAppShell();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [courses, setCourses] = useState<StudyCourse[]>([]);
+  const [masteryTopics, setMasteryTopics] = useState<MasteryTopicLabel[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const hasLoadedSessionsRef = useRef(false);
 
@@ -32,12 +38,17 @@ export default function UtilitySidebar() {
       setLoadingSessions(true);
     }
     try {
-      const [nextSessions, nextCourses] = await Promise.all([
+      // Topic labels only name a group heading, so a failure to load them must
+      // not cost the session list: the conversations then read as ungrouped
+      // rather than as missing.
+      const [nextSessions, nextCourses, nextTopics] = await Promise.all([
         listSessions(50, 0, { force: true }),
         listCourses({ force: true }),
+        fetchMasteryTopicIndex().catch(() => [] as MasteryTopicLabel[]),
       ]);
       setSessions(nextSessions);
       setCourses(nextCourses);
+      setMasteryTopics(nextTopics);
       hasLoadedSessionsRef.current = true;
     } catch (error) {
       console.error("Failed to load sessions", error);
@@ -50,12 +61,14 @@ export default function UtilitySidebar() {
     void refreshSessions();
   }, [refreshSessions]);
 
+  // A study conversation opens on its own path — see ``sessionRoute``.
   const handleSelectSession = useCallback(
     async (sessionId: string) => {
       setActiveSessionId(sessionId);
-      router.push(`/home/${sessionId}`);
+      const session = sessions.find((item) => item.session_id === sessionId);
+      router.push(session ? sessionRoute(session) : `/home/${sessionId}`);
     },
-    [router, setActiveSessionId],
+    [router, sessions, setActiveSessionId],
   );
 
   const handleRenameSession = useCallback(
@@ -113,6 +126,7 @@ export default function UtilitySidebar() {
       showSessions
       sessions={sessions}
       courses={courses}
+      masteryTopics={masteryTopics}
       activeSessionId={activeSessionId}
       loadingSessions={loadingSessions}
       onNewChat={() => setActiveSessionId(null)}

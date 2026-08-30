@@ -22,17 +22,26 @@ import { hasPendingAskUser } from "@/lib/ask-user-state";
 
 export function MasteryComposer({
   placeholder,
+  askHint,
   disabled,
   prefillInputRef,
 }: {
   placeholder: string;
+  /** A question the tutor suggests asking here; Tab takes it. "" for none. */
+  askHint?: string;
   /** The session is still opening — nothing can be sent yet. */
   disabled?: boolean;
   /** Lets the screen drop a handed-off opening line into the textarea. */
   prefillInputRef?: React.MutableRefObject<((text: string) => void) | null>;
 }) {
-  const { state, sendMessage, cancelStreamingTurn, setKBs, setLLMSelection } =
-    useUnifiedChat();
+  const {
+    state,
+    sendMessage,
+    cancelStreamingTurn,
+    setKBs,
+    setLLMSelection,
+    setPersonaSelection,
+  } = useUnifiedChat();
 
   const handleSubmit = useCallback(
     (submission: StandaloneComposerSubmission) => {
@@ -40,7 +49,11 @@ export function MasteryComposer({
       sendMessage(
         submission.content,
         submission.attachments,
-        undefined,
+        // How many times the tutor may consult the selected agent this turn.
+        // Absent when no agent is picked, which is the ordinary case.
+        submission.subagentBudget
+          ? { subagent_consult_budget: submission.subagentBudget }
+          : undefined,
         submission.notebookReferences,
         submission.historyReferences,
         { bookReferences: submission.bookReferences },
@@ -70,9 +83,15 @@ export function MasteryComposer({
       onKnowledgeBasesChange={setKBs}
       llmSelection={state.llmSelection}
       onLLMSelectionChange={setLLMSelection}
+      personaSelection={state.personaSelection}
+      onPersonaSelectionChange={setPersonaSelection}
       onSubmit={handleSubmit}
       onCancelStreaming={cancelStreamingTurn}
-      inputPlaceholder={placeholder}
+      // The suggested question *is* the placeholder once there is one: naming
+      // the waypoint a third time says nothing the header has not, whereas the
+      // question shows the learner a way in.
+      inputPlaceholder={askHint || placeholder}
+      inputPlaceholderCompletion={askHint}
       prefillInputRef={prefillInputRef}
     />
   );

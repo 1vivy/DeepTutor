@@ -35,6 +35,8 @@ import type {
   SessionOrganizationPatch,
   SessionSummary,
 } from "@/lib/session-api";
+import type { MasteryTopicLabel } from "@/lib/learning-api";
+import { masteryPathIdOf } from "@/lib/mastery-session";
 import type { StudyCourse } from "@/lib/courses-api";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { useCapabilityAccess } from "@/components/access/CapabilityAccessContext";
@@ -167,6 +169,8 @@ interface SidebarShellProps {
   onRenameSession?: (sessionId: string, title: string) => void | Promise<void>;
   onDeleteSession?: (sessionId: string) => void | Promise<void>;
   courses?: StudyCourse[];
+  /** Topic labels for grouping mastery study conversations under their path. */
+  masteryTopics?: MasteryTopicLabel[];
   onOrganizeSession?: (
     sessionId: string,
     patch: SessionOrganizationPatch,
@@ -189,6 +193,7 @@ export function SidebarShell({
   onRenameSession,
   onDeleteSession,
   courses = [],
+  masteryTopics = [],
   onOrganizeSession,
   footerSlot,
 }: SidebarShellProps) {
@@ -250,13 +255,19 @@ export function SidebarShell({
     router.push("/home");
   };
 
-  const recentSessions = sessions
-    .filter(
-      (session) =>
-        !session.preferences?.archived &&
-        !session.preferences?.parent_session_id,
-    )
-    .slice(0, 8);
+  // Recents shows the last 8 loose conversations. Grouped ones are exempt from
+  // that cut: a topic heading that says "4" while listing two of them is worse
+  // than a slightly longer list, and the groups collapse anyway.
+  const visibleSessions = sessions.filter(
+    (session) =>
+      !session.preferences?.archived && !session.preferences?.parent_session_id,
+  );
+  const recentSessions = [
+    ...visibleSessions
+      .filter((session) => !masteryPathIdOf(session))
+      .slice(0, 8),
+    ...visibleSessions.filter((session) => masteryPathIdOf(session)),
+  ];
 
   /* ---- Collapsed state ---- */
   if (collapsed) {
@@ -517,6 +528,7 @@ export function SidebarShell({
                 <OrganizedSessionList
                   sessions={recentSessions}
                   courses={courses}
+                  masteryTopics={masteryTopics}
                   activeSessionId={activeSessionId}
                   onSelect={(sessionId) => {
                     drawer?.close();

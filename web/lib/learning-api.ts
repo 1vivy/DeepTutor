@@ -452,6 +452,48 @@ export async function fetchMasteryTopics(
   return result.topics;
 }
 
+/** Just enough to name a topic. See ``fetchMasteryTopicIndex``. */
+export interface MasteryTopicLabel {
+  path_id: string;
+  name: string;
+  emoji: string;
+}
+
+/**
+ * The id → name map, without each topic's knowledge map and source excerpts.
+ *
+ * The sidebar groups study conversations under their topic and reloads on
+ * every stream end, so it wants the labels and nothing else; `fetchMasteryTopics`
+ * would ship kilobytes per topic to render a header.
+ */
+export async function fetchMasteryTopicIndex(
+  init?: RequestInit,
+): Promise<MasteryTopicLabel[]> {
+  const result = await masteryJson<{ topics: MasteryTopicLabel[] }>(
+    "/api/v1/learning/topics/index",
+    init,
+    "load topic index",
+  );
+  return Array.isArray(result.topics) ? result.topics : [];
+}
+
+/** One question the learner could ask here — "" when there is none to offer. */
+export async function fetchMasteryAskHint(
+  pathId: string,
+  sessionId: string,
+  init?: RequestInit,
+): Promise<string> {
+  const query = sessionId
+    ? `?session_id=${encodeURIComponent(sessionId)}`
+    : "";
+  const result = await masteryJson<{ hint?: string }>(
+    `/api/v1/learning/topics/${encodeURIComponent(pathId)}/ask-hint${query}`,
+    init,
+    "load ask hint",
+  );
+  return typeof result.hint === "string" ? result.hint : "";
+}
+
 export function fetchMasteryTopic(
   pathId: string,
   init?: RequestInit,

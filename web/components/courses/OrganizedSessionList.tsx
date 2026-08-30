@@ -17,6 +17,8 @@ import {
 import { useTranslation } from "react-i18next";
 import { SessionAvatar } from "@/components/sidebar/SessionAvatar";
 import type { StudyCourse } from "@/lib/courses-api";
+import type { MasteryTopicLabel } from "@/lib/learning-api";
+import { masteryPathIdOf } from "@/lib/mastery-session";
 import type {
   SessionOrganizationPatch,
   SessionSummary,
@@ -27,6 +29,8 @@ import { isPlaceholderSessionTitle } from "@/lib/session-title";
 interface OrganizedSessionListProps {
   sessions: SessionSummary[];
   courses: StudyCourse[];
+  /** Topics whose study conversations get their own group. Omit for none. */
+  masteryTopics?: MasteryTopicLabel[];
   activeSessionId: string | null;
   emptyLabel?: string;
   nested?: boolean;
@@ -80,6 +84,7 @@ function placeMenu(anchor: DOMRect): FloatingMenuPosition {
 export default function OrganizedSessionList({
   sessions,
   courses,
+  masteryTopics = [],
   activeSessionId,
   emptyLabel,
   nested = true,
@@ -120,10 +125,22 @@ export default function OrganizedSessionList({
    * conversations never belong to a course and must not be pushed under a
    * heading to reach them.
    */
-  const { ungrouped, grouped } = useMemo(() => {
+  const { ungrouped, grouped, masteryGrouped } = useMemo(() => {
     const byCourse = new Map<string, SessionSummary[]>();
+    const byTopic = new Map<string, SessionSummary[]>();
     const loose: SessionSummary[] = [];
     for (const session of roots) {
+      // A study conversation files under its topic first. It can also carry a
+      // course id — a path reached from a course keeps that link — but the
+      // topic is the container it was actually held in, so filing it under
+      // the course would put it where the learner never looks for it.
+      const topicId = masteryPathIdOf(session);
+      if (topicId) {
+        const bucket = byTopic.get(topicId);
+        if (bucket) bucket.push(session);
+        else byTopic.set(topicId, [session]);
+        continue;
+      }
       const id = String(session.preferences?.course_id || "");
       if (!id) {
         loose.push(session);
@@ -142,9 +159,21 @@ export default function OrganizedSessionList({
     for (const [id, rows] of byCourse) {
       if (!knownIds.has(id)) loose.push(...rows);
     }
-    return { ungrouped: loose, grouped: known };
-  }, [courses, roots]);
+    // Topics keep the index's own order, so the sidebar and the Mastery Path
+    // page list them the same way.
+    const topics = masteryTopics
+      .filter((topic) => byTopic.has(topic.path_id))
+      .map((topic) => ({ topic, rows: byTopic.get(topic.path_id) ?? [] }));
+    const knownTopicIds = new Set(masteryTopics.map((topic) => topic.path_id));
+    for (const [id, rows] of byTopic) {
+      if (!knownTopicIds.has(id)) loose.push(...rows);
+    }
+    return { ungrouped: loose, grouped: known, masteryGrouped: topics };
+  }, [courses, masteryTopics, roots]);
 
+  // One collapse set for both kinds of group: the ids are a course id or a
+  // path id, which never collide, and a learner collapsing a heading does not
+  // care which table it came from.
   const [collapsedCourses, setCollapsedCourses] = useState<Set<string>>(
     new Set(),
   );
@@ -437,43 +466,66 @@ export default function OrganizedSessionList({
     );
   };
 
+  /** A collapsible heading over its conversations. Courses mark themselves
+   *  with their colour dot, topics with their emoji; everything else about
+   *  the two is the same and stays the same. */
+  const renderGroup = (
+    id: string,
+    mark: React.ReactNode,
+    label: string,
+    rows: SessionSummary[],
+  ) => {
+    const collapsed = collapsedCourses.has(id);
+    return (
+      <div key={id} className="mt-1.5 first:mt-0.5">
+        <button
+          type="button"
+          onClick={() => toggleCourse(id)}
+          aria-expanded={!collapsed}
+          className="flex w-full min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-1 text-left text-[10.5px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]/75 transition-colors hover:bg-[var(--background)]/40 hover:text-[var(--foreground)]"
+        >
+          <ChevronRight
+            size={11}
+            className={`shrink-0 transition-transform ${collapsed ? "" : "rotate-90"}`}
+          />
+          {mark}
+          <span className="min-w-0 flex-1 truncate normal-case">{label}</span>
+          <span className="shrink-0 tabular-nums opacity-70">{rows.length}</span>
+        </button>
+        {collapsed ? null : (
+          <div className="ml-1.5 border-l border-[var(--border)]/50 pl-1">
+            {rows.map((session) => renderRow(session))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="py-0.5">
       {ungrouped.map((session) => renderRow(session))}
-      {grouped.map(({ course, rows }) => {
-        const collapsed = collapsedCourses.has(course.id);
-        return (
-          <div key={course.id} className="mt-1.5 first:mt-0.5">
-            <button
-              type="button"
-              onClick={() => toggleCourse(course.id)}
-              aria-expanded={!collapsed}
-              className="flex w-full min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-1 text-left text-[10.5px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]/75 transition-colors hover:bg-[var(--background)]/40 hover:text-[var(--foreground)]"
-            >
-              <ChevronRight
-                size={11}
-                className={`shrink-0 transition-transform ${collapsed ? "" : "rotate-90"}`}
-              />
-              <span
-                aria-hidden
-                className="h-1.5 w-1.5 shrink-0 rounded-full"
-                style={{ backgroundColor: course.color }}
-              />
-              <span className="min-w-0 flex-1 truncate normal-case">
-                {course.name}
-              </span>
-              <span className="shrink-0 tabular-nums opacity-70">
-                {rows.length}
-              </span>
-            </button>
-            {collapsed ? null : (
-              <div className="ml-1.5 border-l border-[var(--border)]/50 pl-1">
-                {rows.map((session) => renderRow(session))}
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {masteryGrouped.map(({ topic, rows }) =>
+        renderGroup(
+          topic.path_id,
+          <span aria-hidden className="shrink-0 text-[11px] leading-none">
+            {topic.emoji || "🧭"}
+          </span>,
+          topic.name,
+          rows,
+        ),
+      )}
+      {grouped.map(({ course, rows }) =>
+        renderGroup(
+          course.id,
+          <span
+            aria-hidden
+            className="h-1.5 w-1.5 shrink-0 rounded-full"
+            style={{ backgroundColor: course.color }}
+          />,
+          course.name,
+          rows,
+        ),
+      )}
     </div>
   );
 }

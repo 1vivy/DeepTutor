@@ -74,6 +74,16 @@ interface ComposerInputProps {
    */
   placeholder?: string;
   /**
+   * A line Tab accepts into the empty composer.
+   *
+   * The mastery study screen offers a question the learner could ask; reading
+   * it and then retyping it is exactly the work the offer was meant to save,
+   * so Tab takes it. Only while the composer is empty — past the first
+   * character the learner is writing their own question, and stealing Tab
+   * there would break moving focus out of the box.
+   */
+  placeholderCompletion?: string;
+  /**
    * Minimum textarea height in pixels. The auto-sized hook grows the
    * textarea past this as the user types. Bumped on the empty-state
    * composer so the resting box looks inviting rather than crammed.
@@ -152,6 +162,7 @@ export const ComposerInput = memo(
       onSelectMemoryPicker,
       onOpenPersonaSelector,
       placeholder,
+      placeholderCompletion,
       minHeight = 28,
     },
     ref,
@@ -309,6 +320,19 @@ export const ComposerInput = memo(
           handleSelectAgentMention(filteredAgents[0].name);
           return;
         }
+        // Tab takes the offered question — but only into an empty composer, so
+        // Tab keeps meaning "leave this box" the moment there is a draft in it.
+        if (
+          e.key === "Tab" &&
+          !e.shiftKey &&
+          placeholderCompletion &&
+          !inputRef.current.trim()
+        ) {
+          e.preventDefault();
+          setInputBoth(placeholderCompletion);
+          onInputChange(placeholderCompletion);
+          return;
+        }
         if (shouldSubmitOnEnter(e, isComposingRef.current)) {
           e.preventDefault();
           if (!isStreaming) doSend();
@@ -327,6 +351,9 @@ export const ComposerInput = memo(
         filteredAgents,
         handleSelectAgentMention,
         isComposingRef,
+        onInputChange,
+        placeholderCompletion,
+        setInputBoth,
       ],
     );
 
@@ -526,6 +553,15 @@ export const ComposerInput = memo(
           className="w-full resize-none overflow-hidden bg-transparent text-[16px] leading-relaxed text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
           style={{ transition: "height 0.15s ease-out" }}
         />
+        {/* An offer nobody can find is not an offer: the key that takes the
+            question is named next to it, and only while it would work. */}
+        {placeholderCompletion && !input.trim() ? (
+          <div className="pointer-events-none flex justify-end pt-1">
+            <span className="rounded border border-[var(--border)]/70 px-1 py-px text-[10px] font-medium leading-none text-[var(--muted-foreground)]/70">
+              {t("Tab to ask this")}
+            </span>
+          </div>
+        ) : null}
       </div>
     );
   }),

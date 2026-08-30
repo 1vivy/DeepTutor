@@ -16,7 +16,7 @@ import { useTranslation } from "react-i18next";
 import { ChatMessageList } from "@/components/chat/home/ChatMessages";
 import { useUnifiedChat } from "@/context/UnifiedChatContext";
 import { useMasteryStudySession } from "@/hooks/useMasteryStudySession";
-import type { MasteryTopic } from "@/lib/learning-api";
+import { fetchMasteryAskHint, type MasteryTopic } from "@/lib/learning-api";
 import { consumePendingPrompt } from "@/lib/pending-prompt";
 
 import { topicDisplayName, type Translate } from "./format";
@@ -126,6 +126,34 @@ export function MasteryStudy({
       block: "end",
     });
   }, [state.isStreaming, state.messages]);
+
+  // A question worth asking here, written by the task model. Fetched when the
+  // turn settles rather than as it streams: what is worth asking next depends
+  // on what the tutor just finished saying. The composer is fully usable
+  // meanwhile — this only ever replaces a placeholder, so a slow or failed
+  // call costs nothing but the offer.
+  const [askHint, setAskHint] = useState("");
+  useEffect(() => {
+    if (state.isStreaming || sessionLoading || sessionError) return;
+    let cancelled = false;
+    void fetchMasteryAskHint(pathId, state.sessionId ?? "")
+      .then((hint) => {
+        if (!cancelled) setAskHint(hint);
+      })
+      .catch(() => {
+        // Keep whatever is showing; the static placeholder is a fine floor.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    pathId,
+    sessionError,
+    sessionLoading,
+    state.isStreaming,
+    state.messages.length,
+    state.sessionId,
+  ]);
 
   // A point crossing into "mastered" is the one real payoff this screen
   // offers, and the backend does not emit a "just mastered" event to key
@@ -330,21 +358,23 @@ export function MasteryStudy({
                   </div>
                 </div>
               ) : (
-                <ChatMessageList
-                  messages={state.messages}
-                  isStreaming={state.isStreaming}
-                  sessionId={state.sessionId}
-                  language={state.language}
-                  onCopyAssistantMessage={copyAssistantMessage}
-                  onRegenerateMessage={regenerateLastMessage}
-                  onDeleteTurn={deleteTurn}
-                  selectedBranches={state.selectedBranches}
-                  onEditMessage={editMessage}
-                  onSwitchBranch={switchBranch}
-                  onSubmitUserReply={submitUserReply}
-                  availableKbNames={new Set(knowledgeBases)}
-                  showModeBadge={false}
-                />
+                <div className="space-y-9">
+                  <ChatMessageList
+                    messages={state.messages}
+                    isStreaming={state.isStreaming}
+                    sessionId={state.sessionId}
+                    language={state.language}
+                    onCopyAssistantMessage={copyAssistantMessage}
+                    onRegenerateMessage={regenerateLastMessage}
+                    onDeleteTurn={deleteTurn}
+                    selectedBranches={state.selectedBranches}
+                    onEditMessage={editMessage}
+                    onSwitchBranch={switchBranch}
+                    onSubmitUserReply={submitUserReply}
+                    availableKbNames={new Set(knowledgeBases)}
+                    showModeBadge={false}
+                  />
+                </div>
               )}
               <div ref={messagesEndRef} className="h-px" />
             </div>
@@ -356,6 +386,7 @@ export function MasteryStudy({
                 placeholder={t("Ask your tutor about “{{waypoint}}”…", {
                   waypoint: waypoint.name,
                 })}
+                askHint={askHint}
                 disabled={sessionLoading}
                 prefillInputRef={prefillInputRef}
               />

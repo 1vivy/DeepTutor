@@ -304,6 +304,36 @@ async def list_topics():
     return {"topics": topics}
 
 
+@router.get("/topics/index")
+async def list_topic_index():
+    """Just enough to *name* a topic: id, title, emoji.
+
+    The sidebar groups study conversations under their topic, and it refreshes
+    on every stream end. ``/topics`` answers with each path's whole knowledge
+    map, review queue and source excerpts — kilobytes per topic, none of which
+    a group header renders. This is the same walk with the payload cut to what
+    a label needs.
+
+    Declared above ``/topics/{path_id}``: that route matches any single
+    segment, so a literal path below it would never be reached.
+    """
+    store = LearningStore()
+    return {
+        "topics": await asyncio.to_thread(
+            lambda: [
+                {
+                    "path_id": progress.book_id,
+                    "name": learning_policy.path_display_name(progress),
+                    "emoji": topic.metadata.emoji,
+                }
+                for progress, topic, _session_count, _interaction in store.list_topic_snapshots(
+                    status="active"
+                )
+            ]
+        )
+    }
+
+
 @router.post("/topics/draft")
 async def generate_topic_route(body: GenerateTopicDraftRequest):
     from deeptutor.learning.topic_generation import TopicGenerationError, generate_topic_draft
@@ -464,6 +494,19 @@ async def list_topic_sessions(path_id: str):
         )
     sessions.sort(key=lambda item: item["updated_at"], reverse=True)
     return {"path_id": path_id, "sessions": sessions}
+
+
+@router.get("/topics/{path_id}/ask-hint")
+async def get_topic_ask_hint(path_id: str, session_id: str = ""):
+    """One question the learner could ask here, for the composer placeholder.
+
+    Written by the task model, never blocking: an empty ``hint`` means the
+    composer keeps the static placeholder it has always had.
+    """
+    _validate_book_id(path_id)
+    from deeptutor.services.mastery_hints import get_ask_hint
+
+    return await get_ask_hint(path_id, session_id)
 
 
 @router.websocket("/ws")

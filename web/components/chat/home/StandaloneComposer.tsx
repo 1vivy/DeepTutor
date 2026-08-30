@@ -45,6 +45,7 @@ import {
 import { listLLMOptions, type LLMOption } from "@/lib/llm-options";
 import type { SelectedRecord } from "@/lib/notebook-selection-types";
 import type { SpaceMemoryFile } from "@/lib/space-items";
+import { getSubagentSettings } from "@/lib/subagents-api";
 import type { LLMSelection } from "@/lib/unified-ws";
 
 const NotebookRecordPicker = dynamic(
@@ -96,6 +97,13 @@ export interface StandaloneComposerSubmission {
   memoryReferences: SpaceMemoryFile[];
   persona: string | null;
   llmSelection: LLMSelection | null;
+  /**
+   * How many times DeepTutor may consult the selected agent this turn, or
+   * null when no agent is selected. Travels on the submission rather than in
+   * `knowledgeBases` because it is a per-turn budget, and the caller is the
+   * one that owns the request config it belongs in.
+   */
+  subagentBudget: number | null;
 }
 
 /** Single-entry capability list for surfaces locked to plain chat. */
@@ -117,6 +125,8 @@ interface StandaloneComposerProps {
   /** The live turn is paused on an ask_user card and needs an answer. */
   awaitingUserReply?: boolean;
   inputPlaceholder?: string;
+  /** A line Tab accepts while the composer is empty. See ComposerInput. */
+  inputPlaceholderCompletion?: string;
   /**
    * Capability chip contents. Defaults to a locked "Chat" entry — pass a
    * one-entry list to relabel it, or several to make the chip a picker.
@@ -136,6 +146,14 @@ interface StandaloneComposerProps {
   onKnowledgeBasesChange?: (names: string[]) => void;
   llmSelection?: LLMSelection | null;
   onLLMSelectionChange?: (selection: LLMSelection | null) => void;
+  /**
+   * The persona pinned for this conversation. Session-level like the KB scope
+   * above: passing the pair mounts the toolbar's persona chip (and with it the
+   * `/persona` slash command), omitting it leaves persona as the one-shot the
+   * "+" menu offers. `ChatComposer` gates the chip on the setter's presence.
+   */
+  personaSelection?: string;
+  onPersonaSelectionChange?: (persona: string) => void;
   /** Hide the My Agents reference entry. */
   agentsAvailable?: boolean;
   /** Receives a function that drops text into the textarea (ask_user chips). */
@@ -149,6 +167,7 @@ function StandaloneComposerImpl({
   hasMessages,
   awaitingUserReply = false,
   inputPlaceholder,
+  inputPlaceholderCompletion,
   capabilities,
   activeCapValue,
   onSelectCapability,
@@ -157,6 +176,8 @@ function StandaloneComposerImpl({
   onKnowledgeBasesChange,
   llmSelection: controlledLLMSelection,
   onLLMSelectionChange,
+  personaSelection,
+  onPersonaSelectionChange,
   agentsAvailable = false,
   prefillInputRef,
 }: StandaloneComposerProps) {
@@ -207,6 +228,9 @@ function StandaloneComposerImpl({
   const [showQuestionBankPicker, setShowQuestionBankPicker] = useState(false);
   const [showPersonaPicker, setShowPersonaPicker] = useState(false);
   const [showMemoryPicker, setShowMemoryPicker] = useState(false);
+  // Chrome for the toolbar's persona chip. Local even when the value itself is
+  // the caller's: whether a dropdown is open is nobody else's business.
+  const [personaSelectorOpen, setPersonaSelectorOpen] = useState(false);
 
   // ── Shared data (KBs + LLMs) ──────────────────────────────────
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseSummary[]>(
@@ -228,13 +252,7 @@ function StandaloneComposerImpl({
     const run = async () => {
       try {
         const list = await listKnowledgeBases({ force: false });
-        // Connected subagents travel the same request path but are their own
-        // composer control, so they never belong in the knowledge picker.
-        if (!cancelled) {
-          setKnowledgeBases(
-            list.filter((kb) => kb.metadata?.type !== "subagent"),
-          );
-        }
+        if (!cancelled) setKnowledgeBases(list);
       } catch {
         if (!cancelled) setKnowledgeBases([]);
       }
@@ -244,6 +262,34 @@ function StandaloneComposerImpl({
       cancelled = true;
     };
   }, []);
+
+  // Connected subagents arrive as `type: subagent` knowledge bases and travel
+  // the same request path, but they are a different question — "who else
+  // should DeepTutor ask" rather than "what should it read" — so they get
+  // their own chip and never appear in the knowledge picker.
+  const agentNameSet = useMemo(
+    () =>
+      new Set(
+        knowledgeBases
+          .filter((kb) => kb.metadata?.type === "subagent")
+          .map((kb) => kb.name),
+      ),
+    [knowledgeBases],
+  );
+  const kbOptions = useMemo(
+    () => knowledgeBases.filter((kb) => kb.metadata?.type !== "subagent"),
+    [knowledgeBases],
+  );
+  const agentOptions = useMemo(
+    () =>
+      knowledgeBases
+        .filter((kb) => kb.metadata?.type === "subagent")
+        .map((kb) => ({
+          name: kb.name,
+          kind: kb.metadata?.agent_kind as string | undefined,
+        })),
+    [knowledgeBases],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -488,6 +534,43 @@ function StandaloneComposerImpl({
     [applyKnowledgeBases, knowledgeBases, selectedKnowledgeBases],
   );
 
+  // The selected agent lives *in* `selectedKnowledgeBases` — one list reaches
+  // the backend, and an agent is a member of it — so there is no second piece
+  // of state to keep in step. What the pickers see is the split view of it.
+  const selectedAgent = useMemo(
+    () => selectedKnowledgeBases.find((name) => agentNameSet.has(name)) ?? null,
+    [agentNameSet, selectedKnowledgeBases],
+  );
+  const selectedKbOnly = useMemo(
+    () => selectedKnowledgeBases.filter((name) => !agentNameSet.has(name)),
+    [agentNameSet, selectedKnowledgeBases],
+  );
+  const handleSelectAgent = useCallback(
+    (name: string | null) => {
+      // Single-select: drop whichever agent was there, then add the new one.
+      const withoutAgents = selectedKnowledgeBases.filter(
+        (item) => !agentNameSet.has(item),
+      );
+      applyKnowledgeBases(name ? [...withoutAgents, name] : withoutAgents);
+    },
+    [agentNameSet, applyKnowledgeBases, selectedKnowledgeBases],
+  );
+  // Seeded from the configured default; the chip's stepper overrides it for
+  // the next turn. Null until the setting loads, which is also what "no agent
+  // selected" looks like — neither case has a budget to send.
+  const [subagentBudget, setSubagentBudget] = useState<number | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void getSubagentSettings()
+      .then((settings) => {
+        if (!cancelled) setSubagentBudget(settings.consult_budget);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleClearPersona = useCallback(() => setSelectedPersona(null), []);
   const handleToggleMemoryFile = useCallback((file: SpaceMemoryFile) => {
     setSelectedMemoryFiles((prev) =>
@@ -571,6 +654,7 @@ function StandaloneComposerImpl({
         memoryReferences: [...selectedMemoryFiles],
         persona: selectedPersona,
         llmSelection,
+        subagentBudget: selectedAgent ? subagentBudget : null,
       });
 
       // One-shot references are consumed by the send; the knowledge-base
@@ -590,6 +674,7 @@ function StandaloneComposerImpl({
       llmSelection,
       notebookReferencesPayload,
       onSubmit,
+      selectedAgent,
       selectedBookReferences,
       selectedHistorySessions,
       selectedKnowledgeBases,
@@ -597,6 +682,7 @@ function StandaloneComposerImpl({
       selectedNotebookRecords,
       selectedPersona,
       selectedQuestionEntries,
+      subagentBudget,
     ],
   );
 
@@ -628,7 +714,16 @@ function StandaloneComposerImpl({
         attachments={attachments}
         attachmentError={attachmentError}
         activeCap={activeCap}
-        knowledgeBases={knowledgeBases}
+        knowledgeBases={kbOptions}
+        connectedAgents={agentOptions}
+        selectedAgent={selectedAgent}
+        onSelectAgent={handleSelectAgent}
+        subagentBudget={subagentBudget}
+        onSubagentBudgetChange={setSubagentBudget}
+        personaSelection={personaSelection}
+        onPersonaSelectionChange={onPersonaSelectionChange}
+        personaSelectorOpen={personaSelectorOpen}
+        onPersonaSelectorOpenChange={setPersonaSelectorOpen}
         llmOptions={llmOptions}
         activeLLMDefault={activeLLMDefault}
         llmSelection={llmSelection}
@@ -642,7 +737,7 @@ function StandaloneComposerImpl({
         notebookReferenceGroups={notebookReferenceGroups}
         selectedPersona={selectedPersona}
         selectedMemoryFiles={selectedMemoryFiles}
-        selectedKnowledgeBases={selectedKnowledgeBases}
+        selectedKnowledgeBases={selectedKbOnly}
         isStreaming={isStreaming}
         awaitingUserReply={awaitingUserReply}
         isVisualizeMode={false}
@@ -682,6 +777,7 @@ function StandaloneComposerImpl({
         onCancelStreaming={onCancelStreaming}
         prefillInputRef={prefillInputRef}
         inputPlaceholder={inputPlaceholder}
+        inputPlaceholderCompletion={inputPlaceholderCompletion}
       />
 
       <NotebookRecordPicker

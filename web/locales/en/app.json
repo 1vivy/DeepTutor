@@ -3757,6 +3757,7 @@
   "Currently unavailable": "Currently unavailable",
   "Module {{n}}": "Module {{n}}",
   "Ask your tutor about “{{waypoint}}”…": "Ask your tutor about “{{waypoint}}”…",
+  "Tab to ask this": "Tab to ask this",
   "Mastered “{{name}}”": "Mastered “{{name}}”",
   "Due {{relative}} · {{absolute}}": "Due {{relative}} · {{absolute}}",
   "interval {{interval}} · {{streak}} in a row": "interval {{interval}} · {{streak}} in a row",
