@@ -2,7 +2,14 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import { Check, Copy, CornerUpRight, Loader2, Users, Waypoints } from "lucide-react";
+import {
+  Check,
+  Copy,
+  CornerUpRight,
+  Loader2,
+  Users,
+  Waypoints,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import PartnerAvatar from "@/components/partners/PartnerAvatar";
@@ -85,7 +92,9 @@ export default function PartnerSeat({
       />
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex items-center gap-2">
-          <span className="text-[11.5px] font-medium text-[var(--foreground)]">{name}</span>
+          <span className="text-[11.5px] font-medium text-[var(--foreground)]">
+            {name}
+          </span>
           {kindLabel ? (
             <span className="shrink-0 rounded-full bg-[var(--muted)] px-1.5 py-0.5 text-[9.5px] text-[var(--muted-foreground)]">
               {kindLabel}

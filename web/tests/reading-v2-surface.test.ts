@@ -55,7 +55,10 @@ test("the dedicated workspace owns exactly one source navigator", () => {
   // and the resize seam belong to the workspace shell. A second mode here is
   // what let the retired chat-embedded reader drift into a parallel product.
   assert.doesNotMatch(reader, /embedded/);
-  assert.doesNotMatch(reader, /SourceNavigator|ReaderOutline|ReaderResizeHandle/);
+  assert.doesNotMatch(
+    reader,
+    /SourceNavigator|ReaderOutline|ReaderResizeHandle/,
+  );
 });
 
 test("the workspace shell stays a view, with its network work in one hook", () => {
@@ -118,9 +121,12 @@ test("narrow reading workspaces keep the source primary and use dismissible pane
 
   assert.match(page, /min-width: 1280px/);
   assert.match(page, /xl:grid-cols-/);
-  assert.match(page, /xl:static xl:w-auto xl:shadow-none/);
   assert.match(workspace, /mobileOpen/);
-  assert.match(page, /aria-label=\{t\("Close reading companion"\)\}/);
+  // The companion is its own module now (`ReadingCompanion.tsx`), so these
+  // two hold over the surface rather than over the shell — exactly the case
+  // `workspaceSurface` exists for.
+  assert.match(workspace, /xl:static xl:w-auto xl:shadow-none/);
+  assert.match(workspace, /aria-label=\{t\("Close reading companion"\)\}/);
 });
 
 test("failed imports expose the durable retry endpoint in product UI", () => {
@@ -150,7 +156,10 @@ test("Immersive Reading speaks in collections and materials only", () => {
   // Folders and tags were removed from the product: two organising schemes
   // that were always empty, on top of a hierarchy that already had five words
   // for three things.
-  assert.doesNotMatch(library, /folder_id|tag_id|createReadingFolder|ReadingTag/);
+  assert.doesNotMatch(
+    library,
+    /folder_id|tag_id|createReadingFolder|ReadingTag/,
+  );
   assert.doesNotMatch(api, /folder_id|tag_id|ReadingFolder|ReadingTag/);
 
   // A material can live in several collections, and the library view is where

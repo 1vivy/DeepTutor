@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, PanelRight, Pencil, Trash2, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  PanelRight,
+  Pencil,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import PartnerAvatar from "@/components/partners/PartnerAvatar";
@@ -98,7 +105,9 @@ export default function PartnerGroupPage() {
               {group.name}
             </h1>
             <div className="mt-0.5 flex items-center gap-2 text-[10.5px] text-[var(--muted-foreground)]">
-              <span>{t("{{count}} members", { count: group.member_ids.length })}</span>
+              <span>
+                {t("{{count}} members", { count: group.member_ids.length })}
+              </span>
               <span>·</span>
               <span>{modeLabel(group.discussion_mode)}</span>
               <div className="flex -space-x-1.5">
@@ -127,7 +136,9 @@ export default function PartnerGroupPage() {
                 setPartnerGroupSessionKey(groupId, key);
                 setSessionKey(key);
               }}
-              onCreate={() => setSessionKey(createPartnerGroupSessionKey(groupId))}
+              onCreate={() =>
+                setSessionKey(createPartnerGroupSessionKey(groupId))
+              }
             />
           ) : null}
           <button
@@ -191,7 +202,9 @@ function ManageGroupDialog({
   const [partners, setPartners] = useState<PartnerInfo[]>([]);
   const [name, setName] = useState(group.name);
   const [description, setDescription] = useState(group.description);
-  const [members, setMembers] = useState<Set<string>>(new Set(group.member_ids));
+  const [members, setMembers] = useState<Set<string>>(
+    new Set(group.member_ids),
+  );
   const [mode, setMode] = useState(group.discussion_mode);
   const [saving, setSaving] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -326,7 +339,9 @@ function ManageGroupDialog({
           })}
         </div>
 
-        {error ? <p className="mt-3 text-[11px] text-red-500">{error}</p> : null}
+        {error ? (
+          <p className="mt-3 text-[11px] text-red-500">{error}</p>
+        ) : null}
 
         <div className="mt-6 flex items-center justify-between gap-3">
           {confirmingDelete ? (

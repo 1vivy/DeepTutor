@@ -23,9 +23,9 @@ export function isMasteryDraftSessionReady({
 }): boolean {
   return Boolean(
     guard &&
-      guard.routeKey === routeKey &&
-      sessionId &&
-      sessionId !== guard.previousSessionId &&
-      masteryPathId === pathId,
+    guard.routeKey === routeKey &&
+    sessionId &&
+    sessionId !== guard.previousSessionId &&
+    masteryPathId === pathId,
   );
 }

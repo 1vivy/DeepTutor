@@ -2,11 +2,19 @@
 
 import {
   AlertCircle,
+  Brain,
   BookOpen,
   Check,
+  Compass,
   Database,
+  FlaskConical,
   Loader2,
+  Mountain,
   Notebook,
+  Orbit,
+  Ruler,
+  Sprout,
+  Telescope,
 } from "lucide-react";
 
 import type {
@@ -17,7 +25,24 @@ import type {
 import type { Translate } from "./format";
 import { useTranslation } from "react-i18next";
 
-const EMOJIS = ["🧭", "🏔️", "🌿", "🔭", "🧪", "🧠", "📐", "🌌"];
+/**
+ * The stored value is still the emoji each icon replaces — only how it's
+ * *offered* changes. A raw system emoji renders at whatever the OS font
+ * decides and reads as clip art (see ProgressRing's own note on why the
+ * topic card dropped this); a line icon in the app's own visual language
+ * reads as considered instead of decorative, and stays identical across
+ * platforms and themes.
+ */
+const EMBLEMS: { value: string; Icon: typeof Compass }[] = [
+  { value: "🧭", Icon: Compass },
+  { value: "🏔️", Icon: Mountain },
+  { value: "🌿", Icon: Sprout },
+  { value: "🔭", Icon: Telescope },
+  { value: "🧪", Icon: FlaskConical },
+  { value: "🧠", Icon: Brain },
+  { value: "📐", Icon: Ruler },
+  { value: "🌌", Icon: Orbit },
+];
 
 export function GoalStep({
   name,
@@ -41,7 +66,9 @@ export function GoalStep({
         {t("What do you want to learn?")}
       </h3>
       <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
-        {t("The more specific the goal, the closer each knowledge point lands to the ability you actually want.")}
+        {t(
+          "The more specific the goal, the closer each knowledge point lands to the ability you actually want.",
+        )}
       </p>
       <label className="mt-6 block text-xs font-medium text-[var(--foreground)]">
         {t("Topic name")}
@@ -62,7 +89,9 @@ export function GoalStep({
           onChange={(event) => onGoal(event.target.value)}
           maxLength={2000}
           rows={5}
-          placeholder={t("I want to build geometric intuition for vector spaces and transformations, then solve eigenvalue problems independently.")}
+          placeholder={t(
+            "I want to build geometric intuition for vector spaces and transformations, then solve eigenvalue problems independently.",
+          )}
           className="mt-2 w-full resize-none rounded-lg border border-[var(--input)] bg-[var(--background)] px-3.5 py-3 text-sm leading-6 outline-none transition focus:border-[var(--ring)] focus:ring-2 focus:ring-[var(--ring)]/15"
         />
       </label>
@@ -71,20 +100,20 @@ export function GoalStep({
           {t("Map emblem")}
         </legend>
         <div className="mt-2 flex flex-wrap gap-2">
-          {EMOJIS.map((item) => (
+          {EMBLEMS.map(({ value, Icon }) => (
             <button
-              key={item}
+              key={value}
               type="button"
-              onClick={() => onEmoji(item)}
-              aria-pressed={emoji === item}
-              aria-label={t("Choose map emblem {{emblem}}", { emblem: item })}
-              className={`flex h-10 w-10 items-center justify-center rounded-xl border text-lg transition ${
-                emoji === item
-                  ? "border-[var(--primary)] bg-[var(--primary)]/10 "
-                  : "border-[var(--border)] hover:bg-[var(--accent)]"
+              onClick={() => onEmoji(value)}
+              aria-pressed={emoji === value}
+              aria-label={t("Choose map emblem {{emblem}}", { emblem: value })}
+              className={`flex h-10 w-10 items-center justify-center rounded-xl border transition ${
+                emoji === value
+                  ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
+                  : "border-[var(--border)] text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]"
               }`}
             >
-              {item}
+              <Icon size={18} strokeWidth={1.75} aria-hidden="true" />
             </button>
           ))}
         </div>
@@ -111,7 +140,9 @@ export function SourcesStep({
         {t("Which materials should it draw on?")}
       </h3>
       <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
-        {t("Mix as many sources as useful. Your goal is always included; the rest grounds the outline in your own material.")}
+        {t(
+          "Mix as many sources as useful. Your goal is always included; the rest grounds the outline in your own material.",
+        )}
       </p>
       {loading ? (
         <div className="flex items-center justify-center py-20 text-[var(--muted-foreground)]">
@@ -214,9 +245,7 @@ function SourceSection({
                     {item.label}
                   </span>
                   <span className="mt-0.5 block truncate text-xs text-[var(--muted-foreground)]">
-                    {item.available
-                      ? item.detail
-                      : t("Currently unavailable")}
+                    {item.available ? item.detail : t("Currently unavailable")}
                   </span>
                 </span>
               </button>

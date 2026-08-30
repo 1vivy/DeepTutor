@@ -164,17 +164,20 @@ export default function FilePreviewDrawer({
     setOpeningInReader(true);
     setReaderError("");
     try {
-      const response = previewUrl.startsWith("data:") || previewUrl.startsWith("blob:")
-        ? await fetch(previewUrl)
-        : await apiFetch(previewUrl, { cache: "no-store" });
-      if (!response.ok) throw new Error(t("The attachment could not be downloaded."));
+      const response =
+        previewUrl.startsWith("data:") || previewUrl.startsWith("blob:")
+          ? await fetch(previewUrl)
+          : await apiFetch(previewUrl, { cache: "no-store" });
+      if (!response.ok)
+        throw new Error(t("The attachment could not be downloaded."));
       const blob = await response.blob();
       const file = new File([blob], renderedSource.filename, {
         type: renderedSource.mimeType || blob.type,
       });
       const material = await uploadMaterial(file);
       const workspace = await createReadingWorkspace({
-        title: material.title || renderedSource.filename.replace(/\.[^.]+$/, ""),
+        title:
+          material.title || renderedSource.filename.replace(/\.[^.]+$/, ""),
         material_ids: [material.material_id],
       });
       onClose();
@@ -188,14 +191,7 @@ export default function FilePreviewDrawer({
     } finally {
       setOpeningInReader(false);
     }
-  }, [
-    onClose,
-    openingInReader,
-    previewUrl,
-    renderedSource,
-    router,
-    t,
-  ]);
+  }, [onClose, openingInReader, previewUrl, renderedSource, router, t]);
 
   const filename = renderedSource?.filename || t("Attachment");
   const spec = docIconFor(filename);

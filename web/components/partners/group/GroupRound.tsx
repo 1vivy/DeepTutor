@@ -4,7 +4,10 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { PartnerGroupMember, PartnerInvocation } from "@/lib/partner-groups-api";
+import type {
+  PartnerGroupMember,
+  PartnerInvocation,
+} from "@/lib/partner-groups-api";
 
 import InvocationCard from "./InvocationCard";
 import RoundSummaryAction from "./RoundSummaryAction";
@@ -113,8 +116,8 @@ function FollowupRound(props: RoundProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(true);
 
-  const invocation = round.seats.find((seat) => seat.message?.invocation)?.message
-    ?.invocation;
+  const invocation = round.seats.find((seat) => seat.message?.invocation)
+    ?.message?.invocation;
   const requester =
     invocation?.requester_partner_name ||
     round.seats[0]?.message?.author_name ||
@@ -199,7 +202,9 @@ function SeatList({
                 ? (member, content) =>
                     onQuote({
                       name:
-                        member?.name || seat.message?.author_name || seat.partnerId,
+                        member?.name ||
+                        seat.message?.author_name ||
+                        seat.partnerId,
                       content,
                     })
                 : undefined
@@ -213,8 +218,12 @@ function SeatList({
                 invocation={seat.message.invocation}
                 busy={pendingActions.has(seat.message.invocation.invocation_id)}
                 showQuestion={questionNeedsEcho(seat.message.invocation)}
-                onApprove={() => onApprove(seat.message!.invocation!.invocation_id)}
-                onReject={() => onReject(seat.message!.invocation!.invocation_id)}
+                onApprove={() =>
+                  onApprove(seat.message!.invocation!.invocation_id)
+                }
+                onReject={() =>
+                  onReject(seat.message!.invocation!.invocation_id)
+                }
               />
             </div>
           ) : null}

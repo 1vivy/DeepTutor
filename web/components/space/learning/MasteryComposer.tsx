@@ -37,15 +37,30 @@ export function MasteryComposer({
   const {
     state,
     sendMessage,
+    submitUserReply,
     cancelStreamingTurn,
     setKBs,
     setLLMSelection,
     setPersonaSelection,
   } = useUnifiedChat();
 
+  // A turn paused on an ask_user card is still "streaming", but typing an
+  // answer is exactly how it moves forward — the composer stays live.
+  const awaitingUserReply = hasPendingAskUser(
+    state.messages[state.messages.length - 1]?.events,
+  );
+
   const handleSubmit = useCallback(
     (submission: StandaloneComposerSubmission) => {
       if (disabled) return;
+      // A turn paused on a question: what the user typed is their answer,
+      // not a new message. See page.tsx's handleSend for the same routing.
+      if (awaitingUserReply) {
+        if (submission.content.trim()) {
+          submitUserReply({ text: submission.content });
+        }
+        return;
+      }
       sendMessage(
         submission.content,
         submission.attachments,
@@ -62,13 +77,7 @@ export function MasteryComposer({
         submission.memoryReferences,
       );
     },
-    [disabled, sendMessage],
-  );
-
-  // A turn paused on an ask_user card is still "streaming", but typing an
-  // answer is exactly how it moves forward — the composer stays live.
-  const awaitingUserReply = hasPendingAskUser(
-    state.messages[state.messages.length - 1]?.events,
+    [awaitingUserReply, disabled, sendMessage, submitUserReply],
   );
 
   return (

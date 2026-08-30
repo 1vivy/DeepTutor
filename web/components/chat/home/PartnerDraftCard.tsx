@@ -1,7 +1,14 @@
 "use client";
 
 import { memo, useState } from "react";
-import { Check, ChevronDown, ChevronUp, Loader2, Pencil, Users } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  Pencil,
+  Users,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 
@@ -43,7 +50,9 @@ export const PartnerDraftCard = memo(function PartnerDraftCard({
       setCreatedId(partner.partner_id);
       setEditing(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("Failed to create partner"));
+      setError(
+        err instanceof Error ? err.message : t("Failed to create partner"),
+      );
     } finally {
       setCreating(false);
     }
@@ -149,12 +158,16 @@ export const PartnerDraftCard = memo(function PartnerDraftCard({
             </>
           )}
 
-          {error ? <p className="mt-3 text-[11px] text-red-500">{error}</p> : null}
+          {error ? (
+            <p className="mt-3 text-[11px] text-red-500">{error}</p>
+          ) : null}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {createdId ? (
               <button
                 type="button"
-                onClick={() => router.push(`/partners/${encodeURIComponent(createdId)}`)}
+                onClick={() =>
+                  router.push(`/partners/${encodeURIComponent(createdId)}`)
+                }
                 className="inline-flex items-center gap-1.5 rounded-full bg-[var(--foreground)] px-3.5 py-2 text-[11.5px] font-medium text-[var(--background)]"
               >
                 <Check size={13} /> {t("Open partner")}
@@ -166,7 +179,11 @@ export const PartnerDraftCard = memo(function PartnerDraftCard({
                 onClick={confirm}
                 className="inline-flex items-center gap-1.5 rounded-full bg-[var(--foreground)] px-3.5 py-2 text-[11.5px] font-medium text-[var(--background)] transition disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {creating ? <Loader2 size={13} className="animate-spin" /> : <Users size={13} />}
+                {creating ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Users size={13} />
+                )}
                 {creating ? t("Creating…") : t("Confirm & create")}
               </button>
             )}

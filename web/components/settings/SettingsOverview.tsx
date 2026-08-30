@@ -49,8 +49,12 @@ export default function SettingsOverview() {
       (
         SETTINGS_CATEGORIES.find((category) => category.key === "models")
           ?.children ?? []
-      ).filter((leaf): leaf is SettingsLeaf & { service: NonNullable<SettingsLeaf["service"]> } =>
-        Boolean(leaf.service),
+      ).filter(
+        (
+          leaf,
+        ): leaf is SettingsLeaf & {
+          service: NonNullable<SettingsLeaf["service"]>;
+        } => Boolean(leaf.service),
       ),
     [],
   );
@@ -61,7 +65,11 @@ export default function SettingsOverview() {
         ? []
         : modelLeaves.map((leaf) => ({
             leaf,
-            readiness: serviceReadiness(catalog, leaf.service, diagnosticsResults),
+            readiness: serviceReadiness(
+              catalog,
+              leaf.service,
+              diagnosticsResults,
+            ),
           })),
     [catalog, catalogEditable, diagnosticsResults, modelLeaves],
   );
@@ -73,8 +81,12 @@ export default function SettingsOverview() {
   // Everything the user can act on, most urgent first. An empty list is worth
   // saying out loud — "nothing needs attention" is information, and the blank
   // panel it replaces is not.
-  const attention: { key: string; text: string; href: string; label: string }[] =
-    [];
+  const attention: {
+    key: string;
+    text: string;
+    href: string;
+    label: string;
+  }[] = [];
   if (draftState !== "clean") {
     attention.push({
       key: "draft",
@@ -106,7 +118,8 @@ export default function SettingsOverview() {
     for (const leaf of modelLeaves) {
       const profile = getActiveProfile(catalog, leaf.service);
       binding[leaf.key] =
-        (leaf.service === "search" ? profile?.provider : profile?.binding) ?? "";
+        (leaf.service === "search" ? profile?.provider : profile?.binding) ??
+        "";
       detail[leaf.key] =
         leaf.service === "search"
           ? (profile?.provider ?? "")
@@ -236,7 +249,6 @@ export default function SettingsOverview() {
               </div>
             ))}
           </Section>
-
         </>
       )}
 

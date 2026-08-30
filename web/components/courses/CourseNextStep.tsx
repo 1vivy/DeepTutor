@@ -75,7 +75,9 @@ function decide(
 
   // Then an unfinished path: a stalled module is a commitment already made.
   const stalled = state.mastery.paths.find(
-    (path) => path.objectives_total > 0 && path.objectives_mastered < path.objectives_total,
+    (path) =>
+      path.objectives_total > 0 &&
+      path.objectives_mastered < path.objectives_total,
   );
   if (stalled) {
     return {
@@ -84,9 +86,7 @@ function decide(
         done: stalled.objectives_mastered,
         total: stalled.objectives_total,
       }),
-      detail:
-        stalled.weak_points[0] ??
-        t("Pick up where the path left off"),
+      detail: stalled.weak_points[0] ?? t("Pick up where the path left off"),
       action: {
         label: t("Keep going"),
         href: `/mastery/${encodeURIComponent(stalled.path_id)}/study`,
@@ -97,9 +97,7 @@ function decide(
   }
 
   // Then reading that was opened but not finished.
-  const workspace = state.reading.workspaces.find(
-    (item) => item.materials > 0,
-  );
+  const workspace = state.reading.workspaces.find((item) => item.materials > 0);
   if (workspace) {
     return {
       headline: t("{{title}} is open and waiting", {
@@ -128,7 +126,9 @@ function decide(
       label: t("Plan this course"),
       href: `/home?course=${encodeURIComponent(courseId)}&capability=course_study`,
       scope: "chat",
-      prompt: t("Look at what this course has and plan what I should do first."),
+      prompt: t(
+        "Look at what this course has and plan what I should do first.",
+      ),
     },
   };
 }

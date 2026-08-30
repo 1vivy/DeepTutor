@@ -41,17 +41,35 @@ import {
 } from "@/lib/learning-api";
 
 const NEXT_LABELS: Record<string, { zh: string; en: string }> = {
-  probe: { zh: "先用一道探查题看看你是否已经掌握", en: "Start with a probe and test out if you already know it" },
-  practice: { zh: "继续练习，直到稳定越过掌握门槛", en: "Practice until you reliably clear the mastery gate" },
-  assess: { zh: "用自己的话讲清楚这个概念", en: "Explain this clearly in your own words" },
+  probe: {
+    zh: "先用一道探查题看看你是否已经掌握",
+    en: "Start with a probe and test out if you already know it",
+  },
+  practice: {
+    zh: "继续练习，直到稳定越过掌握门槛",
+    en: "Practice until you reliably clear the mastery gate",
+  },
+  assess: {
+    zh: "用自己的话讲清楚这个概念",
+    en: "Explain this clearly in your own words",
+  },
   review: { zh: "复习这个记忆信标", en: "Revisit this memory beacon" },
-  answer_pending: { zh: "完成导师正在等待的回答", en: "Complete the answer your tutor is waiting for" },
-  complete: { zh: "整片疆域已经点亮", en: "The whole territory is illuminated" },
+  answer_pending: {
+    zh: "完成导师正在等待的回答",
+    en: "Complete the answer your tutor is waiting for",
+  },
+  complete: {
+    zh: "整片疆域已经点亮",
+    en: "The whole territory is illuminated",
+  },
 };
 
 const NEXT_CTA_LABELS: Record<string, { zh: string; en: string }> = {
   review: { zh: "开始本次复习", en: "Start this review" },
-  answer_pending: { zh: "回到原会话作答", en: "Answer in the original session" },
+  answer_pending: {
+    zh: "回到原会话作答",
+    en: "Answer in the original session",
+  },
   complete: { zh: "继续自由探索", en: "Keep exploring" },
 };
 
@@ -108,7 +126,9 @@ export default function MasteryTopicPage() {
 
   const loadSessions = useCallback(async () => {
     try {
-      setSessions(await fetchMasteryTopicSessions(pathId, { cache: "no-store" }));
+      setSessions(
+        await fetchMasteryTopicSessions(pathId, { cache: "no-store" }),
+      );
       setSessionsError(false);
     } catch {
       // Keep whatever we last showed. Blanking the list turns a network blip
@@ -136,7 +156,9 @@ export default function MasteryTopicPage() {
   }, [selectedId, topic]);
 
   const sourceLabels = useMemo(
-    () => topic?.sources.filter((source) => source.kind !== "goal").slice(0, 5) ?? [],
+    () =>
+      topic?.sources.filter((source) => source.kind !== "goal").slice(0, 5) ??
+      [],
     [topic],
   );
   const displayName = topic ? topicDisplayName(topic, t) : "";
@@ -146,8 +168,17 @@ export default function MasteryTopicPage() {
     activity.refresh();
   };
 
-  const handleOverride = async (objectiveId: string, mastered: boolean, note: string) => {
-    const result = await setMasteryObjectiveOverride(pathId, objectiveId, mastered, note);
+  const handleOverride = async (
+    objectiveId: string,
+    mastered: boolean,
+    note: string,
+  ) => {
+    const result = await setMasteryObjectiveOverride(
+      pathId,
+      objectiveId,
+      mastered,
+      note,
+    );
     setTopic((previous) =>
       previous
         ? { ...previous, map: result.map, path_revision: result.path_revision }
@@ -204,9 +235,14 @@ export default function MasteryTopicPage() {
     return (
       <div className="mastery-shell flex h-full flex-col items-center justify-center px-6 text-center">
         <Compass className="h-10 w-10 text-[var(--muted-foreground)] opacity-40" />
-        <h1 className="mt-4 text-lg font-semibold">{t("This map could not be found")}</h1>
+        <h1 className="mt-4 text-lg font-semibold">
+          {t("This map could not be found")}
+        </h1>
         <p className="mt-2 text-sm text-[var(--muted-foreground)]">{error}</p>
-        <Link href="/mastery" className="mt-5 text-sm font-medium text-[var(--primary)] hover:underline">
+        <Link
+          href="/mastery"
+          className="mt-5 text-sm font-medium text-[var(--primary)] hover:underline"
+        >
           {t("Back to topics")}
         </Link>
       </div>
@@ -340,7 +376,9 @@ export default function MasteryTopicPage() {
               </div>
               <p className="mt-0.5 truncate text-[12px] text-[var(--muted-foreground)]">
                 {needsRouteRepair
-                  ? t("This migrated topic has no modules yet. Add at least one module and knowledge point to begin.")
+                  ? t(
+                      "This migrated topic has no modules yet. Add at least one module and knowledge point to begin.",
+                    )
                   : zh
                     ? nextCopy.zh
                     : nextCopy.en}
@@ -386,7 +424,9 @@ export default function MasteryTopicPage() {
                 {t("Add the missing modules")}
               </h2>
               <p className="mt-2 max-w-md text-sm leading-6 text-[var(--muted-foreground)]">
-                {t("The topic migrated safely but has no modules yet. Define the abilities you want to master before tutoring begins.")}
+                {t(
+                  "The topic migrated safely but has no modules yet. Define the abilities you want to master before tutoring begins.",
+                )}
               </p>
               <button
                 type="button"
@@ -412,11 +452,15 @@ export default function MasteryTopicPage() {
                 zh={zh}
                 onSelect={(objectiveId) => {
                   setSelectedId(objectiveId);
-                  document.getElementById("mastery-outline-start")?.scrollIntoView({
-                    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-                      ? "auto"
-                      : "smooth",
-                  });
+                  document
+                    .getElementById("mastery-outline-start")
+                    ?.scrollIntoView({
+                      behavior: window.matchMedia(
+                        "(prefers-reduced-motion: reduce)",
+                      ).matches
+                        ? "auto"
+                        : "smooth",
+                    });
                 }}
               />
             </div>
@@ -449,7 +493,9 @@ export default function MasteryTopicPage() {
       {confirmAction === "reset" && (
         <ConfirmDialog
           title={t("Reset learning progress?")}
-          description={t("Modules and knowledge points stay. Mastery evidence, pending questions, and review schedules will be cleared.")}
+          description={t(
+            "Modules and knowledge points stay. Mastery evidence, pending questions, and review schedules will be cleared.",
+          )}
           confirmLabel={t("Confirm reset")}
           cancelLabel={t("Cancel")}
           busy={mutationBusy}
@@ -461,7 +507,9 @@ export default function MasteryTopicPage() {
       {confirmAction === "delete" && (
         <ConfirmDialog
           title={t("Permanently delete this topic?")}
-          description={t("The map, evidence, review schedule, and linked records will be deleted. This cannot be undone.")}
+          description={t(
+            "The map, evidence, review schedule, and linked records will be deleted. This cannot be undone.",
+          )}
           confirmLabel={t("Delete permanently")}
           cancelLabel={t("Cancel")}
           destructive

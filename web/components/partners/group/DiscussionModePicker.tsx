@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { listDiscussionModes, type DiscussionMode } from "@/lib/partner-groups-api";
+import {
+  listDiscussionModes,
+  type DiscussionMode,
+} from "@/lib/partner-groups-api";
 
 /**
  * How the group talks.
@@ -20,7 +23,9 @@ import { listDiscussionModes, type DiscussionMode } from "@/lib/partner-groups-a
  */
 function useModeCopy() {
   const { t } = useTranslation();
-  return (mode: DiscussionMode): { label: string; hint: string; cost: string } => {
+  return (
+    mode: DiscussionMode,
+  ): { label: string; hint: string; cost: string } => {
     switch (mode.name) {
       case "panel_parallel":
         return {
@@ -31,13 +36,17 @@ function useModeCopy() {
       case "sequential":
         return {
           label: t("One after another"),
-          hint: t("Each member sees what the others already said and builds on it."),
+          hint: t(
+            "Each member sees what the others already said and builds on it.",
+          ),
           cost: t("Slower · they wait for each other"),
         };
       case "debate":
         return {
           label: t("Cross-examination"),
-          hint: t("First everyone states a position, then each responds to the disagreements."),
+          hint: t(
+            "First everyone states a position, then each responds to the disagreements.",
+          ),
           cost: t("Two rounds · about twice the wait"),
         };
       default:
@@ -75,50 +84,52 @@ export default function DiscussionModePicker({
 
   return (
     <section>
-      <h2 className="mb-2 text-[12px] font-medium text-[var(--foreground)]">{title}</h2>
+      <h2 className="mb-2 text-[12px] font-medium text-[var(--foreground)]">
+        {title}
+      </h2>
       <div className="space-y-2">
-      {modes.map((mode) => {
-        const active = mode.name === value;
-        const copy = copyFor(mode);
-        return (
-          <button
-            key={mode.name}
-            type="button"
-            disabled={disabled}
-            onClick={() => onChange(mode.name)}
-            className={`flex w-full items-start gap-2.5 rounded-xl border p-3 text-left transition-colors disabled:opacity-50 ${
-              active
-                ? "border-[var(--primary)] bg-[var(--primary)]/[0.05]"
-                : "border-[var(--border)] hover:border-[var(--ring)]"
-            }`}
-          >
-            <span
-              className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+        {modes.map((mode) => {
+          const active = mode.name === value;
+          const copy = copyFor(mode);
+          return (
+            <button
+              key={mode.name}
+              type="button"
+              disabled={disabled}
+              onClick={() => onChange(mode.name)}
+              className={`flex w-full items-start gap-2.5 rounded-xl border p-3 text-left transition-colors disabled:opacity-50 ${
                 active
-                  ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]"
-                  : "border-[var(--border)]"
+                  ? "border-[var(--primary)] bg-[var(--primary)]/[0.05]"
+                  : "border-[var(--border)] hover:border-[var(--ring)]"
               }`}
             >
-              {active ? <Check size={10} /> : null}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="flex items-baseline gap-2">
-                <span className="text-[12.5px] font-medium text-[var(--foreground)]">
-                  {copy.label}
-                </span>
-                {copy.cost ? (
-                  <span className="text-[10px] text-[var(--muted-foreground)]">
-                    {copy.cost}
+              <span
+                className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                  active
+                    ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]"
+                    : "border-[var(--border)]"
+                }`}
+              >
+                {active ? <Check size={10} /> : null}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-baseline gap-2">
+                  <span className="text-[12.5px] font-medium text-[var(--foreground)]">
+                    {copy.label}
                   </span>
-                ) : null}
+                  {copy.cost ? (
+                    <span className="text-[10px] text-[var(--muted-foreground)]">
+                      {copy.cost}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="mt-0.5 block text-[11px] leading-relaxed text-[var(--muted-foreground)]">
+                  {copy.hint}
+                </span>
               </span>
-              <span className="mt-0.5 block text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-                {copy.hint}
-              </span>
-            </span>
-          </button>
-        );
-      })}
+            </button>
+          );
+        })}
       </div>
       {note ? (
         <p className="mt-2 text-[11px] leading-relaxed text-[var(--muted-foreground)]">

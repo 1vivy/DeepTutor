@@ -15,7 +15,9 @@ import { useTranslation } from "react-i18next";
 
 import { ChatMessageList } from "@/components/chat/home/ChatMessages";
 import { useUnifiedChat } from "@/context/UnifiedChatContext";
+import { useChatAutoScroll } from "@/hooks/useChatAutoScroll";
 import { useMasteryStudySession } from "@/hooks/useMasteryStudySession";
+import { useMeasuredHeight } from "@/hooks/useMeasuredHeight";
 import { fetchMasteryAskHint, type MasteryTopic } from "@/lib/learning-api";
 import { consumePendingPrompt } from "@/lib/pending-prompt";
 
@@ -76,8 +78,36 @@ export function MasteryStudy({
   } = useUnifiedChat();
   const { topic, topicError, knowledgeBases, sessionError, sessionLoading } =
     useMasteryStudySession(pathId, routeSessionId);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasMessages = state.messages.length > 0;
   const prefillInputRef = useRef<((text: string) => void) | null>(null);
+  /* ── Transcript scrolling ────────────────────────────────────────────
+     Was a bare `scrollIntoView` keyed on message count — no notion of the
+     user having scrolled away, so it yanked the view back to the bottom
+     on every delta regardless. See ReadingCompanion for the same wiring. */
+  const { ref: composerBoxRef, height: composerHeight } =
+    useMeasuredHeight<HTMLDivElement>();
+  const lastMessage = state.messages[state.messages.length - 1];
+  const {
+    containerRef: messagesContainerRef,
+    endRef: messagesEndRef,
+    shouldAutoScrollRef,
+    handleScroll: handleMessagesScroll,
+  } = useChatAutoScroll({
+    hasMessages,
+    isStreaming: state.isStreaming,
+    composerHeight,
+    messageCount: state.messages.length,
+    lastMessageContent: lastMessage?.content,
+    lastEventCount: lastMessage?.events?.length,
+  });
+  // A new turn is the clearest possible "show me the answer" — re-arm the
+  // pin even if a previous turn's browsing had released it.
+  useEffect(() => {
+    if (!state.isStreaming) return;
+    shouldAutoScrollRef.current = true;
+    const container = messagesContainerRef.current;
+    if (container) container.scrollTop = container.scrollHeight;
+  }, [messagesContainerRef, shouldAutoScrollRef, state.isStreaming]);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   // Reading a conversation and consulting the map are different moments, so
   // the rail is dismissible — and the choice sticks, since a learner who
@@ -120,13 +150,6 @@ export function MasteryStudy({
     setPendingPrompt(null);
   }, [pendingPrompt, topic, sessionError, sessionLoading]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: state.isStreaming ? "instant" : "smooth",
-      block: "end",
-    });
-  }, [state.isStreaming, state.messages]);
-
   // A question worth asking here, written by the task model. Fetched when the
   // turn settles rather than as it streams: what is worth asking next depends
   // on what the tutor just finished saying. The composer is fully usable
@@ -165,7 +188,7 @@ export function MasteryStudy({
   const celebrationCounterRef = useRef(0);
   const [celebration, setCelebration] = useState<{
     key: number;
-    label: string;
+    pointId: string;
   } | null>(null);
   useEffect(() => {
     if (!topic) return;
@@ -185,13 +208,13 @@ export function MasteryStudy({
           celebrationCounterRef.current += 1;
           setCelebration({
             key: celebrationCounterRef.current,
-            label: t("Mastered “{{name}}”", { name: point.name }),
+            pointId: point.id,
           });
           return;
         }
       }
     }
-  }, [topic, t]);
+  }, [topic]);
 
   const submit = useCallback(
     (value: string) => {
@@ -239,7 +262,6 @@ export function MasteryStudy({
   const waypoint = currentWaypoint(topic, displayName, t);
   const completed = topic.map.counts.mastered;
   const total = topic.map.counts.total;
-  const hasMessages = state.messages.length > 0;
 
   return (
     <main className="mastery-shell flex h-full min-h-0 flex-col overflow-hidden">
@@ -294,13 +316,38 @@ export function MasteryStudy({
           <StudyOutline
             topic={topic}
             currentPointId={waypoint.id}
+            justMasteredId={celebration?.pointId ?? null}
             collapsed={!outlineOpen}
             onToggleCollapsed={toggleOutline}
           />
         </aside>
 
         <section className="flex min-w-0 flex-1 flex-col bg-[var(--background)]">
-          <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+          <div
+            ref={messagesContainerRef}
+            // Opts this scrollport into the global `overflow-anchor: none`
+            // rule; without it the browser's own scroll anchoring fights
+            // the pin every time a code block or KaTeX span reflows.
+            data-chat-scroll-root="true"
+            onScroll={() => {
+              const container = messagesContainerRef.current;
+              if (!container) return;
+              const distanceFromBottom =
+                container.scrollHeight -
+                container.scrollTop -
+                container.clientHeight;
+              // Arm-only while streaming: position alone should never
+              // RELEASE the pin mid-turn (a gesture already does that,
+              // unconditionally, inside the hook) — only ever confirm the
+              // user scrolled back down to resume following.
+              if (distanceFromBottom < 80) {
+                shouldAutoScrollRef.current = true;
+              } else if (!state.isStreaming) {
+                handleMessagesScroll();
+              }
+            }}
+            className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]"
+          >
             <div className="mx-auto w-full max-w-[900px] px-4 pb-8 pt-7 sm:px-7">
               {sessionLoading ? (
                 <div className="flex min-h-[45vh] flex-col items-center justify-center text-sm text-[var(--muted-foreground)]">
@@ -381,7 +428,10 @@ export function MasteryStudy({
           </div>
 
           {!sessionError && (
-            <div className="shrink-0 bg-[var(--background)]">
+            <div
+              ref={composerBoxRef}
+              className="shrink-0 bg-[var(--background)]"
+            >
               <MasteryComposer
                 placeholder={t("Ask your tutor about “{{waypoint}}”…", {
                   waypoint: waypoint.name,
@@ -398,7 +448,6 @@ export function MasteryStudy({
       {celebration && (
         <LevelUpCelebration
           key={celebration.key}
-          label={celebration.label}
           onDone={() => setCelebration(null)}
         />
       )}

@@ -41,7 +41,10 @@ export default function GroupEmptyState({
     <div className="flex min-h-[340px] flex-col items-center justify-center px-4 text-center">
       <div className="flex flex-wrap items-start justify-center gap-x-6 gap-y-4">
         {members.map((member) => (
-          <div key={member.partner_id} className="flex w-[124px] flex-col items-center gap-1.5">
+          <div
+            key={member.partner_id}
+            className="flex w-[124px] flex-col items-center gap-1.5"
+          >
             <PartnerAvatar
               name={member.name}
               emoji={member.emoji}

@@ -51,7 +51,11 @@ export default function InvocationCard({
             disabled={busy}
             className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-[var(--primary)] px-2.5 text-[11px] font-medium text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:opacity-50"
           >
-            {busy ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+            {busy ? (
+              <Loader2 size={11} className="animate-spin" />
+            ) : (
+              <Check size={11} />
+            )}
             {t("Let them discuss")}
           </button>
           <button
@@ -68,7 +72,9 @@ export default function InvocationCard({
           {status === "approved" ? (
             <>
               <Loader2 size={11} className="animate-spin" />
-              {t("Waiting for {{name}}", { name: invocation.target_partner_name })}
+              {t("Waiting for {{name}}", {
+                name: invocation.target_partner_name,
+              })}
             </>
           ) : status === "completed" ? (
             <>

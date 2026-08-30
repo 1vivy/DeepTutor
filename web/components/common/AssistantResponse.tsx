@@ -45,10 +45,10 @@ function AssistantResponseImpl({
       material?.unit === "segment"
         ? linkifyMediaTimestamps(displayContent)
         : material
-        ? linkifyLocatorCitations(displayContent, {
-            maxLocator: material.unit_count,
-          })
-        : displayContent,
+          ? linkifyLocatorCitations(displayContent, {
+              maxLocator: material.unit_count,
+            })
+          : displayContent,
     [displayContent, material],
   );
   const segments = useMemo(

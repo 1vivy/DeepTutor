@@ -125,8 +125,5 @@ test("lines inside a fenced code block are flagged so the renderer skips Markdow
     lines.map((line) => line.fence),
     [false, true, true, true, false],
   );
-  assert.equal(
-    lines.map((line) => line.text).join("\n"),
-    sourceText,
-  );
+  assert.equal(lines.map((line) => line.text).join("\n"), sourceText);
 });

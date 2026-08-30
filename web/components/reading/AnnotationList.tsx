@@ -11,7 +11,6 @@ import {
 } from "@/lib/reading-api";
 import { unitLabel } from "./TextUnitView";
 
-
 export interface AnnotationListProps {
   annotations: AnnotationItem[];
   unit: UnitKind;
@@ -90,8 +89,10 @@ export function AnnotationList({
                     aria-hidden
                     className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full"
                     style={{
-                      background: ANNOTATION_SWATCH[annotation.color as AnnotationColor] ??
-                        ANNOTATION_SWATCH.yellow,
+                      background:
+                        ANNOTATION_SWATCH[
+                          annotation.color as AnnotationColor
+                        ] ?? ANNOTATION_SWATCH.yellow,
                     }}
                   />
                   {annotation.quote && (

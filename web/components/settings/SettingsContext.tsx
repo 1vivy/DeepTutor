@@ -709,9 +709,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     imagegen: [],
     videogen: [],
   });
-  const [connectionTargets, setConnectionTargets] = useState<ConnectionTarget[]>(
-    [],
-  );
+  const [connectionTargets, setConnectionTargets] = useState<
+    ConnectionTarget[]
+  >([]);
   const [storedDraft, setStoredDraft] = useState<StoredDraft | null>(null);
   // Signature of the envelope as last written to the draft store.
   const [savedSignature, setSavedSignature] = useState<string | null>(null);
@@ -747,8 +747,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   // first, or "Draft saved" would keep showing after further typing.
   const [pendingSignature, setPendingSignature] = useState("{}");
   const syncPendingKeys = useCallback(() => {
-    const entries = Array.from(pendingRef.current.entries()).sort(
-      ([a], [b]) => (a < b ? -1 : a > b ? 1 : 0),
+    const entries = Array.from(pendingRef.current.entries()).sort(([a], [b]) =>
+      a < b ? -1 : a > b ? 1 : 0,
     );
     const next = JSON.stringify(Object.fromEntries(entries));
     setPendingSignature((current) => (current === next ? current : next));
@@ -832,7 +832,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           };
           if (stored.draft) {
             setStoredDraft(stored.draft);
-            if (stored.draft.catalog) setDraft(cloneCatalog(stored.draft.catalog));
+            if (stored.draft.catalog)
+              setDraft(cloneCatalog(stored.draft.catalog));
             for (const [key, value] of Object.entries(
               stored.draft.extensions ?? {},
             )) {
@@ -907,7 +908,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const timer = setTimeout(() => setToast(""), 3500);
     return () => clearTimeout(timer);
   }, [toast]);
-
 
   useEffect(() => {
     try {
@@ -1057,7 +1057,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         if (target.active_profile_id === doomed) {
           target.active_profile_id = target.profiles[0]?.id ?? null;
           if (service !== "search") {
-            target.active_model_id = target.profiles[0]?.models?.[0]?.id ?? null;
+            target.active_model_id =
+              target.profiles[0]?.models?.[0]?.id ?? null;
           }
         }
       });
@@ -1571,7 +1572,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setApplying(false);
     }
   }, [catalog, clearPending, t]);
-
 
   // ── Diagnostics ─────────────────────────────────────────────────────────
   // Reset capability snapshot when switching embedding profile/model so a

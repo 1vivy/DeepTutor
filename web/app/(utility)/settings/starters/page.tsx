@@ -56,9 +56,9 @@ export default function StarterSettingsPage() {
         // An edit left behind earlier in this session (or parked in a saved
         // draft) wins over the server value — leaving the page is not a way
         // to discard changes.
-        const pending = pendingExtensionPayload(
-          "chat-starters",
-        ) as StarterSettings | undefined;
+        const pending = pendingExtensionPayload("chat-starters") as
+          | StarterSettings
+          | undefined;
         setDraft(pending ? { ...pending } : { ...next.settings });
       } catch (err) {
         if (!cancelled)

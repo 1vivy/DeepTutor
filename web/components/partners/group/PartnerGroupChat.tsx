@@ -76,7 +76,8 @@ export default function PartnerGroupChat({
     () =>
       rounds.reduce(
         (total, round) =>
-          total + round.seats.reduce((sum, seat) => sum + seat.events.length, 0),
+          total +
+          round.seats.reduce((sum, seat) => sum + seat.events.length, 0),
         0,
       ),
     [rounds],
@@ -173,7 +174,10 @@ export default function PartnerGroupChat({
                   <Loader2 className="h-4 w-4 animate-spin text-[var(--muted-foreground)]" />
                 </div>
               ) : rounds.length === 0 ? (
-                <GroupEmptyState members={group.members} mode={group.discussion_mode} />
+                <GroupEmptyState
+                  members={group.members}
+                  mode={group.discussion_mode}
+                />
               ) : (
                 rounds.map((round) => (
                   <GroupRound
@@ -195,7 +199,10 @@ export default function PartnerGroupChat({
                 // The raw backend reason is kept — it is what makes a failure
                 // diagnosable — but it is framed so the user knows what it means.
                 <div className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/[0.04] px-3.5 py-2.5">
-                  <AlertCircle size={13} className="mt-0.5 shrink-0 text-red-500" />
+                  <AlertCircle
+                    size={13}
+                    className="mt-0.5 shrink-0 text-red-500"
+                  />
                   <div className="min-w-0">
                     <p className="text-[11.5px] font-medium text-red-500">
                       {t("This round could not finish")}

@@ -454,7 +454,9 @@ export default function NotebookConsole({
                 ? t(
                     "Make one here and it joins this course — its notes then travel with everything else in it.",
                   )
-                : t("Pick a notebook on the left, or create one to get started."))
+                : t(
+                    "Pick a notebook on the left, or create one to get started.",
+                  ))
             }
           />
         ) : (

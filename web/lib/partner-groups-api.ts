@@ -4,11 +4,16 @@ import { apiFetch, apiUrl } from "@/lib/api";
 import type { PartnerInfo } from "@/lib/partners-api";
 import type { StreamEvent } from "@/lib/unified-ws";
 
-export interface PartnerGroupMember
-  extends Pick<
-    PartnerInfo,
-    "partner_id" | "name" | "description" | "emoji" | "color" | "avatar" | "running"
-  > {}
+export interface PartnerGroupMember extends Pick<
+  PartnerInfo,
+  | "partner_id"
+  | "name"
+  | "description"
+  | "emoji"
+  | "color"
+  | "avatar"
+  | "running"
+> {}
 
 export interface PartnerGroup {
   group_id: string;
@@ -84,21 +89,28 @@ export interface CreatePartnerGroupPayload {
 
 async function json<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as { detail?: string };
+    const body = (await response.json().catch(() => ({}))) as {
+      detail?: string;
+    };
     throw new Error(body.detail || `Request failed: ${response.status}`);
   }
   return (await response.json()) as T;
 }
 
 export async function listPartnerGroups(): Promise<PartnerGroup[]> {
-  return json(await apiFetch(apiUrl("/api/v1/partner-groups"), { cache: "no-store" }));
+  return json(
+    await apiFetch(apiUrl("/api/v1/partner-groups"), { cache: "no-store" }),
+  );
 }
 
 export async function getPartnerGroup(groupId: string): Promise<PartnerGroup> {
   return json(
-    await apiFetch(apiUrl(`/api/v1/partner-groups/${encodeURIComponent(groupId)}`), {
-      cache: "no-store",
-    }),
+    await apiFetch(
+      apiUrl(`/api/v1/partner-groups/${encodeURIComponent(groupId)}`),
+      {
+        cache: "no-store",
+      },
+    ),
   );
 }
 
@@ -119,19 +131,25 @@ export async function updatePartnerGroup(
   payload: Partial<CreatePartnerGroupPayload>,
 ): Promise<PartnerGroup> {
   return json(
-    await apiFetch(apiUrl(`/api/v1/partner-groups/${encodeURIComponent(groupId)}`), {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }),
+    await apiFetch(
+      apiUrl(`/api/v1/partner-groups/${encodeURIComponent(groupId)}`),
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    ),
   );
 }
 
 export async function deletePartnerGroup(groupId: string): Promise<void> {
   await json(
-    await apiFetch(apiUrl(`/api/v1/partner-groups/${encodeURIComponent(groupId)}`), {
-      method: "DELETE",
-    }),
+    await apiFetch(
+      apiUrl(`/api/v1/partner-groups/${encodeURIComponent(groupId)}`),
+      {
+        method: "DELETE",
+      },
+    ),
   );
 }
 
@@ -142,7 +160,9 @@ export async function getPartnerGroupHistory(
   const query = new URLSearchParams({ session_key: sessionKey });
   return json(
     await apiFetch(
-      apiUrl(`/api/v1/partner-groups/${encodeURIComponent(groupId)}/history?${query}`),
+      apiUrl(
+        `/api/v1/partner-groups/${encodeURIComponent(groupId)}/history?${query}`,
+      ),
       { cache: "no-store" },
     ),
   );
@@ -153,7 +173,9 @@ export async function getPartnerGroupWhiteboard(
 ): Promise<WhiteboardEntry[]> {
   return json(
     await apiFetch(
-      apiUrl(`/api/v1/partner-groups/${encodeURIComponent(groupId)}/whiteboard`),
+      apiUrl(
+        `/api/v1/partner-groups/${encodeURIComponent(groupId)}/whiteboard`,
+      ),
       { cache: "no-store" },
     ),
   );
@@ -166,7 +188,9 @@ export async function getPartnerGroupInvocations(
   const query = new URLSearchParams({ session_key: sessionKey });
   return json(
     await apiFetch(
-      apiUrl(`/api/v1/partner-groups/${encodeURIComponent(groupId)}/invocations?${query}`),
+      apiUrl(
+        `/api/v1/partner-groups/${encodeURIComponent(groupId)}/invocations?${query}`,
+      ),
       { cache: "no-store" },
     ),
   );
@@ -218,7 +242,10 @@ export async function deletePartnerGroupSession(
 /** Point this group at another (or brand new) discussion thread. */
 export function setPartnerGroupSessionKey(groupId: string, key: string): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(`deeptutor:partner-group:${groupId}:session`, key);
+  window.localStorage.setItem(
+    `deeptutor:partner-group:${groupId}:session`,
+    key,
+  );
 }
 
 export function createPartnerGroupSessionKey(groupId: string): string {

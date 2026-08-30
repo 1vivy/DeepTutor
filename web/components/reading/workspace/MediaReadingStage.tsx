@@ -107,7 +107,10 @@ export function MediaReadingStage({
   const persist = useCallback(() => {
     const current = stateRef.current;
     if (current.time < 0 || !refs.length) return;
-    const locator = Math.max(1, activeLocatorRef.current || locatorAtTime(current.time));
+    const locator = Math.max(
+      1,
+      activeLocatorRef.current || locatorAtTime(current.time),
+    );
     void saveReadingPosition(material.material_id, {
       locator,
       source_anchor: `#t=${Math.floor(current.time)}`,
@@ -150,14 +153,20 @@ export function MediaReadingStage({
     (error: number | string) => {
       if (error === 101 || error === 150) {
         setPlayerError(
-          t("This video's owner disabled embedded playback. Open it on YouTube; DeepTutor can still use captions when they are available."),
+          t(
+            "This video's owner disabled embedded playback. Open it on YouTube; DeepTutor can still use captions when they are available.",
+          ),
         );
       } else if (error === 153) {
         setPlayerError(
-          t("YouTube could not verify this embedded player. Open the official video, or check the browser's referrer policy."),
+          t(
+            "YouTube could not verify this embedded player. Open the official video, or check the browser's referrer policy.",
+          ),
         );
       } else if (typeof error === "number") {
-        setPlayerError(t("YouTube playback failed ({{code}}).", { code: error }));
+        setPlayerError(
+          t("YouTube playback failed ({{code}}).", { code: error }),
+        );
       } else {
         setPlayerError(error);
       }
@@ -177,7 +186,10 @@ export function MediaReadingStage({
             : youtubeEntryTime(material.source_url);
         const nextStart = savedTime ?? entry;
         setStartSeconds(nextStart);
-        if (position.locator > 0 && refs.some((row) => row.locator === position.locator)) {
+        if (
+          position.locator > 0 &&
+          refs.some((row) => row.locator === position.locator)
+        ) {
           activeLocatorRef.current = position.locator;
           notifyLocator(position.locator);
         }
@@ -206,7 +218,8 @@ export function MediaReadingStage({
     if (!node) return;
     const controller = html5ReadingController(node);
     controllerRef.current = controller;
-    const report = () => handleTime(controller.currentTime(), controller.duration());
+    const report = () =>
+      handleTime(controller.currentTime(), controller.duration());
     const ready = () => {
       if (startSeconds > 0) controller.seek(startSeconds);
       report();
@@ -223,7 +236,13 @@ export function MediaReadingStage({
       if (controllerRef.current === controller) controllerRef.current = null;
       controller.destroy();
     };
-  }, [handleTime, material.render_mode, material.source_kind, persist, startSeconds]);
+  }, [
+    handleTime,
+    material.render_mode,
+    material.source_kind,
+    persist,
+    startSeconds,
+  ]);
 
   useEffect(() => {
     if (playbackLocatorRef.current === activeLocator) {
@@ -248,7 +267,8 @@ export function MediaReadingStage({
       if (locator >= 1) notifyLocator(locator);
     };
     window.addEventListener(READER_ACTION_EVENT, onReaderAction);
-    return () => window.removeEventListener(READER_ACTION_EVENT, onReaderAction);
+    return () =>
+      window.removeEventListener(READER_ACTION_EVENT, onReaderAction);
   }, [material.material_id, notifyLocator]);
 
   useEffect(() => {
@@ -282,9 +302,9 @@ export function MediaReadingStage({
       if ((event as CustomEvent<{ moved?: boolean }>).detail?.moved) return;
       window.setTimeout(() => {
         const answers = document.querySelectorAll('[role="article"]');
-        const anchor = answers[answers.length - 1]?.querySelector<HTMLAnchorElement>(
-          'a[href^="#dt-media-time-"]',
-        );
+        const anchor = answers[
+          answers.length - 1
+        ]?.querySelector<HTMLAnchorElement>('a[href^="#dt-media-time-"]');
         const seconds = mediaTimeFromHref(anchor?.getAttribute("href"));
         if (seconds === null) return;
         controllerRef.current?.seek(seconds);
@@ -408,8 +428,12 @@ export function MediaReadingStage({
             <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[10.5px] leading-relaxed text-[var(--muted-foreground)] dark:border-[var(--border)] dark:bg-[var(--card)]">
               {playerError ||
                 (chaptersOnly
-                  ? t("Only chapter markers are available for this video. You can navigate by chapter, but the companion will not treat them as a spoken transcript.")
-                  : t("This video has no accessible transcript. Playback works, but the companion cannot ground explanations in its spoken content."))}
+                  ? t(
+                      "Only chapter markers are available for this video. You can navigate by chapter, but the companion will not treat them as a spoken transcript.",
+                    )
+                  : t(
+                      "This video has no accessible transcript. Playback works, but the companion cannot ground explanations in its spoken content.",
+                    ))}
             </div>
           )}
 
@@ -443,7 +467,9 @@ export function MediaReadingStage({
               </button>
               <button
                 type="button"
-                onClick={() => onLocatorChange(Math.min(refs.length, activeLocator + 1))}
+                onClick={() =>
+                  onLocatorChange(Math.min(refs.length, activeLocator + 1))
+                }
                 disabled={activeLocator >= refs.length}
                 className="rounded-lg px-2 py-1 text-[10.5px] text-[var(--muted-foreground)] hover:bg-[var(--muted)] disabled:opacity-30"
               >

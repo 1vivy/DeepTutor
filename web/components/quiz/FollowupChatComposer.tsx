@@ -25,6 +25,7 @@ import {
   useFollowupThread,
   useQuizFollowupController,
 } from "@/context/QuizFollowupContext";
+import { hasPendingAskUser } from "@/lib/ask-user-state";
 import { buildQuizFollowupConfig } from "@/lib/quiz-types";
 import { buildSelectionTutorConfig } from "@/lib/selection-tutor";
 
@@ -50,8 +51,24 @@ function FollowupChatComposerImpl({ context }: FollowupChatComposerProps) {
 
   const isFirstSend = !thread.sessionId && thread.messages.length === 0;
 
+  // A turn paused on an ask_user card is still "streaming", but typing an
+  // answer is exactly how it moves forward — the composer stays live.
+  const awaitingUserReply = hasPendingAskUser(
+    thread.messages[thread.messages.length - 1]?.events,
+  );
+
   const handleSubmit = useCallback(
     (submission: StandaloneComposerSubmission) => {
+      // A turn paused on a question: what the user typed is their answer,
+      // not a new message. See page.tsx's handleSend for the same routing.
+      if (awaitingUserReply) {
+        if (submission.content.trim()) {
+          controller.submitAskUserReply(context.questionKey, {
+            text: submission.content,
+          });
+        }
+        return;
+      }
       if (thread.isStreaming) return;
 
       // The learner's own answer images belong to the question, not to the
@@ -119,7 +136,7 @@ function FollowupChatComposerImpl({ context }: FollowupChatComposerProps) {
         llmSelection: submission.llmSelection,
       });
     },
-    [context, controller, isFirstSend, thread.isStreaming],
+    [awaitingUserReply, context, controller, isFirstSend, thread.isStreaming],
   );
 
   const handleCancelStreaming = useCallback(() => {
@@ -138,6 +155,7 @@ function FollowupChatComposerImpl({ context }: FollowupChatComposerProps) {
       capabilities={FOLLOWUP_CAPABILITIES}
       hasMessages={hasMessages}
       isStreaming={thread.isStreaming}
+      awaitingUserReply={awaitingUserReply}
       onSubmit={handleSubmit}
       onCancelStreaming={handleCancelStreaming}
       inputPlaceholder={t(

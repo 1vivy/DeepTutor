@@ -73,8 +73,7 @@ export function ObjectiveDetail({
                 )}
                 <div className="min-w-0">
                   <div className="text-[var(--foreground)]">
-                    {attempt.prompt ||
-                      t("(prompt unavailable)")}
+                    {attempt.prompt || t("(prompt unavailable)")}
                   </div>
                   <div className="text-[var(--muted-foreground)]">
                     {t("You said: ")}
@@ -105,7 +104,9 @@ export function ObjectiveDetail({
 
       {report.attempts.length === 0 && !report.explanation && (
         <p className="text-xs text-[var(--muted-foreground)]">
-          {t("No attempts yet. Once you work through this waypoint, its questions, your answers, and the grading evidence will appear here.")}
+          {t(
+            "No attempts yet. Once you work through this waypoint, its questions, your answers, and the grading evidence will appear here.",
+          )}
         </p>
       )}
     </div>
@@ -178,4 +179,3 @@ function Row({
     </div>
   );
 }
-

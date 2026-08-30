@@ -34,7 +34,8 @@ import { selectClass, selectOptionClass } from "./shared";
 export function TaskModelsEditor() {
   const { t, i18n } = useTranslation();
   const zh = i18n.language?.toLowerCase().startsWith("zh");
-  const { draft, catalogEditable, settingsError, mutateCatalog } = useSettings();
+  const { draft, catalogEditable, settingsError, mutateCatalog } =
+    useSettings();
 
   const [importing, setImporting] = useState(false);
   const [importFrom, setImportFrom] = useState("");
@@ -80,8 +81,29 @@ export function TaskModelsEditor() {
         source.models.find(
           (item) => item.id === next.services.llm.active_model_id,
         ) ?? source.models[0];
+      const cloned = JSON.parse(JSON.stringify(source));
+      // The server never sends a real secret back — "***" is a display
+      // placeholder for "unchanged", which only means something when the
+      // profile it came from is the one being saved. A copy under a new id
+      // has nothing for the backend to restore it from, so carrying the
+      // placeholder over would silently persist and use the literal string
+      // "***" as the API key. A connection-linked source is unaffected: its
+      // credentials mirror in by connection_id regardless of profile id.
+      if (!cloned.connection_id) {
+        if (cloned.api_key === "***") cloned.api_key = "";
+        if (cloned.api_version === "***") cloned.api_version = "";
+        if (cloned.extra_headers && typeof cloned.extra_headers === "object") {
+          for (const key of Object.keys(cloned.extra_headers)) {
+            if (cloned.extra_headers[key] === "***") {
+              cloned.extra_headers[key] = "";
+            }
+          }
+        } else if (cloned.extra_headers === "***") {
+          cloned.extra_headers = {};
+        }
+      }
       bucket.profiles.push({
-        ...JSON.parse(JSON.stringify(source)),
+        ...cloned,
         id: profileId2,
         models: [
           {
@@ -104,7 +126,9 @@ export function TaskModelsEditor() {
       {!configured && (
         <div className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--accent)]/30 px-4 py-3">
           <p className="text-[12.5px] leading-relaxed text-[var(--foreground)]">
-            {t("Nothing configured here, so both calls use the language model.")}
+            {t(
+              "Nothing configured here, so both calls use the language model.",
+            )}
           </p>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-[var(--muted-foreground)]">
             {inherited.model ? (

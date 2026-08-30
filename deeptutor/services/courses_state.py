@@ -14,14 +14,14 @@ ResourceIndex = dict[str, dict[str, Any]]
 
 def _as_int(value: object) -> int:
     try:
-        return int(value or 0)
+        return int(value or 0)  # type: ignore[call-overload]
     except (TypeError, ValueError):
         return 0
 
 
 def _as_float(value: object) -> float:
     try:
-        return float(value or 0.0)
+        return float(value or 0.0)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return 0.0
 

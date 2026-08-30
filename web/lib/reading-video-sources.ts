@@ -20,7 +20,14 @@ export function youtubeVideoId(url: string): string {
     const host = parsed.hostname.toLowerCase();
     let candidate = "";
     if (host === "youtu.be") candidate = parsed.pathname.slice(1).split("/")[0];
-    else if (["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"].includes(host)) {
+    else if (
+      [
+        "youtube.com",
+        "www.youtube.com",
+        "m.youtube.com",
+        "music.youtube.com",
+      ].includes(host)
+    ) {
       if (
         parsed.pathname.startsWith("/shorts/") ||
         parsed.pathname.startsWith("/live/") ||
@@ -52,18 +59,26 @@ export function parseBilibiliSource(url: string): BilibiliSource | null {
   try {
     const parsed = new URL(url);
     const host = parsed.hostname.toLowerCase();
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:")
+      return null;
     if (!BILIBILI_HOSTS.has(host)) return null;
     let candidate = "";
-    if (host === "player.bilibili.com" && parsed.pathname.replace(/\/$/, "") === "/player.html") {
+    if (
+      host === "player.bilibili.com" &&
+      parsed.pathname.replace(/\/$/, "") === "/player.html"
+    ) {
       candidate = parsed.searchParams.get("bvid") || "";
     } else if (host === "b23.tv") {
       candidate = parsed.pathname.slice(1).split("/")[0];
     } else {
-      candidate = /^\/video\/(BV[0-9A-Za-z]{10})\/?$/i.exec(parsed.pathname)?.[1] || "";
+      candidate =
+        /^\/video\/(BV[0-9A-Za-z]{10})\/?$/i.exec(parsed.pathname)?.[1] || "";
     }
     if (!BILIBILI_ID.test(candidate)) return null;
-    const page = Math.max(1, Number.parseInt(parsed.searchParams.get("p") || "1", 10) || 1);
+    const page = Math.max(
+      1,
+      Number.parseInt(parsed.searchParams.get("p") || "1", 10) || 1,
+    );
     const startSeconds = parseMediaTimestamp(
       parsed.searchParams.get("t") || parsed.searchParams.get("start") || "0",
     );
@@ -102,5 +117,9 @@ export function parseMediaTimestamp(value: string): number {
   if (/^\d+$/.test(value)) return Math.max(0, Number(value));
   const match = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/i.exec(value);
   if (!match || !match.slice(1).some(Boolean)) return 0;
-  return Number(match[1] || 0) * 3600 + Number(match[2] || 0) * 60 + Number(match[3] || 0);
+  return (
+    Number(match[1] || 0) * 3600 +
+    Number(match[2] || 0) * 60 +
+    Number(match[3] || 0)
+  );
 }

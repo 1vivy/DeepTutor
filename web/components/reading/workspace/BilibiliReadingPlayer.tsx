@@ -97,9 +97,7 @@ export function BilibiliReadingPlayer({
       loading="eager"
       referrerPolicy="strict-origin-when-cross-origin"
       onLoad={() => setLoaded(true)}
-      onError={() =>
-        onError(t("This Bilibili video could not be loaded."))
-      }
+      onError={() => onError(t("This Bilibili video could not be loaded."))}
     />
   );
 }

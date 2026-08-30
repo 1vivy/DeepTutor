@@ -331,9 +331,7 @@ export function ProfileCard({
   return (
     <CardShell expanded={expanded} inUse={inUse} onOpen={onOpen}>
       <NameRow
-        icon={
-          <ProviderIcon provider={provider} size={15} className="mt-0.5" />
-        }
+        icon={<ProviderIcon provider={provider} size={15} className="mt-0.5" />}
         name={profile.name}
         renaming={renaming}
         renameValue={renameValue}
@@ -355,9 +353,7 @@ export function ProfileCard({
           inUse={inUse}
           onUse={onUse}
           detail={
-            service === "search"
-              ? undefined
-              : t("{{count}} models", { count })
+            service === "search" ? undefined : t("{{count}} models", { count })
           }
         />
       </div>

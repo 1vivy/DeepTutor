@@ -33,7 +33,9 @@ export function ReviewTrail({
       {reviews.length === 0 ? (
         <div className="flex items-start gap-2 px-4 py-3.5 text-[12px] leading-5 text-[var(--muted-foreground)]">
           <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--primary)]" />
-          {t("Nothing is due today. Keep going — reviews will resurface at the right time.")}
+          {t(
+            "Nothing is due today. Keep going — reviews will resurface at the right time.",
+          )}
         </div>
       ) : (
         <div className="p-2">
@@ -44,13 +46,17 @@ export function ReviewTrail({
               onClick={() => onSelect(review.knowledge_point_id)}
               className="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-[var(--muted)]"
             >
-              <Clock3 className={`h-3.5 w-3.5 shrink-0 ${review.due ? "text-[var(--muted-foreground)]" : "text-[var(--muted-foreground)]"}`} />
+              <Clock3
+                className={`h-3.5 w-3.5 shrink-0 ${review.due ? "text-[var(--muted-foreground)]" : "text-[var(--muted-foreground)]"}`}
+              />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-medium text-[var(--foreground)]">
                   {review.knowledge_point_name}
                 </span>
                 <span className="text-[10px] text-[var(--muted-foreground)]">
-                  {review.due ? t("Ready now") : formatRelative(review.due_at, zh)}
+                  {review.due
+                    ? t("Ready now")
+                    : formatRelative(review.due_at, zh)}
                 </span>
               </span>
               <ArrowRight className="h-3 w-3 text-[var(--muted-foreground)] transition-transform group-hover:translate-x-0.5" />

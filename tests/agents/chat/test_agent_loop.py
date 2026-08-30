@@ -585,10 +585,7 @@ async def test_invoked_group_reply_strips_dangling_peer_question_in_one_round(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     dangling = (
-        "The complete invoked answer.\n\n"
-        "---\n\n"
-        "**想请教一下 @ada：**\n"
-        "你还会建议用户做什么？"
+        "The complete invoked answer.\n\n---\n\n**想请教一下 @ada：**\n你还会建议用户做什么？"
     )
     client = _ScriptedChatClient([[_llm_chunk(content=dangling)]])
     pipeline = AgenticChatPipeline(language="zh")

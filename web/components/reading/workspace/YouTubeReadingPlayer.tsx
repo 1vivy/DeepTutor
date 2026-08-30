@@ -75,10 +75,7 @@ function loadYouTubeApi(): Promise<YouTubeNamespace> {
       "error",
       () => {
         script.remove();
-        finish(
-          undefined,
-          new Error("YouTube Player API could not be loaded."),
-        );
+        finish(undefined, new Error("YouTube Player API could not be loaded."));
       },
       { once: true },
     );

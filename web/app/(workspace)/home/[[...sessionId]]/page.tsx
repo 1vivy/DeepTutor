@@ -85,7 +85,10 @@ import { useMeasuredHeight } from "@/hooks/useMeasuredHeight";
 import { useSetupSync } from "@/hooks/useSetupSync";
 import { listCourses, type StudyCourse } from "@/lib/courses-api";
 import { consumePendingPrompt } from "@/lib/pending-prompt";
-import { updateSessionOrganization } from "@/lib/session-api";
+import {
+  fetchSessionAskHint,
+  updateSessionOrganization,
+} from "@/lib/session-api";
 import {
   loadCapabilityPlaygroundConfigs,
   resolveCapabilityPlaygroundConfig,
@@ -354,6 +357,13 @@ const CAPABILITIES: CapabilityDef[] = [
     legacy: true,
   },
 ];
+
+// Course Study hidden from the mode picker pending further product work; the
+// entry stays in CAPABILITIES so a conversation already bound to it (e.g. via
+// the course page's deep link) still resolves correctly.
+const VISIBLE_CAPABILITIES = CAPABILITIES.filter(
+  (cap) => cap.value !== "course_study",
+);
 
 interface KnowledgeBase {
   name: string;
@@ -803,6 +813,26 @@ export default function ChatPage() {
   // "done" while nothing visibly changes.
   useSetupSync(state.messages);
   const hasMessages = state.messages.length > 0;
+  // A line the user might type next, written by the task model against the
+  // conversation's own tail — general prediction, not a question to ask,
+  // unlike the mastery/reading composers' hint. Empty conversations already
+  // get their own richer suggestions from StarterSuggestions below, so this
+  // only ever runs once there is something to continue. Cleared on session
+  // switch so a prior chat's guess never lingers as this one's placeholder.
+  const [askHint, setAskHint] = useState("");
+  useEffect(() => {
+    setAskHint("");
+  }, [state.sessionId]);
+  useEffect(() => {
+    if (state.isStreaming || !hasMessages || !state.sessionId) return;
+    let cancelled = false;
+    void fetchSessionAskHint(state.sessionId).then((hint) => {
+      if (!cancelled) setAskHint(hint);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [state.isStreaming, hasMessages, state.sessionId, state.messages.length]);
   // Time-of-day greeting: seeded once on mount from the user's local clock so
   // the heading stays stable while they're on the page. State (not useMemo)
   // because the random pick would otherwise mismatch SSR ↔ client hydration.
@@ -1363,9 +1393,7 @@ export default function ChatPage() {
     // the retired generic-chat mode. Historical /home/:session transcripts
     // remain readable because they carry no launch query.
     if (intent.masteryPathId) {
-      router.replace(
-        `/mastery/${encodeURIComponent(intent.masteryPathId)}`,
-      );
+      router.replace(`/mastery/${encodeURIComponent(intent.masteryPathId)}`);
       return;
     }
     const launchCourse = new URLSearchParams(window.location.search)
@@ -1387,14 +1415,14 @@ export default function ChatPage() {
 
   /* What a conversation inherits from the course it opens in: its mode, its
      persona, and its material.
-     
+
      The server has always been willing to supply these (`_apply_course_defaults`
      in turn_runtime) — but only for a payload that omits the fields, and this
      composer always sends all three, so the branch never ran for anyone using
      the app. Doing it here instead also puts the inheritance where the learner
      can see it: the mode chip and the knowledge-base selection visibly become
      the course's before they type, and stay theirs to override.
-     
+
      Applied once, and only to a conversation launched into the course with
      nothing said yet: an explicit `?capability=` is the learner being specific
      and outranks the course, and a transcript already underway keeps whatever
@@ -1968,7 +1996,9 @@ export default function ChatPage() {
         !selectedMemoryFiles.length
       ) {
         setQuizValidationErrors([
-          t("Please provide a topic, for example: generate questions about limits."),
+          t(
+            "Please provide a topic, for example: generate questions about limits.",
+          ),
         ]);
         ensureActivityPanelOpen();
         return;
@@ -2539,7 +2569,9 @@ export default function ChatPage() {
                 capMenuOpen={capMenuOpen}
                 courses={courses}
                 courseId={courseId}
-                onSelectCourse={handleSelectCourse}
+                // onSelectCourse intentionally omitted: hides the CoursePill
+                // entry point while courseId keeps flowing to the backend for
+                // conversations already bound (e.g. via a course deep link).
                 spaceMenuOpen={spaceMenuOpen}
                 hasMessages={hasMessages}
                 attachments={attachments}
@@ -2574,7 +2606,7 @@ export default function ChatPage() {
                 capabilityNeedsConfig={capabilityNeedsConfig}
                 capabilityConfigConfirmed={capabilityConfigConfirmed}
                 onRequestConfigConfirm={ensureActivityPanelOpen}
-                capabilities={CAPABILITIES}
+                capabilities={VISIBLE_CAPABILITIES}
                 onSetCapMenuOpen={setCapMenuOpen}
                 onSetSpaceMenuOpen={setSpaceMenuOpen}
                 onToggleKB={handleToggleKB}
@@ -2610,6 +2642,8 @@ export default function ChatPage() {
                 onSelectCapability={handleSelectCapability}
                 onCancelStreaming={cancelStreamingTurn}
                 prefillInputRef={prefillInputRef}
+                inputPlaceholder={askHint || undefined}
+                inputPlaceholderCompletion={askHint}
               />
               {/* Starter chips sit between the composer and the spacer, so they
                 ride up with the composer on the empty screen and disappear the

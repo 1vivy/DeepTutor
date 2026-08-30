@@ -25,7 +25,11 @@ export function topicDisplayName(
   t: Translate,
 ): string {
   const name = topic.name.trim();
-  if (name && name !== topic.path_id && !/^unified_\d+_[a-z0-9]+$/i.test(name)) {
+  if (
+    name &&
+    name !== topic.path_id &&
+    !/^unified_\d+_[a-z0-9]+$/i.test(name)
+  ) {
     return name;
   }
   const suffix = topic.path_id.split("_").at(-1)?.slice(-4) || "map";

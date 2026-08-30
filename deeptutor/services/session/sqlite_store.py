@@ -1448,16 +1448,16 @@ class SQLiteSessionStore:
 
     # ``ESCAPE '\'`` makes the underscore in ``imported_`` literal rather than
     # the LIKE single-char wildcard.
+    #
+    # Reading conversations used to be filtered out here. They were hidden
+    # because a flat "Recents" list mixed them in with ordinary chats and
+    # clicking one dropped the reader into /home without their material — but
+    # hiding them meant a learner had no way back to a reading conversation
+    # except by reopening its collection. The sidebar now files them under
+    # their collection and ``sessionRoute`` sends a click back to the reader,
+    # so they belong in the list like everything else.
     _WHERE_NATIVE = r"""
         WHERE s.id NOT LIKE 'imported\_%' ESCAPE '\'
-          AND COALESCE(
-                json_extract(
-                    CASE WHEN json_valid(s.preferences_json)
-                         THEN s.preferences_json ELSE '{}' END,
-                    '$.session_kind'
-                ),
-                'chat'
-              ) <> 'immersive_reading'
     """
     _WHERE_IMPORTED = r"WHERE s.id LIKE 'imported\_%' ESCAPE '\'"
 
@@ -1879,7 +1879,7 @@ class SQLiteSessionStore:
                     ), 0) AS uncategorized
                 FROM notebook_entries
                 {where}
-                """,  # noqa: S608 - placeholders only; every value stays bound
+                """,  # noqa: S608  # nosec B608 - placeholders only; every value stays bound
                 params,
             ).fetchone()
         if row is None:
@@ -2077,7 +2077,7 @@ class SQLiteSessionStore:
                 {join}
                 GROUP BY c.id
                 ORDER BY c.name
-                """,  # noqa: S608 - placeholders only; every value stays bound
+                """,  # noqa: S608  # nosec B608 - placeholders only; every value stays bound
                 params,
             ).fetchall()
         return [

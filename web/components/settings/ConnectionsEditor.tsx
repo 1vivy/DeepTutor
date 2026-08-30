@@ -362,7 +362,10 @@ function ConnectionRow({
                   key={service}
                   type="button"
                   onClick={() =>
-                    onLink(service, target?.services[service]?.default_model ?? "")
+                    onLink(
+                      service,
+                      target?.services[service]?.default_model ?? "",
+                    )
                   }
                   className="inline-flex h-6 items-center gap-1 rounded-md border border-[var(--border)] px-2 text-[11px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--ring)] hover:text-[var(--foreground)]"
                 >
@@ -555,7 +558,8 @@ function AddConnectionPanel({
       if (!response.ok) throw new Error(payload.detail || "request failed");
       const ids = (payload.models ?? []).map((item) => item.id);
       setFetchedModels(ids);
-      if (ids.length === 0) setFetchError(t("The provider returned no models."));
+      if (ids.length === 0)
+        setFetchError(t("The provider returned no models."));
     } catch (error) {
       setFetchError(
         error instanceof Error ? error.message : t("Could not reach provider."),

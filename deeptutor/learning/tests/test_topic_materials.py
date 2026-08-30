@@ -51,9 +51,7 @@ def two_chapter_book(monkeypatch: pytest.MonkeyPatch) -> None:
         _chapter("ch_a", "Beyond the Linear Pipeline", 0, ["p1"], summary="Why static RAG fails."),
         _chapter("ch_b", "The Agent OS", 1, ["p2", "p3"]),
     ]
-    monkeypatch.setattr(
-        "deeptutor.book.storage.get_book_storage", lambda: _book_storage(chapters)
-    )
+    monkeypatch.setattr("deeptutor.book.storage.get_book_storage", lambda: _book_storage(chapters))
     monkeypatch.setattr(
         "deeptutor.book.context.build_book_context",
         lambda refs, **kwargs: SimpleNamespace(
@@ -64,9 +62,7 @@ def two_chapter_book(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_each_book_chapter_becomes_its_own_readable_source(two_chapter_book: None) -> None:
     """Per-chapter, not per-book: a whole book cannot be one tool result."""
-    materials = build_topic_materials(
-        [_source(TopicSourceKind.BOOK, "bk_1", "Agentic RAG")]
-    )
+    materials = build_topic_materials([_source(TopicSourceKind.BOOK, "bk_1", "Agentic RAG")])
     manifest, index = render_topic_manifest(materials)
 
     assert sorted(index) == ["bk-bk_1-ch_a", "bk-bk_1-ch_b"]
@@ -119,9 +115,7 @@ def test_chapter_without_pages_is_listed_as_not_written_yet(
     """'This chapter exists but is unwritten' is a fact the tutor must be able
     to state instead of inventing its contents."""
     chapters = [_chapter("ch_a", "Planned chapter", 0, [], summary="Coming soon.")]
-    monkeypatch.setattr(
-        "deeptutor.book.storage.get_book_storage", lambda: _book_storage(chapters)
-    )
+    monkeypatch.setattr("deeptutor.book.storage.get_book_storage", lambda: _book_storage(chapters))
     materials = build_topic_materials([_source(TopicSourceKind.BOOK, "bk_1", "Agentic RAG")])
     manifest, index = render_topic_manifest(materials)
 

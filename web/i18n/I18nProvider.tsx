@@ -29,13 +29,12 @@ export function I18nProvider({
   children: React.ReactNode;
 }) {
   const nextLang = normalizeLanguage(language);
-  const [readyLanguage, setReadyLanguage] = useState<AppLanguage | null>(
-    () =>
-      enabled &&
-        i18n.language === nextLang &&
-        i18n.hasResourceBundle(nextLang, "app")
-        ? nextLang
-        : null,
+  const [readyLanguage, setReadyLanguage] = useState<AppLanguage | null>(() =>
+    enabled &&
+    i18n.language === nextLang &&
+    i18n.hasResourceBundle(nextLang, "app")
+      ? nextLang
+      : null,
   );
 
   useEffect(() => {

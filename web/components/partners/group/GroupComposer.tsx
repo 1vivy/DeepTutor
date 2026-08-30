@@ -52,14 +52,19 @@ export default function GroupComposer({
   const [highlight, setHighlight] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const { isComposingRef, onCompositionStart, onCompositionEnd } = useImeComposing();
+  const { isComposingRef, onCompositionStart, onCompositionEnd } =
+    useImeComposing();
 
   const query = activeMentionQuery(input);
   const suggestions = useMemo(
-    () => (query === null || dismissed ? [] : mentionSuggestions(query, members)),
+    () =>
+      query === null || dismissed ? [] : mentionSuggestions(query, members),
     [dismissed, members, query],
   );
-  const resolved = useMemo(() => resolveMentions(input, members), [input, members]);
+  const resolved = useMemo(
+    () => resolveMentions(input, members),
+    [input, members],
+  );
 
   // Grows with the draft instead of scrolling a one-line box. The bounds live
   // here rather than in CSS min-h/max-h, which would fight the inline height.
@@ -103,9 +108,7 @@ export default function GroupComposer({
     onClearQuote();
   };
 
-  const addressed = resolved.everyone
-    ? []
-    : resolved.members;
+  const addressed = resolved.everyone ? [] : resolved.members;
 
   return (
     <div className="border-t border-[var(--border)] bg-[var(--background)] px-4 py-3 sm:px-8">
@@ -195,7 +198,8 @@ export default function GroupComposer({
                 if (event.key === "ArrowUp") {
                   event.preventDefault();
                   setHighlight(
-                    (value) => (value - 1 + suggestions.length) % suggestions.length,
+                    (value) =>
+                      (value - 1 + suggestions.length) % suggestions.length,
                   );
                   return;
                 }

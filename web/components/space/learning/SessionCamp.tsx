@@ -2,13 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import {
-  ArrowRight,
-  Loader2,
-  MessageCircle,
-  Plus,
-  Radio,
-} from "lucide-react";
+import { ArrowRight, Loader2, MessageCircle, Plus, Radio } from "lucide-react";
 
 import type { TopicSession } from "@/lib/learning-api";
 
@@ -79,7 +73,9 @@ export function SessionCamp({
               {t("No sessions yet")}
             </p>
             <p className="mx-auto mt-1 max-w-xs text-xs leading-5 text-[var(--muted-foreground)]">
-              {t("Start your first session. Later you can resume this thread or begin again from a fresh angle.")}
+              {t(
+                "Start your first session. Later you can resume this thread or begin again from a fresh angle.",
+              )}
             </p>
             <button
               type="button"
@@ -93,7 +89,8 @@ export function SessionCamp({
         ) : (
           <div className="space-y-1.5">
             {sessions.map((session) => {
-              const running = session.status === "running" || Boolean(session.active_turn_id);
+              const running =
+                session.status === "running" || Boolean(session.active_turn_id);
               return (
                 <button
                   key={session.session_id}
@@ -108,7 +105,11 @@ export function SessionCamp({
                         : "bg-[var(--muted)] text-[var(--muted-foreground)]"
                     }`}
                   >
-                    {running ? <Radio className="h-4 w-4 animate-pulse" /> : <MessageCircle className="h-4 w-4" />}
+                    {running ? (
+                      <Radio className="h-4 w-4 animate-pulse" />
+                    ) : (
+                      <MessageCircle className="h-4 w-4" />
+                    )}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-[var(--foreground)]">

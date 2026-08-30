@@ -294,7 +294,11 @@ export default function CourseResources({
                         href={route.href(courseId)}
                         className="inline-flex max-w-[220px] items-center gap-1.5 rounded-lg border border-dashed border-[var(--border)] px-2 py-1 text-[11.5px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--ring)] hover:text-[var(--foreground)]"
                       >
-                        <Icon size={12} strokeWidth={1.7} className="shrink-0" />
+                        <Icon
+                          size={12}
+                          strokeWidth={1.7}
+                          className="shrink-0"
+                        />
                         <span className="truncate">{t(route.label)}</span>
                       </Link>
                     );

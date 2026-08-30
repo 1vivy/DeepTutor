@@ -14,7 +14,6 @@ import {
   type AnnotationColor,
 } from "@/lib/reading-api";
 
-
 export interface AnnotationPopoverProps {
   /** Viewport coordinates of the selection's end. */
   anchor: { x: number; y: number };

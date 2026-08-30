@@ -20,6 +20,7 @@ import os
 from pathlib import Path
 import shutil
 import sqlite3
+import sys
 import threading
 import time
 import uuid
@@ -80,7 +81,11 @@ def _row_counts(path: Path) -> dict[str, int]:
             ).fetchall()
         }
         return {
-            table: int(conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0])
+            table: int(
+                conn.execute(
+                    f'SELECT COUNT(*) FROM "{table}"'  # nosec B608 - a table constant
+                ).fetchone()[0]
+            )
             for table in _COUNTED_TABLES
             if table in existing
         }
@@ -115,7 +120,7 @@ def _process_lock(root: Path):
     root.mkdir(parents=True, exist_ok=True)
     lock_path = root / _LOCK_NAME
     with lock_path.open("a+b") as handle:
-        if os.name == "nt":  # pragma: no cover - exercised by Windows builds
+        if sys.platform == "win32":  # pragma: no cover - exercised by Windows builds
             import msvcrt
 
             if handle.tell() == 0:

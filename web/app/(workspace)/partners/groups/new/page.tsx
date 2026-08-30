@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Loader2, Plus, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import PartnerAvatar, { PARTNER_COLORS } from "@/components/partners/PartnerAvatar";
+import PartnerAvatar, {
+  PARTNER_COLORS,
+} from "@/components/partners/PartnerAvatar";
 import DiscussionModePicker from "@/components/partners/group/DiscussionModePicker";
 import { createPartnerGroup } from "@/lib/partner-groups-api";
 import { listPartners, type PartnerInfo } from "@/lib/partners-api";
@@ -99,7 +101,9 @@ export default function NewPartnerGroupPage() {
         <div className="min-w-0 flex-1">
           <div className="truncate text-[14px] font-medium text-[var(--foreground)]">
             {name.trim() || (
-              <span className="text-[var(--muted-foreground)]">{t("Untitled group")}</span>
+              <span className="text-[var(--muted-foreground)]">
+                {t("Untitled group")}
+              </span>
             )}
           </div>
           {description.trim() ? (
@@ -125,7 +129,9 @@ export default function NewPartnerGroupPage() {
             ) : null}
             <span className="text-[11px] text-[var(--muted-foreground)]">
               {selected.size < 2
-                ? t("Pick {{count}} more Partner(s)", { count: 2 - selected.size })
+                ? t("Pick {{count}} more Partner(s)", {
+                    count: 2 - selected.size,
+                  })
                 : t("{{count}} members", { count: selected.size })}
             </span>
           </div>
@@ -199,7 +205,9 @@ export default function NewPartnerGroupPage() {
           ) : partners.length < 2 ? (
             <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-[var(--border)] p-6 text-center">
               <p className="text-[12px] leading-relaxed text-[var(--muted-foreground)]">
-                {t("A group needs at least two Partners. Create one more first.")}
+                {t(
+                  "A group needs at least two Partners. Create one more first.",
+                )}
               </p>
               <Link
                 href="/partners/new"

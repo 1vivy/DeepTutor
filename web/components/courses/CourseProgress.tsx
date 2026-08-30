@@ -35,8 +35,14 @@ export default function CourseProgress({
   const course = encodeURIComponent(courseId);
 
   const paths = state?.mastery.paths ?? [];
-  const objectivesMastered = paths.reduce((sum, path) => sum + path.objectives_mastered, 0);
-  const objectivesTotal = paths.reduce((sum, path) => sum + path.objectives_total, 0);
+  const objectivesMastered = paths.reduce(
+    (sum, path) => sum + path.objectives_mastered,
+    0,
+  );
+  const objectivesTotal = paths.reduce(
+    (sum, path) => sum + path.objectives_total,
+    0,
+  );
   const weakest = paths.flatMap((path) => path.weak_points)[0] ?? "";
 
   const bank = state?.question_bank;
@@ -66,9 +72,7 @@ export default function CourseProgress({
         icon={GraduationCap}
         label={t("Mastery Path")}
         value={
-          objectivesTotal > 0
-            ? `${objectivesMastered}/${objectivesTotal}`
-            : "—"
+          objectivesTotal > 0 ? `${objectivesMastered}/${objectivesTotal}` : "—"
         }
         detail={
           objectivesTotal > 0

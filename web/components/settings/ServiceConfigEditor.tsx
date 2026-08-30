@@ -119,7 +119,8 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
   );
   const [expandedModelId, setExpandedModelId] = useState<string | null>(null);
 
-  const openedProfile = profiles.find((item) => item.id === openProfileId) ?? null;
+  const openedProfile =
+    profiles.find((item) => item.id === openProfileId) ?? null;
   const expandedProfile =
     profiles.find((item) => item.id === expandedProfileId) ?? null;
 
@@ -194,7 +195,9 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
   const deepLinkHandled = useRef(false);
   useEffect(() => {
     if (deepLinkHandled.current) return;
-    const requested = new URLSearchParams(window.location.search).get("profile");
+    const requested = new URLSearchParams(window.location.search).get(
+      "profile",
+    );
     if (!requested) {
       deepLinkHandled.current = true;
       return;
@@ -206,7 +209,6 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
     window.history.replaceState(null, "", window.location.pathname);
     setExpandedProfileId(requested);
   }, [profiles]);
-
 
   const [showApiKey, setShowApiKey] = useState(false);
   const [confirmingProfileDelete, setConfirmingProfileDelete] = useState(false);
@@ -576,70 +578,70 @@ export function ServiceConfigEditor({ service }: { service: ServiceName }) {
 
           <div className="mt-7 min-w-0 space-y-7">
             {expandedProfile && !openedProfile && (
-            <div className="mt-4">
-              <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-[var(--border)]/60 pb-2">
-                <div className="text-[13px] font-medium text-[var(--foreground)]">
-                  {t("Provider connection")}
+              <div className="mt-4">
+                <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-[var(--border)]/60 pb-2">
+                  <div className="text-[13px] font-medium text-[var(--foreground)]">
+                    {t("Provider connection")}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedProfileId(null)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)]/50 px-2.5 py-1 text-[12px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
+                  >
+                    <X className="h-3 w-3" />
+                    {t("Close")}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setExpandedProfileId(null)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)]/50 px-2.5 py-1 text-[12px] text-[var(--muted-foreground)] transition-colors hover:border-[var(--border)] hover:text-[var(--foreground)]"
-                >
-                  <X className="h-3 w-3" />
-                  {t("Close")}
-                </button>
+                <ProfileFields
+                  service={service}
+                  profile={activeProfile}
+                  showApiKey={showApiKey}
+                  setShowApiKey={setShowApiKey}
+                  showSearchProviderWarning={showSearchProviderWarning}
+                  isSupportedSearchProvider={isSupportedSearchProvider}
+                  isDeprecatedSearchProvider={isDeprecatedSearchProvider}
+                  searchProviderMissingKey={searchProviderMissingKey}
+                  supportedSearchProviderNames={supportedSearchProviderNames}
+                  onProviderChanged={(provider, previousProvider) => {
+                    if (service !== "llm" || !activeProfile) return;
+                    const crossesCodeBuddyBoundary =
+                      provider.value === "codebuddy" ||
+                      previousProvider === "codebuddy";
+                    if (crossesCodeBuddyBoundary) {
+                      const profileId = activeProfile.id;
+                      mutateCatalog((next) => {
+                        const target = next.services.llm;
+                        const profile = target.profiles.find(
+                          (item) => item.id === profileId,
+                        );
+                        if (!profile || profile.binding !== provider.value)
+                          return;
+                        if (provider.value === "codebuddy") {
+                          profile.models = [];
+                          target.active_model_id = null;
+                          return;
+                        }
+                        const modelId = `llm-model-${Date.now()}`;
+                        profile.models = [
+                          {
+                            id: modelId,
+                            name: defaultModelLabel(language, 1),
+                            model: "",
+                          },
+                        ];
+                        target.active_model_id = modelId;
+                      });
+                    }
+                    if (provider.value === "codebuddy") {
+                      void syncProviderModels({
+                        binding: provider.value,
+                        base_url: provider.base_url || "",
+                        api_key: "",
+                      });
+                    }
+                  }}
+                />
               </div>
-              <ProfileFields
-                service={service}
-                profile={activeProfile}
-                showApiKey={showApiKey}
-                setShowApiKey={setShowApiKey}
-                showSearchProviderWarning={showSearchProviderWarning}
-                isSupportedSearchProvider={isSupportedSearchProvider}
-                isDeprecatedSearchProvider={isDeprecatedSearchProvider}
-                searchProviderMissingKey={searchProviderMissingKey}
-                supportedSearchProviderNames={supportedSearchProviderNames}
-                onProviderChanged={(provider, previousProvider) => {
-                  if (service !== "llm" || !activeProfile) return;
-                  const crossesCodeBuddyBoundary =
-                    provider.value === "codebuddy" ||
-                    previousProvider === "codebuddy";
-                  if (crossesCodeBuddyBoundary) {
-                    const profileId = activeProfile.id;
-                    mutateCatalog((next) => {
-                      const target = next.services.llm;
-                      const profile = target.profiles.find(
-                        (item) => item.id === profileId,
-                      );
-                      if (!profile || profile.binding !== provider.value)
-                        return;
-                      if (provider.value === "codebuddy") {
-                        profile.models = [];
-                        target.active_model_id = null;
-                        return;
-                      }
-                      const modelId = `llm-model-${Date.now()}`;
-                      profile.models = [
-                        {
-                          id: modelId,
-                          name: defaultModelLabel(language, 1),
-                          model: "",
-                        },
-                      ];
-                      target.active_model_id = modelId;
-                    });
-                  }
-                  if (provider.value === "codebuddy") {
-                    void syncProviderModels({
-                      binding: provider.value,
-                      base_url: provider.base_url || "",
-                      api_key: "",
-                    });
-                  }
-                }}
-              />
-            </div>
             )}
 
             {service !== "search" && openedProfile && (
@@ -1194,8 +1196,13 @@ function ProfileFields({
   ) => void;
 }) {
   const { t } = useTranslation();
-  const { draft, providers, updateProfileField, updateModelField, unlinkProfile } =
-    useSettings();
+  const {
+    draft,
+    providers,
+    updateProfileField,
+    updateModelField,
+    unlinkProfile,
+  } = useSettings();
   const [extraOpen, setExtraOpen] = useState(false);
 
   // A profile fed by a connection shows its credentials but does not let them

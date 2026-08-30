@@ -20,11 +20,7 @@ import {
   type ObjectiveReport,
 } from "@/lib/learning-api";
 
-import {
-  knowledgeTypeLabel,
-  topicDisplayName,
-  type Translate,
-} from "./format";
+import { knowledgeTypeLabel, topicDisplayName, type Translate } from "./format";
 import { ObjectiveDetail } from "./ObjectiveDetail";
 
 function statusLabel(point: MapKnowledgePoint, t: Translate) {
@@ -92,7 +88,11 @@ export function ModuleOutline({
   selectedId: string | null;
   zh: boolean;
   onSelect: (id: string | null) => void;
-  onOverride: (objectiveId: string, mastered: boolean, note: string) => Promise<void>;
+  onOverride: (
+    objectiveId: string,
+    mastered: boolean,
+    note: string,
+  ) => Promise<void>;
 }) {
   const { t } = useTranslation();
   const nextId = topic.next.knowledge_point_id;
@@ -191,7 +191,11 @@ function ObjectiveDrawer({
   revision: number;
   zh: boolean;
   onClose: () => void;
-  onOverride: (objectiveId: string, mastered: boolean, note: string) => Promise<void>;
+  onOverride: (
+    objectiveId: string,
+    mastered: boolean,
+    note: string,
+  ) => Promise<void>;
 }) {
   const { t } = useTranslation();
   const [report, setReport] = useState<ObjectiveReport | null>(null);
@@ -205,7 +209,8 @@ function ObjectiveDrawer({
     fetchObjectiveReport(pathId, objectiveId, { signal: controller.signal })
       .then(setReport)
       .catch(() => {
-        if (!controller.signal.aborted) setError(t("Evidence could not be loaded"));
+        if (!controller.signal.aborted)
+          setError(t("Evidence could not be loaded"));
       });
     return () => controller.abort();
   }, [objectiveId, pathId, revision, t]);
@@ -258,7 +263,9 @@ function ObjectiveDrawer({
               {report.mastery_source === "learner" ? (
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="text-xs leading-5 text-[var(--muted-foreground)]">
-                    {t("Marked as known by you; assessed evidence is unchanged.")}
+                    {t(
+                      "Marked as known by you; assessed evidence is unchanged.",
+                    )}
                   </div>
                   <button
                     type="button"
@@ -266,7 +273,11 @@ function ObjectiveDrawer({
                     disabled={busy}
                     className="inline-flex h-9 items-center gap-2 rounded-xl border border-[var(--border)] px-3 text-xs font-medium hover:bg-[var(--accent)] disabled:opacity-50"
                   >
-                    {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
+                    {busy ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Undo2 className="h-3.5 w-3.5" />
+                    )}
                     {t("Return to assessment")}
                   </button>
                 </div>

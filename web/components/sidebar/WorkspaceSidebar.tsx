@@ -18,6 +18,10 @@ import {
 } from "@/lib/session-api";
 import { listCourses, type StudyCourse } from "@/lib/courses-api";
 import {
+  fetchReadingCollectionIndex,
+  type ReadingCollectionLabel,
+} from "@/lib/reading-workspace-api";
+import {
   fetchMasteryTopicIndex,
   type MasteryTopicLabel,
 } from "@/lib/learning-api";
@@ -36,6 +40,9 @@ export default function WorkspaceSidebar() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [courses, setCourses] = useState<StudyCourse[]>([]);
   const [masteryTopics, setMasteryTopics] = useState<MasteryTopicLabel[]>([]);
+  const [readingCollections, setReadingCollections] = useState<
+    ReadingCollectionLabel[]
+  >([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const hasLoadedSessionsRef = useRef(false);
 
@@ -44,17 +51,20 @@ export default function WorkspaceSidebar() {
       setLoadingSessions(true);
     }
     try {
-      // Topic labels only name a group heading, so a failure to load them must
-      // not cost the session list: the conversations then read as ungrouped
-      // rather than as missing.
-      const [nextSessions, nextCourses, nextTopics] = await Promise.all([
-        listSessions(50, 0, { force: true }),
-        listCourses({ force: true }),
-        fetchMasteryTopicIndex().catch(() => [] as MasteryTopicLabel[]),
-      ]);
+      // Topic labels are only there to name a group heading, so a failure to
+      // load them must not cost the session list: the conversations then read
+      // as ungrouped rather than as missing.
+      const [nextSessions, nextCourses, nextTopics, nextCollections] =
+        await Promise.all([
+          listSessions(50, 0, { force: true }),
+          listCourses({ force: true }),
+          fetchMasteryTopicIndex().catch(() => [] as MasteryTopicLabel[]),
+          fetchReadingCollectionIndex(),
+        ]);
       setSessions(nextSessions);
       setCourses(nextCourses);
       setMasteryTopics(nextTopics);
+      setReadingCollections(nextCollections);
       hasLoadedSessionsRef.current = true;
     } catch (error) {
       console.error("Failed to load sessions", error);
@@ -171,6 +181,7 @@ export default function WorkspaceSidebar() {
       sessions={orderedSessions}
       courses={courses}
       masteryTopics={masteryTopics}
+      readingCollections={readingCollections}
       activeSessionId={selectedSessionId}
       loadingSessions={loadingSessions}
       onNewChat={handleNewChat}

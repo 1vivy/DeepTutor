@@ -135,7 +135,7 @@ def _mapping(value: Any) -> dict[str, Any]:
     if callable(to_dict):
         result = to_dict()
         return result if isinstance(result, dict) else {}
-    if is_dataclass(value):
+    if is_dataclass(value) and not isinstance(value, type):
         result = asdict(value)
         return result if isinstance(result, dict) else {}
     return {}

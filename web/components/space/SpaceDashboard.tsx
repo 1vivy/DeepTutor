@@ -305,7 +305,6 @@ export default function SpaceDashboard() {
         </p>
       </header>
 
-
       <div className="space-y-9">
         {groups.map((group) => (
           <section key={group.label.en}>

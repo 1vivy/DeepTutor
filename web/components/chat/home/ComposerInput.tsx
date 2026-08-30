@@ -418,6 +418,24 @@ export const ComposerInput = memo(
       return () => document.removeEventListener("mousedown", handler);
     }, [showAtPopup, showSlashPopup, textareaRef]);
 
+    const basePlaceholder =
+      placeholder ??
+      (isVisualizeMode
+        ? t(
+            "Describe the chart, diagram, or animation you want to visualize...",
+          )
+        : t("How can I help you today?"));
+    // The Tab hint used to be a separate pill under the textarea — its own
+    // block that appeared and disappeared as the offer came and went,
+    // nudging the composer's height around it. Rendered as an overlay over
+    // the (now empty) native placeholder instead: same muted tone, same
+    // line, no layout of its own. Two spans rather than one concatenated
+    // string — a hint long enough to fill the line would otherwise wrap the
+    // textarea onto a second line and silently clip the very text that
+    // explains how to accept it; the hint span truncates with an ellipsis
+    // instead, while "→ Tab to complete" stays pinned and fully visible.
+    const showHintOverlay = Boolean(placeholderCompletion) && !input.trim();
+
     return (
       <div className="px-4 pt-3.5 pb-2">
         {showAtPopup && agentMentionMode && (
@@ -525,43 +543,52 @@ export const ComposerInput = memo(
             </div>
           </div>
         )}
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          onCompositionStart={onCompositionStart}
-          onCompositionEnd={onCompositionEnd}
-          onClick={handleTextareaClick}
-          onPaste={onPaste}
-          rows={1}
-          // Cap input at 32k chars. A bigger paste (e.g. an entire textbook
-          // dumped via Cmd+V) would force a layout reflow on every keystroke
-          // and lock the page; the cap is a defensive guard, not a real
-          // product limit. Users hit by this cap should be using the
-          // attachment path, not the composer body.
-          maxLength={32000}
-          suppressHydrationWarning
-          placeholder={
-            placeholder ??
-            (isVisualizeMode
-              ? t(
-                  "Describe the chart, diagram, or animation you want to visualize...",
-                )
-              : t("How can I help you today?"))
-          }
-          className="w-full resize-none overflow-hidden bg-transparent text-[16px] leading-relaxed text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
-          style={{ transition: "height 0.15s ease-out" }}
-        />
-        {/* An offer nobody can find is not an offer: the key that takes the
-            question is named next to it, and only while it would work. */}
-        {placeholderCompletion && !input.trim() ? (
-          <div className="pointer-events-none flex justify-end pt-1">
-            <span className="rounded border border-[var(--border)]/70 px-1 py-px text-[10px] font-medium leading-none text-[var(--muted-foreground)]/70">
-              {t("Tab to ask this")}
-            </span>
-          </div>
-        ) : null}
+        <div className="relative">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            onCompositionStart={onCompositionStart}
+            onCompositionEnd={onCompositionEnd}
+            onClick={handleTextareaClick}
+            onPaste={onPaste}
+            rows={1}
+            // Cap input at 32k chars. A bigger paste (e.g. an entire textbook
+            // dumped via Cmd+V) would force a layout reflow on every keystroke
+            // and lock the page; the cap is a defensive guard, not a real
+            // product limit. Users hit by this cap should be using the
+            // attachment path, not the composer body.
+            maxLength={32000}
+            suppressHydrationWarning
+            placeholder={placeholderCompletion ? "" : basePlaceholder}
+            // The overlay below replaces the native placeholder visually
+            // (so a long hint can truncate instead of wrapping), but an
+            // empty placeholder would otherwise leave the field with no
+            // accessible name — this restores one that reads the same as
+            // what's on screen.
+            aria-label={
+              placeholderCompletion
+                ? `${placeholderCompletion} — ${t("Tab to complete")}`
+                : undefined
+            }
+            className="w-full resize-none overflow-hidden bg-transparent text-[16px] leading-relaxed text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
+            style={{ transition: "height 0.15s ease-out" }}
+          />
+          {showHintOverlay ? (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 flex items-start gap-1 overflow-hidden text-[16px] leading-relaxed text-[var(--muted-foreground)]"
+            >
+              <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
+                {placeholderCompletion}
+              </span>
+              <span className="shrink-0 whitespace-nowrap">
+                → {t("Tab to complete")}
+              </span>
+            </div>
+          ) : null}
+        </div>
       </div>
     );
   }),

@@ -21,13 +21,20 @@ import type { MapKnowledgePoint, MasteryTopic } from "@/lib/learning-api";
 function PointMark({
   point,
   current,
+  justMastered,
 }: {
   point: MapKnowledgePoint;
   current: boolean;
+  /** Crossed into mastered moments ago — replay the transition. */
+  justMastered: boolean;
 }) {
   if (point.status === "mastered") {
     return (
-      <span className="h-[7px] w-[7px] rounded-full bg-[var(--primary)]" />
+      <span
+        className={`h-[7px] w-[7px] rounded-full bg-[var(--primary)] ${
+          justMastered ? "mastery-just-mastered-dot" : ""
+        }`}
+      />
     );
   }
   if (current) {
@@ -49,12 +56,15 @@ function PointMark({
 export function StudyOutline({
   topic,
   currentPointId,
+  justMasteredId,
   collapsed,
   onToggleCollapsed,
 }: {
   topic: MasteryTopic;
   /** The waypoint the tutor is on — highlighted, never a link. */
   currentPointId: string;
+  /** Knowledge point that just cleared its gate, for the arrival animation. */
+  justMasteredId?: string | null;
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }) {
@@ -72,7 +82,9 @@ export function StudyOutline({
         onClick={onToggleCollapsed}
         title={t("Show outline")}
         aria-label={t("Show outline")}
-        className="flex h-full w-full flex-col items-center gap-2.5 pt-4 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)]/50 hover:text-[var(--foreground)]"
+        className={`flex h-full w-full flex-col items-center gap-2.5 pt-4 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)]/50 hover:text-[var(--foreground)] ${
+          justMasteredId ? "mastery-just-mastered-strip" : ""
+        }`}
       >
         <ChevronsRight className="h-4 w-4" />
         <span
@@ -124,25 +136,38 @@ export function StudyOutline({
             <ul className="relative mt-1.5 before:absolute before:bottom-[14px] before:left-[21px] before:top-[14px] before:w-px before:bg-[var(--border)]">
               {module.knowledge_points.map((point) => {
                 const current = point.id === currentPointId;
+                const justMastered = point.id === justMasteredId;
                 return (
                   <li key={point.id} className="relative">
                     <div
                       className={`flex items-start gap-2 rounded-md py-[5px] pl-[18px] pr-2 ${
-                        current
-                          ? "bg-[color-mix(in_srgb,var(--primary)_7%,transparent)]"
-                          : ""
+                        justMastered
+                          ? "mastery-just-mastered-row"
+                          : current
+                            ? "bg-[color-mix(in_srgb,var(--primary)_7%,transparent)]"
+                            : ""
                       }`}
                     >
-                      <span className="relative z-[1] flex h-[18px] w-[7px] shrink-0 items-center justify-center">
-                        <PointMark point={point} current={current} />
+                      <span
+                        className={`relative z-[1] flex h-[18px] w-[7px] shrink-0 items-center justify-center ${
+                          justMastered ? "mastery-just-mastered-halo" : ""
+                        }`}
+                      >
+                        <PointMark
+                          point={point}
+                          current={current}
+                          justMastered={justMastered}
+                        />
                       </span>
                       <span
-                        className={`min-w-0 text-[12px] leading-[18px] ${
-                          current
+                        className={`min-w-0 text-[12px] leading-[18px] transition-colors duration-500 ${
+                          justMastered
                             ? "font-medium text-[var(--foreground)]"
-                            : point.status === "mastered"
-                              ? "text-[var(--muted-foreground)]/75"
-                              : "text-[var(--muted-foreground)]"
+                            : current
+                              ? "font-medium text-[var(--foreground)]"
+                              : point.status === "mastered"
+                                ? "text-[var(--muted-foreground)]/75"
+                                : "text-[var(--muted-foreground)]"
                         }`}
                       >
                         {point.name}

@@ -463,9 +463,7 @@ function reducer(state: ProviderState, action: Action): ProviderState {
         state.sessions[action.key] ?? createSessionEntry(action.key);
       const userId = nextOptimisticId();
       const parentId =
-        action.parentMessageId === undefined
-          ? null
-          : action.parentMessageId;
+        action.parentMessageId === undefined ? null : action.parentMessageId;
       return {
         ...state,
         sessions: {
@@ -736,7 +734,9 @@ function reducer(state: ProviderState, action: Action): ProviderState {
                 ? action.masteryPathId
                 : existing.masteryPathId,
             courseId:
-              action.courseId !== undefined ? action.courseId : existing.courseId,
+              action.courseId !== undefined
+                ? action.courseId
+                : existing.courseId,
             personaSelection:
               action.personaSelection !== undefined
                 ? action.personaSelection
@@ -2024,9 +2024,12 @@ export function UnifiedChatProvider({
     });
   }, []);
 
-  const newSession = useCallback((configuration?: SessionConfiguration) => {
-    dispatch({ type: "NEW_SESSION", key: makeDraftKey(), configuration });
-  }, [makeDraftKey]);
+  const newSession = useCallback(
+    (configuration?: SessionConfiguration) => {
+      dispatch({ type: "NEW_SESSION", key: makeDraftKey(), configuration });
+    },
+    [makeDraftKey],
+  );
 
   const configureSession = useCallback(
     (configuration: SessionConfiguration, sessionKey?: string) => {

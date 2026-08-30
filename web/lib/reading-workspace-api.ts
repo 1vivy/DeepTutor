@@ -202,9 +202,7 @@ export async function listReadingWorkspaces(filters?: {
   return payload.workspaces ?? [];
 }
 
-export async function getReadingWorkspace(
-  workspaceId: string,
-): Promise<{
+export async function getReadingWorkspace(workspaceId: string): Promise<{
   workspace: ReadingWorkspace;
   sessions: ReadingConversation[];
 }> {
@@ -274,7 +272,10 @@ export async function addReadingWorkspaceMaterial(
     `/workspaces/${workspaceId}/materials`,
     {
       method: "POST",
-      body: JSON.stringify({ material_id: materialId, make_active: makeActive }),
+      body: JSON.stringify({
+        material_id: materialId,
+        make_active: makeActive,
+      }),
     },
   );
   return result.workspace;
@@ -321,14 +322,101 @@ export async function createReadingConversation(
   ).session;
 }
 
+/**
+ * One question the learner could ask about what they are reading right now.
+ *
+ * Written by the task model against the open material, the passage in view
+ * and the last exchange — a prompt for *their* next question, never an
+ * answer. Returns "" whenever there is nothing worth offering (cold model,
+ * timeout, a sentence that came back looking like an answer), and the
+ * composer then keeps the static placeholder it has always had.
+ */
+export async function fetchReadingAskHint(
+  workspaceId: string,
+  params: { sessionId?: string; locator?: number; selection?: string } = {},
+  init?: RequestInit,
+): Promise<string> {
+  const query = new URLSearchParams();
+  if (params.sessionId) query.set("session_id", params.sessionId);
+  if (params.locator && params.locator > 0)
+    query.set("locator", String(params.locator));
+  if (params.selection) query.set("selection", params.selection);
+  const suffix = query.toString() ? `?${query}` : "";
+  try {
+    const result = await json<{ hint?: string }>(
+      `/workspaces/${workspaceId}/ask-hint${suffix}`,
+      init,
+    );
+    return typeof result.hint === "string" ? result.hint : "";
+  } catch {
+    // A missing hint is not a failure the reader should ever see.
+    return "";
+  }
+}
+
+/** Just enough to name a collection. See ``fetchReadingCollectionIndex``. */
+export interface ReadingCollectionLabel {
+  workspace_id: string;
+  title: string;
+}
+
+/**
+ * The id → title map, without each collection's tab list.
+ *
+ * The sidebar files reading conversations under their collection and reloads
+ * on every stream end, so it wants the labels and nothing else; the full
+ * listing ships every material, cover and unit count to render a heading.
+ */
+export async function fetchReadingCollectionIndex(
+  init?: RequestInit,
+): Promise<ReadingCollectionLabel[]> {
+  try {
+    const result = await json<{ collections?: ReadingCollectionLabel[] }>(
+      "/workspaces/index",
+      init,
+    );
+    return Array.isArray(result.collections) ? result.collections : [];
+  } catch {
+    // A sidebar that cannot name a collection still lists its conversations.
+    return [];
+  }
+}
+
+/**
+ * Three things the learner could open this material with.
+ *
+ * Written against the material itself, so they name a claim it makes or a
+ * section it has rather than being true of every document. An empty array
+ * means the panel keeps its own generic lines — this is a nicety, and an
+ * empty conversation must never be an empty panel.
+ */
+export async function fetchReadingOpeners(
+  workspaceId: string,
+  locator?: number,
+  init?: RequestInit,
+): Promise<string[]> {
+  const suffix = locator && locator > 0 ? `?locator=${locator}` : "";
+  try {
+    const result = await json<{ suggestions?: string[] }>(
+      `/workspaces/${workspaceId}/openers${suffix}`,
+      init,
+    );
+    return Array.isArray(result.suggestions) ? result.suggestions : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function listReadingConversations(
   workspaceId: string,
 ): Promise<ReadingConversation[]> {
   return (
-    await json<{ sessions: ReadingConversation[] }>(
-      `/workspaces/${workspaceId}/sessions`,
-    )
-  ).sessions ?? [];
+    (
+      await json<{ sessions: ReadingConversation[] }>(
+        `/workspaces/${workspaceId}/sessions`,
+      )
+    ).sessions ?? []
+  );
 }
 
 export async function renameReadingConversation(
@@ -415,7 +503,9 @@ export async function generateMasteryPathFromReading(
 ): Promise<Record<string, unknown>> {
   return unwrap(
     await apiFetch(
-      apiUrl(`/api/v1/learning/progress/${encodeURIComponent(bookId)}/generate-from-reading`),
+      apiUrl(
+        `/api/v1/learning/progress/${encodeURIComponent(bookId)}/generate-from-reading`,
+      ),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

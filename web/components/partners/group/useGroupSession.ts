@@ -136,7 +136,9 @@ export function useGroupSession(group: PartnerGroup, sessionKey: string) {
 
   const attach = useCallback(
     (socket: ReconnectingWebSocket | null) => {
-      socket?.send(JSON.stringify({ action: "attach", session_key: sessionKey }));
+      socket?.send(
+        JSON.stringify({ action: "attach", session_key: sessionKey }),
+      );
     },
     [sessionKey],
   );
@@ -194,17 +196,16 @@ export function useGroupSession(group: PartnerGroup, sessionKey: string) {
           setLive((current) => {
             // A follow-up round has no user message to open it, so the first
             // signal that it exists is the invoked partner starting.
-            const base: LiveTurn =
-              current ??
-              {
-                turnId: "",
-                sessionKey,
-                targets: [frame.partner_id],
-                seats: new Map(),
-                followup: Boolean(frame.invocation_id),
-              };
+            const base: LiveTurn = current ?? {
+              turnId: "",
+              sessionKey,
+              targets: [frame.partner_id],
+              seats: new Map(),
+              followup: Boolean(frame.invocation_id),
+            };
             const seats = new Map(base.seats);
-            const seat = seats.get(frame.partner_id) ?? emptySeat(frame.partner_id);
+            const seat =
+              seats.get(frame.partner_id) ?? emptySeat(frame.partner_id);
             seats.set(frame.partner_id, { ...seat, status: "working" });
             const targets = base.targets.includes(frame.partner_id)
               ? base.targets
@@ -217,14 +218,19 @@ export function useGroupSession(group: PartnerGroup, sessionKey: string) {
           setLive((current) => {
             if (!current) return current;
             const seats = new Map(current.seats);
-            const seat = seats.get(frame.partner_id) ?? emptySeat(frame.partner_id);
+            const seat =
+              seats.get(frame.partner_id) ?? emptySeat(frame.partner_id);
             seats.set(frame.partner_id, {
               ...seat,
               status: "working",
               streamed: growBody(seat, frame.event),
               events: [...seat.events, frame.event],
             });
-            return { ...current, turnId: current.turnId || frame.turn_id, seats };
+            return {
+              ...current,
+              turnId: current.turnId || frame.turn_id,
+              seats,
+            };
           });
           return;
         }
@@ -321,7 +327,9 @@ export function useGroupSession(group: PartnerGroup, sessionKey: string) {
         onError: () => setConnected(false),
         onMessage: (event) => {
           try {
-            handleFrameRef.current(JSON.parse(String(event.data)) as GroupFrame);
+            handleFrameRef.current(
+              JSON.parse(String(event.data)) as GroupFrame,
+            );
           } catch {
             // A malformed frame must not tear down the session.
           }
@@ -447,7 +455,8 @@ export function useGroupSession(group: PartnerGroup, sessionKey: string) {
       setPendingActions((current) => new Set(current).add(invocationId));
       const ok = socket.send(
         JSON.stringify({
-          action: action === "approve" ? "approve_invocation" : "reject_invocation",
+          action:
+            action === "approve" ? "approve_invocation" : "reject_invocation",
           invocation_id: invocationId,
           session_key: sessionKey,
         }),
@@ -529,7 +538,8 @@ export function useGroupSession(group: PartnerGroup, sessionKey: string) {
     if (!live) return null;
     const total = live.targets.length;
     const answered = messages.filter(
-      (message) => message.turn_id === live.turnId && message.role === "partner",
+      (message) =>
+        message.turn_id === live.turnId && message.role === "partner",
     ).length;
     return {
       done: total - live.seats.size,

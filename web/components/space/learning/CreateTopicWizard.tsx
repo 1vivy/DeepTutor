@@ -45,8 +45,11 @@ export function CreateTopicWizard({
   const [name, setName] = useState("");
   const [goal, setGoal] = useState("");
   const [emoji, setEmoji] = useState("🧭");
-  const { library, loading: libraryLoading, candidates } =
-    useTopicSourceLibrary(t);
+  const {
+    library,
+    loading: libraryLoading,
+    candidates,
+  } = useTopicSourceLibrary(t);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [draft, setDraft] = useState<TopicDraft | null>(null);
   const [sources, setSources] = useState<TopicSourceInput[]>([]);
@@ -167,11 +170,7 @@ export function CreateTopicWizard({
             className="grid grid-cols-3 gap-2"
             aria-label={t("Creation steps")}
           >
-            {[
-              t("Goal"),
-              t("Materials"),
-              t("Outline"),
-            ].map((label, index) => {
+            {[t("Goal"), t("Materials"), t("Outline")].map((label, index) => {
               const number = index + 1;
               const active = number === step;
               const done = number < step;
@@ -265,9 +264,7 @@ export function CreateTopicWizard({
               ) : (
                 <Sparkles className="h-4 w-4" />
               )}
-              {busy
-                ? t("Charting…")
-                : t("Generate outline")}
+              {busy ? t("Charting…") : t("Generate outline")}
             </button>
           ) : (
             <button
@@ -281,9 +278,7 @@ export function CreateTopicWizard({
               ) : (
                 <Check className="h-4 w-4" />
               )}
-              {busy
-                ? t("Saving map…")
-                : t("Start learning")}
+              {busy ? t("Saving map…") : t("Start learning")}
             </button>
           )}
         </footer>

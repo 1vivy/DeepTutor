@@ -13,10 +13,7 @@ import Link from "next/link";
 import { HeartHandshake, Loader2, Plus, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { listPartners, type PartnerInfo } from "@/lib/partners-api";
-import {
-  listPartnerGroups,
-  type PartnerGroup,
-} from "@/lib/partner-groups-api";
+import { listPartnerGroups, type PartnerGroup } from "@/lib/partner-groups-api";
 import { formatRelativeTime } from "@/lib/relative-time";
 import ChannelIcon from "@/components/partners/ChannelIcon";
 import { useDiscussionModeLabel } from "@/components/partners/group/DiscussionModePicker";
@@ -256,7 +253,9 @@ export default function PartnersPage() {
                         ))}
                       </div>
                       <span className="truncate text-[11px] text-[var(--muted-foreground)]">
-                        {t("{{count}} members", { count: group.member_ids.length })}
+                        {t("{{count}} members", {
+                          count: group.member_ids.length,
+                        })}
                         {" · "}
                         {modeLabel(group.discussion_mode)}
                         {group.updated_at

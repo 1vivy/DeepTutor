@@ -5,13 +5,18 @@ now consumed exactly once — to ground the outline generation. Nothing carried
 them into tutoring, so the tutor taught a learner's own book from parametric
 memory alone while its system prompt claimed to be teaching *from* it.
 
-This module closes that gap by expressing topic materials in the vocabulary the
-chat runtime already speaks: an *Attached Sources* manifest plus a
-``{source_id: full_text}`` index. Filling those two values on a mastery turn is
-enough to activate the whole existing machinery —
-:class:`~deeptutor.capabilities.explore_context.ExploreContextCapability`
-activates on a non-empty ``source_index`` and runs its ``read_source``
-investigation before the tutor's first LLM call. No new tool, no new loop.
+This module closes that gap by expressing topic materials as an *Attached
+Sources* manifest plus a ``{source_id: full_text}`` index — the same shape
+chat uses. Unlike chat, that index is never fed into
+``context.metadata["source_index"]``: that key wakes
+:class:`~deeptutor.capabilities.explore_context.ExploreContextCapability`'s
+forced pre-pass, which reads everything relevant *before* the model's first
+token. Tutoring wants the opposite posture — the tutor decides for itself,
+knowledge point by knowledge point, whether a material is worth reading this
+turn. The manifest (announced every turn) and the index (read on demand
+through ``read_source``, mounted directly by
+:class:`~deeptutor.capabilities.mastery.loop.MasteryLoopCapability`) are wired
+up in :mod:`deeptutor.services.session.turn_runtime`.
 
 Granularity is per **chapter**, not per book: a whole book cannot be read into
 one tool result, and a chapter is the unit a tutor actually needs for one

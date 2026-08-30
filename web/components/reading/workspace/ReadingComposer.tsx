@@ -23,12 +23,15 @@ import { setReadingViewport } from "@/lib/reading-turn-state";
 
 export function ReadingComposer({
   placeholder,
+  placeholderCompletion,
   selection,
   onSent,
   linkedSessionIds,
   prefillInputRef,
 }: {
   placeholder: string;
+  /** Offered question the composer lets the learner take with Tab. */
+  placeholderCompletion?: string;
   selection: { quote: string; locator: number } | null;
   /** Clears the pending-selection banner once the message is on its way. */
   onSent: () => void;
@@ -37,11 +40,30 @@ export function ReadingComposer({
   /** Lets the reader pane drop a quoted selection's focus into the box. */
   prefillInputRef?: React.MutableRefObject<((text: string) => void) | null>;
 }) {
-  const { state, sendMessage, cancelStreamingTurn, setKBs, setLLMSelection } =
-    useUnifiedChat();
+  const {
+    state,
+    sendMessage,
+    submitUserReply,
+    cancelStreamingTurn,
+    setKBs,
+    setLLMSelection,
+    setPersonaSelection,
+  } = useUnifiedChat();
+
+  const awaitingUserReply = hasPendingAskUser(
+    state.messages[state.messages.length - 1]?.events,
+  );
 
   const handleSubmit = useCallback(
     (submission: StandaloneComposerSubmission) => {
+      // A turn paused on a question: what the user typed is their answer,
+      // not a new message. See page.tsx's handleSend for the same routing.
+      if (awaitingUserReply) {
+        if (submission.content.trim()) {
+          submitUserReply({ text: submission.content });
+        }
+        return;
+      }
       if (selection) {
         setReadingViewport({
           locator: selection.locator,
@@ -57,7 +79,11 @@ export function ReadingComposer({
       sendMessage(
         submission.content,
         submission.attachments,
-        undefined,
+        // How many times the companion may consult the selected agent this
+        // turn. Absent when no agent is picked, which is the ordinary case.
+        submission.subagentBudget
+          ? { subagent_consult_budget: submission.subagentBudget }
+          : undefined,
         submission.notebookReferences,
         historyReferences,
         { bookReferences: submission.bookReferences },
@@ -68,11 +94,14 @@ export function ReadingComposer({
       onSent();
       window.setTimeout(() => setReadingViewport({ selection: "" }), 0);
     },
-    [linkedSessionIds, onSent, selection, sendMessage],
-  );
-
-  const awaitingUserReply = hasPendingAskUser(
-    state.messages[state.messages.length - 1]?.events,
+    [
+      awaitingUserReply,
+      linkedSessionIds,
+      onSent,
+      selection,
+      sendMessage,
+      submitUserReply,
+    ],
   );
 
   return (
@@ -87,9 +116,12 @@ export function ReadingComposer({
       onKnowledgeBasesChange={setKBs}
       llmSelection={state.llmSelection}
       onLLMSelectionChange={setLLMSelection}
+      personaSelection={state.personaSelection}
+      onPersonaSelectionChange={setPersonaSelection}
       onSubmit={handleSubmit}
       onCancelStreaming={cancelStreamingTurn}
       inputPlaceholder={placeholder}
+      inputPlaceholderCompletion={placeholderCompletion}
       prefillInputRef={prefillInputRef}
     />
   );

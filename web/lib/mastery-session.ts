@@ -1,5 +1,5 @@
 /**
- * Which mastery path a conversation belongs to — the one place that decides.
+ * Which surface a conversation belongs to — the one place that decides.
  *
  * A mastery study conversation is an ordinary chat session that happens to
  * carry `mastery_path_id` in its preferences. Two surfaces need to read that:
@@ -12,6 +12,12 @@
  * mastery tutor, and `mastery_path_id` says which path it ran against; a
  * session that switched capability mid-conversation keeps the stale id, and a
  * course-study conversation about a path carries neither.
+ *
+ * Immersive Reading conversations answer the same question with their own
+ * pair of signals, and land on their collection instead. They are here rather
+ * than in a second module for the reason above: if two places decided where a
+ * conversation lives, the sidebar would file one under a heading and then
+ * navigate somewhere else.
  */
 
 import type { SessionSummary } from "@/lib/session-api";
@@ -23,12 +29,34 @@ export function masteryPathIdOf(session: SessionSummary): string {
   return String(preferences.mastery_path_id || "");
 }
 
+/**
+ * Which reading collection a conversation belongs to, or "".
+ *
+ * Both signals again, and for the same reason: `session_kind` says the
+ * conversation was held in the reader, `reading_workspace_id` says which
+ * collection it was held in. The backend writes both together, on the
+ * conversation's first turn and whenever a reading session is attached.
+ */
+export function readingWorkspaceIdOf(session: SessionSummary): string {
+  const preferences = session.preferences;
+  if (!preferences) return "";
+  if (preferences.session_kind !== "immersive_reading") return "";
+  return String(preferences.reading_workspace_id || "");
+}
+
 /** Where clicking this conversation should land. */
 export function sessionRoute(session: SessionSummary): string {
-  const pathId = masteryPathIdOf(session);
   const sessionId = encodeURIComponent(session.session_id);
+  const pathId = masteryPathIdOf(session);
   if (pathId) {
     return `/mastery/${encodeURIComponent(pathId)}/study/${sessionId}`;
+  }
+  // The reader, its outline and the material are the context this was held
+  // in; /home would drop all three and leave the citations pointing at a
+  // document that is not open.
+  const workspaceId = readingWorkspaceIdOf(session);
+  if (workspaceId) {
+    return `/reading/${encodeURIComponent(workspaceId)}/${sessionId}`;
   }
   return `/home/${sessionId}`;
 }

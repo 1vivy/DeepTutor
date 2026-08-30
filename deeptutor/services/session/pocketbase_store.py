@@ -248,12 +248,10 @@ class PocketBaseSessionStore:
 
         try:
             result = await asyncio.to_thread(_list)
-            sessions = [self._session_record_to_dict(r) for r in result.items]
-            return [
-                session
-                for session in sessions
-                if (session.get("preferences") or {}).get("session_kind") != "immersive_reading"
-            ]
+            # Reading conversations are listed like any other: the sidebar
+            # groups them under their collection and a click returns to the
+            # reader. See the note on ``_WHERE_NATIVE`` in the SQLite store.
+            return [self._session_record_to_dict(r) for r in result.items]
         except Exception as exc:
             logger.warning(f"list_sessions failed: {exc}")
             return []

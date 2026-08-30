@@ -405,7 +405,7 @@ class ReadingCatalogStore:
         params.extend((max(1, min(int(limit), 500)), max(0, int(offset))))
         with self._connect() as conn:
             rows = conn.execute(
-                f"SELECT * FROM reading_materials {where} "  # noqa: S608
+                f"SELECT * FROM reading_materials {where} "  # noqa: S608  # nosec B608 - where is built from internal clauses; every value stays bound
                 "ORDER BY updated_at DESC LIMIT ? OFFSET ?",
                 params,
             ).fetchall()
@@ -426,7 +426,7 @@ class ReadingCatalogStore:
                     FROM reading_workspace_materials wm
                     JOIN reading_workspaces w USING (workspace_id)
                     WHERE wm.material_id IN ({placeholders})
-                    ORDER BY w.title COLLATE NOCASE, w.workspace_id""",  # noqa: S608
+                    ORDER BY w.title COLLATE NOCASE, w.workspace_id""",  # noqa: S608  # nosec B608 - placeholders is a generated "?,?" list; every value is bound
                 unique_ids,
             ).fetchall()
         for row in rows:
@@ -607,7 +607,7 @@ class ReadingCatalogStore:
         params.extend((max(1, min(int(limit), 500)), max(0, int(offset))))
         with self._connect() as conn:
             rows = conn.execute(
-                f"SELECT w.workspace_id FROM reading_workspaces w {where} "  # noqa: S608
+                f"SELECT w.workspace_id FROM reading_workspaces w {where} "  # noqa: S608  # nosec B608 - where is built from internal clauses; every value stays bound
                 "ORDER BY w.updated_at DESC LIMIT ? OFFSET ?",
                 params,
             ).fetchall()
@@ -633,7 +633,7 @@ class ReadingCatalogStore:
         params.append(workspace_id)
         with self._lock, self._connect() as conn:
             changed = conn.execute(
-                f"UPDATE reading_workspaces SET {', '.join(assignments)} WHERE workspace_id = ?",  # noqa: S608
+                f"UPDATE reading_workspaces SET {', '.join(assignments)} WHERE workspace_id = ?",  # noqa: S608  # nosec B608 - assignments are internal column names; every value stays bound
                 params,
             ).rowcount
         if not changed:
@@ -1015,7 +1015,7 @@ class ReadingCatalogStore:
         found = {
             row["material_id"]
             for row in conn.execute(
-                f"SELECT material_id FROM reading_materials WHERE material_id IN ({placeholders})",  # noqa: S608
+                f"SELECT material_id FROM reading_materials WHERE material_id IN ({placeholders})",  # noqa: S608  # nosec B608 - placeholders is a generated "?,?" list; every value is bound
                 list(material_ids),
             ).fetchall()
         }

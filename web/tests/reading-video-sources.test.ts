@@ -11,7 +11,10 @@ import {
 } from "../lib/reading-video-sources";
 
 test("parses supported YouTube source shapes", () => {
-  assert.equal(youtubeVideoId("https://youtu.be/abc123xyz00?t=82"), "abc123xyz00");
+  assert.equal(
+    youtubeVideoId("https://youtu.be/abc123xyz00?t=82"),
+    "abc123xyz00",
+  );
   assert.equal(
     youtubeVideoId("https://youtube.com/shorts/abc123xyz00"),
     "abc123xyz00",

@@ -221,5 +221,8 @@ const LEAKED_HANDOFF = new RegExp(
 
 export function stripLeakedHandoffJson(content: string): string {
   if (!content.includes('"target"')) return content;
-  return content.replace(LEAKED_HANDOFF, "").replace(/\n{3,}/g, "\n\n").trim();
+  return content
+    .replace(LEAKED_HANDOFF, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }

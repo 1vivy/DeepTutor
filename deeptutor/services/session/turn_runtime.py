@@ -2404,18 +2404,26 @@ class TurnRuntimeManager:
             # A mastery topic carries materials the learner chose once, in the
             # create-topic wizard. They grounded the outline and were then never
             # seen again: the tutor taught the learner's own book from parametric
-            # memory while its prompt claimed to teach *from* it. Expressing them
-            # the way chat expresses attachments — manifest + read_source index —
-            # is enough to hand them to the tutor, because the explore_context
-            # pre-pass activates on a non-empty ``source_index`` and investigates
-            # them before the tutor's first LLM call.
+            # memory while its prompt claimed to teach *from* it.
             #
-            # Guarded on an empty index so materials the learner attached to
-            # *this turn* (which took the chat path above) always win.
+            # Deliberately NOT fed into ``source_index``: that key is what wakes
+            # the explore_context pre-pass, which forces a bounded "read
+            # everything relevant" investigation before the tutor's first LLM
+            # call — the right posture for chat, wrong for tutoring, where the
+            # model should decide for itself, turn by turn, whether a knowledge
+            # point needs the source text at all. Mastery instead gets its own
+            # index (``mastery_topic_source_index``) that only
+            # ``MasteryLoopCapability`` wires to ``read_source``, so the manifest
+            # (rendered into ``context.source_manifest`` below) is the only thing
+            # every turn pays for; reading a material is the tutor's own call.
+            #
+            # Guarded on an empty chat-path index so materials the learner
+            # attached to *this turn* (which took the chat path above) always win.
+            mastery_topic_source_index: dict[str, str] = {}
             if capability_name == "mastery_path" and not source_index:
                 topic_path_id = _mastery_path_id(payload.get("mastery_path_id"))
                 if topic_path_id:
-                    source_manifest_text, source_index = await asyncio.to_thread(
+                    source_manifest_text, mastery_topic_source_index = await asyncio.to_thread(
                         _topic_material_manifest, topic_path_id
                     )
 
@@ -2513,8 +2521,15 @@ class TurnRuntimeManager:
                     # Per-turn full-text payload for read_source. Empty when
                     # the manifest is empty (non-chat capabilities, or chat
                     # turns with no attached sources). Consumed by the chat
-                    # pipeline's tool kwargs injector.
+                    # pipeline's tool kwargs injector, and — a non-empty value
+                    # here specifically — by the explore_context pre-pass.
                     "source_index": source_index,
+                    # A mastery topic's materials, read on demand by the
+                    # tutor's own read_source calls (see
+                    # ``MasteryLoopCapability.augment_kwargs``). Kept separate
+                    # from ``source_index`` so topic materials never trigger
+                    # explore_context's forced pre-pass.
+                    "mastery_topic_source_index": mastery_topic_source_index,
                     # Pause-resume hook: the agentic chat pipeline awaits
                     # this callable when ``ask_user`` (or any other
                     # ``pause_for_user``-emitting tool) pauses the loop.

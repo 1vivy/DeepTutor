@@ -147,7 +147,9 @@ export function SettingsNavCompact() {
   const tr = (value: Lang) => (zh ? value.zh : value.en);
   const groups = useGroups(useHideAdminOnly());
   const { activeSection, setActiveSection } = useSettings();
-  const currentValue = activeSection ? `${pathname}#${activeSection}` : pathname;
+  const currentValue = activeSection
+    ? `${pathname}#${activeSection}`
+    : pathname;
 
   return (
     <div className="relative md:hidden">
@@ -187,8 +189,13 @@ export default function SettingsNav() {
   const { t, i18n } = useTranslation();
   const zh = i18n.language?.toLowerCase().startsWith("zh");
   const tr = useCallback((value: Lang) => (zh ? value.zh : value.en), [zh]);
-  const { catalog, catalogEditable, diagnosticsResults, activeSection, setActiveSection } =
-    useSettings();
+  const {
+    catalog,
+    catalogEditable,
+    diagnosticsResults,
+    activeSection,
+    setActiveSection,
+  } = useSettings();
 
   const [query, setQuery] = useState("");
   const groups = useGroups(useHideAdminOnly());
@@ -197,7 +204,12 @@ export default function SettingsNav() {
   const matches = useCallback(
     (row: Row) =>
       !needle ||
-      [row.leaf.label.en, row.leaf.label.zh, row.leaf.blurb.en, row.leaf.blurb.zh]
+      [
+        row.leaf.label.en,
+        row.leaf.label.zh,
+        row.leaf.blurb.en,
+        row.leaf.blurb.zh,
+      ]
         .join(" ")
         .toLowerCase()
         .includes(needle),
@@ -308,7 +320,9 @@ export default function SettingsNav() {
                     href={leaf.href}
                     label={tr(leaf.label)}
                     icon={leaf.icon}
-                    active={pathname === group.href && activeSection === leaf.key}
+                    active={
+                      pathname === group.href && activeSection === leaf.key
+                    }
                     failing={failing(leaf)}
                     hint={tr(leaf.blurb)}
                     onClick={(event) => {
@@ -432,10 +446,7 @@ function Row({
       }`}
     >
       {Icon && (
-        <Icon
-          size={15}
-          className={`shrink-0 ${active ? "" : "opacity-70"}`}
-        />
+        <Icon size={15} className={`shrink-0 ${active ? "" : "opacity-70"}`} />
       )}
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {failing && (

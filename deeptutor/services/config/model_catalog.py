@@ -264,6 +264,30 @@ class ModelCatalogService:
         current = self.save(catalog or self.load())
         return {"catalog_path": str(self.path), "services": list(current.get("services", {}))}
 
+    def resolve_connections(self, catalog: dict[str, Any]) -> dict[str, Any]:
+        """Mirror linked connections' credentials into profiles, without saving.
+
+        ``save`` mirrors connections as a side effect of persisting, so a
+        connection-linked profile only becomes self-contained once applied.
+        A test run against an unapplied draft needs the same mirroring
+        in-memory — a profile created by copying another and pointing it at
+        the same ``connection_id`` (e.g. bringing a provider over from the
+        LLM service) has no credentials of its own until this runs.
+        """
+
+        resolved = deepcopy(catalog)
+        connections = self._normalize_connections(resolved)
+        for service_name in SERVICE_NAMES:
+            if service_name not in CONNECTABLE_SERVICES:
+                continue
+            service = resolved.get("services", {}).get(service_name)
+            if not isinstance(service, dict):
+                continue
+            for profile in service.get("profiles", []):
+                if isinstance(profile, dict):
+                    self._apply_connection(profile, service_name, connections)
+        return resolved
+
     def _drop_legacy_llm_tasks(self, catalog: dict[str, Any]) -> bool:
         """Remove the short-lived per-task pointers under ``services.llm``.
 

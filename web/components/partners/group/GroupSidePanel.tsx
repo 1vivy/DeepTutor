@@ -63,8 +63,11 @@ export default function GroupSidePanel({
     );
     if (!root || !target) return;
     root.scrollTo({
-      top: root.scrollTop + target.getBoundingClientRect().top -
-        root.getBoundingClientRect().top - 8,
+      top:
+        root.scrollTop +
+        target.getBoundingClientRect().top -
+        root.getBoundingClientRect().top -
+        8,
       behavior: "smooth",
     });
   }, [open, tab, focus]);
@@ -86,7 +89,8 @@ export default function GroupSidePanel({
   return (
     <aside
       data-group-panel
-      className="absolute inset-y-0 right-0 z-30 flex w-[min(380px,88vw)] flex-col border-l border-[var(--border)] bg-[var(--background)] shadow-xl lg:static lg:w-[360px] lg:shadow-none">
+      className="absolute inset-y-0 right-0 z-30 flex w-[min(380px,88vw)] flex-col border-l border-[var(--border)] bg-[var(--background)] shadow-xl lg:static lg:w-[360px] lg:shadow-none"
+    >
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-2">
         <div className="flex items-center gap-1">
           <TabButton

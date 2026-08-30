@@ -2,20 +2,14 @@
 
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
-import {
-  CircleCheck,
-} from "lucide-react";
+import { CircleCheck } from "lucide-react";
 
 import type { MasteryTopic } from "@/lib/learning-api";
 
 import { topicDisplayName, type Translate } from "./format";
 import { ProgressRing } from "./ProgressRing";
 
-export function TopicMapCard({
-  topic,
-}: {
-  topic: MasteryTopic;
-}) {
+export function TopicMapCard({ topic }: { topic: MasteryTopic }) {
   const { t } = useTranslation();
   const { map, metadata } = topic;
   const total = map.counts.total;
@@ -27,11 +21,14 @@ export function TopicMapCard({
   return (
     <Link
       href={`/mastery/${encodeURIComponent(topic.path_id)}`}
-      aria-label={t("Open {{name}}, {{mastered}} of {{total}} knowledge points complete", {
-        name: displayName,
-        mastered,
-        total,
-      })}
+      aria-label={t(
+        "Open {{name}}, {{mastered}} of {{total}} knowledge points complete",
+        {
+          name: displayName,
+          mastered,
+          total,
+        },
+      )}
       className="mastery-map-card group block overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
     >
       <div className="flex items-start gap-3.5 p-4">

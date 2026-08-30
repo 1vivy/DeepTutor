@@ -8,7 +8,7 @@ from typing import Any
 from deeptutor.core.context import UnifiedContext
 from deeptutor.core.tool_protocol import BaseTool, ToolDefinition, ToolResult
 
-PARTNER_AUTHORING_TOOL_NAMES = ("propose_partner",)
+PARTNER_AUTHORING_TOOL_NAMES: tuple[str, ...] = ("propose_partner",)
 
 
 class ProposePartnerTool(BaseTool):

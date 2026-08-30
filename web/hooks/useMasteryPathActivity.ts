@@ -2,10 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import {
-  fetchProgressEvents,
-  type MasteryEvent,
-} from "@/lib/learning-api";
+import { fetchProgressEvents, type MasteryEvent } from "@/lib/learning-api";
 import {
   MasteryTopicSocket,
   type MasterySocketEnvelope,
@@ -76,7 +73,9 @@ export function mergeEventBatch(
       seen.add(identity);
       return true;
     })
-    .sort((left, right) => left.revision - right.revision || left.id - right.id);
+    .sort(
+      (left, right) => left.revision - right.revision || left.id - right.id,
+    );
   const revision = Math.max(
     continues ? previous.revision : 0,
     latestRevision(since, events),

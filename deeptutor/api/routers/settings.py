@@ -1635,8 +1635,10 @@ async def start_service_test(service: str, payload: CatalogPayload | None = None
     _require_settings_admin()
     catalog = None
     if payload is not None:
-        current = get_model_catalog_service().load()
+        catalog_service = get_model_catalog_service()
+        current = catalog_service.load()
         catalog = restore_catalog_secrets(payload.catalog, current)
+        catalog = catalog_service.resolve_connections(catalog)
     run = get_config_test_runner().start(service, catalog)
     return {"run_id": run.id}
 

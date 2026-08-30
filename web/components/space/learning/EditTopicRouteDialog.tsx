@@ -67,9 +67,7 @@ export function EditTopicRouteDialog({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-[var(--overlay)] p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
-    >
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[var(--overlay)] p-0 backdrop-blur-[2px] sm:items-center sm:p-6">
       <div
         ref={dialogRef}
         role="dialog"
@@ -83,7 +81,10 @@ export function EditTopicRouteDialog({
             <div className="text-[11px] font-medium text-[var(--primary)]">
               {t("Map workshop")}
             </div>
-            <h2 id="edit-route-title" className="mt-1 text-xl font-semibold tracking-tight">
+            <h2
+              id="edit-route-title"
+              className="mt-1 text-xl font-semibold tracking-tight"
+            >
               {t("Edit modules")}
             </h2>
           </div>
@@ -100,7 +101,9 @@ export function EditTopicRouteDialog({
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-7">
           <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--muted-foreground)]/[0.06] p-3 text-xs leading-5 text-[var(--muted-foreground)]">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--muted-foreground)]" />
-            {t("Renaming preserves existing evidence. Removing a knowledge point also removes its mastery, review schedule, and manual override. Confirm the structure before saving.")}
+            {t(
+              "Renaming preserves existing evidence. Removing a knowledge point also removes its mastery, review schedule, and manual override. Confirm the structure before saving.",
+            )}
           </div>
           <RouteDraftEditor
             draft={draft}
@@ -125,7 +128,11 @@ export function EditTopicRouteDialog({
             disabled={busy || !isRouteDraftValid(draft)}
             className="inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--primary)] px-4 text-sm font-medium text-[var(--primary-foreground)] disabled:opacity-50"
           >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            {busy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Check className="h-4 w-4" />
+            )}
             {t("Save")}
           </button>
         </footer>

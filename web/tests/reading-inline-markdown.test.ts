@@ -2,10 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import {
-  InlineMarkdown,
-  MarkdownLine,
-} from "../lib/reading-inline-markdown";
+import { InlineMarkdown, MarkdownLine } from "../lib/reading-inline-markdown";
 
 /**
  * Strips tags to approximate `Element.textContent` for markup this module

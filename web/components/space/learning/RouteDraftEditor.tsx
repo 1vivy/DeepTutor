@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  ArrowDown,
-  ArrowUp,
-  Plus,
-  Trash2,
-  X,
-} from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Trash2, X } from "lucide-react";
 
 import type { ModuleInit, TopicDraft } from "@/lib/learning-api";
 import { useTranslation } from "react-i18next";
@@ -99,7 +93,9 @@ export function RouteDraftEditor({
             {t("Review and adjust the modules")}
           </h3>
           <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
-            {t("Modules define learning phases and knowledge points define the abilities to master. Up/down controls make the order editable by keyboard as well as pointer.")}
+            {t(
+              "Modules define learning phases and knowledge points define the abilities to master. Up/down controls make the order editable by keyboard as well as pointer.",
+            )}
           </p>
         </>
       )}
@@ -157,8 +153,12 @@ export function RouteDraftEditor({
                 <OrderButtons
                   index={moduleIndex}
                   count={draft.modules.length}
-                  upLabel={t("Move module “{{name}}” up", { name: module.name || moduleIndex + 1 })}
-                  downLabel={t("Move module “{{name}}” down", { name: module.name || moduleIndex + 1 })}
+                  upLabel={t("Move module “{{name}}” up", {
+                    name: module.name || moduleIndex + 1,
+                  })}
+                  downLabel={t("Move module “{{name}}” down", {
+                    name: module.name || moduleIndex + 1,
+                  })}
                   onMove={(to) =>
                     onChange(moveRouteModule(draft, moduleIndex, to))
                   }
@@ -167,7 +167,9 @@ export function RouteDraftEditor({
                   type="button"
                   onClick={() => removeModule(moduleIndex)}
                   disabled={draft.modules.length === 1}
-                  aria-label={t("Remove module “{{name}}”", { name: module.name || moduleIndex + 1 })}
+                  aria-label={t("Remove module “{{name}}”", {
+                    name: module.name || moduleIndex + 1,
+                  })}
                   className="rounded-lg p-2 text-[var(--muted-foreground)] hover:bg-red-500/10 hover:text-red-600 disabled:opacity-30"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -191,16 +193,17 @@ export function RouteDraftEditor({
                     >
                       <span className="h-2 w-2 shrink-0 rounded-full border-2 border-[var(--primary)]/60" />
                       <input
-                        aria-label={t("Knowledge point {{point}} name in module {{region}}", {
-                          point: pointIndex + 1,
-                          region: moduleIndex + 1,
-                        })}
+                        aria-label={t(
+                          "Knowledge point {{point}} name in module {{region}}",
+                          {
+                            point: pointIndex + 1,
+                            region: moduleIndex + 1,
+                          },
+                        )}
                         aria-invalid={blankWaypoint}
                         value={point.name}
                         onChange={(event) => {
-                          const knowledgePoints = [
-                            ...module.knowledge_points,
-                          ];
+                          const knowledgePoints = [...module.knowledge_points];
                           knowledgePoints[pointIndex] = {
                             ...point,
                             name: event.target.value,
@@ -219,9 +222,7 @@ export function RouteDraftEditor({
                         })}
                         value={point.type}
                         onChange={(event) => {
-                          const knowledgePoints = [
-                            ...module.knowledge_points,
-                          ];
+                          const knowledgePoints = [...module.knowledge_points];
                           knowledgePoints[pointIndex] = {
                             ...point,
                             type: event.target.value,
@@ -263,10 +264,9 @@ export function RouteDraftEditor({
                         onClick={() =>
                           updateModule(moduleIndex, {
                             ...module,
-                            knowledge_points:
-                              module.knowledge_points.filter(
-                                (_, index) => index !== pointIndex,
-                              ),
+                            knowledge_points: module.knowledge_points.filter(
+                              (_, index) => index !== pointIndex,
+                            ),
                           })
                         }
                         disabled={module.knowledge_points.length === 1}

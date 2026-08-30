@@ -95,9 +95,17 @@ def test_get_session_summaries_batches_counts_and_latest_visible_message(
     assert by_id[second["id"]]["last_message"] == ""
 
 
-def test_generic_history_excludes_immersive_reading_sessions(
+def test_generic_history_lists_immersive_reading_sessions_with_their_collection(
     store: SQLiteSessionStore,
 ) -> None:
+    """Reading conversations are listed, carrying where they belong.
+
+    They used to be filtered out of history entirely, which left a learner no
+    route back to one except by reopening its collection. They are listed now,
+    and the sidebar files them under their collection — which only works if
+    both routing signals survive the summary, so assert on those rather than
+    merely on the row being present.
+    """
     chat = asyncio.run(store.create_session(title="Regular chat"))
     reading = asyncio.run(store.create_session(title="Reading conversation"))
     asyncio.run(
@@ -112,8 +120,10 @@ def test_generic_history_excludes_immersive_reading_sessions(
 
     listed = asyncio.run(store.list_sessions())
 
-    assert [row["id"] for row in listed] == [chat["id"]]
-    assert asyncio.run(store.get_session(reading["id"])) is not None
+    assert {row["id"] for row in listed} == {chat["id"], reading["id"]}
+    row = next(row for row in listed if row["id"] == reading["id"])
+    assert row["preferences"]["session_kind"] == "immersive_reading"
+    assert row["preferences"]["reading_workspace_id"] == "rw_private"
 
 
 # ── Notebook entries ──────────────────────────────────────────────

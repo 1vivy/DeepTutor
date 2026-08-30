@@ -4,10 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { bookApi } from "@/lib/book-api";
 import { listKnowledgeBases } from "@/lib/knowledge-api";
-import type {
-  TopicSourceInput,
-  TopicSourceKind,
-} from "@/lib/learning-api";
+import { SUBAGENT_KB_TYPE } from "@/lib/knowledge-helpers";
+import type { TopicSourceInput, TopicSourceKind } from "@/lib/learning-api";
 import { getNotebook, listNotebooks } from "@/lib/notebook-api";
 
 export type SourceCandidateKind = Exclude<
@@ -91,23 +89,28 @@ export function useTopicSourceLibrary(tr: Translate) {
             : [],
         knowledgeBases:
           knowledgeResult.status === "fulfilled"
-            ? knowledgeResult.value.map((knowledgeBase) => ({
-                key: `knowledge_base:${knowledgeBase.id || knowledgeBase.name}`,
-                kind: "knowledge_base" as const,
-                sourceId: knowledgeBase.name,
-                label: knowledgeBase.name,
-                detail:
-                  knowledgeBase.provenance_label ||
-                  tr(
-                    knowledgeBase.status === "ready"
-                      ? "可检索"
-                      : "索引状态未知",
-                    knowledgeBase.status === "ready"
-                      ? "Ready to retrieve"
-                      : "Index status unknown",
-                  ),
-                available: knowledgeBase.available !== false,
-              }))
+            ? knowledgeResult.value
+                .filter(
+                  (knowledgeBase) =>
+                    knowledgeBase.metadata?.type !== SUBAGENT_KB_TYPE,
+                )
+                .map((knowledgeBase) => ({
+                  key: `knowledge_base:${knowledgeBase.id || knowledgeBase.name}`,
+                  kind: "knowledge_base" as const,
+                  sourceId: knowledgeBase.name,
+                  label: knowledgeBase.name,
+                  detail:
+                    knowledgeBase.provenance_label ||
+                    tr(
+                      knowledgeBase.status === "ready"
+                        ? "可检索"
+                        : "索引状态未知",
+                      knowledgeBase.status === "ready"
+                        ? "Ready to retrieve"
+                        : "Index status unknown",
+                    ),
+                  available: knowledgeBase.available !== false,
+                }))
             : [],
         failures,
       });

@@ -8,7 +8,7 @@ from typing import Any
 from deeptutor.core.context import UnifiedContext
 from deeptutor.core.tool_protocol import BaseTool, ToolDefinition, ToolResult
 
-PARTNER_GROUP_TOOL_NAMES = ("invoke_other",)
+PARTNER_GROUP_TOOL_NAMES: tuple[str, ...] = ("invoke_other",)
 
 
 class InvokeOtherTool(BaseTool):

@@ -21,10 +21,9 @@ import {
   StickyNote,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ChatMessageList } from "@/components/chat/home/ChatMessages";
 import type { JumpRequest } from "@/components/reading/PdfDocumentView";
 import { READER_ASK_EVENT, ReaderPane } from "@/components/reading/ReaderPane";
 import { useUnifiedChat } from "@/context/UnifiedChatContext";
@@ -53,6 +52,7 @@ import {
   listReadingConversations,
   retryReadingMaterial,
   unlinkReadingConversation,
+  type ReadingConversation,
   type ReadingLibraryMaterial,
 } from "@/lib/reading-workspace-api";
 import { MediaReadingStage } from "./MediaReadingStage";
@@ -63,7 +63,6 @@ import {
   MaterialFailure,
   MaterialProcessing,
   MenuItem,
-  QuickReadingActions,
   iconForMaterial,
 } from "./WorkspaceChrome";
 import {
@@ -75,7 +74,7 @@ import {
   WorkspaceValueDialog,
 } from "./dialogs";
 import { AddMaterialsDialog } from "@/components/reading/library/AddMaterialsDialog";
-import { ReadingComposer } from "./ReadingComposer";
+import { ReadingCompanion } from "./ReadingCompanion";
 import { useReadingWorkspace } from "./useReadingWorkspace";
 
 interface ReaderAskDetail {
@@ -90,16 +89,10 @@ export function ReadingWorkspacePage() {
   const sessionIdParam = params.sessionId?.[0] ?? null;
   const router = useRouter();
   const { t } = useTranslation();
-  const {
-    state,
-    sendMessage,
-    cancelStreamingTurn,
-    submitUserReply,
-    regenerateLastMessage,
-    deleteTurn,
-    editMessage,
-    switchBranch,
-  } = useUnifiedChat();
+  // The shell only needs to *send* (guided one-click prompts). Rendering the
+  // transcript, editing, branching and cancelling all belong to the companion,
+  // which reads them off the same context.
+  const { state, sendMessage } = useUnifiedChat();
 
   const {
     workspace,
@@ -125,6 +118,8 @@ export function ReadingWorkspacePage() {
     removeMaterial,
     newConversation,
     openConversation,
+    renameConversation,
+    deleteConversation,
     organizeNotes,
     buildMasteryPath,
     renameWorkspace,
@@ -182,6 +177,10 @@ export function ReadingWorkspacePage() {
   const [showMastery, setShowMastery] = useState(false);
   const [removeTarget, setRemoveTarget] =
     useState<ReadingLibraryMaterial | null>(null);
+  const [renameConversationTarget, setRenameConversationTarget] =
+    useState<ReadingConversation | null>(null);
+  const [deleteConversationTarget, setDeleteConversationTarget] =
+    useState<ReadingConversation | null>(null);
   const [companionOpen, setCompanionOpen] = useState(true);
   const [navigatorOpen, setNavigatorOpen] = useState(false);
   const [navigatorCollapsed, setNavigatorCollapsed] = useState(false);
@@ -532,9 +531,7 @@ export function ReadingWorkspacePage() {
           }
           refs={material?.unit_refs ?? []}
           transcript={material?.unit === "segment" ? transcript : []}
-          transcriptUnavailable={
-            transcriptUnavailable
-          }
+          transcriptUnavailable={transcriptUnavailable}
           chaptersOnly={chaptersOnly}
           search={transcriptSearch}
           onSearch={setTranscriptSearch}
@@ -579,9 +576,7 @@ export function ReadingWorkspacePage() {
               material={activeTab.material}
               title={activeTab.material.title}
               refs={material?.unit_refs ?? []}
-              transcriptUnavailable={
-                transcriptUnavailable
-              }
+              transcriptUnavailable={transcriptUnavailable}
               chaptersOnly={chaptersOnly}
               activeLocator={activeLocator}
               onLocatorChange={(locator) => {
@@ -603,7 +598,10 @@ export function ReadingWorkspacePage() {
 
           {selection && (
             <div className="absolute bottom-4 left-1/2 z-30 flex max-w-[82%] -translate-x-1/2 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 shadow-[0_12px_36px_rgba(0,0,0,.16)] dark:border-[var(--border)] dark:bg-[var(--popover)]">
-              <Highlighter size={13} className="shrink-0 text-[var(--primary)]" />
+              <Highlighter
+                size={13}
+                className="shrink-0 text-[var(--primary)]"
+              />
               <p className="min-w-0 flex-1 truncate text-[10.5px] text-[var(--muted-foreground)] dark:text-[var(--foreground)]">
                 “{selection.quote}”
               </p>
@@ -643,146 +641,71 @@ export function ReadingWorkspacePage() {
         )}
 
         {companionOpen && (
-          <aside className="absolute inset-y-0 right-0 z-30 flex w-[min(420px,100%)] min-h-0 min-w-0 flex-col bg-[var(--card)] shadow-[-18px_0_42px_rgba(0,0,0,.12)] dark:bg-[var(--background)] xl:static xl:w-auto xl:shadow-none">
-            <div className="relative flex h-11 shrink-0 items-center gap-2.5 border-b border-[var(--border)] px-3 dark:border-[var(--border)]">
-              <div className="min-w-0 flex-1">
-                <p className="font-serif text-[13px] font-semibold leading-tight text-[var(--foreground)]">
-                  {t("Reading companion")}
-                </p>
-                {/* A material's own title, not a label: upper-casing it would
-                    rewrite a book name and destroy a CJK one. */}
-                <p className="truncate text-[10.5px] text-[var(--muted-foreground)]">
-                  {activeTab?.material.title || t("Grounded in your materials")}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowLinker(true)}
-                className={`flex size-7 items-center justify-center rounded-lg transition ${
-                  linkedSessionIds.length
-                    ? "bg-[var(--muted)] text-[var(--primary)]"
-                    : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
-                }`}
-                title={t("Link earlier reading conversations")}
-              >
-                <Link2 size={13} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowSessions((current) => !current)}
-                className="flex h-7 items-center gap-1 rounded-lg px-2 text-[10px] text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
-                title={t("Reading conversations")}
-                aria-label={t("Reading conversations")}
-                aria-expanded={showSessions}
-              >
-                <History size={12} />
-                <ChevronDown size={10} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setCompanionOpen(false)}
-                className="flex size-7 items-center justify-center rounded-lg text-[var(--muted-foreground)] hover:bg-[var(--muted)] xl:hidden"
-                aria-label={t("Close reading companion")}
-              >
-                <X size={12} />
-              </button>
-              {showSessions && (
-                <ConversationMenu
-                  conversations={conversations}
-                  activeSessionId={state.sessionId}
-                  onSelect={async (sessionId) => {
-                    setShowSessions(false);
-                    await openConversation(sessionId);
-                  }}
-                  onNew={() => {
-                    setShowSessions(false);
-                    void newConversation();
-                  }}
-                />
-              )}
-            </div>
-
-            <QuickReadingActions
-              onAction={sendQuickPrompt}
-              onOrganize={() => void organizeNotes()}
-              sourceCount={workspace.tabs.length}
-            />
-
-            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 [scrollbar-gutter:stable]">
-              {state.messages.length ? (
-                <ChatMessageList
-                  messages={state.messages}
-                  isStreaming={state.isStreaming}
-                  sessionId={state.sessionId}
-                  language={state.language}
-                  onCopyAssistantMessage={async (content) => {
-                    await navigator.clipboard.writeText(content);
-                  }}
-                  onRegenerateMessage={regenerateLastMessage}
-                  onDeleteTurn={deleteTurn}
-                  selectedBranches={state.selectedBranches}
-                  onEditMessage={editMessage}
-                  onSwitchBranch={switchBranch}
-                  onSubmitUserReply={submitUserReply}
-                />
-              ) : (
-                <CompanionWelcome
-                  title={activeTab?.material.title ?? ""}
-                  onAction={sendQuickPrompt}
-                />
-              )}
-            </div>
-
-            <div className="shrink-0 border-t border-[var(--border)] bg-[var(--card)] pt-3 dark:border-[var(--border)] dark:bg-[var(--secondary)]">
-              {selection && (
-                <div className="mx-3 mb-2 flex items-start gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-2.5 py-2 dark:border-[var(--border)] dark:bg-[var(--card)]">
-                  <Highlighter size={12} className="mt-0.5 shrink-0 text-[var(--primary)]" />
-                  <p className="line-clamp-2 min-w-0 flex-1 text-[10.5px] leading-relaxed text-[var(--muted-foreground)]">
-                    {selection.quote}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelection(null);
-                      setReadingViewport({ selection: "" });
-                    }}
-                  >
-                    <X size={10} />
-                  </button>
-                </div>
-              )}
-              {!!linkedSessionIds.length && (
-                <div className="mx-3 mb-2 flex items-center gap-1.5 text-[10px] text-[var(--muted-foreground)]">
-                  <Link2 size={10} />
-                  {t("Using {{count}} linked conversations as context", {
-                    count: linkedSessionIds.length,
-                  })}
-                </div>
-              )}
-              <ReadingComposer
-                placeholder={t("Ask about this material…")}
-                selection={selection}
-                onSent={() => setSelection(null)}
-                linkedSessionIds={linkedSessionIds}
-                prefillInputRef={prefillInputRef}
-              />
-              <p className="mt-1 px-3 pb-3 text-center text-[10px] text-[var(--muted-foreground)]">
-                {t("Answers stay with the material you have open until you switch.")}
-              </p>
-            </div>
-          </aside>
+          <ReadingCompanion
+            workspaceId={workspaceId}
+            material={activeTab?.material ?? null}
+            conversations={conversations}
+            activeConversation={activeConversation}
+            linkedSessionIds={linkedSessionIds}
+            activeLocator={activeLocator}
+            selection={selection}
+            onClearSelection={() => setSelection(null)}
+            onOpenLinker={() => setShowLinker(true)}
+            onSelectConversation={openConversation}
+            onNewConversation={newConversation}
+            onRenameConversation={setRenameConversationTarget}
+            onDeleteConversation={setDeleteConversationTarget}
+            onQuickPrompt={sendQuickPrompt}
+            prefillInputRef={prefillInputRef}
+            onClose={() => setCompanionOpen(false)}
+          />
         )}
       </div>
 
       {removeTarget && (
         <WorkspaceConfirmDialog
           title={t("Remove from collection")}
-          body={t("Remove “{{title}}” from this collection? It stays in your library.", { title: removeTarget.title })}
+          body={t(
+            "Remove “{{title}}” from this collection? It stays in your library.",
+            { title: removeTarget.title },
+          )}
           actionLabel={t("Remove")}
           onClose={() => setRemoveTarget(null)}
           onConfirm={async () => {
             await removeMaterial(removeTarget);
             setRemoveTarget(null);
+          }}
+        />
+      )}
+
+      {renameConversationTarget && (
+        <WorkspaceValueDialog
+          title={t("Rename conversation")}
+          label={t("Conversation name")}
+          initialValue={renameConversationTarget.title}
+          actionLabel={t("Save")}
+          onClose={() => setRenameConversationTarget(null)}
+          onSubmit={async (value) => {
+            await renameConversation(
+              renameConversationTarget.session_id,
+              value,
+            );
+            setRenameConversationTarget(null);
+          }}
+        />
+      )}
+
+      {deleteConversationTarget && (
+        <WorkspaceConfirmDialog
+          title={t("Delete conversation")}
+          body={t("Delete “{{title}}”? The transcript cannot be recovered.", {
+            title: deleteConversationTarget.title,
+          })}
+          actionLabel={t("Delete")}
+          onClose={() => setDeleteConversationTarget(null)}
+          onConfirm={async () => {
+            await deleteConversation(deleteConversationTarget.session_id);
+            setDeleteConversationTarget(null);
           }}
         />
       )}

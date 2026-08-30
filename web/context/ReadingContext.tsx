@@ -206,8 +206,7 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
       locator?: number;
       selection?: string;
       timeSeconds?: number | null;
-    }) =>
-      setReadingViewport(next),
+    }) => setReadingViewport(next),
     [],
   );
 

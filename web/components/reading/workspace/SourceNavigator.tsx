@@ -93,33 +93,39 @@ export function SourceNavigator({
   );
   const outlineRows = outline.length
     ? outline.map((row) => ({
-          locator: row.locator,
-          title: chaptersOnly
-            ? formatMediaTime(
-                timeFromSourceHref(
-                  refs.find((ref) => ref.locator === row.locator)?.source_href || "",
-                ) || 0,
-              )
-            : refs.find((ref) => ref.locator === row.locator)?.title ||
-              String(row.locator).padStart(2, "0"),
-          text: row.title,
-          sourceHref: refs.find((ref) => ref.locator === row.locator)?.source_href || "",
-        }))
-      : refs.map((row) => ({
-          locator: row.locator,
-          title: String(row.locator).padStart(2, "0"),
-          text: row.title || "",
-          sourceHref: row.source_href,
-        }));
+        locator: row.locator,
+        title: chaptersOnly
+          ? formatMediaTime(
+              timeFromSourceHref(
+                refs.find((ref) => ref.locator === row.locator)?.source_href ||
+                  "",
+              ) || 0,
+            )
+          : refs.find((ref) => ref.locator === row.locator)?.title ||
+            String(row.locator).padStart(2, "0"),
+        text: row.title,
+        sourceHref:
+          refs.find((ref) => ref.locator === row.locator)?.source_href || "",
+      }))
+    : refs.map((row) => ({
+        locator: row.locator,
+        title: String(row.locator).padStart(2, "0"),
+        text: row.title || "",
+        sourceHref: row.source_href,
+      }));
   const rows = transcriptUnavailable
     ? chaptersOnly
       ? outlineRows.filter((row) =>
-          `${row.title} ${row.text}`.toLowerCase().includes(search.toLowerCase()),
+          `${row.title} ${row.text}`
+            .toLowerCase()
+            .includes(search.toLowerCase()),
         )
       : []
     : transcript.length
       ? transcript.filter((row) =>
-          `${row.title} ${row.text}`.toLowerCase().includes(search.toLowerCase()),
+          `${row.title} ${row.text}`
+            .toLowerCase()
+            .includes(search.toLowerCase()),
         )
       : outlineRows;
   // Headings inside the unit the reader is looking at right now. The server
@@ -139,9 +145,7 @@ export function SourceNavigator({
           ? "absolute inset-y-0 left-0 z-30 flex w-[min(300px,88vw)] shadow-[18px_0_42px_rgba(0,0,0,.12)]"
           : "hidden"
       } min-h-0 min-w-0 flex-col border-r border-[var(--border)] bg-[var(--card)] dark:border-[var(--border)] dark:bg-[var(--card)] ${
-        desktopOpen
-          ? "lg:static lg:flex lg:w-auto lg:shadow-none"
-          : "lg:hidden"
+        desktopOpen ? "lg:static lg:flex lg:w-auto lg:shadow-none" : "lg:hidden"
       }`}
     >
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[var(--border)] px-3 dark:border-[var(--border)]">
@@ -197,7 +201,9 @@ export function SourceNavigator({
                   {t("No transcript available")}
                 </p>
                 <p className="mt-1">
-                  {t("Playback still works. Transcript-grounded explanation and timestamp search are unavailable for this video.")}
+                  {t(
+                    "Playback still works. Transcript-grounded explanation and timestamp search are unavailable for this video.",
+                  )}
                 </p>
               </>
             ) : (
@@ -253,7 +259,9 @@ export function SourceNavigator({
             {visibleHeadings.length > 0 && (
               <section
                 aria-label={t("On this page")}
-                className={rowCount ? "mt-3 border-t border-[var(--border)] pt-2" : ""}
+                className={
+                  rowCount ? "mt-3 border-t border-[var(--border)] pt-2" : ""
+                }
               >
                 <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.07em] text-[var(--muted-foreground)]">
                   {t("On this page")}
@@ -284,7 +292,9 @@ export function SourceNavigator({
       <div className="shrink-0 border-t border-[var(--border)] px-3 py-2 text-[10px] text-[var(--muted-foreground)] dark:border-[var(--border)]">
         {material?.status === "ready"
           ? mediaSource
-            ? t("{{count}} passages available to the companion", { count: rowCount })
+            ? t("{{count}} passages available to the companion", {
+                count: rowCount,
+              })
             : pageFallback
               ? t("{{count}} pages", { count: rowCount })
               : t("{{count}} outline entries", { count: rowCount })
@@ -346,10 +356,16 @@ export function WorkspaceOutlineBranch({
                   type="button"
                   onClick={() => onToggle(key)}
                   aria-expanded={!collapsed}
-                  aria-label={collapsed ? t("Expand section") : t("Collapse section")}
+                  aria-label={
+                    collapsed ? t("Expand section") : t("Collapse section")
+                  }
                   className="mr-1 shrink-0 rounded-md p-1 text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]"
                 >
-                  {collapsed ? <ChevronRight size={11} /> : <ChevronDown size={11} />}
+                  {collapsed ? (
+                    <ChevronRight size={11} />
+                  ) : (
+                    <ChevronDown size={11} />
+                  )}
                 </button>
               )}
             </div>

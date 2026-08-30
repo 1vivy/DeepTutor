@@ -45,63 +45,19 @@ export function MenuItem({
   );
 }
 
-export function QuickReadingActions({
-  onAction,
-  onOrganize,
-  sourceCount,
-}: {
-  onAction: (prompt: string) => void;
-  onOrganize: () => void;
-  sourceCount: number;
-}) {
-  const { t } = useTranslation();
-  const actions = [
-    {
-      label: t("Reading guide"),
-      prompt: t("Create a concise reading guide for the active material. Identify its thesis, structure, difficult concepts, and the best order to study it. Cite every claim."),
-    },
-    {
-      label: t("Summarize here"),
-      prompt: t("Summarize the passage currently visible in the reader, explain why it matters, and cite the exact source location."),
-    },
-    ...(sourceCount > 1
-      ? [
-          {
-            label: t("Compare materials"),
-            prompt: t("Compare the materials in this collection. First list them, then switch and read only the passages needed. Highlight agreements, tensions, and evidence with citations."),
-          },
-        ]
-      : []),
-  ];
-  return (
-    <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-[var(--border)] px-3 py-2 dark:border-[var(--border)]">
-      {actions.map((action) => (
-        <button
-          key={action.label}
-          type="button"
-          onClick={() => onAction(action.prompt)}
-          className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--card)] px-2.5 py-1 text-[10px] font-medium text-[var(--muted-foreground)] transition hover:border-[var(--border)] hover:text-[var(--primary)] dark:border-[var(--border)] dark:bg-[var(--card)]"
-        >
-          {action.label}
-        </button>
-      ))}
-      <button
-        type="button"
-        onClick={onOrganize}
-        className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--card)] px-2.5 py-1 text-[10px] font-medium text-[var(--muted-foreground)] hover:border-[var(--border)] hover:text-[var(--primary)] dark:border-[var(--border)] dark:bg-[var(--card)]"
-      >
-        {t("Organize notes")}
-      </button>
-    </div>
-  );
-}
-
 export function CompanionWelcome({
   title,
   onAction,
+  suggestions = [],
 }: {
   title: string;
   onAction: (prompt: string) => void;
+  /**
+   * Openers written against this material. Empty falls back to the three
+   * generic lines below, which are true of any document — fine as a floor,
+   * wrong as the default.
+   */
+  suggestions?: string[];
 }) {
   const { t } = useTranslation();
   return (
@@ -114,19 +70,32 @@ export function CompanionWelcome({
       </p>
       <p className="mt-2 text-[10.5px] leading-relaxed text-[var(--muted-foreground)]">
         {title
-          ? t("Ask about {{title}}, select a passage, or use a guided action above.", { title })
+          ? t(
+              "Ask about {{title}}, select a passage, or use a guided action above.",
+              { title },
+            )
           : t("Add material to begin a reading conversation.")}
       </p>
       <div className="mt-5 w-full space-y-2 text-left">
-        {[t("Explain the key argument"), t("Challenge this evidence"), t("Turn this into study notes")].map((item) => (
+        {(suggestions.length
+          ? suggestions
+          : [
+              t("Explain the key argument"),
+              t("Challenge this evidence"),
+              t("Turn this into study notes"),
+            ]
+        ).map((item) => (
           <button
             key={item}
             type="button"
             onClick={() => onAction(item)}
-            className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-[10.5px] text-[var(--muted-foreground)] dark:border-[var(--border)] dark:bg-[var(--card)]"
+            className="flex w-full items-start gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-left text-[10.5px] leading-relaxed text-[var(--muted-foreground)] transition hover:border-[var(--primary)]/40 hover:text-[var(--foreground)] dark:border-[var(--border)] dark:bg-[var(--card)]"
           >
-            <ChevronRight size={10} className="text-[var(--primary)]" />
-            {item}
+            <ChevronRight
+              size={10}
+              className="mt-[3px] shrink-0 text-[var(--primary)]"
+            />
+            <span className="min-w-0 flex-1">{item}</span>
           </button>
         ))}
       </div>
@@ -139,19 +108,35 @@ export function EmptyWorkspace({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="flex h-full flex-col items-center justify-center text-center">
       <Library size={25} className="text-[var(--primary)]" />
-      <p className="mt-3 font-serif text-[18px] font-medium">{t("Add material to begin")}</p>
-      <button type="button" onClick={onAdd} className="mt-5 rounded-xl bg-[var(--primary)] px-4 py-2 text-[11px] font-semibold text-[var(--primary-foreground)]">{t("Add material")}</button>
+      <p className="mt-3 font-serif text-[18px] font-medium">
+        {t("Add material to begin")}
+      </p>
+      <button
+        type="button"
+        onClick={onAdd}
+        className="mt-5 rounded-xl bg-[var(--primary)] px-4 py-2 text-[11px] font-semibold text-[var(--primary-foreground)]"
+      >
+        {t("Add material")}
+      </button>
     </div>
   );
 }
 
-export function MaterialProcessing({ material }: { material: ReadingLibraryMaterial }) {
+export function MaterialProcessing({
+  material,
+}: {
+  material: ReadingLibraryMaterial;
+}) {
   const { t } = useTranslation();
   return (
     <div className="flex h-full flex-col items-center justify-center text-center">
       <Loader2 size={24} className="animate-spin text-[var(--primary)]" />
-      <p className="mt-4 font-serif text-[18px] font-medium">{t("Preparing {{title}}", { title: material.title })}</p>
-      <p className="mt-2 text-[10.5px] text-[var(--muted-foreground)]">{t("Extracting structure and grounded passages…")} {material.progress}%</p>
+      <p className="mt-4 font-serif text-[18px] font-medium">
+        {t("Preparing {{title}}", { title: material.title })}
+      </p>
+      <p className="mt-2 text-[10.5px] text-[var(--muted-foreground)]">
+        {t("Extracting structure and grounded passages…")} {material.progress}%
+      </p>
     </div>
   );
 }
@@ -174,7 +159,9 @@ export function MaterialFailure({
       await onRetry();
     } catch (caught) {
       setRetryError(
-        caught instanceof Error ? caught.message : t("Try importing this material again."),
+        caught instanceof Error
+          ? caught.message
+          : t("Try importing this material again."),
       );
     } finally {
       setRetrying(false);
@@ -184,8 +171,12 @@ export function MaterialFailure({
   return (
     <div className="flex h-full flex-col items-center justify-center px-8 text-center">
       <CircleAlert size={24} className="text-red-600" />
-      <p className="mt-4 font-serif text-[18px] font-medium">{t("This material could not be prepared")}</p>
-      <p className="mt-2 max-w-lg text-[10.5px] leading-relaxed text-[var(--muted-foreground)]">{material.error_detail || t("Try importing this material again.")}</p>
+      <p className="mt-4 font-serif text-[18px] font-medium">
+        {t("This material could not be prepared")}
+      </p>
+      <p className="mt-2 max-w-lg text-[10.5px] leading-relaxed text-[var(--muted-foreground)]">
+        {material.error_detail || t("Try importing this material again.")}
+      </p>
       {retryError && (
         <p className="mt-2 max-w-lg text-[10.5px] text-red-700">{retryError}</p>
       )}

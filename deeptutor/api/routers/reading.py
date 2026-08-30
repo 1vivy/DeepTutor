@@ -462,6 +462,29 @@ async def list_workspaces(
         raise _http_error(exc) from exc
 
 
+@router.get("/workspaces/index")
+async def list_workspace_index() -> dict[str, Any]:
+    """Just enough to *name* a collection: id and title.
+
+    The sidebar groups reading conversations under their collection and
+    refreshes on every stream end. ``/workspaces`` answers with each
+    collection's whole tab list — every material, its cover, its unit
+    count — none of which a group heading renders.
+
+    Declared above ``/workspaces/{workspace_id}``: that route matches any
+    single segment, so a literal path below it would never be reached.
+    """
+    try:
+        return {
+            "collections": [
+                {"workspace_id": row.workspace_id, "title": row.title}
+                for row in _catalog().list_workspaces()
+            ]
+        }
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
 @router.post("/workspaces", status_code=201)
 async def create_workspace(payload: WorkspaceCreateRequest) -> dict[str, Any]:
     try:
@@ -488,6 +511,34 @@ async def get_workspace(workspace_id: str) -> dict[str, Any]:
         }
     except Exception as exc:
         raise _http_error(exc) from exc
+
+
+@router.get("/workspaces/{workspace_id}/ask-hint")
+async def get_workspace_ask_hint(
+    workspace_id: str,
+    session_id: str = "",
+    locator: int | None = None,
+    selection: str = "",
+) -> dict[str, Any]:
+    """One question the learner could ask about their current reading context."""
+    from deeptutor.services.reading_hints import get_ask_hint
+
+    return await get_ask_hint(workspace_id, session_id, locator, selection)
+
+
+@router.get("/workspaces/{workspace_id}/openers")
+async def get_workspace_openers(
+    workspace_id: str,
+    locator: int | None = None,
+) -> dict[str, Any]:
+    """Three things a learner could open this material with.
+
+    An empty list means the panel keeps its own generic suggestions — this is
+    a nicety, never a dependency.
+    """
+    from deeptutor.services.reading_hints import get_openers
+
+    return await get_openers(workspace_id, locator)
 
 
 @router.patch("/workspaces/{workspace_id}")
@@ -564,13 +615,37 @@ async def remove_workspace_material(workspace_id: str, material_id: str) -> dict
 
 @router.get("/workspaces/{workspace_id}/sessions")
 async def list_reading_sessions(workspace_id: str) -> dict[str, Any]:
+    from deeptutor.services.session import get_session_store
+
     try:
         catalog = _catalog()
+        rows = catalog.list_sessions(workspace_id)
+        # The catalog stores the title a conversation was attached with, which
+        # is the placeholder every conversation starts life as: the real name
+        # is written by the title model *after* that first turn finishes, into
+        # the session store. Read it from there so the reader sees the same
+        # name the sidebar does instead of a list of "New conversation".
+        titles: dict[str, str] = {}
+        try:
+            summaries = await get_session_store().get_session_summaries(
+                [row.session_id for row in rows]
+            )
+            titles = {
+                str(summary.get("session_id") or summary.get("id") or ""): str(
+                    summary.get("title") or ""
+                )
+                for summary in summaries
+            }
+        except Exception:
+            logger.debug("reading sessions: live titles unavailable", exc_info=True)
         return {
             "sessions": [
                 row.to_dict()
-                | {"linked_session_ids": catalog.list_session_links(workspace_id, row.session_id)}
-                for row in catalog.list_sessions(workspace_id)
+                | {
+                    "title": titles.get(row.session_id) or row.title,
+                    "linked_session_ids": catalog.list_session_links(workspace_id, row.session_id),
+                }
+                for row in rows
             ]
         }
     except Exception as exc:

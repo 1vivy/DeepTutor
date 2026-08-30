@@ -75,7 +75,10 @@ export function parseMasterySocketMessage(
   if (message.type === "subscribed") {
     return message as unknown as MasterySubscribedMessage;
   }
-  if (typeof message.reason !== "string" || typeof message.sequence !== "number") {
+  if (
+    typeof message.reason !== "string" ||
+    typeof message.sequence !== "number"
+  ) {
     return null;
   }
   return message as unknown as MasteryTopicEventMessage;
@@ -106,11 +109,14 @@ export class MasteryTopicSocket {
       {
         onOpen: () => {
           this.handlers.onConnecting?.();
-          this.transport.send(masterySubscribePayload(this.pathId, this.cursor));
+          this.transport.send(
+            masterySubscribePayload(this.pathId, this.cursor),
+          );
         },
         onMessage: (event) => this.receive(event.data),
         onDisconnect: () => this.handlers.onDisconnect?.(),
-        onError: (error) => this.handlers.onError?.(String(error || "Socket error")),
+        onError: (error) =>
+          this.handlers.onError?.(String(error || "Socket error")),
       },
       options,
     );

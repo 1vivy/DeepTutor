@@ -33,9 +33,12 @@ export function TopicAtlas({
   scopeChip?: React.ReactNode;
 }) {
   const { t } = useTranslation();
-  const activeTopics = topics.filter((topic) => topic.metadata.status === "active");
+  const activeTopics = topics.filter(
+    (topic) => topic.metadata.status === "active",
+  );
   const dueCount = activeTopics.reduce(
-    (count, topic) => count + topic.reviews.filter((review) => review.due).length,
+    (count, topic) =>
+      count + topic.reviews.filter((review) => review.due).length,
     0,
   );
   const dueTopics = activeTopics.filter((topic) =>
@@ -59,7 +62,9 @@ export function TopicAtlas({
               {t("Your learning topics")}
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-              {t("Work through each topic's knowledge points, then pick up any session where you left off.")}
+              {t(
+                "Work through each topic's knowledge points, then pick up any session where you left off.",
+              )}
             </p>
           </div>
           <button
@@ -85,7 +90,9 @@ export function TopicAtlas({
                 })}
               </div>
               <div className="mt-0.5 text-xs text-[var(--muted-foreground)]">
-                {t("Open their maps for a short review without losing your main route.")}
+                {t(
+                  "Open their maps for a short review without losing your main route.",
+                )}
               </div>
             </div>
             {firstDueTopic && (
@@ -160,7 +167,9 @@ export function TopicAtlas({
               {t("Your atlas is still uncharted")}
             </h2>
             <p className="relative z-[1] mx-auto mt-3 max-w-lg text-sm leading-6 opacity-70">
-              {t("Tell DeepTutor what you want to learn, mix in your books, notes, and knowledge bases, and it will draft the first outline.")}
+              {t(
+                "Tell DeepTutor what you want to learn, mix in your books, notes, and knowledge bases, and it will draft the first outline.",
+              )}
             </p>
             <button
               type="button"

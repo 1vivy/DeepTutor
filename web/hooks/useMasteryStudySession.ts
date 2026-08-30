@@ -28,7 +28,10 @@ import {
  * paths key their bookkeeping on the route so a fast topic switch can never
  * apply a stale answer to the wrong screen.
  */
-export function useMasteryStudySession(pathId: string, routeSessionId?: string) {
+export function useMasteryStudySession(
+  pathId: string,
+  routeSessionId?: string,
+) {
   const router = useRouter();
   const { t } = useTranslation();
   const {
@@ -117,7 +120,9 @@ export function useMasteryStudySession(pathId: string, routeSessionId?: string) 
           )
         ) {
           throw new Error(
-            t("This session belongs to a different topic. Open a session from this topic instead."),
+            t(
+              "This session belongs to a different topic. Open a session from this topic instead.",
+            ),
           );
         }
         const cached = showCachedSession(routeSessionId);

@@ -17,11 +17,12 @@ import {
 } from "@/lib/reading-turn-state";
 import {
   activateReadingMaterial,
-  createReadingConversation,
+  deleteReadingConversation,
   generateMasteryPathFromReading,
   getReadingWorkspace,
   listReadingConversations,
   organizeReadingNotes,
+  renameReadingConversation,
   removeReadingWorkspaceMaterial,
   updateReadingWorkspace,
   type OrganizedReadingNotes,
@@ -45,14 +46,16 @@ export function useReadingWorkspace(
 ) {
   const router = useRouter();
   const { t } = useTranslation();
+  const { material, annotations, openMaterial, closeMaterial, reportViewport } =
+    useReading();
   const {
-    material,
-    annotations,
-    openMaterial,
-    closeMaterial,
-    reportViewport,
-  } = useReading();
-  const { state, setCapability, setTools, loadSession } = useUnifiedChat();
+    state,
+    setCapability,
+    setTools,
+    loadSession,
+    newSession,
+    cancelStreamingTurn,
+  } = useUnifiedChat();
 
   const [workspace, setWorkspace] = useState<ReadingWorkspace | null>(null);
   const [conversations, setConversations] = useState<ReadingConversation[]>([]);
@@ -128,7 +131,9 @@ export function useReadingWorkspace(
       })
       .catch((caught) => {
         if (!cancelled)
-          setError(caught instanceof Error ? caught.message : t("Open failed."));
+          setError(
+            caught instanceof Error ? caught.message : t("Open failed."),
+          );
       });
     return () => {
       cancelled = true;
@@ -170,22 +175,19 @@ export function useReadingWorkspace(
 
     void (async () => {
       try {
-        let target = sessionIdParam;
-        if (!target) {
-          const latest = conversations[0];
-          if (latest) target = latest.session_id;
-          else {
-            const created = await createReadingConversation(
-              workspaceId,
-              t("Reading conversation"),
-              workspace.active_material_id ?? "",
-            );
-            setConversations([created]);
-            target = created.session_id;
-          }
-          router.replace(`/reading/${workspaceId}/${target}`, { scroll: false });
-        }
-        if (target) await loadSession(target);
+        // The URL is the truth about which conversation is open, the same
+        // rule /home follows: `/reading/<ws>/<id>` opens that conversation,
+        // `/reading/<ws>` is a *new* one. This used to reopen the most recent
+        // conversation instead, so arriving from the library — which links to
+        // the bare collection URL — dropped the reader into an old transcript
+        // they had not asked for.
+        //
+        // A conversation with nothing in it is a local draft, never a row:
+        // the backend attaches the session to this workspace when the first
+        // turn runs (see `turn_runtime`), so opening a collection and walking
+        // away no longer litters it with empty conversations.
+        if (sessionIdParam) await loadSession(sessionIdParam);
+        else newSession();
         setCapability(READING_CAPABILITY);
       } catch (caught) {
         setError(
@@ -196,10 +198,9 @@ export function useReadingWorkspace(
       }
     })();
   }, [
-    conversations,
     loadSession,
     loading,
-    router,
+    newSession,
     sessionIdParam,
     setCapability,
     t,
@@ -294,7 +295,8 @@ export function useReadingWorkspace(
       if (candidate) void switchMaterial(candidate);
     };
     window.addEventListener(READER_ACTION_EVENT, onReaderAction);
-    return () => window.removeEventListener(READER_ACTION_EVENT, onReaderAction);
+    return () =>
+      window.removeEventListener(READER_ACTION_EVENT, onReaderAction);
   }, [switchMaterial, workspace?.tabs]);
 
   const removeMaterial = useCallback(
@@ -310,18 +312,55 @@ export function useReadingWorkspace(
     [workspace],
   );
 
-  const newConversation = useCallback(async () => {
+  // The same gesture /home's "new chat" makes: stop whatever is streaming,
+  // reset to a local draft, and navigate to the URL that *means* "new". No
+  // row is written until the learner actually says something, and the title
+  // is then the one the model writes from that first turn rather than a
+  // placeholder every conversation shares.
+  const newConversation = useCallback(() => {
     if (!workspace) return;
-    const created = await createReadingConversation(
-      workspace.workspace_id,
-      t("New reading conversation"),
-      workspace.active_material_id ?? "",
-    );
-    setConversations((current) => [created, ...current]);
-    router.push(`/reading/${workspace.workspace_id}/${created.session_id}`);
-    await loadSession(created.session_id);
-    setCapability(READING_CAPABILITY);
-  }, [loadSession, router, setCapability, t, workspace]);
+    cancelStreamingTurn();
+    newSession();
+    router.push(`/reading/${workspace.workspace_id}`);
+  }, [cancelStreamingTurn, newSession, router, workspace]);
+
+  // When the first turn assigns a session id, put it in the URL and let the
+  // conversation menu see the row the backend just attached. Mirrors the
+  // binding effect on /home; without it a draft conversation would stay on
+  // the bare collection URL and a refresh would silently start over.
+  useEffect(() => {
+    if (!state.sessionId || sessionIdParam) return;
+    router.replace(`/reading/${workspaceId}/${state.sessionId}`, {
+      scroll: false,
+    });
+    void listReadingConversations(workspaceId)
+      .then(setConversations)
+      .catch(() => {});
+  }, [router, sessionIdParam, state.sessionId, workspaceId]);
+
+  const renameConversation = useCallback(
+    async (sessionId: string, title: string) => {
+      await renameReadingConversation(workspaceId, sessionId, title);
+      setConversations(await listReadingConversations(workspaceId));
+    },
+    [workspaceId],
+  );
+
+  // Mirrors /home's delete: drop the row, and if it was the conversation on
+  // screen, fall back to a fresh draft rather than leaving the reader looking
+  // at a transcript that no longer exists.
+  const deleteConversation = useCallback(
+    async (sessionId: string) => {
+      await deleteReadingConversation(workspaceId, sessionId);
+      setConversations(await listReadingConversations(workspaceId));
+      if (sessionId === sessionIdParam) {
+        cancelStreamingTurn();
+        newSession();
+        router.push(`/reading/${workspaceId}`);
+      }
+    },
+    [cancelStreamingTurn, newSession, router, sessionIdParam, workspaceId],
+  );
 
   const openConversation = useCallback(
     async (sessionId: string) => {
@@ -341,7 +380,9 @@ export function useReadingWorkspace(
       setNotice(t("Notes organized, each one citing where it came from."));
     } catch (caught) {
       setNotice(
-        caught instanceof Error ? caught.message : t("Could not organize notes."),
+        caught instanceof Error
+          ? caught.message
+          : t("Could not organize notes."),
       );
     }
   }, [t, workspace]);
@@ -405,6 +446,8 @@ export function useReadingWorkspace(
     removeMaterial,
     newConversation,
     openConversation,
+    renameConversation,
+    deleteConversation,
     organizeNotes,
     buildMasteryPath,
     renameWorkspace,

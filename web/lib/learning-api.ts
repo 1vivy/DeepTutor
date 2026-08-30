@@ -447,7 +447,9 @@ export async function fetchMasteryTopics(
     "load topics",
   );
   if (!Array.isArray(result.topics)) {
-    throw new Error("Failed to load topics: the server returned an invalid response");
+    throw new Error(
+      "Failed to load topics: the server returned an invalid response",
+    );
   }
   return result.topics;
 }
@@ -483,9 +485,7 @@ export async function fetchMasteryAskHint(
   sessionId: string,
   init?: RequestInit,
 ): Promise<string> {
-  const query = sessionId
-    ? `?session_id=${encodeURIComponent(sessionId)}`
-    : "";
+  const query = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
   const result = await masteryJson<{ hint?: string }>(
     `/api/v1/learning/topics/${encodeURIComponent(pathId)}/ask-hint${query}`,
     init,

@@ -102,7 +102,10 @@ export default function GroupSessionPicker({
             }}
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
           >
-            <Plus size={13} className="shrink-0 text-[var(--muted-foreground)]" />
+            <Plus
+              size={13}
+              className="shrink-0 text-[var(--muted-foreground)]"
+            />
             {t("New discussion")}
           </button>
 
@@ -127,7 +130,10 @@ export default function GroupSessionPicker({
                       >
                         <span className="w-3 shrink-0">
                           {active ? (
-                            <Check size={12} className="text-[var(--foreground)]" />
+                            <Check
+                              size={12}
+                              className="text-[var(--foreground)]"
+                            />
                           ) : null}
                         </span>
                         <span className="min-w-0 flex-1">
@@ -135,7 +141,9 @@ export default function GroupSessionPicker({
                             {item.title || t("New discussion")}
                           </span>
                           <span className="block text-[10px] text-[var(--muted-foreground)]">
-                            {t("{{count}} messages", { count: item.message_count })}
+                            {t("{{count}} messages", {
+                              count: item.message_count,
+                            })}
                           </span>
                         </span>
                       </button>

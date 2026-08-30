@@ -113,7 +113,11 @@ export default function CourseDetailPage() {
   );
 
   const attachResource = useCallback(
-    async (input: { kind: CourseResourceKind; ref_id: string; label: string }) => {
+    async (input: {
+      kind: CourseResourceKind;
+      ref_id: string;
+      label: string;
+    }) => {
       await attachCourseResource(courseId, input);
       await load();
     },

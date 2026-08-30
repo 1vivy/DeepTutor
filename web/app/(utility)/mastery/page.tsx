@@ -1,6 +1,13 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -13,10 +20,7 @@ import { CreateTopicWizard } from "@/components/space/learning/CreateTopicWizard
 import type { Translate } from "@/components/space/learning/format";
 import { topicDisplayName } from "@/components/space/learning/format";
 import { TopicAtlas } from "@/components/space/learning/TopicAtlas";
-import {
-  fetchMasteryTopics,
-  type MasteryTopic,
-} from "@/lib/learning-api";
+import { fetchMasteryTopics, type MasteryTopic } from "@/lib/learning-api";
 
 function MasteryPathRoute() {
   const router = useRouter();

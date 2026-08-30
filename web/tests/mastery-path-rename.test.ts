@@ -33,5 +33,8 @@ test("the rename editor opens with the stored name, not a derived label", () => 
   assert.match(title, /useState\(storedName\)/);
   assert.doesNotMatch(title, /useState\(displayName\)/);
   // Blur must not commit — that turns "clicked elsewhere" into a rename.
-  assert.match(title, /onBlur=\{\(\) => \{\s*if \(draft\.trim\(\) === storedName\.trim\(\)\) setEditing\(false\);/);
+  assert.match(
+    title,
+    /onBlur=\{\(\) => \{\s*if \(draft\.trim\(\) === storedName\.trim\(\)\) setEditing\(false\);/,
+  );
 });

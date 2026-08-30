@@ -49,8 +49,16 @@ export function InlineMarkdown({ text }: { text: string }): ReactNode {
     if (match.index > lastIndex) {
       nodes.push(text.slice(lastIndex, match.index));
     }
-    const [whole, boldDelim, boldContent, codeContent, linkLabel, linkUrl, italicDelim, italicContent] =
-      match;
+    const [
+      whole,
+      boldDelim,
+      boldContent,
+      codeContent,
+      linkLabel,
+      linkUrl,
+      italicDelim,
+      italicContent,
+    ] = match;
     if (boldDelim) {
       nodes.push(
         <Fragment key={key++}>
