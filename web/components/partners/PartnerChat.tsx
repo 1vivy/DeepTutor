@@ -25,6 +25,7 @@ import {
   resumePartnerSession,
 } from "@/lib/partners-api";
 import { freshPartnerSessionKey } from "@/lib/partner-session";
+import { displaySessionTitle } from "@/lib/session-title";
 import { createPartnerDraftPublisher } from "@/lib/partner-chat-draft";
 import { ReconnectingWebSocket } from "@/lib/reconnecting-websocket";
 import type { ExportableMessage } from "@/lib/chat-export";
@@ -685,7 +686,7 @@ export default function PartnerChat({
               .map(
                 (s) =>
                   `- \`${s.session_key}\`${s.archived ? ` (${t("Archived")})` : ""} — ${
-                    s.title || t("New conversation")
+                    displaySessionTitle(s.title, t("New conversation"))
                   } · ${s.message_count}`,
               )
               .join("\n");
