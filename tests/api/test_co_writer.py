@@ -435,11 +435,7 @@ def test_importing_the_api_does_not_pull_python_docx_into_memory():
     import subprocess
     import sys
 
-    probe = (
-        "import sys;"
-        "import deeptutor.co_writer.docx_converter;"
-        "print('docx' in sys.modules)"
-    )
+    probe = "import sys;import deeptutor.co_writer.docx_converter;print('docx' in sys.modules)"
     result = subprocess.run(
         [sys.executable, "-c", probe],
         cwd=Path(__file__).resolve().parents[2],

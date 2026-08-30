@@ -21,9 +21,7 @@ _DOCX_MAX_TOTAL_UNCOMPRESSED = 200 * 1024 * 1024
 _DOCX_MAX_COMPRESSION_RATIO = 200.0
 _MAX_MARKDOWN_CHARS = 600_000
 
-_HYPERLINK_REL = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
-)
+_HYPERLINK_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
 _CODE_FONTS = {"consolas", "courier new", "courier", "menlo", "monaco", "cascadia mono"}
 _CODE_FONT = "Consolas"
 _XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
@@ -122,9 +120,7 @@ def docx_to_markdown(data: bytes, filename: str = "document.docx") -> str:
         docx = _docx_module()
         document = docx.Document(BytesIO(data))
         numbering = _numbering_formats(document)
-        blocks = [
-            _block_to_markdown(block, numbering) for block in _iter_blocks(document)
-        ]
+        blocks = [_block_to_markdown(block, numbering) for block in _iter_blocks(document)]
         markdown = _join_blocks(blocks)
     except DocxConversionError:
         raise
@@ -152,9 +148,7 @@ def _validate_docx_archive(data: bytes, filename: str) -> None:
     with archive:
         members = [info for info in archive.infolist() if not info.is_dir()]
         if len(members) > _DOCX_MAX_MEMBERS:
-            raise DocxConversionError(
-                f"{filename} has too many archive members ({len(members)})."
-            )
+            raise DocxConversionError(f"{filename} has too many archive members ({len(members)}).")
         total = 0
         for info in members:
             if info.file_size > _DOCX_MAX_MEMBER_BYTES:
@@ -163,9 +157,7 @@ def _validate_docx_archive(data: bytes, filename: str) -> None:
                 )
             total += info.file_size
             if total > _DOCX_MAX_TOTAL_UNCOMPRESSED:
-                raise DocxConversionError(
-                    f"{filename}: uncompressed contents are too large."
-                )
+                raise DocxConversionError(f"{filename}: uncompressed contents are too large.")
             if (
                 info.compress_size
                 and info.file_size / info.compress_size > _DOCX_MAX_COMPRESSION_RATIO
@@ -183,8 +175,7 @@ def _plain_ooxml_fallback(data: bytes, filename: str, cause: Exception) -> str:
         return extract_text_from_bytes(filename, data, max_bytes=None, max_chars=None)
     except Exception as exc:
         raise DocxConversionError(
-            f"{filename} could not be read. "
-            "Please open it in Word and save it as a new .docx file."
+            f"{filename} could not be read. Please open it in Word and save it as a new .docx file."
         ) from (exc or cause)
 
 
@@ -318,9 +309,7 @@ def _inline_content_to_markdown(paragraph: Any) -> str:
         items = list(paragraph.runs)
     for item in items:
         if type(item).__name__ == "Hyperlink":
-            text = _runs_to_markdown(getattr(item, "runs", [])) or _escape_md(
-                item.text or ""
-            )
+            text = _runs_to_markdown(getattr(item, "runs", [])) or _escape_md(item.text or "")
             if not text:
                 continue
             address = (getattr(item, "address", "") or "").strip()
@@ -383,9 +372,7 @@ def _table_to_markdown(table: Any) -> str:
 
 
 def _cell_text(cell: Any) -> str:
-    text = " ".join(
-        part.strip() for part in (cell.text or "").splitlines() if part.strip()
-    )
+    text = " ".join(part.strip() for part in (cell.text or "").splitlines() if part.strip())
     return text.replace("\\", "\\\\").replace("|", "\\|")
 
 
@@ -469,9 +456,7 @@ def markdown_to_docx(content: str, title: str = "") -> bytes:
             level = min(len(heading.group(1)), 6)
             text = heading.group(2).strip()
             if text:
-                _append_styled_paragraph(
-                    document, text, f"Heading {level}", heading_level=level
-                )
+                _append_styled_paragraph(document, text, f"Heading {level}", heading_level=level)
             index += 1
             continue
         if _MD_HR_RE.match(stripped):
@@ -492,9 +477,7 @@ def markdown_to_docx(content: str, title: str = "") -> bytes:
             continue
         ordered = _MD_OL_RE.match(stripped)
         if ordered:
-            _append_styled_paragraph(
-                document, ordered.group(1), _list_style("List Number", indent)
-            )
+            _append_styled_paragraph(document, ordered.group(1), _list_style("List Number", indent))
             index += 1
             continue
         paragraph = document.add_paragraph()
