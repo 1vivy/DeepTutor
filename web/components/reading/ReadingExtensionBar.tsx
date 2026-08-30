@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Sparkles, X } from "lucide-react";
+import { Loader2, Sparkles, Square, Volume2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   listReadingExtensions,
@@ -25,6 +25,12 @@ export function ReadingExtensionBar({
   const [extensions, setExtensions] = useState<ReadingExtensionManifest[]>([]);
   const [busy, setBusy] = useState("");
   const [result, setResult] = useState<ReadingExtensionResult | null>(null);
+  const [speaking, setSpeaking] = useState(false);
+
+  function stopSpeaking() {
+    window.speechSynthesis?.cancel();
+    setSpeaking(false);
+  }
 
   useEffect(() => {
     let active = true;
@@ -38,11 +44,16 @@ export function ReadingExtensionBar({
       });
     return () => {
       active = false;
-      window.speechSynthesis?.cancel();
     };
-  }, [materialId, onError]);
+  }, [onError]);
 
-  useEffect(() => setResult(null), [locator, materialId]);
+  useEffect(() => {
+    setResult(null);
+    return () => {
+      window.speechSynthesis?.cancel();
+      setSpeaking(false);
+    };
+  }, [locator, materialId]);
 
   const actions = useMemo(
     () =>
@@ -79,7 +90,10 @@ export function ReadingExtensionBar({
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = String(next.payload.locale || i18n.language);
+        utterance.onend = () => setSpeaking(false);
+        utterance.onerror = () => setSpeaking(false);
         window.speechSynthesis.speak(utterance);
+        setSpeaking(true);
       }
     } catch (error) {
       onError(error instanceof Error ? error.message : String(error));
@@ -97,6 +111,10 @@ export function ReadingExtensionBar({
           const disabled =
             Boolean(busy) ||
             (action.requires.includes("selection") && !selection?.trim());
+          const label =
+            extension.id === "read_aloud" && action.id === "read"
+              ? t("Read aloud")
+              : action.label;
           return (
             <button
               key={key}
@@ -110,11 +128,29 @@ export function ReadingExtensionBar({
               ) : (
                 <Sparkles size={14} />
               )}
-              <span className="truncate">{action.label}</span>
+              <span className="truncate">{label}</span>
             </button>
           );
         })}
       </div>
+      {speaking ? (
+        <div
+          role="status"
+          className="flex shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs text-[var(--muted-foreground)]"
+        >
+          <Volume2 size={14} />
+          <span>{t("Reading aloud")}</span>
+          <button
+            type="button"
+            aria-label={t("Stop reading aloud")}
+            title={t("Stop reading aloud")}
+            onClick={stopSpeaking}
+            className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--foreground)] transition hover:bg-[var(--muted)]"
+          >
+            <Square size={12} fill="currentColor" />
+          </button>
+        </div>
+      ) : null}
       {result && result.type !== "browser_speech" ? (
         <ExtensionResult
           result={result}
