@@ -1127,6 +1127,10 @@ class TurnRuntimeManager:
             # key — stripped before validation, merged back into the turn config
             # and read by the subagent capability from context.config_overrides.
             "subagent_consult_budget",
+            # Per-turn engine choice (composer's engine selector) — same
+            # treatment: not a capability config field, read straight off
+            # context.config_overrides by core.engine.registry.resolve_engine.
+            "engine_selection",
         )
         runtime_only_config = {
             key: raw_config.pop(key) for key in runtime_only_keys if key in raw_config

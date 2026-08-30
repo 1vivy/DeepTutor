@@ -36,6 +36,7 @@ import type { SelectedRecord } from "@/lib/notebook-selection-types";
 import type { SelectedHistorySession } from "@/components/chat/HistorySessionPicker";
 import type { SelectedQuestionEntry } from "@/components/chat/QuestionBankPicker";
 import ChatComposer from "@/components/chat/home/ChatComposer";
+import type { EngineOption } from "@/components/chat/home/EngineSelector";
 import type { ContextBudget } from "@/components/chat/home/ContextBudgetChip";
 import { ChatMessageList } from "@/components/chat/home/ChatMessages";
 import { TurnNavigator } from "@/components/chat/home/TurnNavigator";
@@ -107,7 +108,11 @@ import {
   type OutlineItem,
 } from "@/lib/research-types";
 import { listKnowledgeBases } from "@/lib/knowledge-api";
-import { getSubagentSettings } from "@/lib/subagents-api";
+import {
+  detectSubagents,
+  getSubagentSettings,
+  type SubagentBackendInfo,
+} from "@/lib/subagents-api";
 import { useLLMOptions } from "@/hooks/useLLMOptions";
 import {
   getEnabledOptionalTools,
@@ -1843,6 +1848,50 @@ export default function ChatPage() {
       .catch(() => undefined);
   }, []);
 
+  // What can drive this turn's loop instead of DeepTutor's own — detected the
+  // same way the connect-CLI modal checks for a usable local CLI. Unlike
+  // ``agentOptions`` above (a connection the user set up to *consult* mid-turn)
+  // this only needs the CLI to be on the machine at all: the engine drives the
+  // whole turn directly, it isn't a named connection.
+  const [engineBackends, setEngineBackends] = useState<SubagentBackendInfo[]>(
+    [],
+  );
+  useEffect(() => {
+    let cancelled = false;
+    void detectSubagents()
+      .then((backends) => {
+        if (!cancelled) setEngineBackends(backends);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const engineOptions = useMemo<EngineOption[]>(() => {
+    // backend kind -> engine_selection.kind. Matches
+    // core.engine.registry.EXTERNAL_ENGINE_BACKENDS on the backend; adding a
+    // CLI there is adding one row here too.
+    const ENGINE_BACKEND_KINDS: Record<string, string> = {
+      codex: "codex_cli",
+      claude_code: "claude_code_cli",
+    };
+    const base: EngineOption[] = [{ kind: null, label: t("DeepTutor") }];
+    const connected = Object.entries(ENGINE_BACKEND_KINDS)
+      .map((entry): EngineOption | null => {
+        const [backendKind, engineKind] = entry;
+        const backend = engineBackends.find((b) => b.kind === backendKind);
+        if (!backend) return null;
+        return {
+          kind: engineKind,
+          label: backend.display_name || backendKind,
+          unavailable: !backend.available,
+        };
+      })
+      .filter((o): o is EngineOption => o !== null);
+    return [...base, ...connected];
+  }, [engineBackends, t]);
+  const [engineSelection, setEngineSelection] = useState<string | null>(null);
+
   const handleSend = useCallback(
     async (content: string) => {
       // A turn paused on a question: what the user typed is their answer, not
@@ -1928,6 +1977,12 @@ export default function ChatPage() {
       if (selectedAgent && subagentBudget) {
         config = { ...(config ?? {}), subagent_consult_budget: subagentBudget };
       }
+      if (engineSelection) {
+        config = {
+          ...(config ?? {}),
+          engine_selection: { kind: engineSelection },
+        };
+      }
       const launchCourseId = pendingCourseRef.current?.trim();
       if (launchCourseId) {
         config = { ...(config ?? {}), _course_id: launchCourseId };
@@ -1986,6 +2041,7 @@ export default function ChatPage() {
       researchConfig,
       researchValidation,
       ensureActivityPanelOpen,
+      engineSelection,
       selectedAgent,
       selectedHistorySessions.length,
       selectedAgentSessions.length,
@@ -2466,6 +2522,9 @@ export default function ChatPage() {
                 onSelectAgent={handleSelectAgent}
                 subagentBudget={subagentBudget}
                 onSubagentBudgetChange={setSubagentBudget}
+                engineOptions={engineOptions}
+                engineSelection={engineSelection}
+                onSelectEngine={setEngineSelection}
                 llmOptions={llmOptions}
                 activeLLMDefault={activeLLMDefault}
                 llmSelection={state.llmSelection}

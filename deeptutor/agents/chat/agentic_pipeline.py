@@ -15,7 +15,6 @@ from deeptutor.agents._shared.tool_composition import (
     user_has_notebooks,
     user_has_question_bank,
 )
-from deeptutor.agents.chat.agent_loop import AgentLoop
 from deeptutor.agents.chat.context_budget import LLMRequestSnapshot, build_context_budget
 from deeptutor.agents.chat.prompt_blocks import ChatPromptAssembler
 from deeptutor.capabilities import (
@@ -331,26 +330,15 @@ class AgenticChatPipeline:
         return self.respond_max_tokens
 
     async def run(self, context: UnifiedContext, stream: StreamBus) -> None:
-        await self._prepare_deferred_tools(context)
-        await self._prepare_kb_manifests(context)
-        self._exec_enabled = await self._exec_allowed(context)
-        enabled_tools = self._compose_enabled_tools(context)
-        use_native_tools = bool(enabled_tools) and self._can_use_native_tool_calling()
-        tool_schemas = (
-            self._build_llm_tool_schemas(enabled_tools, context) if use_native_tools else None
-        )
-        if tool_schemas is not None and self._tool_view is not None:
-            self._tool_view.attach(tool_schemas)
+        from deeptutor.core.engine.registry import resolve_engine
 
-        loop = AgentLoop(
+        engine = resolve_engine(
             pipeline=self,
             context=context,
             stream=stream,
-            client=self._build_openai_client(),
-            enabled_tools=enabled_tools if use_native_tools else [],
-            tool_schemas=tool_schemas,
+            active_loop_capabilities=self._active_loop_capabilities(context),
         )
-        await loop.run()
+        await engine.run()
 
     # ---- prompt assembly -------------------------------------------------
 

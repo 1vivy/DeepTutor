@@ -79,6 +79,7 @@ class ClaudeCodeBackend(SubagentBackend):
         session_id: str | None,
         config: BackendConfig,
         images: list[str] | None = None,
+        mcp_server_url: str | None = None,
     ) -> list[str]:
         # Claude Code's ``-p`` mode has no image flag (only the stream-json stdin
         # channel does), so we point it at the forwarded images on disk and let
@@ -106,6 +107,15 @@ class ClaudeCodeBackend(SubagentBackend):
             # Allow Read access to the (temp) directory the images live in, which
             # is outside the working dir.
             cmd += ["--add-dir", os.path.dirname(images[0])]
+        if mcp_server_url:
+            # Loaded for this invocation only — never written to the user's own
+            # ``~/.claude.json`` / project ``.mcp.json``. Additive (no
+            # ``--strict-mcp-config``), so every MCP server and skill the user
+            # already configured still loads alongside this one.
+            cmd += [
+                "--mcp-config",
+                json.dumps({"mcpServers": {"deeptutor": {"type": "http", "url": mcp_server_url}}}),
+            ]
         if session_id:
             cmd += ["--resume", session_id]
         if config.permission_mode:
@@ -129,9 +139,16 @@ class ClaudeCodeBackend(SubagentBackend):
         config: BackendConfig | None = None,
         images: list[str] | None = None,
         partner_id: str | None = None,  # noqa: ARG002 — partner-only; ignored here
+        mcp_server_url: str | None = None,
     ) -> ConsultResult:
         config = config or BackendConfig()
-        cmd = self._build_command(question, session_id=session_id, config=config, images=images)
+        cmd = self._build_command(
+            question,
+            session_id=session_id,
+            config=config,
+            images=images,
+            mcp_server_url=mcp_server_url,
+        )
         result = ConsultResult(session_id=session_id)
         assistant_text: list[str] = []
         # Token-streaming accumulator: per content-block running text, keyed by the

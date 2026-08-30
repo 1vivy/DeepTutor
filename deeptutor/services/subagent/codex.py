@@ -79,11 +79,19 @@ class CodexBackend(SubagentBackend):
         session_id: str | None,
         config: BackendConfig,
         images: list[str] | None = None,
+        mcp_server_url: str | None = None,
     ) -> list[str]:
         cmd = [self.cli_command, "exec"]
         if session_id:
             cmd += ["resume", session_id]
         cmd += ["--json", "--skip-git-repo-check"]
+        if mcp_server_url:
+            # Scoped to this one invocation — a ``-c`` override, not a write to
+            # the user's ``~/.codex/config.toml``. Additive: whatever MCP
+            # servers/skills the user already configured there still load;
+            # this is one more, named so it can't collide with a server the
+            # user added themselves.
+            cmd += ["-c", f'mcp_servers.deeptutor.url="{mcp_server_url}"']
         # ``--ephemeral`` (don't persist the session) only makes sense for a
         # fresh run, not when resuming an existing session.
         if config.ephemeral and not session_id:
@@ -123,9 +131,16 @@ class CodexBackend(SubagentBackend):
         config: BackendConfig | None = None,
         images: list[str] | None = None,
         partner_id: str | None = None,  # noqa: ARG002 — partner-only; ignored here
+        mcp_server_url: str | None = None,
     ) -> ConsultResult:
         config = config or BackendConfig()
-        cmd = self._build_command(question, session_id=session_id, config=config, images=images)
+        cmd = self._build_command(
+            question,
+            session_id=session_id,
+            config=config,
+            images=images,
+            mcp_server_url=mcp_server_url,
+        )
         result = ConsultResult(session_id=session_id)
 
         async def emit(

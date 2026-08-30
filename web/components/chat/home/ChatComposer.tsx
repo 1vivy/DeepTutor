@@ -46,6 +46,7 @@ import ChatSpaceMenu from "@/components/chat/space/ChatSpaceMenu";
 import type { SpaceMemoryFile } from "@/lib/space-items";
 import type { SelectedBookReference } from "@/lib/book-references";
 import AgentSelector from "./AgentSelector";
+import EngineSelector, { type EngineOption } from "./EngineSelector";
 import ContextBudgetChip, { type ContextBudget } from "./ContextBudgetChip";
 import KnowledgeSelector from "./KnowledgeSelector";
 import ModelSelector from "./ModelSelector";
@@ -198,6 +199,9 @@ export default memo(function ChatComposer({
   onSelectAgent,
   subagentBudget = null,
   onSubagentBudgetChange,
+  engineOptions = null,
+  engineSelection = null,
+  onSelectEngine,
   llmOptions,
   activeLLMDefault,
   llmSelection,
@@ -281,6 +285,17 @@ export default memo(function ChatComposer({
   /** Max times DeepTutor may consult the selected agent this turn. */
   subagentBudget?: number | null;
   onSubagentBudgetChange?: (budget: number) => void;
+  /**
+   * What can drive this turn's loop instead of DeepTutor's own — a connected
+   * local CLI (Codex today), given DeepTutor's tools/context over a
+   * turn-scoped MCP bridge. Omitted/empty (no CLI detected) hides the
+   * control entirely — every DeepTutor user without one keeps the plain
+   * composer they have today.
+   */
+  engineOptions?: EngineOption[] | null;
+  /** ``null`` is the DeepTutor default. */
+  engineSelection?: string | null;
+  onSelectEngine?: (kind: string | null) => void;
   llmOptions: LLMOption[];
   activeLLMDefault: LLMSelection | null;
   llmSelection: LLMSelection | null;
@@ -1107,6 +1122,13 @@ export default memo(function ChatComposer({
                   onChange={onSelectLLM}
                   onRefresh={onRefreshLLMOptions}
                 />
+                {engineOptions && engineOptions.length > 1 && onSelectEngine ? (
+                  <EngineSelector
+                    options={engineOptions}
+                    value={engineSelection}
+                    onChange={onSelectEngine}
+                  />
+                ) : null}
                 {contextBudget ? (
                   <ContextBudgetChip budget={contextBudget} />
                 ) : null}

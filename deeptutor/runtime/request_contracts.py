@@ -24,6 +24,10 @@ _RUNTIME_ONLY_KEYS = {
     # capability's public config schema; stripped here so it never trips
     # ``extra="forbid"`` (turn_runtime carries it through to the turn config).
     "subagent_consult_budget",
+    # Per-turn engine choice (composer's engine selector) — same treatment:
+    # not a capability config field, read straight off
+    # ``context.config_overrides`` by ``core.engine.registry.resolve_engine``.
+    "engine_selection",
 }
 
 
