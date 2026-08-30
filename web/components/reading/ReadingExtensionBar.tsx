@@ -97,6 +97,7 @@ export function ReadingExtensionBar({
           const disabled =
             Boolean(busy) ||
             (action.requires.includes("selection") && !selection?.trim());
+          const builtInLabel = builtInActionLabel(extension.id, action.id);
           return (
             <button
               key={key}
@@ -110,7 +111,9 @@ export function ReadingExtensionBar({
               ) : (
                 <Sparkles size={14} />
               )}
-              <span className="truncate">{action.label}</span>
+              <span className="truncate">
+                {builtInLabel ? t(builtInLabel) : action.label}
+              </span>
             </button>
           );
         })}
@@ -124,6 +127,13 @@ export function ReadingExtensionBar({
       ) : null}
     </>
   );
+}
+
+function builtInActionLabel(extensionId: string, actionId: string) {
+  if (extensionId === "guided_learning" && actionId === "guide") {
+    return "Guide me";
+  }
+  return "";
 }
 
 function ExtensionResult({
