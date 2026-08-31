@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from deeptutor.api.routers import settings as settings_router
@@ -107,3 +109,29 @@ async def test_list_builtin_tools_reflects_user_toggle(
     assert by_name["code_execution"].enabled is True
     assert by_name["rag"].enabled is True
     assert by_name["web_fetch"].enabled is True
+
+
+@pytest.mark.asyncio
+async def test_web_search_reports_enabled_but_not_configured(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    settings_file = tmp_path / "interface.json"
+    monkeypatch.setattr(settings_router, "_settings_file", lambda: settings_file)
+    monkeypatch.setattr(
+        tools_router,
+        "resolve_search_runtime_config",
+        lambda: SimpleNamespace(
+            provider="none",
+            requested_provider="none",
+            unsupported_provider=False,
+            deprecated_provider=False,
+            missing_credentials=False,
+        ),
+    )
+
+    response = await tools_router.list_builtin_tools()
+    web_search = next(tool for tool in response.tools if tool.name == "web_search")
+
+    assert web_search.enabled is True  # saved composer preference
+    assert web_search.available is False  # runtime can actually execute it
+    assert web_search.unavailable_reason == "search_provider_not_configured"

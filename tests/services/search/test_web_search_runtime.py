@@ -63,6 +63,24 @@ def test_web_search_rejects_deprecated_provider(monkeypatch) -> None:
         web_search("hello")
 
 
+def test_web_search_none_provider_returns_actionable_configuration_error(monkeypatch) -> None:
+    _patch_runtime(
+        monkeypatch,
+        ResolvedSearchConfig(
+            provider="none",
+            requested_provider="none",
+            max_results=5,
+        ),
+    )
+
+    result = web_search("hello")
+
+    assert result["provider"] == "none"
+    assert result["error_code"] == "search_provider_not_configured"
+    assert "Settings" in result["answer"]
+    assert "DuckDuckGo" in result["answer"]
+
+
 def test_web_search_perplexity_missing_key_hard_fails(monkeypatch) -> None:
     _patch_runtime(
         monkeypatch,
@@ -161,6 +179,40 @@ def test_web_search_runtime_failure_falls_through_the_chain(monkeypatch) -> None
     # The fallback provider runs on its own credentials, never the failed
     # provider's key.
     assert seen[1][1]["api_key"] == "tavily-key"
+
+
+def test_web_search_fallback_drops_request_credentials_for_previous_provider(monkeypatch) -> None:
+    seen: list[tuple[str, dict]] = []
+
+    def _fake_get_provider(name: str, **kwargs):
+        seen.append((name, kwargs))
+        return _FailingProvider(name) if name == "serper" else _FakeProvider(name)
+
+    _patch_runtime(
+        monkeypatch,
+        ResolvedSearchConfig(
+            provider="serper",
+            requested_provider="serper",
+            api_key="profile-serper-key",
+            base_url="https://profile.serper.example",
+            max_results=5,
+        ),
+        candidates=["tavily"],
+        credentials={"tavily": ("tavily-key", "https://tavily.example")},
+    )
+    monkeypatch.setattr("deeptutor.services.search.get_provider", _fake_get_provider)
+
+    result = web_search(
+        "hello",
+        api_key="request-serper-key",
+        base_url="https://request.serper.example",
+    )
+
+    assert result["provider"] == "tavily"
+    assert seen[0][1]["api_key"] == "request-serper-key"
+    assert seen[0][1]["base_url"] == "https://request.serper.example"
+    assert seen[1][1]["api_key"] == "tavily-key"
+    assert seen[1][1]["base_url"] == "https://tavily.example"
 
 
 def test_web_search_raises_when_every_candidate_fails(monkeypatch) -> None:

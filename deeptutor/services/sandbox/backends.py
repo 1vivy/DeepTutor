@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
+import locale
 import os
 from pathlib import Path
 import shutil
@@ -251,6 +252,47 @@ class RestrictedSubprocessBackend(SandboxBackend):
 
     _SAFE_ENV_KEYS = ("PATH", "PATHEXT", "HOME", "LANG", "LC_ALL", "TMPDIR", "SYSTEMROOT")
 
+    def __init__(
+        self,
+        *,
+        venv_path: str | Path | None = None,
+        inherit_virtualenv: bool = True,
+    ) -> None:
+        """Keep model-authored ``python`` and ``pip`` on one interpreter.
+
+        Desktop installs run DeepTutor from a virtual environment but can
+        inherit a host ``PATH`` whose first Python belongs to MSYS, Conda, or a
+        system install.  Prepending the environment that launched DeepTutor
+        prevents a bare ``pip install`` followed by ``python -c`` from silently
+        targeting two different environments.
+        """
+        if venv_path is not None:
+            candidate = Path(venv_path).resolve()
+        elif inherit_virtualenv and sys.prefix != sys.base_prefix:
+            candidate = Path(sys.prefix).resolve()
+        else:
+            candidate = None
+        self._venv_path = candidate if candidate is not None and candidate.is_dir() else None
+
+    def _build_env(self, request_env: dict[str, str]) -> dict[str, str]:
+        env = {key: os.environ[key] for key in self._SAFE_ENV_KEYS if key in os.environ}
+        env.update(request_env)
+        if self._venv_path is None:
+            return env
+
+        venv = str(self._venv_path)
+        venv_bin = str(self._venv_path / ("Scripts" if sys.platform == "win32" else "bin"))
+        base_path = env.get("PATH") or ""
+        normalized_venv_bin = os.path.normcase(os.path.normpath(venv_bin))
+        path_entries = [
+            entry
+            for entry in base_path.split(os.pathsep)
+            if entry and os.path.normcase(os.path.normpath(entry)) != normalized_venv_bin
+        ]
+        env["PATH"] = os.pathsep.join([venv_bin, *path_entries])
+        env["VIRTUAL_ENV"] = venv
+        return env
+
     @staticmethod
     def _powershell_executable() -> str:
         """Return the PowerShell executable available on PATH.
@@ -278,8 +320,7 @@ class RestrictedSubprocessBackend(SandboxBackend):
         )
 
     async def exec(self, request: ExecRequest) -> ExecResult:
-        env = {k: os.environ[k] for k in self._SAFE_ENV_KEYS if k in os.environ}
-        env.update(request.env)
+        env = self._build_env(request.env)
         cwd = request.workdir or None
         try:
             if request.argv:
@@ -344,10 +385,27 @@ async def _communicate(process: asyncio.subprocess.Process, timeout_s: int) -> E
             await asyncio.wait_for(process.wait(), timeout=5.0)
         return ExecResult(timed_out=True, exit_code=124)
     return ExecResult(
-        stdout=stdout.decode("utf-8", errors="replace") if stdout else "",
-        stderr=stderr.decode("utf-8", errors="replace") if stderr else "",
+        stdout=_decode_process_output(stdout),
+        stderr=_decode_process_output(stderr),
         exit_code=process.returncode if process.returncode is not None else 0,
     )
+
+
+def _decode_process_output(data: bytes | None) -> str:
+    """Decode native-process output without turning Windows errors into mojibake."""
+    if not data:
+        return ""
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+    if sys.platform == "win32":
+        for encoding in (locale.getpreferredencoding(False), "mbcs"):
+            try:
+                return data.decode(encoding)
+            except (LookupError, UnicodeDecodeError):
+                continue
+    return data.decode("utf-8", errors="replace")
 
 
 __all__ = [

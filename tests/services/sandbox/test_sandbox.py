@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import os
 
 import pytest
 
-from deeptutor.services.sandbox.backends import BwrapBackend, RestrictedSubprocessBackend
+from deeptutor.services.sandbox.backends import (
+    BwrapBackend,
+    RestrictedSubprocessBackend,
+    _decode_process_output,
+)
 from deeptutor.services.sandbox.config import SandboxSettings, build_backend
 from deeptutor.services.sandbox.quota import QuotaExceeded, UserExecQuota
 from deeptutor.services.sandbox.service import SandboxService
@@ -170,6 +175,55 @@ async def test_restricted_subprocess_runs() -> None:
     assert result.ok
     assert "hello" in result.stdout
     assert result.exit_code == 0
+
+
+def test_restricted_subprocess_prefers_configured_virtualenv(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bare ``python``/``pip`` must resolve inside DeepTutor's own env.
+
+    A Windows desktop install can inherit MSYS Python before the interpreter
+    that launched DeepTutor.  That split makes ``pip install`` and the next
+    ``python -c`` target different environments.
+    """
+    venv = tmp_path / "deeptutor-venv"
+    bin_dir = venv / ("Scripts" if os.name == "nt" else "bin")
+    bin_dir.mkdir(parents=True)
+    monkeypatch.setenv("PATH", os.pathsep.join(["foreign-python", "system-tools"]))
+
+    backend = RestrictedSubprocessBackend(venv_path=venv)
+    env = backend._build_env({})
+
+    assert env["VIRTUAL_ENV"] == str(venv.resolve())
+    assert env["PATH"].split(os.pathsep)[0] == str(bin_dir.resolve())
+    assert env["PATH"].split(os.pathsep).count(str(bin_dir.resolve())) == 1
+
+
+def test_restricted_subprocess_request_path_keeps_virtualenv_first(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    venv = tmp_path / "deeptutor-venv"
+    bin_dir = venv / ("Scripts" if os.name == "nt" else "bin")
+    bin_dir.mkdir(parents=True)
+    monkeypatch.setenv("PATH", "host-tools")
+
+    backend = RestrictedSubprocessBackend(venv_path=venv)
+    env = backend._build_env({"PATH": os.pathsep.join(["turn-tools", str(bin_dir)])})
+
+    assert env["PATH"].split(os.pathsep) == [str(bin_dir.resolve()), "turn-tools"]
+
+
+def test_windows_process_output_falls_back_to_the_console_encoding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    message = "不是内部或外部命令"
+    monkeypatch.setattr("deeptutor.services.sandbox.backends.sys.platform", "win32")
+    monkeypatch.setattr(
+        "deeptutor.services.sandbox.backends.locale.getpreferredencoding",
+        lambda _do_setlocale=False: "gbk",
+    )
+
+    assert _decode_process_output(message.encode("gbk")) == message
 
 
 @pytest.mark.asyncio
