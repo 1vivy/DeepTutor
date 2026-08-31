@@ -50,7 +50,10 @@ export { restoreAll };
 if (isEntry) {
   const result = spawnSync(
     process.execPath,
-    [nextBin, "build", ...process.argv.slice(2)],
+    // Next.js 16 defaults to Turbopack, which does not emit the standalone
+    // server bundle expected by `deeptutor start`. The production launcher
+    // needs the Webpack output at `.next-deeptutor/standalone/server.js`.
+    [nextBin, "build", "--webpack", ...process.argv.slice(2)],
     { cwd: webRoot, stdio: "inherit" },
   );
   restoreAll(snapshots);

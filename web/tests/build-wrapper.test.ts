@@ -34,4 +34,15 @@ test("the build wrapper restores every generated checked-in input", () => {
     /stdio: "inherit"/,
     "wrapper must preserve Next build diagnostics",
   );
+  assert.match(
+    source,
+    /\[nextBin, "build", "--webpack", \.\.\.process\.argv\.slice\(2\)\]/,
+    "source production builds must use Webpack so Next emits standalone/server.js",
+  );
+});
+
+test("the standalone bundle is rooted where the Python launcher expects it", () => {
+  const source = read("next.config.js");
+  assert.match(source, /output:\s*"standalone"/);
+  assert.match(source, /outputFileTracingRoot:\s*__dirname/);
 });
