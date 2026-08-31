@@ -93,6 +93,7 @@ export type CatalogProfile = {
   api_key: string;
   api_version: string;
   extra_headers?: Record<string, string> | string;
+  wire_api?: "auto" | "responses" | "chat_completions";
   proxy?: string;
   max_results?: number;
   /** Set when this profile's credentials come from a catalog connection. */
@@ -222,6 +223,7 @@ export type ProviderOption = {
   default_model?: string;
   default_voice?: string;
   auth_mode?: "api_key" | "oauth";
+  supports_wire_api_selection?: boolean;
   // Search providers only, from the backend SEARCH_PROVIDERS spec table:
   // which connection fields the provider consumes, whether missing ones fall
   // back to a free provider or fail hard, and whether it is still offered.
@@ -1011,6 +1013,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           api_key: "",
           api_version: "",
           extra_headers: service === "search" ? undefined : {},
+          wire_api: service === "llm" ? "auto" : undefined,
           proxy: service === "search" ? "" : undefined,
           models: [],
         };

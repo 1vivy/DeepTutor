@@ -29,7 +29,7 @@ export default function SettingsMain({
         <SettingsNav />
       </div>
       <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="w-full px-8 pt-5">
+        <div className="w-full px-5 pt-5 sm:px-8">
           {/* Below `md` the column is hidden, so this is the only way out of
               the page you landed on. */}
           <div className="mb-2">
@@ -47,7 +47,9 @@ export default function SettingsMain({
           data-settings-scroll
           className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]"
         >
-          <div className="w-full max-w-3xl px-8 pb-16 pt-2">{children}</div>
+          <div className="w-full max-w-3xl px-5 pb-16 pt-2 sm:px-8">
+            {children}
+          </div>
         </div>
       </div>
     </div>
