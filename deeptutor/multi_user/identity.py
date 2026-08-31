@@ -21,6 +21,7 @@ from .book_permission import (
     normalize_book_permission,
     public_permission_dict,
 )
+from .learner_profile import normalize_profile
 from .models import AccountPreset, Role
 from .paths import PROJECT_ROOT, SYSTEM_ROOT, migrate_legacy_multi_user_tree
 
@@ -85,6 +86,8 @@ def _canonical_record(
     }
     if "book_permission" in value:
         record["book_permission"] = canonical_book_permission(value.get("book_permission"))
+    if "learner_profile" in value:
+        record["learner_profile"] = normalize_profile(value.get("learner_profile"))
     return record
 
 
@@ -253,6 +256,7 @@ def save_user(
             "avatar": str(existing.get("avatar") or ""),
             "preset": effective_preset,
             "book_permission": canonical_book_permission(existing.get("book_permission")),
+            "learner_profile": normalize_profile(existing.get("learner_profile")),
         }
         users[username] = record
         _write_users(users)
@@ -289,6 +293,30 @@ def get_user_by_id(user_id: str) -> tuple[str, dict[str, Any]] | None:
         if str(record.get("id") or "") == user_id:
             return username, record
     return None
+
+
+def get_learner_profile(username: str) -> dict[str, Any] | None:
+    """Return a learner account's structured profile, if present."""
+    record = get_user(username)
+    if record is None or str(record.get("preset") or "standard") != "learner":
+        return None
+    return normalize_profile(record.get("learner_profile"))
+
+
+def set_learner_profile(username: str, profile: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Atomically replace one ordinary user's structured learner profile."""
+    with _USERS_WRITE_LOCK:
+        users = load_users()
+        record = users.get(username)
+        if (
+            record is None
+            or str(record.get("role") or "user") != "user"
+            or str(record.get("preset") or "standard") != "learner"
+        ):
+            return None
+        record["learner_profile"] = normalize_profile(profile)
+        _write_users(users)
+        return record["learner_profile"]
 
 
 def set_book_permission(username: str, permission: BookPermission) -> bool:

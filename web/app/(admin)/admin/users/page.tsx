@@ -14,6 +14,7 @@ import {
 } from "@/lib/admin-api";
 import { GrantEditor } from "@/features/multi-user/components/GrantEditor";
 import { BookPermissionEditor } from "@/features/multi-user/components/BookPermissionEditor";
+import { LearnerProfileEditor } from "@/features/multi-user/components/LearnerProfileEditor";
 import { UserAvatar } from "@/components/UserAvatar";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { filterUsersByQuery } from "@/lib/admin-users";
@@ -470,6 +471,9 @@ export default function AdminUsersPage() {
                               lockLearningPolicy={user.preset === "learner"}
                             />
                             <BookPermissionEditor userId={user.id} />
+                            {user.preset === "learner" && (
+                              <LearnerProfileEditor username={user.username} />
+                            )}
                           </td>
                         </tr>
                       )}
