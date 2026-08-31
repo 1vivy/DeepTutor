@@ -497,18 +497,16 @@ with `Workspace:` identifies what to clean up.
 1. Stop the app. Press `Ctrl+C` in the terminal running `deeptutor start`, stop
    any running Partner, and stop detached Docker containers before deleting
    their data.
-2. Delete the runtime data. This removes settings, API keys, chat history,
-   sessions, Memory, Notebooks, Books, Reading state, Skills, Partners state,
-   logs, Knowledge Bases, parse caches, generated artifacts, and the packaged
-   frontend runtime cache:
+2. Remove runtime data only if you also want to erase all local state. This
+   includes settings and API keys, chat history, sessions, Memory, Notebooks,
+   Books, Reading state, Skills, Partners state, logs, Knowledge Bases, parse
+   caches, generated artifacts, and the packaged frontend runtime cache.
 
-   ```bash
-   # macOS / Linux, from the workspace directory
-   rm -rf ./data
-
-   # Windows PowerShell, from the workspace directory
-   Remove-Item -Recurse -Force .\data
-   ```
+   First copy the exact `Workspace:` path from the startup banner and verify
+   that its `data` child is the intended DeepTutor data directory. Back it up
+   if anything may be needed later, then move that exact directory to your
+   operating system's Trash/Recycle Bin. Do not run a recursive deletion
+   command against a relative path or an unresolved environment variable.
 
 3. Remove the installed package. Use the command that matches the distribution:
 
@@ -517,29 +515,21 @@ with `Workspace:` identifies what to clean up.
    python -m pip uninstall deeptutor-cli
    ```
 
-   If the venv was created only for DeepTutor, delete it. For a source install,
-   deactivate the venv, leave the source directory, and remove that checkout
-   only if it contains no unrelated work.
+   If the virtual environment was created only for DeepTutor, remove it through
+   your environment manager. For a source install, deactivate the environment,
+   leave the source directory, and run `git status --short` inside that exact
+   checkout. Only move the checkout to Trash/Recycle Bin after confirming it
+   contains no unrelated or uncommitted work.
+
+4. For the Docker path, inspect the exact container and named volume before
+   removing them. Volume removal permanently erases the Docker-managed data:
 
    ```bash
-   # macOS / Linux
-   rm -rf ./DeepTutor
-
-   # Windows PowerShell
-   Remove-Item -Recurse -Force .\DeepTutor
-   ```
-
-4. For the Docker path, remove the container and its named data volume:
-
-   ```bash
+   docker ps -a --filter name=^/deeptutor$
+   docker volume inspect deeptutor-data
    docker rm -f deeptutor
    docker volume rm deeptutor-data
    ```
-
-Destructive filesystem commands do not send files to the recycle bin or trash.
-Check that the selected workspace and source checkout are correct before running
-them, especially when `DEEPTUTOR_HOME` points somewhere other than the app
-checkout.
 
 </details>
 
