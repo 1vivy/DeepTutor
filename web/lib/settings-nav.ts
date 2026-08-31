@@ -22,6 +22,7 @@ import {
   Search,
   SlidersHorizontal,
   Sparkles,
+  ShieldCheck,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -417,6 +418,16 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     icon: Bot,
     href: "/settings/agents",
     children: AGENT_CHILDREN,
+  },
+  {
+    key: "guardian",
+    label: { zh: "监护管理", en: "Guardian" },
+    blurb: {
+      zh: "查看已授权学习者与学习材料。",
+      en: "Review authorized learners and learning materials.",
+    },
+    icon: ShieldCheck,
+    href: "/settings/guardian",
   },
   {
     key: "memory",
