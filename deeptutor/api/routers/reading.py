@@ -186,7 +186,7 @@ class AnnotationPayload(BaseModel):
 
     annotation_id: str = ""
     locator: int = Field(ge=1)
-    kind: Literal["highlight", "underline", "note"] = "highlight"
+    kind: Literal["highlight", "underline", "note", "citation"] = "highlight"
     color: str = "yellow"
     quote: str = Field(default="", max_length=2000)
     note: str = ""
@@ -217,6 +217,7 @@ class AnnotationPayload(BaseModel):
 class AnnotationInfo(BaseModel):
     annotation_id: str
     locator: int
+    material_revision: int = 1
     kind: str
     color: str
     quote: str

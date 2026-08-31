@@ -425,6 +425,31 @@ def test_annotation_round_trips_w3c_text_selectors(client: TestClient) -> None:
     ]
 
 
+def test_citation_round_trips_through_the_existing_annotation_api(
+    client: TestClient,
+) -> None:
+    material = _upload(client)
+    base = f"/api/v1/reading/materials/{material['material_id']}/annotations"
+
+    created = client.put(
+        base,
+        json={
+            "locator": 1,
+            "kind": "citation",
+            "quote": "Sequence models",
+            "selectors": [
+                {"type": "TextQuoteSelector", "exact": "Sequence models"},
+                {"type": "TextPositionSelector", "start": 13, "end": 28},
+            ],
+        },
+    )
+
+    assert created.status_code == 200, created.text
+    assert created.json()["kind"] == "citation"
+    assert created.json()["material_revision"] == material["revision"]
+    assert client.get(base).json()[0]["kind"] == "citation"
+
+
 def test_annotation_rejects_mismatched_quote_selector(client: TestClient) -> None:
     material = _upload(client)
     response = client.put(

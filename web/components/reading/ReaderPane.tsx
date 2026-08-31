@@ -272,7 +272,7 @@ export function ReaderPane({
 
   const commitSelection = useCallback(
     (
-      kind: "highlight" | "underline" | "note",
+      kind: "highlight" | "underline" | "note" | "citation",
       color: AnnotationColor,
       note = "",
     ) => {
@@ -293,6 +293,7 @@ export function ReaderPane({
         {
           annotation_id: temporaryId,
           locator: selection.locator,
+          material_revision: material.revision ?? 1,
           kind: kind === "note" ? "highlight" : kind,
           color,
           quote: selection.quote,
@@ -529,6 +530,7 @@ export function ReaderPane({
           onHighlight={(color) => commitSelection("highlight", color)}
           onUnderline={(color) => commitSelection("underline", color)}
           onNote={(note, color) => commitSelection("note", color, note)}
+          onCitation={(color) => commitSelection("citation", color)}
           onAsk={askAboutSelection}
           onDismiss={() => setSelection(null)}
         />
