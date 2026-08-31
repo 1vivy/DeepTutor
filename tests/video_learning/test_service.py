@@ -341,3 +341,17 @@ async def test_refresh_invidious_transcript_does_not_overwrite_on_failure(
     stored = store.get(material_id)
     assert stored["transcript"] == original["transcript"]
     assert stored["learning"] == original["learning"]
+
+
+def test_service_module_does_not_bind_fcntl_at_import() -> None:
+    # Top-level ``import fcntl`` breaks ``deeptutor start`` on Windows (#1140).
+    assert "fcntl" not in service.__dict__
+
+
+def test_timed_media_store_lock_is_cross_platform(isolated: Path) -> None:
+    store = service.TimedMediaStore(root=isolated / "workspace" / "timed_media")
+    material_id = "a" * 32
+    with store.lock(material_id):
+        lock_path = store.root / ".locks" / f"{material_id}.lock"
+        assert lock_path.is_file()
+        assert lock_path.stat().st_size >= 1

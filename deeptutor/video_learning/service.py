@@ -6,12 +6,13 @@ import asyncio
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import fcntl
 import hashlib
 import ipaddress
 import json
+import os
 from pathlib import Path
 import re
+import sys
 from typing import Any, Awaitable, Callable, Literal
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
@@ -324,12 +325,31 @@ class TimedMediaStore:
             raise TimedMediaNotFound("Timed media material was not found.")
         lock_root = self.root / ".locks"
         lock_root.mkdir(parents=True, exist_ok=True)
-        with (lock_root / f"{material_id}.lock").open("a+", encoding="utf-8") as handle:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        # Binary + msvcrt on Windows (fcntl is Unix-only). Mirror
+        # ``codex_auth.storage`` so importing this module does not break
+        # ``deeptutor start`` on Windows (#1140 / #1143).
+        with (lock_root / f"{material_id}.lock").open("a+b") as handle:
+            handle.seek(0, os.SEEK_END)
+            if handle.tell() == 0:
+                handle.write(b"\0")
+                handle.flush()
+            handle.seek(0)
+            if sys.platform == "win32":
+                import msvcrt
+
+                msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
             try:
                 yield
             finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                handle.seek(0)
+                if sys.platform == "win32":
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def get_timed_media_store() -> TimedMediaStore:
