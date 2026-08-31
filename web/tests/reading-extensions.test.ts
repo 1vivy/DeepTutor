@@ -15,6 +15,8 @@ const api = readFileSync(
   path.resolve(process.cwd(), "lib/reading-api.ts"),
   "utf8",
 );
+const english = readFileSync(path.resolve(process.cwd(), "locales/en/app.json"), "utf8");
+const chinese = readFileSync(path.resolve(process.cwd(), "locales/zh/app.json"), "utf8");
 
 test("the Reader toolbar is empty when no extension is installed", () => {
   assert.match(component, /if \(actions\.length === 0\) return null/);
@@ -37,4 +39,25 @@ test("a malformed extension catalog cannot crash the whole reader", () => {
     api,
     /Array\.isArray\(\(row as ReadingExtensionManifest\)\.actions\)/,
   );
+});
+
+test("browser speech is stoppable and cannot continue after navigation", () => {
+  assert.match(component, /const \[speaking, setSpeaking\] = useState\(false\)/);
+  assert.match(component, /function stopSpeaking\(\)/);
+  assert.match(component, /window\.speechSynthesis\?\.cancel\(\)/);
+  assert.match(component, /utterance\.onend = \(\) => setSpeaking\(false\)/);
+  assert.match(component, /utterance\.onerror = \(\) => setSpeaking\(false\)/);
+  assert.match(component, /\}, \[locator, materialId\]\);/);
+  assert.match(component, /aria-label=\{t\("Stop reading aloud"\)\}/);
+});
+
+test("the built-in read-aloud action is localized", () => {
+  assert.match(component, /extension\.id === "read_aloud" && action\.id === "read"/);
+  assert.match(component, /t\("Read aloud"\)/);
+  assert.match(english, /"Read aloud": "Read aloud"/);
+  assert.match(chinese, /"Read aloud": "朗读"/);
+  assert.match(english, /"Reading aloud": "Reading aloud"/);
+  assert.match(chinese, /"Reading aloud": "正在朗读"/);
+  assert.match(english, /"Stop reading aloud": "Stop reading aloud"/);
+  assert.match(chinese, /"Stop reading aloud": "停止朗读"/);
 });
