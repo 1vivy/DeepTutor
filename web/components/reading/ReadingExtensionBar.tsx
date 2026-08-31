@@ -23,6 +23,12 @@ type QuizQuestion = {
   correct_choice_index?: number;
 };
 
+type TranslationResult = {
+  translation: string;
+  alternatives: string[];
+  note: string;
+};
+
 export function ReadingExtensionBar({
   materialId,
   locator,
@@ -187,6 +193,12 @@ function builtInActionLabel(extensionId: string, actionId: string) {
   if (extensionId === "quiz" && actionId === "start") {
     return "Quiz me";
   }
+  if (extensionId === "translation" && actionId === "translate_en") {
+    return "Translate to English";
+  }
+  if (extensionId === "translation" && actionId === "translate_zh") {
+    return "Translate to Chinese";
+  }
   return "";
 }
 
@@ -221,6 +233,13 @@ function ExtensionResult({
         })
         .filter((row): row is VocabularyTerm => row !== null)
     : [];
+  const translation: TranslationResult = {
+    translation: String(result.payload.translation || ""),
+    alternatives: Array.isArray(result.payload.alternatives)
+      ? result.payload.alternatives.map(String)
+      : [],
+    note: String(result.payload.note || ""),
+  };
   const body = String(result.payload.body || result.payload.overview || "");
   return (
     <section className="relative shrink-0 border-b border-[var(--border)] bg-[var(--card)] px-3 py-3 text-xs text-[var(--foreground)]">
@@ -237,6 +256,21 @@ function ExtensionResult({
         <p className="mt-1 text-[var(--muted-foreground)]">{result.message}</p>
       ) : null}
       {body ? <p className="mt-2 whitespace-pre-wrap">{body}</p> : null}
+      {translation.translation ? (
+        <p className="mt-2 whitespace-pre-wrap font-medium">
+          {translation.translation}
+        </p>
+      ) : null}
+      {translation.note ? (
+        <p className="mt-1 text-[var(--muted-foreground)]">{translation.note}</p>
+      ) : null}
+      {translation.alternatives.length ? (
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-[var(--muted-foreground)]">
+          {translation.alternatives.map((alternative, index) => (
+            <li key={`${index}-${alternative}`}>{alternative}</li>
+          ))}
+        </ul>
+      ) : null}
       {items.length ? (
         <ul className="mt-2 list-disc space-y-1 pl-5">
           {items.map((item, index) => (

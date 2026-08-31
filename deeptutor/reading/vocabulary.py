@@ -8,6 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from deeptutor.reading._grounding import grounding_context as _grounding_context
 from deeptutor.reading.extensions import (
     ReadingAction,
     ReadingContext,
@@ -16,8 +17,6 @@ from deeptutor.reading.extensions import (
 )
 from deeptutor.services.llm import complete
 from deeptutor.utils.json_parser import parse_json_response
-
-_MAX_CONTEXT_CHARS = 6_000
 
 _SYSTEM_EN = """You explain vocabulary from one verified reading selection.
 
@@ -69,49 +68,6 @@ def _term_comes_from_selection(term: str, selection: str) -> bool:
         pattern = rf"(?<!\w){re.escape(normalized_term)}(?!\w)"
         return re.search(pattern, normalized_selection) is not None
     return normalized_term in normalized_selection
-
-
-def _normalized_with_map(value: str) -> tuple[str, list[int]]:
-    characters: list[int] = []
-    pieces: list[str] = []
-    previous_was_space = False
-    for index, character in enumerate(value):
-        if character.isspace():
-            if pieces and not previous_was_space:
-                pieces.append(" ")
-            previous_was_space = True
-            continue
-        characters.append(index)
-        pieces.append(character)
-        previous_was_space = False
-    return "".join(pieces).strip(), characters
-
-
-def _selection_range(text: str, selection: str) -> tuple[int, int] | None:
-    exact = text.find(selection)
-    if exact >= 0:
-        return exact, exact + len(selection)
-
-    normalized_text, positions = _normalized_with_map(text)
-    normalized_selection, _ = _normalized_with_map(selection)
-    found = normalized_text.find(normalized_selection)
-    if found < 0 or not positions:
-        return None
-    start = positions[found]
-    end = positions[min(found + len(normalized_selection), len(positions)) - 1] + 1
-    return start, end
-
-
-def _grounding_context(text: str, selection: str) -> str:
-    bounds = _selection_range(text, selection)
-    if bounds is None:
-        return text[:_MAX_CONTEXT_CHARS]
-    start, end = bounds
-    prefix_len = min(3_000, start)
-    suffix_len = min(3_000, max(0, len(text) - end))
-    prefix_start = max(0, start - prefix_len)
-    suffix_end = min(len(text), end + suffix_len)
-    return text[prefix_start:suffix_end][:_MAX_CONTEXT_CHARS]
 
 
 def _is_zh(locale: str) -> bool:

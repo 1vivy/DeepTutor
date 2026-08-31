@@ -89,6 +89,7 @@ read_aloud = "deeptutor.reading.read_aloud:ReadAloudExtension"
 guided_learning = "deeptutor.reading.study_guidance:StudyGuidanceExtension"
 vocabulary = "deeptutor.reading.vocabulary:VocabularyExtension"
 quiz = "deeptutor.reading.quiz:ReadingQuizExtension"
+translation = "deeptutor.reading.translation:TranslationExtension"
 
 [project.optional-dependencies]
 # Compatibility extra for source installs and older docs. These packages are

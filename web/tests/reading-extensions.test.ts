@@ -110,3 +110,25 @@ test("reading quizzes reveal grading only after the learner answers", () => {
   assert.match(component, /selected === correctChoiceIndex/);
   assert.match(component, /t\("Correct"\).*t\("Incorrect"\)/s);
 });
+
+test("the built-in translation actions have explicit target languages", () => {
+  assert.match(
+    component,
+    /extensionId === "translation" && actionId === "translate_en"/,
+  );
+  assert.match(
+    component,
+    /extensionId === "translation" && actionId === "translate_zh"/,
+  );
+  assert.match(english, /"Translate to English": "Translate to English"/);
+  assert.match(chinese, /"Translate to Chinese": "翻译成中文"/);
+});
+
+test("translation results are rendered as text in the result card", () => {
+  assert.match(component, /String\(result\.payload\.translation \|\| ""\)/);
+  assert.match(component, /result\.payload\.alternatives/);
+  assert.match(component, /String\(result\.payload\.note \|\| ""\)/);
+  assert.match(component, /\{translation\.translation\}/);
+  assert.match(component, /\{translation\.note\}/);
+  assert.match(component, /translation\.alternatives\.map/);
+});
