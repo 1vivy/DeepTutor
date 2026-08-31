@@ -390,7 +390,7 @@ My Agents zamienia innych agentów w kontekst dla DeepTutor i wykonuje dwie odr�
 <img src="../../assets/figs/web-1.4.6+/co-writer/00-overview.png" alt="Obszar roboczy Co-Writer DeepTutor" width="900">
 </div>
 
-Co-Writer to obszar roboczy Markdown z podzielonym widokiem dla raportów, samouczków, notatek i długich artefaktów uczenia się. Dokumenty są automatycznie zapisywane, renderują podgląd na żywo (matematyka KaTeX, schematy), i mogą być zapisane z powrotem do notatników gdy szkic staje się kontekstem wielokrotnego użytku.
+Co-Writer to obszar roboczy Markdown z podzielonym widokiem dla raportów, samouczków, notatek i długich artefaktów uczenia się. Dokumenty są automatycznie zapisywane, renderują podgląd na żywo (matematyka KaTeX, schematy), i mogą być zapisane z powrotem do notatników gdy szkic staje się kontekstem wielokrotnego użytku. Zaimportuj `.docx`, aby rozpocząć szkic, i eksportuj bieżący edytor jako Markdown lub Word.
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/co-writer/01-edit%20panel.png" alt="Edytor Co-Writer z podglądem na żywo" width="900">

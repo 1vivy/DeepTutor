@@ -390,7 +390,7 @@ Partners 是拥有独立灵魂、模型策略、知识库、记忆和渠道的�
 <img src="../../assets/figs/web-1.4.6+/co-writer/00-overview.png" alt="DeepTutor Co-Writer 工作区" width="900">
 </div>
 
-Co-Writer 是一个分屏 Markdown 工作区，适用于报告、教程、笔记和长篇学习素材的创作。文档自动保存并实时渲染预览（KaTeX 数学公式、图表围栏），草稿完成后可保存回笔记本成为可复用的上下文。
+Co-Writer 是一个分屏 Markdown 工作区，适用于报告、教程、笔记和长篇学习素材的创作。文档自动保存并实时渲染预览（KaTeX 数学公式、图表围栏），草稿完成后可保存回笔记本成为可复用的上下文。可导入 `.docx` 新建草稿，也可将当前编辑器导出为 Markdown 或 Word。
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/co-writer/01-edit%20panel.png" alt="Co-Writer 编辑器与实时预览" width="900">
