@@ -15,6 +15,7 @@ from deeptutor.services.config import (
     SUPPORTED_SEARCH_PROVIDERS,
     ResolvedSearchConfig,
     load_config_with_main,
+    load_system_settings,
     resolve_search_runtime_config,
     search_fallback_candidates,
     search_missing_credential,
@@ -33,6 +34,7 @@ from .providers import (
     get_providers_info,
     list_providers,
 )
+from .source_filter import filter_web_search_response, settings_from_config
 from .types import Citation, SearchResult, WebSearchResponse
 
 _logger = logging.getLogger(__name__)
@@ -45,6 +47,17 @@ def _get_web_search_config() -> dict[str, Any]:
     except Exception as exc:
         _logger.debug(f"Could not load config: {exc}")
     return {}
+
+
+def _get_source_filter_settings() -> dict[str, Any]:
+    """Resolve the post-provider reference policy from runtime system JSON."""
+    try:
+        system = load_system_settings()
+    except Exception as exc:
+        _logger.warning("Could not load web-search source policy: %s", exc)
+        system = {}
+    raw = system.get("web_search_source_filtering", {})
+    return settings_from_config({"source_filtering": raw})
 
 
 def _save_results(result: dict[str, Any], output_dir: str, provider: str) -> str:
@@ -213,6 +226,13 @@ def web_search(
     if response is None:
         raise Exception("web search failed: " + "; ".join(failures))
 
+    response = filter_web_search_response(response, **_get_source_filter_settings())
+    if response.metadata.get("source_filter", {}).get("answer_invalidated"):
+        # A provider-authored answer may have relied on a rejected source. Run
+        # the ordinary safe-results consolidator instead of returning prose
+        # whose citations no longer support it.
+        supports_answer = False
+
     # Auto-consolidate for providers that don't generate their own answers.
     if not supports_answer:
         if consolidation_custom_template is None:
@@ -257,6 +277,7 @@ def get_current_config() -> dict[str, Any]:
         "supported_providers": sorted(SUPPORTED_SEARCH_PROVIDERS),
         "deprecated_providers": sorted(DEPRECATED_SEARCH_PROVIDERS),
         "consolidation_template": config.get("consolidation_template") or None,
+        "source_filtering": _get_source_filter_settings(),
         "template_providers": list(PROVIDER_TEMPLATES.keys()),
     }
 
@@ -275,6 +296,7 @@ __all__ = [
     "Citation",
     "SearchResult",
     "AnswerConsolidator",
+    "filter_web_search_response",
     "PROVIDER_TEMPLATES",
     "BaseSearchProvider",
     "SearchProvider",
