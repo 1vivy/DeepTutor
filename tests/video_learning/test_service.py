@@ -258,3 +258,86 @@ async def test_missing_transcript_does_not_block_native_playback(
     assert material["playback"]["kind"] == "youtube_iframe"
     assert material["transcript"]["status"] == "unavailable"
     assert material["transcript"]["reason"] == "dependency_missing"
+
+
+@pytest.mark.asyncio
+async def test_refresh_invidious_transcript_preserves_playback_and_progress(
+    monkeypatch, isolated: Path
+) -> None:
+    material_id = service.material_id_for("dQw4w9WgXcQ")
+    store = service.get_timed_media_store()
+    store.save(
+        {
+            "version": 1,
+            "type": "timed_media",
+            "material_id": material_id,
+            "source": {
+                "provider": "youtube",
+                "video_id": "dQw4w9WgXcQ",
+                "url": "https://youtu.be/dQw4w9WgXcQ",
+            },
+            "metadata": {"title": "Retry lesson", "duration_seconds": 120},
+            "transcript": {"status": "unavailable", "reason": "unavailable", "cues": []},
+            "segments": [],
+            "learning": {"last_position": 42},
+            "provider_cache": {
+                "invidious_formats": [{"format_id": "18", "mime_type": "video/mp4"}]
+            },
+        }
+    )
+    service.save_video_learning_settings(
+        {"default_provider": "invidious", "invidious": {"api_base_url": "http://invidious:3000"}}
+    )
+
+    async def metadata(_client, _base, _video_id):
+        return {"captions": [{"label": "English", "languageCode": "en"}]}
+
+    async def transcript(_client, _base, _video_id, _captions, _language, **_kwargs):
+        return ([{"start": 1, "end": 4, "text": "Recovered caption."}], "en", "invidious")
+
+    monkeypatch.setattr(service, "_invidious_metadata", metadata)
+    monkeypatch.setattr(service, "_invidious_transcript", transcript)
+
+    refreshed = await service.refresh_invidious_transcript(material_id)
+
+    assert refreshed["transcript"]["status"] == "ready"
+    assert refreshed["segments"] == [
+        {"locator": 1, "start": 1, "end": 4, "text": "Recovered caption."}
+    ]
+    assert refreshed["learning"]["last_position"] == 42
+    assert refreshed["playback"]["format_id"] == "18"
+    assert "revision=" in refreshed["playback"]["subtitles_url"]
+
+
+@pytest.mark.asyncio
+async def test_refresh_invidious_transcript_does_not_overwrite_on_failure(
+    monkeypatch, isolated: Path
+) -> None:
+    material_id = service.material_id_for("dQw4w9WgXcQ")
+    store = service.get_timed_media_store()
+    original = {
+        "version": 1,
+        "type": "timed_media",
+        "material_id": material_id,
+        "source": {"provider": "youtube", "video_id": "dQw4w9WgXcQ"},
+        "transcript": {"status": "unavailable", "reason": "unavailable", "cues": []},
+        "segments": [],
+        "learning": {"last_position": 42},
+        "provider_cache": {"invidious_formats": [{"format_id": "18", "mime_type": "video/mp4"}]},
+    }
+    store.save(original)
+    service.save_video_learning_settings(
+        {"default_provider": "invidious", "invidious": {"api_base_url": "http://invidious:3000"}}
+    )
+
+    async def metadata(_client, _base, _video_id):
+        raise service.TimedMediaError("Invidious request failed with HTTP 503.")
+
+    monkeypatch.setattr(service, "_invidious_metadata", metadata)
+
+    with pytest.raises(service.TimedMediaError, match="HTTP 503"):
+        await service.refresh_invidious_transcript(material_id)
+
+    stored = store.get(material_id)
+    assert stored["transcript"] == original["transcript"]
+    assert stored["learning"] == original["learning"]

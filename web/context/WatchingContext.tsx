@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 
 import {
   getVideoMaterial,
+  refreshInvidiousTranscript,
   resolveVideo,
   type TimedMediaMaterial,
   type VideoProvider,
@@ -37,6 +38,7 @@ interface WatchingContextValue {
     providerOverride?: VideoProvider,
   ): Promise<void>;
   refresh(): Promise<void>;
+  refreshTranscript(): Promise<void>;
   close(): void;
   reportTime(seconds: number): void;
   clearError(): void;
@@ -121,6 +123,23 @@ export function WatchingProvider({ children }: { children: ReactNode }) {
     }
   }, [accept, material, t]);
 
+  const refreshTranscript = useCallback(async () => {
+    if (!material) return;
+    setLoading(true);
+    setError(null);
+    try {
+      accept(await refreshInvidiousTranscript(material.material_id));
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : t("The player provider is unavailable."),
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [accept, material, t]);
+
   const close = useCallback(() => {
     setMaterial(null);
     setWatchingMaterial(null);
@@ -145,6 +164,7 @@ export function WatchingProvider({ children }: { children: ReactNode }) {
       lastUrl,
       openUrl,
       refresh,
+      refreshTranscript,
       close,
       reportTime,
       clearError,
@@ -158,6 +178,7 @@ export function WatchingProvider({ children }: { children: ReactNode }) {
       lastUrl,
       openUrl,
       refresh,
+      refreshTranscript,
       close,
       reportTime,
       clearError,

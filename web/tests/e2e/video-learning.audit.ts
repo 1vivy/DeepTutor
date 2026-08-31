@@ -7,6 +7,8 @@ test("YouTube learning survives reload and switches to Invidious without silent 
 }) => {
   let provider: "youtube" | "invidious" = "youtube";
   let invidiousOffline = false;
+  let transcriptReady = true;
+  let transcriptRefreshCount = 0;
   let savedPosition = 0;
   let nativeResolveCount = 0;
 
@@ -25,16 +27,24 @@ test("YouTube learning survives reload and switches to Invidious without silent 
       author: "Teacher",
       duration_seconds: 120,
     },
-    transcript: {
-      status: "ready",
-      reason: "",
-      language: "en",
-      source: selected,
-      cues: [
-        { start: 7, end: 12, text: "The first grounded concept." },
-        { start: 70, end: 75, text: "The second grounded concept." },
-      ],
-    },
+    transcript: transcriptReady
+      ? {
+          status: "ready",
+          reason: "",
+          language: "en",
+          source: selected,
+          cues: [
+            { start: 7, end: 12, text: "The first grounded concept." },
+            { start: 70, end: 75, text: "The second grounded concept." },
+          ],
+        }
+      : {
+          status: "unavailable",
+          reason: "temporary Invidious error",
+          language: "",
+          source: "unavailable",
+          cues: [],
+        },
     segments: [],
     learning: { last_position: savedPosition },
     playback:
@@ -136,6 +146,14 @@ test("YouTube learning survives reload and switches to Invidious without silent 
       }
       return json(material(provider));
     }
+    if (
+      path ===
+      `/api/v1/video-learning/materials/${MATERIAL_ID}/transcript/refresh`
+    ) {
+      transcriptRefreshCount += 1;
+      transcriptReady = true;
+      return json(material("invidious"));
+    }
     if (path.endsWith("/progress")) {
       const body = request.postDataJSON() as { time_seconds: number };
       savedPosition = body.time_seconds;
@@ -159,7 +177,6 @@ test("YouTube learning survives reload and switches to Invidious without silent 
   });
 
   await page.goto("/home");
-  await page.getByRole("button", { name: "Chat", exact: true }).click();
   await page
     .getByRole("button", { name: /Immersive Watching/ })
     .last()
@@ -217,7 +234,6 @@ test("YouTube learning survives reload and switches to Invidious without silent 
     });
   await expect.poll(() => savedPosition).toBeGreaterThanOrEqual(70);
   await page.reload();
-  await page.getByRole("button", { name: "Chat", exact: true }).click();
   await page
     .getByRole("button", { name: /Immersive Watching/ })
     .last()
@@ -237,9 +253,19 @@ test("YouTube learning survives reload and switches to Invidious without silent 
     .toBeGreaterThanOrEqual(70);
 
   provider = "invidious";
+  transcriptReady = false;
   await page.getByRole("button", { name: "Refresh provider" }).click();
   await expect(page.locator("video")).toBeVisible();
   await expect(page.getByText("Invidious", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry captions" })).toBeVisible();
+  const player = page.locator("video");
+  await player.evaluate((video) =>
+    video.setAttribute("data-transcript-retry-probe", "before"),
+  );
+  await page.getByRole("button", { name: "Retry captions" }).click();
+  await expect.poll(() => transcriptRefreshCount).toBe(1);
+  await expect(page.getByRole("button", { name: "Explain here" })).toBeVisible();
+  await expect(player).toHaveAttribute("data-transcript-retry-probe", "before");
 
   const beforeFailure = nativeResolveCount;
   invidiousOffline = true;
