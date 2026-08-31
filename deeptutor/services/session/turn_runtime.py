@@ -15,6 +15,7 @@ import re
 from typing import TYPE_CHECKING, Any, Literal
 
 from deeptutor.core.stream import StreamEvent, StreamEventType
+from deeptutor.runtime.capability_routing import route_explicit_quiz_request
 from deeptutor.services.llm.utils import clean_thinking_tags
 from deeptutor.services.path_service import get_path_service
 from deeptutor.services.session.artifact_attachments import (
@@ -49,6 +50,18 @@ def _should_capture_assistant_content(event: StreamEvent) -> bool:
     if not call_id:
         return True
     return metadata.get("call_kind") in _ANSWER_CONTENT_CALL_KINDS
+
+
+def _coerce_bool(value: Any, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+    return default
 
 
 def _resolve_turn_outcome(
@@ -612,6 +625,9 @@ def _request_snapshot_metadata(
         snapshot["attachments"] = attachments
     if config:
         snapshot["config"] = dict(config)
+    capability_route = payload.get("capability_route")
+    if isinstance(capability_route, dict):
+        snapshot["capabilityRoute"] = dict(capability_route)
     if notebook_references:
         snapshot["notebookReferences"] = notebook_references
     if history_references:
@@ -1443,6 +1459,14 @@ class TurnRuntimeManager:
 
             payload = {**payload, "language": get_response_language(default="en")}
         raw_config = dict(payload.get("config", {}) or {})
+        per_turn_auto_route = raw_config.get("auto_route")
+        routing_enabled = _coerce_bool(per_turn_auto_route, False)
+        if per_turn_auto_route is not False:
+            from deeptutor.services.config.runtime_settings import load_system_settings
+
+            routing_enabled = routing_enabled or _coerce_bool(
+                load_system_settings().get("capability_routing_enabled"), False
+            )
         runtime_only_keys = (
             "_persist_user_message",
             "_regenerate",
@@ -1456,6 +1480,8 @@ class TurnRuntimeManager:
             # key — stripped before validation, merged back into the turn config
             # and read by the subagent capability from context.config_overrides.
             "subagent_consult_budget",
+            # Per-turn routing escape hatch; never part of a capability schema.
+            "auto_route",
         )
         runtime_only_config = {
             key: raw_config.pop(key) for key in runtime_only_keys if key in raw_config
@@ -1493,7 +1519,17 @@ class TurnRuntimeManager:
                 preferences=preferences,
             )
 
-        capability = str(payload.get("capability") or "chat")
+        requested_capability = str(payload.get("capability") or "chat")
+        capability_route = route_explicit_quiz_request(
+            payload.get("content"),
+            requested_capability,
+            enabled=routing_enabled,
+        )
+        capability = (
+            capability_route.capability
+            if capability_route is not None
+            else requested_capability
+        )
         workspace_mode_explicit = "workspace_mode" in payload
         workspace_mode = _workspace_mode(
             payload.get("workspace_mode")
@@ -1504,7 +1540,13 @@ class TurnRuntimeManager:
         try:
             from deeptutor.runtime.request_contracts import validate_capability_config
 
-            validated_public_config = validate_capability_config(capability, raw_config)
+            # A routed capability owns a different schema. Chat-only options
+            # must not be smuggled into the generator; the user request itself
+            # carries the desired topic/count.
+            validated_public_config = validate_capability_config(
+                capability,
+                {} if capability_route is not None else raw_config,
+            )
         except ValueError as exc:
             raise RuntimeError(str(exc)) from exc
         payload = {
@@ -1520,6 +1562,10 @@ class TurnRuntimeManager:
                 _course_conventions_block(bound_course, str(payload.get("language") or "en"))
                 if bound_course is not None
                 else ""
+            ),
+            "requested_capability": requested_capability,
+            "capability_route": (
+                capability_route.as_metadata() if capability_route is not None else None
             ),
             "config": {**validated_public_config, **runtime_only_config},
         }
@@ -1681,10 +1727,26 @@ class TurnRuntimeManager:
                 **payload,
                 "tools": [t for t in (payload.get("tools") or []) if t in allowed_tools],
             }
+        if capability_route is not None and capability_route.auto_routed:
+            from deeptutor.runtime.registry.capability_registry import (
+                get_capability_registry,
+            )
+
+            routed_capability = get_capability_registry().get(capability_route.capability)
+            if routed_capability is not None:
+                allowed_by_manifest = set(routed_capability.manifest.tools_used)
+                payload = {
+                    **payload,
+                    "tools": [
+                        tool for tool in (payload.get("tools") or []) if tool in allowed_by_manifest
+                    ],
+                }
         payload = {**payload, "llm_selection": llm_selection}
         await self._recover_orphan_running_turns_for_session(session["id"])
         preference_update: dict[str, Any] = {
-            "capability": capability,
+            # Auto-routing is a one-turn execution choice; keep the durable
+            # preference on what the caller explicitly selected.
+            "capability": requested_capability,
             "tools": list(payload.get("tools") or []),
             "knowledge_bases": list(payload.get("knowledge_bases") or []),
             "language": str(payload.get("language") or "en"),
@@ -1834,6 +1896,8 @@ class TurnRuntimeManager:
             session_metadata["superseded_turn_id"] = str(superseded_turn_id)
         if runtime_only_config.get("_regenerate"):
             session_metadata["regenerate"] = True
+        if capability_route is not None:
+            session_metadata["capability_route"] = capability_route.as_metadata()
         try:
             await self._publish_live_event(
                 execution,
@@ -2821,6 +2885,7 @@ class TurnRuntimeManager:
                     "llm_model": str(getattr(llm_config, "model", "") or ""),
                     "llm_provider": str(getattr(llm_config, "provider_name", "") or ""),
                     "llm_reasoning_effort": str(getattr(llm_config, "reasoning_effort", "") or ""),
+                    "capability_route": payload.get("capability_route"),
                     # Per-turn full-text payload for read_source. Empty when
                     # the manifest is empty (non-chat capabilities, or chat
                     # turns with no attached sources). Consumed by the chat
@@ -2849,6 +2914,12 @@ class TurnRuntimeManager:
                     continue
                 if event.type == StreamEventType.DONE:
                     pending_done_event = event
+                    capability_route = payload.get("capability_route")
+                    if isinstance(capability_route, dict):
+                        pending_done_event.metadata = {
+                            **pending_done_event.metadata,
+                            "capability_route": dict(capability_route),
+                        }
                     continue
                 payload_event = await self._publish_live_event(execution, event)
                 if payload_event.get("type") not in {"done", "session"}:
