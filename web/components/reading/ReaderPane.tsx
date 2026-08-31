@@ -52,7 +52,12 @@ export interface ReaderPaneProps {
   onHeadingsChange?: (headings: ReaderHeading[]) => void;
   onActiveHeadingChange?: (headingId: string | null) => void;
   /** Heading the navigator asked to scroll to. */
-  headingJump?: { id: string; nonce: number } | null;
+  headingJump?: {
+    id: string;
+    nonce: number;
+    locator?: number;
+    sourceHref?: string;
+  } | null;
 }
 
 /**
@@ -463,6 +468,8 @@ export function ReaderPane({
                 setActiveAnnotationId(annotation.annotation_id)
               }
               onVisibleLocatorChange={handleVisibleLocator}
+              onHeadingsChange={onHeadingsChange}
+              headingJump={headingJump}
               onError={setError}
             />
           ) : material.has_raw_view ? (

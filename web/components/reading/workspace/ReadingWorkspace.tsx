@@ -191,6 +191,8 @@ export function ReadingWorkspacePage() {
   const [headingJump, setHeadingJump] = useState<{
     id: string;
     nonce: number;
+    locator?: number;
+    sourceHref?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -528,6 +530,8 @@ export function ReadingWorkspacePage() {
             setHeadingJump((current) => ({
               id: heading.id,
               nonce: (current?.nonce ?? 0) + 1,
+              locator: heading.locator,
+              sourceHref: heading.sourceHref,
             }))
           }
           refs={material?.unit_refs ?? []}
