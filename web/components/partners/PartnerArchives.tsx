@@ -18,6 +18,7 @@ import {
   type PartnerSessionInfo,
 } from "@/lib/partners-api";
 import type { ExportableMessage } from "@/lib/chat-export";
+import { displaySessionTitle } from "@/lib/session-title";
 
 interface HistoryMessage {
   role: string;
@@ -203,8 +204,10 @@ export default function PartnerArchives({
                   <MessageSquareText className="h-3.5 w-3.5 shrink-0 text-[var(--muted-foreground)]" />
                 )}
                 <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[var(--foreground)]">
-                  {session.title ||
-                    (session.archived ? t("Archived") : t("New conversation"))}
+                  {displaySessionTitle(
+                    session.title,
+                    session.archived ? t("Archived") : t("New conversation"),
+                  )}
                 </span>
                 <span className="text-[11px] text-[var(--muted-foreground)]">
                   {session.message_count}
@@ -236,10 +239,12 @@ export default function PartnerArchives({
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="truncate text-[13px] font-medium text-[var(--foreground)]">
-                    {selected.title ||
-                      (selected.archived
+                    {displaySessionTitle(
+                      selected.title,
+                      selected.archived
                         ? t("Archived conversation")
-                        : t("New conversation"))}
+                        : t("New conversation"),
+                    )}
                   </h3>
                   <p className="text-[11.5px] text-[var(--muted-foreground)]">
                     {(selected.archived ? `${t("Archived")} · ` : "") +
