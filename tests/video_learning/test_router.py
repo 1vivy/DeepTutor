@@ -59,7 +59,15 @@ def test_main_mounts_settings_as_admin_only_and_learning_as_authenticated() -> N
     from deeptutor.api.main import app
 
     mounts: dict[str, set[object]] = {}
+    routes: list[object] = []
     for route in app.routes:
+        effective_candidates = getattr(route, "effective_candidates", None)
+        if callable(effective_candidates):
+            routes.extend(effective_candidates())
+        else:
+            routes.append(route)
+
+    for route in routes:
         path = str(getattr(route, "path", ""))
         if path.startswith("/api/v1/settings/video-learning"):
             key = "/api/v1/settings/video-learning"
@@ -67,9 +75,10 @@ def test_main_mounts_settings_as_admin_only_and_learning_as_authenticated() -> N
             key = "/api/v1/video-learning"
         else:
             continue
-        mounts.setdefault(key, set()).update(
-            dependency.call for dependency in route.dependant.dependencies
-        )
+        dependencies = list(getattr(route, "dependencies", ()) or ())
+        if not dependencies and hasattr(route, "dependant"):
+            dependencies = route.dependant.dependencies
+        mounts.setdefault(key, set()).update(dependency.dependency for dependency in dependencies)
     assert require_admin in mounts["/api/v1/settings/video-learning"]
     assert require_auth in mounts["/api/v1/video-learning"]
 
