@@ -4231,6 +4231,7 @@
   "Use native YouTube": "使用原生 YouTube",
   "Transcript learning is unavailable ({{reason}}). Playback still works, but Explain here is disabled.": "字幕学习不可用（{{reason}}）。视频仍可播放，但“解释此处”已禁用。",
   "no captions": "没有字幕",
+  "Retry captions": "重试字幕",
   "Explain here": "解释此处",
   "YouTube playback failed.": "YouTube 播放失败。",
   "YouTube learning video": "YouTube 学习视频",

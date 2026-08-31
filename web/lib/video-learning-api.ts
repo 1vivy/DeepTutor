@@ -107,6 +107,19 @@ export async function getVideoMaterial(
   );
 }
 
+export async function refreshInvidiousTranscript(
+  materialId: string,
+): Promise<TimedMediaMaterial> {
+  return unwrap(
+    await apiFetch(
+      apiUrl(
+        `/api/v1/video-learning/materials/${encodeURIComponent(materialId)}/transcript/refresh`,
+      ),
+      { method: "POST" },
+    ),
+  );
+}
+
 export async function saveVideoProgress(
   materialId: string,
   timeSeconds: number,
