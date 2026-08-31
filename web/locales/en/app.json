@@ -4330,5 +4330,19 @@
   "Applies on the next query": "Applies on the next query",
   "Reranker model": "Reranker model",
   "Leave empty to disable. Example: BAAI/bge-reranker-base. Requires the optional rag-rerank extra.": "Leave empty to disable. Example: BAAI/bge-reranker-base. Requires the optional rag-rerank extra.",
-  "Rerank candidates": "Rerank candidates"
+  "Rerank candidates": "Rerank candidates",
+  "Needs Review": "Needs Review",
+  "All Sources": "All Sources",
+  "Deep Question": "Deep Question",
+  "Book": "Book",
+  "All Materials": "All Materials",
+  "Score Trend": "Score Trend",
+  "All Trends": "All Trends",
+  "First Attempt": "First Attempt",
+  "Improved": "Improved",
+  "Declined": "Declined",
+  "Unchanged": "Unchanged",
+  "Resolved": "Resolved",
+  "Mark Resolved": "Mark Resolved",
+  "Reopen Review": "Reopen Review"
 }

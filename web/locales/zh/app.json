@@ -4330,5 +4330,19 @@
   "Applies on the next query": "在下次查询时生效",
   "Reranker model": "重排序模型",
   "Leave empty to disable. Example: BAAI/bge-reranker-base. Requires the optional rag-rerank extra.": "留空表示禁用。示例：BAAI/bge-reranker-base。需要可选的 rag-rerank 依赖。",
-  "Rerank candidates": "重排序候选数"
+  "Rerank candidates": "重排序候选数",
+  "Needs Review": "待复习",
+  "All Sources": "全部来源",
+  "Deep Question": "深度提问",
+  "Book": "书籍",
+  "All Materials": "全部材料",
+  "Score Trend": "得分趋势",
+  "All Trends": "全部趋势",
+  "First Attempt": "首次作答",
+  "Improved": "已提升",
+  "Declined": "已下降",
+  "Unchanged": "无变化",
+  "Resolved": "已解决",
+  "Mark Resolved": "标记已解决",
+  "Reopen Review": "重新复习"
 }

@@ -209,7 +209,14 @@ export interface NotebookEntry {
   difficulty: string;
   user_answer: string;
   user_answer_images?: NotebookAnswerImage[];
+  source: AssessmentSource;
+  material_id: string;
+  material_title: string;
+  section_id: string;
+  section_title: string;
+  score_trend: ScoreTrend;
   is_correct: boolean;
+  resolved: boolean;
   bookmarked: boolean;
   followup_session_id: string;
   /** Latest AI-judge text for this entry; empty when never run. */
@@ -224,6 +231,22 @@ export interface NotebookCategory {
   name: string;
   created_at: number;
   entry_count: number;
+}
+
+export type AssessmentSource =
+  | "deep_question"
+  | "mastery_path"
+  | "immersive_reading"
+  | "book";
+
+export type ScoreTrend = "new" | "improved" | "declined" | "unchanged";
+
+export interface QuestionBankMaterial {
+  source: AssessmentSource;
+  material_id: string;
+  material_title: string;
+  entry_count: number;
+  unresolved_count: number;
 }
 
 export interface NotebookEntryListResponse {
@@ -255,6 +278,11 @@ export interface NotebookEntryFilter {
   uncategorized?: boolean;
   bookmarked?: boolean;
   is_correct?: boolean;
+  source?: AssessmentSource;
+  material_id?: string;
+  section_id?: string;
+  resolved?: boolean;
+  score_trend?: ScoreTrend;
   search?: string;
   sort?: "recent" | "oldest";
   limit?: number;
@@ -280,6 +308,12 @@ export async function listNotebookEntries(
     params.set("bookmarked", String(filter.bookmarked));
   if (filter.is_correct !== undefined)
     params.set("is_correct", String(filter.is_correct));
+  if (filter.source) params.set("source", filter.source);
+  if (filter.material_id) params.set("material_id", filter.material_id);
+  if (filter.section_id) params.set("section_id", filter.section_id);
+  if (filter.resolved !== undefined)
+    params.set("resolved", String(filter.resolved));
+  if (filter.score_trend) params.set("score_trend", filter.score_trend);
   if (filter.search) params.set("search", filter.search);
   if (filter.sort) params.set("sort", filter.sort);
   if (filter.limit !== undefined) params.set("limit", String(filter.limit));
@@ -332,6 +366,7 @@ export async function updateNotebookEntry(
     bookmarked?: boolean;
     followup_session_id?: string;
     ai_judgment?: string;
+    resolved?: boolean;
   },
 ): Promise<void> {
   const response = await apiFetch(
@@ -372,6 +407,11 @@ export async function upsertNotebookEntry(data: {
    */
   user_answer_images?: NotebookAnswerImageUpload[];
   is_correct?: boolean;
+  source?: AssessmentSource;
+  material_id?: string;
+  material_title?: string;
+  section_id?: string;
+  section_title?: string;
 }): Promise<NotebookEntry> {
   const response = await apiFetch(
     apiUrl("/api/v1/question-notebook/entries/upsert"),
@@ -452,6 +492,7 @@ export async function bulkLinkEntriesToCategory(
 export interface QuestionBankStats {
   total: number;
   wrong: number;
+  unresolved: number;
   bookmarked: number;
   uncategorized: number;
 }
@@ -472,6 +513,19 @@ export async function getQuestionBankStats(
     { cache: "no-store" },
   );
   return expectJson<QuestionBankStats>(response);
+}
+
+export async function listQuestionBankMaterials(
+  courseId = "",
+): Promise<
+  QuestionBankMaterial[]
+> {
+  const query = courseId ? `?course_id=${encodeURIComponent(courseId)}` : "";
+  const response = await apiFetch(
+    apiUrl(`/api/v1/question-notebook/materials${query}`),
+    { cache: "no-store" },
+  );
+  return expectJson<QuestionBankMaterial[]>(response);
 }
 
 export async function removeEntryFromCategory(

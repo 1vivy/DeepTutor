@@ -145,6 +145,23 @@ class QuizAttemptRequest(BaseModel):
     is_correct: bool | None = None
 
 
+def _focus_check_question(
+    questions: list[dict[str, Any]], requested_id: str, block_id: str
+) -> tuple[str, dict[str, Any]] | None:
+    """Resolve the durable question behind a Focus-Check submission."""
+    for index, question in enumerate(questions):
+        if not isinstance(question, dict):
+            continue
+        question_id = str(question.get("question_id") or "").strip()
+        if requested_id and question_id == requested_id:
+            return question_id, question
+        if not requested_id and not question_id:
+            return f"{block_id}:{index + 1}", question
+    if requested_id:
+        return requested_id, {}
+    return None
+
+
 class UpdateBlockRequest(BaseModel):
     book_id: str
     page_id: str
@@ -946,6 +963,17 @@ async def deep_dive(req: DeepDiveRequest) -> dict[str, Any]:
 @router.post("/books/quiz-attempt")
 async def quiz_attempt(req: QuizAttemptRequest) -> dict[str, Any]:
     resolved = _resolve_book_or_404(req.book_id)
+    book = resolved.engine.load_book(req.book_id)
+    page = next(
+        (item for item in resolved.engine.list_pages(req.book_id) if item.id == req.page_id), None
+    )
+    block = page.block_by_id(req.block_id) if page is not None else None
+    questions = (
+        [item for item in block.payload.get("questions", []) if isinstance(item, dict)]
+        if block is not None
+        else []
+    )
+    resolved_question = _focus_check_question(questions, req.question_id, req.block_id)
     progress = progress_ops.record_attempt(
         resolved.load_progress(req.book_id),
         page_id=req.page_id,
@@ -960,6 +988,56 @@ async def quiz_attempt(req: QuizAttemptRequest) -> dict[str, Any]:
         },
     )
     resolved.learning.save_progress(progress)
+    if req.is_correct is not None and resolved_question is not None and book is not None:
+        question_id, question = resolved_question
+        try:
+            from deeptutor.services.session import get_sqlite_session_store
+
+            store = get_sqlite_session_store()
+            metadata = book.metadata if isinstance(book.metadata, dict) else {}
+            page_sessions = metadata.get("page_chat_sessions")
+            session_id = str(
+                (page_sessions.get(req.page_id) if isinstance(page_sessions, dict) else "")
+                or book.chat_session_id
+                or ""
+            ).strip()
+            # Notebook entries belong to real conversations. Creating a hidden
+            # ``book_<id>`` chat solely to satisfy the FK polluted history and
+            # made a Book Focus Check look like Immersive Reading. If the page
+            # has no conversation yet, progress still persists and the optional
+            # review sync waits for a later attempt after chat exists.
+            if session_id and await store.get_session(session_id) is not None:
+                await store.upsert_notebook_entries(
+                    session_id,
+                    [
+                        {
+                            "turn_id": req.block_id,
+                            "question_id": question_id,
+                            "question": str(
+                                question.get("question") or block.title or "Focus check"
+                            ),
+                            "question_type": str(question.get("question_type") or ""),
+                            "options": question.get("options") or {},
+                            "correct_answer": str(question.get("correct_answer") or ""),
+                            "explanation": str(question.get("explanation") or ""),
+                            "difficulty": str(question.get("difficulty") or ""),
+                            "user_answer": req.user_answer,
+                            "is_correct": bool(req.is_correct),
+                            "source": "book",
+                            "material_id": req.book_id,
+                            "material_title": book.title,
+                            "section_id": req.page_id,
+                            "section_title": page.title if page is not None else "",
+                        }
+                    ],
+                )
+        except Exception:
+            logger.warning(
+                "Failed to sync Focus-Check %s to question bank for book %s",
+                req.question_id,
+                req.book_id,
+                exc_info=True,
+            )
     return {"progress": progress.model_dump(mode="json")}
 
 
