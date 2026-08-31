@@ -22,6 +22,7 @@ import {
   Search,
   SlidersHorizontal,
   Sparkles,
+  UserRound,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -417,6 +418,16 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     icon: Bot,
     href: "/settings/agents",
     children: AGENT_CHILDREN,
+  },
+  {
+    key: "learner-profile",
+    label: { zh: "学习档案", en: "Learner profile" },
+    blurb: {
+      zh: "调整年龄、年级与讲解偏好。",
+      en: "Adjust age, grade, and explanation preferences.",
+    },
+    icon: UserRound,
+    href: "/settings/learner-profile",
   },
   {
     key: "memory",
