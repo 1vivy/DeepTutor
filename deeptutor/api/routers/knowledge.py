@@ -2950,26 +2950,47 @@ async def run_reindex_task(kb_name: str, base_dir: str, task_id: str, signature_
                     meta_err,
                 )
 
-            manager = get_kb_manager()
-            manager.update_kb_status(
-                name=kb_name,
-                status="ready",
-                progress={
-                    "stage": "completed",
-                    "message": "Re-index complete",
-                    "percent": 100,
-                    "current": len(file_paths),
-                    "total": len(file_paths),
-                    "task_id": task_id,
-                    "timestamp": completed_at,
-                    "indexed_count": len(file_paths),
-                    "index_changed": True,
-                    "index_action": "reindex",
-                },
+            progress_tracker.update(
+                ProgressStage.COMPLETED,
+                "Re-index complete",
+                current=len(file_paths),
+                total=len(file_paths),
+                indexed_count=len(file_paths),
+                index_changed=True,
+                index_action="reindex",
             )
+            try:
+                with open(progress_tracker.progress_file, encoding="utf-8") as handle:
+                    persisted_progress = json.load(handle)
+            except Exception as progress_err:
+                raise RuntimeError(
+                    f"Re-index terminal state was not persisted for '{kb_name}'."
+                ) from progress_err
+            expected_terminal_progress = {
+                "stage": ProgressStage.COMPLETED.value,
+                "task_id": task_id,
+                "progress_percent": 100,
+                "current": len(file_paths),
+                "total": len(file_paths),
+                "indexed_count": len(file_paths),
+                "index_changed": True,
+                "index_action": "reindex",
+            }
+            if not isinstance(persisted_progress, dict) or any(
+                persisted_progress.get(key) != value
+                for key, value in expected_terminal_progress.items()
+            ):
+                raise RuntimeError(f"Re-index terminal state was not persisted for '{kb_name}'.")
+            manager = get_kb_manager()
+            # ProgressTracker persists through its own manager instance. Refresh
+            # this cached instance before clearing flags so stale processing
+            # state cannot overwrite the completed status it just wrote.
+            manager.config = manager._load_config()
             # Clear the legacy mismatch / needs_reindex flags now that an
             # index version matching the active config exists on disk.
             kb_entry = manager.config.get("knowledge_bases", {}).get(kb_name) or {}
+            if kb_entry.get("status") != "ready":
+                raise RuntimeError(f"Re-index terminal state was not persisted for '{kb_name}'.")
             mutated = False
             if kb_entry.get("needs_reindex"):
                 kb_entry["needs_reindex"] = False
