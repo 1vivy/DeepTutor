@@ -15,6 +15,31 @@ class _FakeTty:
         return True
 
 
+class _AcceptedConnection:
+    def __enter__(self) -> "_AcceptedConnection":
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+
+def test_port_probe_detects_ipv6_only_loopback_listener(monkeypatch) -> None:
+    """Unix launchers may bind only to ::1 (issue #1096)."""
+    attempts: list[tuple[str, int]] = []
+
+    def fake_create_connection(address, timeout):
+        host, port = address
+        attempts.append((host, port))
+        if host == "::1":
+            return _AcceptedConnection()
+        raise ConnectionRefusedError
+
+    monkeypatch.setattr(launcher.socket, "create_connection", fake_create_connection)
+
+    assert launcher._port_accepts_connection(3782)
+    assert attempts == [("127.0.0.1", 3782), ("::1", 3782)]
+
+
 def test_packaged_web_cache_replaces_next_public_placeholders(tmp_path: Path) -> None:
     packaged = tmp_path / "pkg"
     (packaged / ".next" / "static").mkdir(parents=True)
