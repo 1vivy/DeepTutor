@@ -16,6 +16,13 @@ type VocabularyTerm = {
   usage: string;
 };
 
+type QuizQuestion = {
+  id?: string;
+  prompt: string;
+  choices: string[];
+  correct_choice_index?: number;
+};
+
 export function ReadingExtensionBar({
   materialId,
   locator,
@@ -177,6 +184,9 @@ function builtInActionLabel(extensionId: string, actionId: string) {
   if (extensionId === "vocabulary" && actionId === "explain") {
     return "Explain vocabulary";
   }
+  if (extensionId === "quiz" && actionId === "start") {
+    return "Quiz me";
+  }
   return "";
 }
 
@@ -190,11 +200,7 @@ function ExtensionResult({
   onClose: () => void;
 }) {
   const questions = Array.isArray(result.payload.questions)
-    ? (result.payload.questions as Array<{
-        id?: string;
-        prompt: string;
-        choices: string[];
-      }>)
+    ? (result.payload.questions as QuizQuestion[])
     : [];
   const items = Array.isArray(result.payload.items)
     ? result.payload.items.map(String)
@@ -263,8 +269,26 @@ function ExtensionResult({
           ))}
         </dl>
       ) : null}
-      {questions.map((question, index) => (
-        <div key={question.id || index} className="mt-3">
+      {questions.length ? <QuizQuestions questions={questions} /> : null}
+    </section>
+  );
+}
+
+function QuizQuestions({ questions }: { questions: QuizQuestion[] }) {
+  const { t } = useTranslation();
+  const [answers, setAnswers] = useState<Record<string, number>>({});
+
+  return questions.map((question, index) => {
+    const key = question.id || String(index);
+    const selected = answers[key];
+    const correctChoiceIndex = Number.isInteger(question.correct_choice_index)
+      ? Number(question.correct_choice_index)
+      : -1;
+    const canGrade =
+      correctChoiceIndex >= 0 && correctChoiceIndex < question.choices.length;
+    if (!canGrade) {
+      return (
+        <div key={key} className="mt-3">
           <p className="font-medium">{question.prompt}</p>
           <ol className="mt-1 list-inside list-[upper-alpha] space-y-0.5 text-[var(--muted-foreground)]">
             {question.choices.map((choice) => (
@@ -272,7 +296,39 @@ function ExtensionResult({
             ))}
           </ol>
         </div>
-      ))}
-    </section>
-  );
+      );
+    }
+    return (
+      <fieldset key={key} className="mt-3">
+        <legend className="font-medium">{question.prompt}</legend>
+        <div className="mt-1 grid gap-1">
+          {question.choices.map((choice, choiceIndex) => (
+            <button
+              key={choice}
+              type="button"
+              aria-pressed={selected === choiceIndex}
+              onClick={() =>
+                setAnswers((current) => ({ ...current, [key]: choiceIndex }))
+              }
+              className="rounded-md border border-[var(--border)] px-2 py-1.5 text-left text-[var(--muted-foreground)] transition hover:bg-[var(--muted)] aria-pressed:bg-[var(--muted)] aria-pressed:text-[var(--foreground)]"
+            >
+              {String.fromCharCode(65 + choiceIndex)}. {choice}
+            </button>
+          ))}
+        </div>
+        {selected !== undefined ? (
+          <p
+            role="status"
+            className={`mt-1 font-medium ${
+              selected === correctChoiceIndex
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-amber-600 dark:text-amber-400"
+            }`}
+          >
+            {selected === correctChoiceIndex ? t("Correct") : t("Incorrect")}
+          </p>
+        ) : null}
+      </fieldset>
+    );
+  });
 }

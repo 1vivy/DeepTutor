@@ -95,3 +95,18 @@ test("vocabulary terms are visible in the result card", () => {
   assert.match(component, /\{term\.meaning\}/);
   assert.match(component, /\{term\.usage\}/);
 });
+
+test("the built-in reading-quiz action is localized", () => {
+  assert.match(component, /extensionId === "quiz" && actionId === "start"/);
+  assert.match(component, /t\(builtInLabel\)/);
+  assert.match(english, /"Quiz me": "Quiz me"/);
+  assert.match(chinese, /"Quiz me": "测一测"/);
+});
+
+test("reading quizzes reveal grading only after the learner answers", () => {
+  assert.match(component, /correct_choice_index\?: number/);
+  assert.match(component, /const \[answers, setAnswers\] = useState/);
+  assert.match(component, /aria-pressed=\{selected === choiceIndex\}/);
+  assert.match(component, /selected === correctChoiceIndex/);
+  assert.match(component, /t\("Correct"\).*t\("Incorrect"\)/s);
+});
