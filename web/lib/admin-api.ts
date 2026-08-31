@@ -1,5 +1,7 @@
 import { apiFetch, apiUrl } from "@/lib/api";
 
+export type AccountPreset = "standard" | "learner" | "custom";
+
 export interface UserRecord {
   id: string;
   username: string;
@@ -8,6 +10,7 @@ export interface UserRecord {
   disabled?: boolean;
   /** Avatar marker: "", "icon:<name>:<color>", or "img:<version>". */
   avatar?: string;
+  preset?: AccountPreset;
   book_permission?: {
     create: boolean;
     default: "none" | "read";
@@ -57,16 +60,18 @@ export interface CreatedUser {
   username: string;
   role: "admin" | "user";
   is_admin: boolean;
+  preset: AccountPreset;
 }
 
 export async function createUser(
   username: string,
   password: string,
+  preset: AccountPreset = "standard",
 ): Promise<CreatedUser> {
   const res = await apiFetch(apiUrl("/api/v1/auth/users"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, preset }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));

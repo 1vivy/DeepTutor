@@ -30,6 +30,8 @@ _SECURE = bool(load_auth_settings()["cookie_secure"])
 _SAMESITE = "none" if _SECURE else "lax"
 
 from deeptutor.multi_user.context import set_current_user, user_from_token_payload
+from deeptutor.multi_user.learning_access import learning_policy_for_user
+from deeptutor.multi_user.models import AccountPreset
 from deeptutor.multi_user.paths import local_admin_user
 from deeptutor.services.auth import (
     AUTH_ENABLED,
@@ -133,6 +135,15 @@ class SetRoleRequest(BaseModel):
         return v
 
 
+class AdminCreateUserRequest(RegisterRequest):
+    """Admin user-creation payload.
+
+    A preset configures an ordinary account; it never becomes a third role.
+    """
+
+    preset: AccountPreset = "standard"
+
+
 class AuthStatusResponse(BaseModel):
     """Response body for the GET /status endpoint."""
 
@@ -143,6 +154,7 @@ class AuthStatusResponse(BaseModel):
     role: str | None = None
     is_admin: bool = False
     avatar: str = ""
+    learning_policy: dict | None = None
 
 
 class UserInfo(BaseModel):
@@ -154,6 +166,7 @@ class UserInfo(BaseModel):
     created_at: str
     disabled: bool = False
     avatar: str = ""
+    preset: AccountPreset = "standard"
 
 
 # Markers settable through PUT /profile. Image markers ("img:<version>") are
@@ -348,6 +361,33 @@ async def require_admin(
     return payload
 
 
+def _learning_surface_for_path(path: str) -> str:
+    normalized = "/" + str(path or "").lstrip("/")
+    for root, surface in (
+        ("/api/v1/reading", "reading"),
+        ("/api/v1/chat", "chat"),
+        ("/api/v1/question", "chat"),
+        ("/api/v1/question-notebook", "chat"),
+        ("/api/v1/sessions", "chat"),
+    ):
+        if normalized == root or normalized.startswith(f"{root}/"):
+            return surface
+    return ""
+
+
+async def require_learning_surface(
+    request: Request,
+    _: TokenPayload | None = Depends(require_auth),
+) -> None:
+    """Second-stage default-deny guard for configured learning accounts."""
+    from deeptutor.multi_user.learning_access import assert_learning_surface
+
+    try:
+        assert_learning_surface(_learning_surface_for_path(request.url.path))
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+
+
 def _local_admin_token_payload() -> TokenPayload:
     """Synthetic admin payload used when AUTH_ENABLED=false.
 
@@ -418,10 +458,15 @@ async def auth_status(
     token = _extract_token(authorization, dt_token)
     payload = decode_token(token) if token else None
     avatar = ""
+    learning_policy = None
     if payload is not None:
         info = get_user_info(payload.username)
         if info:
             avatar = str(info.get("avatar") or "")
+        learning_policy = learning_policy_for_user(
+            payload.user_id,
+            is_admin=payload.role == "admin",
+        )
     return AuthStatusResponse(
         enabled=True,
         authenticated=payload is not None,
@@ -430,6 +475,7 @@ async def auth_status(
         role=payload.role if payload else None,
         is_admin=payload.role == "admin" if payload else False,
         avatar=avatar,
+        learning_policy=learning_policy,
     )
 
 
@@ -757,7 +803,7 @@ async def get_users(_: TokenPayload = Depends(require_admin)) -> list[UserInfo]:
 
 @router.post("/users", status_code=status.HTTP_201_CREATED)
 async def admin_create_user(
-    body: RegisterRequest,
+    body: AdminCreateUserRequest,
     current: TokenPayload = Depends(require_admin),
 ) -> dict:
     """Admin-only: create a new user account.
@@ -773,6 +819,11 @@ async def admin_create_user(
         )
 
     if POCKETBASE_ENABLED:
+        if body.preset != "standard":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only the standard preset is available in PocketBase mode.",
+            )
         result = register_pb(username=body.username, email=body.username, password=body.password)
         if not result:
             raise HTTPException(
@@ -789,6 +840,7 @@ async def admin_create_user(
             "username": body.username,
             "role": "user",
             "is_admin": False,
+            "preset": "standard",
         }
 
     existing = {u["username"] for u in list_users()}
@@ -798,17 +850,42 @@ async def admin_create_user(
             detail="Username already taken",
         )
 
-    add_user(body.username, body.password)
+    add_user(body.username, body.password, preset=body.preset)
     user_id = ""
     role = "user"
+    preset = "standard"
     for item in list_users():
         if item.get("username") == body.username:
             user_id = str(item.get("id") or "")
             role = str(item.get("role") or "user")
+            preset = str(item.get("preset") or "standard")
             break
+    if preset == "learner":
+        from deeptutor.multi_user.grants import learner_grant, save_grant
+
+        try:
+            save_grant(user_id, learner_grant(user_id))
+        except Exception as exc:
+            rolled_back = False
+            try:
+                rolled_back = delete_user(body.username)
+            except Exception:
+                logger.exception(
+                    "Failed to roll back user '%s' after learner grant initialization failed",
+                    body.username,
+                )
+            if not rolled_back:
+                logger.error(
+                    "Learner account '%s' may remain after grant initialization failed",
+                    body.username,
+                )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="The learner preset could not be initialized.",
+            ) from exc
     logger.info(
         f"Admin '{current.username if current else 'local'}' created user '{body.username}' "
-        f"(role={role!r})"
+        f"(role={role!r}, preset={preset!r})"
     )
     return {
         "ok": True,
@@ -816,6 +893,7 @@ async def admin_create_user(
         "username": body.username,
         "role": role,
         "is_admin": role == "admin",
+        "preset": preset,
     }
 
 

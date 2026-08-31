@@ -1554,10 +1554,15 @@ class TurnRuntimeManager:
             enabled=routing_enabled,
         )
         capability = (
-            capability_route.capability
-            if capability_route is not None
-            else requested_capability
+            capability_route.capability if capability_route is not None else requested_capability
         )
+        try:
+            from deeptutor.multi_user.learning_access import apply_learning_policy
+
+            payload = apply_learning_policy({**payload, "capability": capability})
+        except PermissionError as exc:
+            raise RuntimeError(str(exc)) from exc
+
         workspace_mode_explicit = "workspace_mode" in payload
         workspace_mode = _workspace_mode(
             payload.get("workspace_mode")

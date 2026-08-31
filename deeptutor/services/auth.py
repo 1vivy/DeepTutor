@@ -28,6 +28,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any
 
+from deeptutor.multi_user.models import AccountPreset, Role
 from deeptutor.services.config import load_auth_settings, load_integrations_settings
 
 logger = logging.getLogger(__name__)
@@ -101,7 +102,12 @@ def verify_password(plain: str, hashed: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _make_user_record(hashed: str, role: str = "user", created_at: str = "") -> dict[str, Any]:
+def _make_user_record(
+    hashed: str,
+    role: str = "user",
+    created_at: str = "",
+    preset: str = "standard",
+) -> dict[str, Any]:
     """Build a canonical user record dict for legacy callers/tests."""
     from deeptutor.multi_user.identity import new_user_id
 
@@ -112,6 +118,7 @@ def _make_user_record(hashed: str, role: str = "user", created_at: str = "") -> 
         "created_at": created_at or datetime.now(timezone.utc).isoformat(),
         "disabled": False,
         "avatar": "",
+        "preset": preset,
     }
 
 
@@ -136,7 +143,12 @@ def is_first_user() -> bool:
     return len(_load_users()) == 0
 
 
-def add_user(username: str, plain_password: str, role: str = "user") -> None:
+def add_user(
+    username: str,
+    plain_password: str,
+    role: Role = "user",
+    preset: AccountPreset = "standard",
+) -> None:
     """
     Add or update a user in data/user/auth_users.json.
 
@@ -148,8 +160,18 @@ def add_user(username: str, plain_password: str, role: str = "user") -> None:
     """
     from deeptutor.multi_user.identity import save_user
 
-    record = save_user(username, hash_password(plain_password), role=role)  # type: ignore[arg-type]
-    logger.info("User '%s' saved with role=%r", username, record.get("role", "user"))
+    record = save_user(
+        username,
+        hash_password(plain_password),
+        role=role,
+        preset=preset,
+    )
+    logger.info(
+        "User '%s' saved with role=%r preset=%r",
+        username,
+        record.get("role", "user"),
+        record.get("preset", "standard"),
+    )
 
 
 def list_users() -> list[dict]:
