@@ -279,6 +279,15 @@ def get_user_by_id(user_id: str) -> tuple[str, dict[str, Any]] | None:
     return None
 
 
+def get_learner_profile(username: str) -> dict[str, Any] | None:
+    """Return one ordinary user's structured learner profile."""
+    record = load_users().get(username)
+    if record is None or str(record.get("role") or "user") != "user":
+        return None
+    profile = record.get("learner_profile")
+    return profile if isinstance(profile, dict) else None
+
+
 def set_learner_profile(username: str, profile: dict[str, Any] | None) -> dict[str, Any] | None:
     """Atomically replace one ordinary user's structured learner profile."""
     with _USERS_WRITE_LOCK:
