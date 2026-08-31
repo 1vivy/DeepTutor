@@ -73,6 +73,8 @@ class TokenPayload:
     username: str
     role: str
     user_id: str = ""
+    device_credential_id: str = ""
+    device_session_nonce: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +241,13 @@ def get_user_info(username: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 
-def create_token(username: str, role: str = "user", user_id: str | None = None) -> str:
+def create_token(
+    username: str,
+    role: str = "user",
+    user_id: str | None = None,
+    device_credential_id: str = "",
+    device_session_nonce: str = "",
+) -> str:
     """Create a signed JWT for the given username and role."""
     from jose import jwt
 
@@ -251,6 +259,8 @@ def create_token(username: str, role: str = "user", user_id: str | None = None) 
         "sub": username,
         "role": role,
         "uid": user_id,
+        "dcid": device_credential_id,
+        "dcs": device_session_nonce,
         "exp": datetime.now(timezone.utc) + timedelta(hours=TOKEN_EXPIRE_HOURS),
         "iat": datetime.now(timezone.utc),
     }
@@ -297,7 +307,24 @@ def decode_token(token: str) -> TokenPayload | None:
         if not user_id:
             record = _load_users().get(str(username)) or {}
             user_id = str(record.get("id") or "")
-        return TokenPayload(username=username, role=payload.get("role", "user"), user_id=user_id)
+        device_credential_id = str(payload.get("dcid") or "")
+        device_session_nonce = str(payload.get("dcs") or "")
+        if device_credential_id:
+            from deeptutor.multi_user.device_credentials import validate_device_token
+
+            if not validate_device_token(
+                user_id,
+                device_credential_id,
+                device_session_nonce,
+            ):
+                return None
+        return TokenPayload(
+            username=username,
+            role=payload.get("role", "user"),
+            user_id=user_id,
+            device_credential_id=device_credential_id,
+            device_session_nonce=device_session_nonce,
+        )
     except JWTError:
         return None
 
@@ -398,3 +425,23 @@ def authenticate(username: str, password: str) -> TokenPayload | None:
     role = record.get("role", "user") if isinstance(record, dict) else "user"
     user_id = str(record.get("id") or "") if isinstance(record, dict) else ""
     return TokenPayload(username=username, role=role, user_id=user_id)
+
+
+def authenticate_device(pairing_code: str, pin: str) -> TokenPayload | None:
+    """Exchange a learner device credential for the account's normal JWT identity."""
+
+    if not AUTH_ENABLED or POCKETBASE_ENABLED:
+        return None
+    from deeptutor.multi_user.device_credentials import begin_device_session
+
+    session = begin_device_session(pairing_code, pin)
+    if session is None:
+        return None
+    _view, username, role, user_id, session_nonce = session
+    return TokenPayload(
+        username=username,
+        role=role,
+        user_id=user_id,
+        device_credential_id=str(_view["id"]),
+        device_session_nonce=session_nonce,
+    )
