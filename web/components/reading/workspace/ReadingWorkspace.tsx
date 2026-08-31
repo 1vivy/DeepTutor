@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   ChevronDown,
@@ -87,6 +87,7 @@ export function ReadingWorkspacePage() {
   const params = useParams<{ workspaceId: string; sessionId?: string[] }>();
   const workspaceId = params.workspaceId;
   const sessionIdParam = params.sessionId?.[0] ?? null;
+  const courseId = useSearchParams().get("course")?.trim() ?? "";
   const router = useRouter();
   const { t } = useTranslation();
   // The shell only needs to *send* (guided one-click prompts). Rendering the
@@ -124,7 +125,7 @@ export function ReadingWorkspacePage() {
     buildMasteryPath,
     renameWorkspace,
     reportViewport,
-  } = useReadingWorkspace(workspaceId, sessionIdParam);
+  } = useReadingWorkspace(workspaceId, sessionIdParam, courseId);
 
   // View-only state: what the reader is pointing at and which panels are open.
   const [transcriptSearch, setTranscriptSearch] = useState("");

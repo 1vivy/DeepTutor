@@ -18,6 +18,7 @@ import {
   isMasteryDraftSessionReady,
   type MasteryDraftRouteGuard,
 } from "@/lib/mastery-study-route";
+import { courseSessionConfiguration } from "@/lib/course-session-scope";
 import { MASTERY_WORKSPACE_MODE } from "@/lib/workspace-mode";
 
 /**
@@ -32,6 +33,7 @@ import { MASTERY_WORKSPACE_MODE } from "@/lib/workspace-mode";
 export function useMasteryStudySession(
   pathId: string,
   routeSessionId?: string,
+  courseId = "",
 ) {
   const router = useRouter();
   const { t } = useTranslation();
@@ -108,7 +110,7 @@ export function useMasteryStudySession(
         routeKey,
         previousSessionId: state.sessionId,
       };
-      newSession(sessionConfiguration);
+      newSession(courseSessionConfiguration(sessionConfiguration, courseId));
       return;
     }
 
@@ -128,14 +130,22 @@ export function useMasteryStudySession(
           );
         }
         const cached = showCachedSession(routeSessionId);
-        if (cached) configureSession(sessionConfiguration, routeSessionId);
+        if (cached) {
+          configureSession(
+            courseSessionConfiguration(sessionConfiguration, courseId),
+            routeSessionId,
+          );
+        }
         return loadSession(
           routeSessionId,
           cached ? { revalidate: true } : undefined,
         );
       })
       .then(() => {
-        configureSession(sessionConfiguration, routeSessionId);
+        configureSession(
+          courseSessionConfiguration(sessionConfiguration, courseId),
+          routeSessionId,
+        );
         setSessionResolution({ routeKey, error: null });
       })
       .catch((reason: unknown) => {
@@ -148,6 +158,7 @@ export function useMasteryStudySession(
         });
       });
   }, [
+    courseId,
     configureSession,
     currentRouteKey,
     loadSession,
@@ -175,12 +186,18 @@ export function useMasteryStudySession(
       })
     )
       return;
+    const courseQuery = courseId
+      ? `?course=${encodeURIComponent(courseId)}`
+      : "";
     router.replace(
-      `/mastery/${encodeURIComponent(pathId)}/study/${encodeURIComponent(newSessionId)}`,
+      `/mastery/${encodeURIComponent(pathId)}/study/${encodeURIComponent(
+        newSessionId,
+      )}${courseQuery}`,
       { scroll: false },
     );
   }, [
     currentRouteKey,
+    courseId,
     pathId,
     routeSessionId,
     router,

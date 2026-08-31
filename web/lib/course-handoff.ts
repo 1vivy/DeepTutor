@@ -176,15 +176,17 @@ export function courseHandoffHref(payload: CourseHandoffPayload): string {
   const ref = encodeURIComponent(payload.ref_id);
   switch (payload.target) {
     case "immersive_reading":
-      // With nothing to open yet, the index is the honest destination — but it
-      // arrives course-scoped, so whatever the learner makes there attaches
-      // back here instead of stranding them one manual step from the course.
-      return payload.ref_id ? `/reading/${ref}` : `/reading?course=${course}`;
+      // Every branch stays course-scoped: an existing workspace still opens a
+      // conversation that belongs to this course, rather than only the empty
+      // index honouring the context that sent the learner here.
+      return payload.ref_id
+        ? `/reading/${ref}?course=${course}`
+        : `/reading?course=${course}`;
     case "mastery_path":
       // The study route, not the path overview: the overview has no composer,
       // so a prepared opening line would have nowhere to land.
       return payload.ref_id
-        ? `/mastery/${ref}/study`
+        ? `/mastery/${ref}/study?course=${course}`
         : `/mastery?course=${course}`;
     case "question_bank":
       return `/space/questions?course=${course}`;

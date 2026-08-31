@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import { useReading } from "@/context/ReadingContext";
 import { useUnifiedChat } from "@/context/UnifiedChatContext";
+import { courseSessionConfiguration } from "@/lib/course-session-scope";
 import { getMaterial, getUnitText } from "@/lib/reading-api";
 import {
   READER_ACTION_EVENT,
@@ -41,6 +42,7 @@ import type { TranscriptRow } from "./types";
 export function useReadingWorkspace(
   workspaceId: string,
   sessionIdParam: string | null,
+  courseId = "",
 ) {
   const router = useRouter();
   const { t } = useTranslation();
@@ -169,7 +171,7 @@ export function useReadingWorkspace(
 
   useEffect(() => {
     if (!workspace || loading) return;
-    const bootKey = `${workspaceId}:${sessionIdParam ?? "new"}`;
+    const bootKey = `${workspaceId}:${sessionIdParam ?? "new"}:${courseId.trim()}`;
     if (sessionBootRef.current === bootKey) return;
     sessionBootRef.current = bootKey;
 
@@ -186,11 +188,15 @@ export function useReadingWorkspace(
         // the backend attaches the session to this workspace when the first
         // turn runs (see `turn_runtime`), so opening a collection and walking
         // away no longer litters it with empty conversations.
+        const scopedSessionConfiguration = courseSessionConfiguration(
+          sessionConfiguration,
+          courseId,
+        );
         if (sessionIdParam) {
           await loadSession(sessionIdParam);
-          configureSession(sessionConfiguration, sessionIdParam);
+          configureSession(scopedSessionConfiguration, sessionIdParam);
         } else {
-          newSession({ ...sessionConfiguration, capability: null });
+          newSession({ ...scopedSessionConfiguration, capability: null });
         }
       } catch (caught) {
         setError(
@@ -202,6 +208,7 @@ export function useReadingWorkspace(
     })();
   }, [
     configureSession,
+    courseId,
     loadSession,
     loading,
     newSession,
