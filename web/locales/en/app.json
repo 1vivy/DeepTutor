@@ -4260,5 +4260,19 @@
   "Explain this part of the video": "Explain this part of the video",
   "YouTube Player API did not initialize.": "YouTube Player API did not initialize.",
   "YouTube Player API timed out.": "YouTube Player API timed out.",
-  "YouTube Player API could not be loaded.": "YouTube Player API could not be loaded."
+  "YouTube Player API could not be loaded.": "YouTube Player API could not be loaded.",
+  "Video notes": "Video notes",
+  "Add video note": "Add video note",
+  "Save video note": "Save video note",
+  "Note at {{time}}": "Note at {{time}}",
+  "Edit note at {{time}}": "Edit note at {{time}}",
+  "Delete note at {{time}}": "Delete note at {{time}}",
+  "Delete this note?": "Delete this note?",
+  "This note will be removed from Video Learning.": "This note will be removed from Video Learning.",
+  "No notes yet.": "No notes yet.",
+  "Loading notes.": "Loading notes.",
+  "Notes could not be loaded.": "Notes could not be loaded.",
+  "Note was not saved.": "Note was not saved.",
+  "Note was not deleted.": "Note was not deleted.",
+  "Video learning panels": "Video learning panels"
 }

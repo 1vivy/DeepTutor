@@ -4260,5 +4260,19 @@
   "Explain this part of the video": "解释视频的这一部分",
   "YouTube Player API did not initialize.": "YouTube Player API 未能初始化。",
   "YouTube Player API timed out.": "YouTube Player API 加载超时。",
-  "YouTube Player API could not be loaded.": "无法加载 YouTube Player API。"
+  "YouTube Player API could not be loaded.": "无法加载 YouTube Player API。",
+  "Video notes": "视频笔记",
+  "Add video note": "添加视频笔记",
+  "Save video note": "保存视频笔记",
+  "Note at {{time}}": "{{time}} 的笔记",
+  "Edit note at {{time}}": "编辑 {{time}} 的笔记",
+  "Delete note at {{time}}": "删除 {{time}} 的笔记",
+  "Delete this note?": "删除这条笔记？",
+  "This note will be removed from Video Learning.": "这条笔记将从视频学习中移除。",
+  "No notes yet.": "暂无笔记。",
+  "Loading notes.": "正在加载笔记。",
+  "Notes could not be loaded.": "无法加载笔记。",
+  "Note was not saved.": "笔记未保存。",
+  "Note was not deleted.": "笔记未删除。",
+  "Video learning panels": "视频学习面板"
 }

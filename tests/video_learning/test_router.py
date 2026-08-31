@@ -9,6 +9,8 @@ import pytest
 
 from deeptutor.api.routers import video_learning
 from deeptutor.api.routers.auth import require_admin, require_auth
+from deeptutor.services.notebook.service import NotebookManager
+from deeptutor.video_learning import notes as video_notes
 from deeptutor.video_learning import service
 
 
@@ -22,11 +24,21 @@ class _Paths:
 
 
 @pytest.fixture
-def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> TestClient:
+def notebook_manager(tmp_path: Path) -> NotebookManager:
+    return NotebookManager(base_dir=str(tmp_path / "notebooks"))
+
+
+@pytest.fixture
+def client(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    notebook_manager: NotebookManager,
+) -> TestClient:
     monkeypatch.setattr(service, "get_current_path_service", lambda: _Paths(tmp_path))
     monkeypatch.setattr(
         service, "video_learning_settings_path", lambda: tmp_path / "video_learning.json"
     )
+    monkeypatch.setattr(video_notes, "get_notebook_manager", lambda: notebook_manager)
     app = FastAPI()
     app.include_router(video_learning.router, prefix="/api/v1/video-learning")
     return TestClient(app)
@@ -98,6 +110,83 @@ def test_progress_clamps_to_duration_and_unknown_material_is_404(client: TestCli
 
     missing = client.get("/api/v1/video-learning/materials/0123456789abcdef")
     assert missing.status_code == 404
+
+
+def test_video_notes_use_notebook_storage_and_stay_material_scoped(
+    client: TestClient,
+    notebook_manager: NotebookManager,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    material = _material()
+    service.get_timed_media_store().save(material)
+    material_id = str(material["material_id"])
+    notes_url = f"/api/v1/video-learning/materials/{material_id}/notes"
+
+    created_response = client.post(
+        notes_url, json={"body": "  Revisit the opening idea.  ", "time_seconds": 2}
+    )
+
+    assert created_response.status_code == 200
+    created = created_response.json()
+    assert created["material_id"] == material_id
+    assert created["body"] == "Revisit the opening idea."
+    assert created["time_seconds"] == 2.0
+    assert created["locator"] == 1
+    assert "one" in created["quote"]
+    assert created["notebook_id"]
+
+    notebook = notebook_manager.get_notebook(created["notebook_id"])
+    assert notebook is not None
+    assert notebook["name"] == video_notes.NOTEBOOK_NAME
+    assert notebook["records"][0]["type"] == "video_learning"
+    assert notebook["records"][0]["metadata"]["material_id"] == material_id
+    persisted = str(notebook)
+    assert "https://youtu.be" not in persisted
+    assert "provider_cache" not in persisted
+    assert "dQw4w9WgXcQ" not in persisted
+
+    material["metadata"]["title"] = "T" * 300
+    material["transcript"]["cues"][0]["text"] = "q" * 400
+    service.get_timed_media_store().save(material)
+    bounded_response = client.post(notes_url, json={"body": "Note", "time_seconds": 2})
+    assert bounded_response.status_code == 200
+    assert len(bounded_response.json()["quote"]) <= 280
+    records = notebook_manager.get_notebook(created["notebook_id"])["records"]
+    assert len(records[-1]["title"]) <= 160
+
+    updated_response = client.put(
+        f"{notes_url}/{created['note_id']}", json={"body": "Updated note."}
+    )
+    assert updated_response.status_code == 200
+    assert updated_response.json()["body"] == "Updated note."
+    assert (
+        notebook_manager.get_notebook(created["notebook_id"])["records"][0]["summary"]
+        == "Updated note."
+    )
+
+    other_manager = NotebookManager(
+        base_dir=str(notebook_manager.base_dir.parent / "other-account-notebooks")
+    )
+    monkeypatch.setattr(video_notes, "get_notebook_manager", lambda: other_manager)
+    assert client.get(notes_url).json() == []
+
+    monkeypatch.setattr(video_notes, "get_notebook_manager", lambda: notebook_manager)
+    for note in client.get(notes_url).json():
+        delete_response = client.delete(f"{notes_url}/{note['note_id']}")
+        assert delete_response.status_code == 200
+    assert client.get(notes_url).json() == []
+
+
+def test_video_note_errors_are_bounded_and_useful(client: TestClient) -> None:
+    material = _material(duration=100)
+    service.get_timed_media_store().save(material)
+    notes_url = f"/api/v1/video-learning/materials/{material['material_id']}/notes"
+
+    assert client.post(notes_url, json={"body": " ", "time_seconds": 2}).status_code == 400
+    assert client.post(notes_url, json={"body": "Note", "time_seconds": 101}).status_code == 400
+    assert client.post(notes_url, json={"body": "", "time_seconds": 2}).status_code == 422
+    assert client.get("/api/v1/video-learning/materials/0123456789abcdef/notes").status_code == 404
+    assert client.put(f"{notes_url}/missing-note", json={"body": "Note"}).status_code == 404
 
 
 def test_progress_does_not_replace_known_duration_with_client_value(client: TestClient) -> None:

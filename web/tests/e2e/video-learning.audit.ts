@@ -9,6 +9,18 @@ test("YouTube learning survives reload and switches to Invidious without silent 
   let invidiousOffline = false;
   let savedPosition = 0;
   let nativeResolveCount = 0;
+  let nextNoteId = 1;
+  const notes: Array<{
+    notebook_id: string;
+    note_id: string;
+    material_id: string;
+    body: string;
+    time_seconds: number;
+    locator: number;
+    quote: string;
+    created_at: number;
+    updated_at: number;
+  }> = [];
 
   const material = (selected: "youtube" | "invidious") => ({
     version: 1,
@@ -141,6 +153,40 @@ test("YouTube learning survives reload and switches to Invidious without silent 
       savedPosition = body.time_seconds;
       return json({ time_seconds: savedPosition, duration_seconds: 120 });
     }
+    if (path.endsWith("/notes") && request.method() === "GET") {
+      return json(notes);
+    }
+    if (path.endsWith("/notes") && request.method() === "POST") {
+      const body = request.postDataJSON() as { body: string; time_seconds: number };
+      const note = {
+        notebook_id: "video-notes",
+        note_id: `note-${nextNoteId++}`,
+        material_id: MATERIAL_ID,
+        body: body.body,
+        time_seconds: body.time_seconds,
+        locator: 1,
+        quote: "The first grounded concept.",
+        created_at: Date.now() / 1000,
+        updated_at: Date.now() / 1000,
+      };
+      notes.push(note);
+      return json(note);
+    }
+    const noteMatch = /\/materials\/[^/]+\/notes\/([^/]+)$/.exec(path);
+    if (noteMatch) {
+      const noteId = noteMatch[1];
+      const index = notes.findIndex((note) => note.note_id === noteId);
+      if (index === -1) return json({ detail: "Note not found" }, 404);
+      if (request.method() === "PUT") {
+        const body = request.postDataJSON() as { body: string };
+        notes[index] = { ...notes[index], body: body.body, updated_at: Date.now() / 1000 };
+        return json(notes[index]);
+      }
+      if (request.method() === "DELETE") {
+        notes.splice(index, 1);
+        return json({ status: "deleted" });
+      }
+    }
     if (path.endsWith("/subtitles.vtt")) {
       return route.fulfill({
         status: 200,
@@ -183,6 +229,58 @@ test("YouTube learning survives reload and switches to Invidious without silent 
   await expect(
     page.getByText("The first grounded concept.").locator(".."),
   ).toHaveClass(/ring-1/);
+
+  await page.getByRole("tab", { name: "Video notes" }).click();
+  await expect(page.getByText("No notes yet.")).toBeVisible();
+  await page
+    .getByPlaceholder("Note at 0:08")
+    .fill("First timestamped note");
+  await page.getByRole("button", { name: "Add video note" }).click();
+  await expect(page.getByText("First timestamped note")).toBeVisible();
+  await expect(page.getByText("The first grounded concept.")).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
+  await page
+    .getByRole("button", { name: /Immersive Watching/ })
+    .last()
+    .click();
+  await expect(page.getByText("Timestamped lesson")).toBeVisible();
+  await page.getByRole("tab", { name: "Video notes" }).click();
+  await expect(page.getByText("First timestamped note")).toBeVisible();
+
+  await page.evaluate(() => {
+    const player = (
+      window as typeof window & { __fakePlayers: Array<{ current: number }> }
+    ).__fakePlayers.at(-1);
+    if (player) player.current = 70;
+  });
+  await page.getByRole("button", { name: "0:08", exact: true }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const player = (
+          window as typeof window & { __fakePlayers: Array<{ current: number }> }
+        ).__fakePlayers.at(-1);
+        return player?.current || 0;
+      }),
+    )
+    .toBe(8);
+
+  await page.getByRole("button", { name: "Edit note at 0:08" }).click();
+  await page
+    .getByLabel("Edit note at 0:08")
+    .locator("..")
+    .locator("textarea")
+    .fill("Updated timestamped note");
+  await page.getByRole("button", { name: "Save video note" }).click();
+  await expect(page.getByText("Updated timestamped note")).toBeVisible();
+
+  await page.getByRole("button", { name: "Delete note at 0:08" }).click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.getByText("No notes yet.")).toBeVisible();
+  await page.getByRole("tab", { name: "Transcript" }).click();
+
   await page.getByRole("button", { name: "Explain here" }).click();
   await expect(page.locator("textarea")).toHaveValue(
     /\[0:08\] The first grounded concept\./,
