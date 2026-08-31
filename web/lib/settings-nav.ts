@@ -22,6 +22,7 @@ import {
   Search,
   SlidersHorizontal,
   Sparkles,
+  UserRound,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -79,6 +80,8 @@ export interface SettingsCategory {
   href: string;
   /** Leaves listed on the sub-hub page (omitted for direct-leaf categories). */
   children?: SettingsLeaf[];
+  /** Shown only when the backend reports an active learner policy. */
+  learnerOnly?: boolean;
 }
 
 const MODEL_CHILDREN: SettingsLeaf[] = [
@@ -417,6 +420,17 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     icon: Bot,
     href: "/settings/agents",
     children: AGENT_CHILDREN,
+  },
+  {
+    key: "learner-profile",
+    learnerOnly: true,
+    label: { zh: "学习档案", en: "Learner profile" },
+    blurb: {
+      zh: "调整年龄、年级与讲解偏好。",
+      en: "Adjust age, grade, and explanation preferences.",
+    },
+    icon: UserRound,
+    href: "/settings/learner-profile",
   },
   {
     key: "memory",

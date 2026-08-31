@@ -89,10 +89,12 @@ type Group = {
  * leaves; one without is itself a row, so a single-page category never costs
  * an extra level of nesting.
  */
-function useGroups(hideAdminOnly: boolean): Group[] {
+function useGroups(hideAdminOnly: boolean, showLearnerOnly: boolean): Group[] {
   return useMemo(
     () =>
-      SETTINGS_CATEGORIES.map((category) => ({
+      SETTINGS_CATEGORIES.filter(
+        (category) => !category.learnerOnly || showLearnerOnly,
+      ).map((category) => ({
         key: category.key,
         label: category.label,
         href: category.href,
@@ -113,23 +115,32 @@ function useGroups(hideAdminOnly: boolean): Group[] {
           .map((leaf) => ({ leaf, category: category.label }) satisfies Row),
         standalone: !category.children,
       })),
-    [hideAdminOnly],
+    [hideAdminOnly, showLearnerOnly],
   );
 }
 
-function useHideAdminOnly(): boolean {
-  const [hideAdminOnly, setHideAdminOnly] = useState(false);
+function useSettingsVisibility(): {
+  hideAdminOnly: boolean;
+  showLearnerOnly: boolean;
+} {
+  const [visibility, setVisibility] = useState({
+    hideAdminOnly: false,
+    showLearnerOnly: false,
+  });
   useEffect(() => {
     let cancelled = false;
     fetchAuthStatus().then((authStatus) => {
       if (cancelled || !authStatus) return;
-      setHideAdminOnly(Boolean(authStatus.enabled) && !authStatus.is_admin);
+      setVisibility({
+        hideAdminOnly: Boolean(authStatus.enabled) && !authStatus.is_admin,
+        showLearnerOnly: Boolean(authStatus.learning_policy),
+      });
     });
     return () => {
       cancelled = true;
     };
   }, []);
-  return hideAdminOnly;
+  return visibility;
 }
 
 /**
@@ -146,7 +157,8 @@ export function SettingsNavCompact() {
   const { t, i18n } = useTranslation();
   const zh = i18n.language?.toLowerCase().startsWith("zh");
   const tr = (value: Lang) => (zh ? value.zh : value.en);
-  const groups = useGroups(useHideAdminOnly());
+  const visibility = useSettingsVisibility();
+  const groups = useGroups(visibility.hideAdminOnly, visibility.showLearnerOnly);
   const { activeSection, setActiveSection } = useSettings();
   const currentValue =
     pathname === SETTINGS_HUB_HREF
@@ -203,7 +215,8 @@ export default function SettingsNav() {
   } = useSettings();
 
   const [query, setQuery] = useState("");
-  const groups = useGroups(useHideAdminOnly());
+  const visibility = useSettingsVisibility();
+  const groups = useGroups(visibility.hideAdminOnly, visibility.showLearnerOnly);
 
   const needle = query.trim().toLowerCase();
   const matches = useCallback(

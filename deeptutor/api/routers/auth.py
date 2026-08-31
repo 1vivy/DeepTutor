@@ -30,7 +30,7 @@ from deeptutor.services.config import load_auth_settings
 _SECURE = bool(load_auth_settings()["cookie_secure"])
 _SAMESITE = "none" if _SECURE else "lax"
 
-from deeptutor.multi_user.audit import log_admin_action
+from deeptutor.multi_user.audit import log_admin_action, log_usage
 from deeptutor.multi_user.context import set_current_user, user_from_token_payload
 from deeptutor.multi_user.device_credentials import (
     heartbeat_device_credential,
@@ -61,6 +61,9 @@ from deeptutor.services.auth import (
     set_avatar,
     set_learner_profile,
     set_role,
+)
+from deeptutor.services.auth import (
+    get_learner_profile as load_learner_profile,
 )
 from deeptutor.services.codex_auth.contracts import CodexAuthError
 from deeptutor.services.codex_auth.service import deliver_codex_oauth_callback
@@ -992,6 +995,56 @@ async def revoke_device(
 async def get_users(_: TokenPayload = Depends(require_admin)) -> list[UserInfo]:
     """List all registered users. Requires admin role."""
     return [UserInfo(**u) for u in list_users()]
+
+
+def _require_local_learner(current: TokenPayload) -> tuple[str, dict]:
+    """Resolve a self-service profile request to its local learner account."""
+
+    if current.role != "user":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Learner profile required"
+        )
+    account = get_user_by_id(current.user_id)
+    if account is None or account[0] != current.username:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if str(account[1].get("preset") or "standard") != "learner":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Learner profile required"
+        )
+    return account
+
+
+@router.get("/profile/learner-profile")
+async def get_current_learner_profile(current: TokenPayload = Depends(require_auth)) -> dict:
+    """Return the authenticated learner's own profile."""
+    _require_local_learner(current)
+    profile = load_learner_profile(current.username)
+    return {"learner_profile": profile}
+
+
+@router.put("/profile/learner-profile")
+async def put_current_learner_profile(
+    body: LearnerProfileRequest,
+    current: TokenPayload = Depends(require_auth),
+) -> dict:
+    """Update only the authenticated learner's own profile."""
+    _require_local_learner(current)
+    from deeptutor.multi_user.learner_profile import normalize_profile
+
+    try:
+        profile = normalize_profile(body.model_dump(exclude_none=True))
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+    updated = set_learner_profile(current.username, profile)
+    log_usage(
+        "learner_profile",
+        current.user_id,
+        "self_update",
+        {"fields": sorted(profile or {})},
+    )
+    return {"learner_profile": updated}
 
 
 @router.get("/users/{username}/learner-profile")
