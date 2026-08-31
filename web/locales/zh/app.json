@@ -4267,5 +4267,12 @@
   "Explain this part of the video": "解释视频的这一部分",
   "YouTube Player API did not initialize.": "YouTube Player API 未能初始化。",
   "YouTube Player API timed out.": "YouTube Player API 加载超时。",
-  "YouTube Player API could not be loaded.": "无法加载 YouTube Player API。"
+  "YouTube Player API could not be loaded.": "无法加载 YouTube Player API。",
+  "Vector index": "向量索引",
+  "Applies on the next full re-index": "在下次完整重建索引时生效",
+  "Exact nearest-neighbor search. Best for small and medium knowledge bases.": "精确最近邻搜索，适合中小型知识库。",
+  "Approximate graph search for large knowledge bases. Faster at scale with a small recall trade-off.": "面向大型知识库的近似图搜索，规模更大时更快，但会有少量召回损失。",
+  "HNSW graph degree": "HNSW 图连接度",
+  "HNSW construction candidates": "HNSW 构建候选数",
+  "HNSW search candidates": "HNSW 搜索候选数"
 }

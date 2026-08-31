@@ -4267,5 +4267,12 @@
   "Explain this part of the video": "Explain this part of the video",
   "YouTube Player API did not initialize.": "YouTube Player API did not initialize.",
   "YouTube Player API timed out.": "YouTube Player API timed out.",
-  "YouTube Player API could not be loaded.": "YouTube Player API could not be loaded."
+  "YouTube Player API could not be loaded.": "YouTube Player API could not be loaded.",
+  "Vector index": "Vector index",
+  "Applies on the next full re-index": "Applies on the next full re-index",
+  "Exact nearest-neighbor search. Best for small and medium knowledge bases.": "Exact nearest-neighbor search. Best for small and medium knowledge bases.",
+  "Approximate graph search for large knowledge bases. Faster at scale with a small recall trade-off.": "Approximate graph search for large knowledge bases. Faster at scale with a small recall trade-off.",
+  "HNSW graph degree": "HNSW graph degree",
+  "HNSW construction candidates": "HNSW construction candidates",
+  "HNSW search candidates": "HNSW search candidates"
 }

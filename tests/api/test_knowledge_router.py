@@ -2188,3 +2188,35 @@ def test_lightrag_server_defaults_are_redacted_and_reused_for_probe(
 
     assert probed.status_code == 200
     assert calls == [("http://localhost:9621", "private-key")]
+
+
+def test_llamaindex_config_endpoint_round_trips_vector_index_knobs(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """The vector-index form depends on every field surviving a save/reload."""
+    service = RuntimeSettingsService(tmp_path, process_env={})
+    monkeypatch.setattr(config_module, "get_runtime_settings_service", lambda: service)
+
+    client = TestClient(_build_app())
+    initial = client.get("/api/v1/knowledge/rag-pipelines/llamaindex/config")
+    assert initial.status_code == 200
+    assert initial.json()["vector_index_type"] == "flat"
+
+    saved = client.put(
+        "/api/v1/knowledge/rag-pipelines/llamaindex/config",
+        json={
+            "vector_index_type": "hnsw",
+            "hnsw_m": 24,
+            "hnsw_ef_construction": 128,
+            "hnsw_ef_search": 48,
+        },
+    )
+    assert saved.status_code == 200
+    assert saved.json()["vector_index_type"] == "hnsw"
+    assert saved.json()["hnsw_m"] == 24
+    assert saved.json()["hnsw_ef_construction"] == 128
+    assert saved.json()["hnsw_ef_search"] == 48
+
+    again = client.get("/api/v1/knowledge/rag-pipelines/llamaindex/config").json()
+    assert again["vector_index_type"] == "hnsw"
+    assert again["hnsw_ef_search"] == 48

@@ -393,6 +393,10 @@ function LlamaIndexForm({
         top_k: form.top_k,
         vector_top_k_multiplier: form.vector_top_k_multiplier,
         bm25_top_k_multiplier: form.bm25_top_k_multiplier,
+        vector_index_type: form.vector_index_type,
+        hnsw_m: form.hnsw_m,
+        hnsw_ef_construction: form.hnsw_ef_construction,
+        hnsw_ef_search: form.hnsw_ef_search,
         chunk_size: form.chunk_size,
         chunk_overlap: form.chunk_overlap,
         image_description_concurrency: form.image_description_concurrency,
@@ -410,6 +414,7 @@ function LlamaIndexForm({
   };
 
   const isHybrid = form.retrieval_profile === "hybrid";
+  const isHnsw = form.vector_index_type === "hnsw";
   const profiles: {
     id: LlamaIndexConfig["retrieval_profile"];
     desc: string;
@@ -421,6 +426,20 @@ function LlamaIndexForm({
     {
       id: "vector",
       desc: "Vector semantic retrieval only. Faster, but leans entirely on embedding quality.",
+    },
+  ];
+
+  const vectorIndexes: {
+    id: LlamaIndexConfig["vector_index_type"];
+    desc: string;
+  }[] = [
+    {
+      id: "flat",
+      desc: "Exact nearest-neighbor search. Best for small and medium knowledge bases.",
+    },
+    {
+      id: "hnsw",
+      desc: "Approximate graph search for large knowledge bases. Faster at scale with a small recall trade-off.",
     },
   ];
 
@@ -489,6 +508,72 @@ function LlamaIndexForm({
           disabled={!isHybrid}
           onChange={(v) => set({ bm25_top_k_multiplier: v })}
         />
+      </div>
+
+      {/* Vector index */}
+      <div>
+        <div className="mb-2 flex items-baseline justify-between gap-2">
+          <span className="text-[12px] font-medium text-[var(--foreground)]">
+            {t("Vector index")}
+          </span>
+          <span className="text-[11px] text-[var(--muted-foreground)]">
+            {t("Applies on the next full re-index")}
+          </span>
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {vectorIndexes.map((indexType) => {
+            const active = form.vector_index_type === indexType.id;
+            return (
+              <button
+                key={indexType.id}
+                type="button"
+                onClick={() => set({ vector_index_type: indexType.id })}
+                className={`flex flex-col gap-1 rounded-xl border p-3 text-left transition-colors ${
+                  active
+                    ? "border-[var(--primary)] bg-[var(--primary)]/5"
+                    : "border-[var(--border)] hover:border-[var(--ring)]"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-[12.5px] font-medium text-[var(--foreground)]">
+                    {indexType.id}
+                  </span>
+                  {active && (
+                    <Check className="h-3.5 w-3.5 text-[var(--primary)]" />
+                  )}
+                </div>
+                <span className="text-[11.5px] leading-snug text-[var(--muted-foreground)]">
+                  {t(indexType.desc)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {isHnsw && (
+          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <NumberField
+              label={t("HNSW graph degree")}
+              value={form.hnsw_m}
+              min={4}
+              max={64}
+              onChange={(v) => set({ hnsw_m: v })}
+            />
+            <NumberField
+              label={t("HNSW construction candidates")}
+              value={form.hnsw_ef_construction}
+              min={16}
+              max={512}
+              onChange={(v) => set({ hnsw_ef_construction: v })}
+            />
+            <NumberField
+              label={t("HNSW search candidates")}
+              value={form.hnsw_ef_search}
+              min={1}
+              max={512}
+              onChange={(v) => set({ hnsw_ef_search: v })}
+            />
+          </div>
+        )}
       </div>
 
       {/* Chunking */}

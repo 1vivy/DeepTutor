@@ -60,6 +60,11 @@ export interface LlamaIndexConfig {
   top_k: number;
   vector_top_k_multiplier: number;
   bm25_top_k_multiplier: number;
+  /** Vector index type used by the next full index build. */
+  vector_index_type: "flat" | "hnsw";
+  hnsw_m: number;
+  hnsw_ef_construction: number;
+  hnsw_ef_search: number;
   /** Chunk geometry — applies to documents indexed after the change. */
   chunk_size: number;
   chunk_overlap: number;

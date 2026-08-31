@@ -1297,6 +1297,10 @@ class LlamaIndexConfigUpdate(BaseModel):
     top_k: int | None = None
     vector_top_k_multiplier: int | None = None
     bm25_top_k_multiplier: int | None = None
+    vector_index_type: str | None = None
+    hnsw_m: int | None = None
+    hnsw_ef_construction: int | None = None
+    hnsw_ef_search: int | None = None
     chunk_size: int | None = None
     chunk_overlap: int | None = None
     image_description_concurrency: int | None = None
