@@ -28,6 +28,7 @@ export function WatchingPane({ onClose }: { onClose(): void }) {
     lastUrl,
     openUrl,
     refresh,
+    refreshTranscript,
     close,
     reportTime,
     clearError,
@@ -152,6 +153,11 @@ export function WatchingPane({ onClose }: { onClose(): void }) {
     setPlayerError(null);
     await refresh();
   }, [refresh]);
+
+  const retryTranscript = useCallback(async () => {
+    setPlayerError(null);
+    await refreshTranscript();
+  }, [refreshTranscript]);
 
   const handleController = useCallback(
     (controller: PlayerController | null) => {
@@ -304,6 +310,16 @@ export function WatchingPane({ onClose }: { onClose(): void }) {
                   {
                     reason: material.transcript.reason || t("no captions"),
                   },
+                )}
+                {material.playback.provider === "invidious" && (
+                  <button
+                    type="button"
+                    onClick={() => void retryTranscript()}
+                    disabled={loading}
+                    className="mt-3 rounded border border-[var(--border)] px-2 py-1 text-sm font-medium disabled:opacity-50"
+                  >
+                    {t("Retry captions")}
+                  </button>
                 )}
               </div>
             ) : (

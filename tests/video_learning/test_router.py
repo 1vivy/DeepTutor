@@ -59,7 +59,15 @@ def test_main_mounts_settings_as_admin_only_and_learning_as_authenticated() -> N
     from deeptutor.api.main import app
 
     mounts: dict[str, set[object]] = {}
+    routes: list[object] = []
     for route in app.routes:
+        effective_candidates = getattr(route, "effective_candidates", None)
+        if callable(effective_candidates):
+            routes.extend(effective_candidates())
+        else:
+            routes.append(route)
+
+    for route in routes:
         path = str(getattr(route, "path", ""))
         if path.startswith("/api/v1/settings/video-learning"):
             key = "/api/v1/settings/video-learning"
@@ -67,9 +75,10 @@ def test_main_mounts_settings_as_admin_only_and_learning_as_authenticated() -> N
             key = "/api/v1/video-learning"
         else:
             continue
-        mounts.setdefault(key, set()).update(
-            dependency.call for dependency in route.dependant.dependencies
-        )
+        dependencies = list(getattr(route, "dependencies", ()) or ())
+        if not dependencies and hasattr(route, "dependant"):
+            dependencies = route.dependant.dependencies
+        mounts.setdefault(key, set()).update(dependency.dependency for dependency in dependencies)
     assert require_admin in mounts["/api/v1/settings/video-learning"]
     assert require_auth in mounts["/api/v1/video-learning"]
 
@@ -99,6 +108,28 @@ def test_progress_does_not_replace_known_duration_with_client_value(client: Test
         json={"time_seconds": 50, "duration_seconds": 10},
     )
     assert response.json() == {"time_seconds": 50.0, "duration_seconds": 100.0}
+
+
+def test_refresh_transcript_returns_refreshed_material(client: TestClient, monkeypatch) -> None:
+    material = _material()
+
+    async def refresh(material_id: str) -> dict[str, object]:
+        assert material_id == material["material_id"]
+        return {**material, "transcript": {"status": "ready", "cues": []}}
+
+    monkeypatch.setattr(video_learning, "refresh_invidious_transcript", refresh)
+    response = client.post(
+        f"/api/v1/video-learning/materials/{material['material_id']}/transcript/refresh"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["transcript"]["status"] == "ready"
+
+
+def test_refresh_transcript_returns_404_for_unknown_material(client: TestClient) -> None:
+    response = client.post("/api/v1/video-learning/materials/0123456789abcdef/transcript/refresh")
+
+    assert response.status_code == 404
 
 
 def test_subtitles_are_valid_vtt_and_escape_markup(client: TestClient) -> None:

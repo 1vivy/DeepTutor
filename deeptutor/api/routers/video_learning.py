@@ -18,6 +18,7 @@ from deeptutor.video_learning import (
     get_timed_media_store,
     load_video_learning_settings,
     material_with_playback,
+    refresh_invidious_transcript,
     resolve_material,
     save_video_learning_settings,
     test_invidious_connection,
@@ -104,6 +105,14 @@ async def resolve_video(payload: ResolveRequest) -> dict[str, Any]:
 async def get_video_material(material_id: str) -> dict[str, Any]:
     try:
         return await material_with_playback(material_id)
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@router.post("/materials/{material_id}/transcript/refresh")
+async def refresh_video_transcript(material_id: str) -> dict[str, Any]:
+    try:
+        return await refresh_invidious_transcript(material_id)
     except Exception as exc:
         raise _http_error(exc) from exc
 
