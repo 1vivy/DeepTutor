@@ -52,12 +52,31 @@ test("browser speech is stoppable and cannot continue after navigation", () => {
 });
 
 test("the built-in read-aloud action is localized", () => {
-  assert.match(component, /extension\.id === "read_aloud" && action\.id === "read"/);
-  assert.match(component, /t\("Read aloud"\)/);
+  assert.match(
+    component,
+    /extensionId === "read_aloud" && actionId === "read"/,
+  );
   assert.match(english, /"Read aloud": "Read aloud"/);
   assert.match(chinese, /"Read aloud": "朗读"/);
   assert.match(english, /"Reading aloud": "Reading aloud"/);
   assert.match(chinese, /"Reading aloud": "正在朗读"/);
   assert.match(english, /"Stop reading aloud": "Stop reading aloud"/);
   assert.match(chinese, /"Stop reading aloud": "停止朗读"/);
+});
+
+test("the built-in study-guidance action is localized", () => {
+  assert.match(component, /function builtInActionLabel/);
+  assert.match(
+    component,
+    /extensionId === "guided_learning" && actionId === "guide"/,
+  );
+  assert.match(component, /t\(builtInLabel\)/);
+  assert.match(english, /"Guide me": "Guide me"/);
+  assert.match(chinese, /"Guide me": "引导我"/);
+});
+
+test("study-guidance steps are visible in the result card", () => {
+  assert.match(component, /result\.payload\.steps/);
+  assert.match(component, /steps\.map\(\(step, index\) =>/);
+  assert.match(component, /list-decimal/);
 });

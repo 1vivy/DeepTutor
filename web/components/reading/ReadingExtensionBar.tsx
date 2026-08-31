@@ -111,10 +111,7 @@ export function ReadingExtensionBar({
           const disabled =
             Boolean(busy) ||
             (action.requires.includes("selection") && !selection?.trim());
-          const label =
-            extension.id === "read_aloud" && action.id === "read"
-              ? t("Read aloud")
-              : action.label;
+          const builtInLabel = builtInActionLabel(extension.id, action.id);
           return (
             <button
               key={key}
@@ -128,7 +125,9 @@ export function ReadingExtensionBar({
               ) : (
                 <Sparkles size={14} />
               )}
-              <span className="truncate">{label}</span>
+              <span className="truncate">
+                {builtInLabel ? t(builtInLabel) : action.label}
+              </span>
             </button>
           );
         })}
@@ -162,6 +161,16 @@ export function ReadingExtensionBar({
   );
 }
 
+function builtInActionLabel(extensionId: string, actionId: string) {
+  if (extensionId === "read_aloud" && actionId === "read") {
+    return "Read aloud";
+  }
+  if (extensionId === "guided_learning" && actionId === "guide") {
+    return "Guide me";
+  }
+  return "";
+}
+
 function ExtensionResult({
   result,
   closeLabel,
@@ -181,6 +190,9 @@ function ExtensionResult({
   const items = Array.isArray(result.payload.items)
     ? result.payload.items.map(String)
     : [];
+  const steps = Array.isArray(result.payload.steps)
+    ? result.payload.steps.map(String)
+    : [];
   const body = String(result.payload.body || result.payload.overview || "");
   return (
     <section className="relative shrink-0 border-b border-[var(--border)] bg-[var(--card)] px-3 py-3 text-xs text-[var(--foreground)]">
@@ -199,10 +211,17 @@ function ExtensionResult({
       {body ? <p className="mt-2 whitespace-pre-wrap">{body}</p> : null}
       {items.length ? (
         <ul className="mt-2 list-disc space-y-1 pl-5">
-          {items.map((item) => (
-            <li key={item}>{item}</li>
+          {items.map((item, index) => (
+            <li key={`${index}-${item}`}>{item}</li>
           ))}
         </ul>
+      ) : null}
+      {steps.length ? (
+        <ol className="mt-2 list-decimal space-y-1 pl-5">
+          {steps.map((step, index) => (
+            <li key={`${index}-${step}`}>{step}</li>
+          ))}
+        </ol>
       ) : null}
       {questions.map((question, index) => (
         <div key={question.id || index} className="mt-3">

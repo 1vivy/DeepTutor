@@ -31,7 +31,7 @@ def test_read_aloud_is_registered_as_a_packaged_extension():
     project = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
     group = project["project"]["entry-points"]["deeptutor.reading_extensions"]
 
-    assert group == {"read_aloud": "deeptutor.reading.read_aloud:ReadAloudExtension"}
+    assert group["read_aloud"] == "deeptutor.reading.read_aloud:ReadAloudExtension"
 
 
 def test_read_aloud_crosses_the_authenticated_api_boundary_with_stored_text(monkeypatch, tmp_path):
