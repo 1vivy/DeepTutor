@@ -20,6 +20,7 @@ import uuid
 from deeptutor.services.path_service import get_path_service
 
 from .ask_user_trace import select_ask_user_events
+from .provider_response_state import redact_private_message_metadata
 
 
 def _json_dumps(value: Any) -> str:
@@ -1349,7 +1350,7 @@ class SQLiteSessionStore:
             if leaf_message_id is None:
                 rows = conn.execute(
                     """
-                    SELECT id, role, content, events_json
+                    SELECT id, role, content, events_json, metadata_json
                     FROM messages
                     WHERE session_id = ?
                       AND role IN ('user', 'assistant', 'system')
@@ -1363,6 +1364,7 @@ class SQLiteSessionStore:
                         "role": row["role"],
                         "content": row["content"] or "",
                         "events": select_ask_user_events(row["events_json"]),
+                        "metadata": _json_loads(row["metadata_json"], {}),
                     }
                     for row in rows
                 ]
@@ -1374,7 +1376,7 @@ class SQLiteSessionStore:
             while current is not None and safety > 0:
                 row = conn.execute(
                     """
-                    SELECT id, role, content, events_json, parent_message_id
+                    SELECT id, role, content, events_json, metadata_json, parent_message_id
                     FROM messages
                     WHERE id = ? AND session_id = ?
                       AND role IN ('user', 'assistant', 'system')
@@ -1389,6 +1391,7 @@ class SQLiteSessionStore:
                         "role": row["role"],
                         "content": row["content"] or "",
                         "events": select_ask_user_events(row["events_json"]),
+                        "metadata": _json_loads(row["metadata_json"], {}),
                     }
                 )
                 parent = row["parent_message_id"]
@@ -1582,6 +1585,7 @@ class SQLiteSessionStore:
         if session is None:
             return None
         session["messages"] = await self.get_messages(session_id)
+        redact_private_message_metadata(session["messages"])
         session["active_turns"] = await self.list_active_turns(session_id)
         return session
 

@@ -17,6 +17,9 @@ from deeptutor.services.session.organization import (
     list_all_sessions_snapshot,
     validate_parent_assignment,
 )
+from deeptutor.services.session.provider_response_state import (
+    redact_private_message_metadata as _redact_provider_state_metadata,
+)
 from deeptutor.services.storage.attachment_store import get_attachment_store
 
 logger = logging.getLogger(__name__)
@@ -111,6 +114,9 @@ async def list_sessions(
 MAX_EVENT_PAYLOAD = 1024 * 1024
 _TRUNCATION_NOTICE = "\n\n[... content truncated]"
 _TRUNCATABLE_EVENT_TYPES = ("tool_result", "observation")
+def _redact_private_message_metadata(messages: list[dict[str, Any]]) -> None:
+    """Remove provider-only state before session details cross the API."""
+    _redact_provider_state_metadata(messages)
 
 
 def _truncate_oversized_events(
@@ -152,6 +158,7 @@ async def get_session(session_id: str):
     session = await store.get_session_with_messages(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
+    _redact_private_message_metadata(session.get("messages", []))
     _truncate_oversized_events(session.get("messages", []))
     return session
 

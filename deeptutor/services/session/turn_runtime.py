@@ -23,6 +23,9 @@ from deeptutor.services.session.artifact_attachments import (
     fill_preview_text,
 )
 from deeptutor.services.session.protocol import SessionStoreProtocol
+from deeptutor.services.session.provider_response_state import (
+    normalize_provider_response_state,
+)
 
 if TYPE_CHECKING:
     from deeptutor.learning.storage import MasteryPathLease
@@ -2293,6 +2296,7 @@ class TurnRuntimeManager:
         attachment_records = []
         assistant_events: list[dict[str, Any]] = []
         assistant_content = ""
+        provider_response_state: dict[str, Any] | None = None
         # Per-round content segments + narration call_ids: a chat-loop round's
         # text is captured live but a round that resolves as narration is
         # dropped from the persisted answer (mirrors the frontend bubble).
@@ -2939,6 +2943,15 @@ class TurnRuntimeManager:
                         seen_artifact_urls.add(attachment["url"])
                         generated_attachments.append(attachment)
 
+            provider_response_state = normalize_provider_response_state(
+                context.metadata.pop("_provider_response_state", None)
+            )
+            assistant_provider_metadata = (
+                {"provider_response_state": provider_response_state}
+                if provider_response_state is not None
+                else None
+            )
+
             # A mastery turn may have changed which path it is on
             # (``mastery_switch`` / ``mastery_leave``). The conversation's
             # stored preference already followed it; tell the open client too,
@@ -2976,6 +2989,7 @@ class TurnRuntimeManager:
                     events=assistant_events,
                     attachments=generated_attachments or None,
                     parent_message_id=new_user_message_id,
+                    metadata=assistant_provider_metadata,
                 )
             elif branch_parent_explicit:
                 assistant_message_id = await self.store.add_message(
@@ -2986,6 +3000,7 @@ class TurnRuntimeManager:
                     events=assistant_events,
                     attachments=generated_attachments or None,
                     parent_message_id=branch_parent_id,
+                    metadata=assistant_provider_metadata,
                 )
             else:
                 assistant_message_id = await self.store.add_message(
@@ -2995,6 +3010,7 @@ class TurnRuntimeManager:
                     capability=capability_name,
                     events=assistant_events,
                     attachments=generated_attachments or None,
+                    metadata=assistant_provider_metadata,
                 )
             turn_status, turn_error = _resolve_turn_outcome(
                 assistant_events,
@@ -3095,6 +3111,11 @@ class TurnRuntimeManager:
                             capability=capability_name,
                             events=assistant_events,
                             attachments=generated_attachments or None,
+                            metadata=(
+                                {"provider_response_state": provider_response_state}
+                                if provider_response_state is not None
+                                else None
+                            ),
                         )
                     )
             with contextlib.suppress(Exception):

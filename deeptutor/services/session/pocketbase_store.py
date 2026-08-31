@@ -31,6 +31,7 @@ from typing import Any
 import uuid
 
 from .ask_user_trace import filter_ask_user_events
+from .provider_response_state import redact_private_message_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -368,6 +369,7 @@ class PocketBaseSessionStore:
         if session is None:
             return None
         session["messages"] = await self.get_messages(session_id)
+        redact_private_message_metadata(session["messages"])
         session["active_turns"] = await self.list_active_turns(session_id)
         return session
 
@@ -503,6 +505,7 @@ class PocketBaseSessionStore:
                 "role": m["role"],
                 "content": m["content"] or "",
                 "events": filter_ask_user_events(m.get("events")),
+                "metadata": m.get("metadata") or {},
             }
             for m in messages
             if m["role"] in ("user", "assistant", "system")
