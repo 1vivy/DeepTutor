@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Bot,
@@ -39,7 +39,7 @@ import {
   readImportMeta,
 } from "@/lib/chat-import/attribution";
 import { normalizeMessageContent, truncateText } from "@/lib/message-content";
-import { isPlaceholderSessionTitle } from "@/lib/session-title";
+import { displaySessionTitle } from "@/lib/session-title";
 
 interface MyAgentsPickerProps {
   open: boolean;
@@ -107,10 +107,6 @@ function isoMs(value: string | undefined): number {
   return Number.isNaN(ms) ? 0 : ms;
 }
 
-function formatSessionRowTitle(title: string, placeholderLabel: string): string {
-  return isPlaceholderSessionTitle(title) ? placeholderLabel : title.trim();
-}
-
 /**
  * Reference picker for agent conversations. Two sources feed one unified list:
  * imported Claude Code / Codex conversations (stored as normal sessions, so a
@@ -130,8 +126,10 @@ export default function MyAgentsPicker({
   // Backend writes the English sentinel "New conversation" until the LLM title
   // lands; mirror SessionList with a localized "New chat" label.
   const placeholderLabel = t("New chat");
-  const formatRowTitle = (title: string) =>
-    formatSessionRowTitle(title, placeholderLabel);
+  const formatRowTitle = useCallback(
+    (title: string) => displaySessionTitle(title, placeholderLabel),
+    [placeholderLabel],
+  );
   const [sessions, setSessions] = useState<
     Awaited<ReturnType<typeof listImportedSessions>>
   >([]);
@@ -343,13 +341,13 @@ export default function MyAgentsPicker({
       map.set(row.groupKey, group);
     }
     return Array.from(map.values()).sort((a, b) => b.latest - a.latest);
-  }, [rows, activeAgent, query, placeholderLabel]);
+  }, [rows, activeAgent, query, formatRowTitle]);
 
   const titleById = useMemo(() => {
     const map = new Map<string, string>();
     for (const row of rows) map.set(row.id, formatRowTitle(row.title));
     return map;
-  }, [rows, placeholderLabel]);
+  }, [rows, formatRowTitle]);
 
   const toggleSession = (id: string) =>
     setSelectedIds((prev) =>
@@ -703,7 +701,7 @@ function PreviewPane({
         </button>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-semibold text-[var(--foreground)]">
-            {formatSessionRowTitle(row.title, placeholderLabel)}
+            {displaySessionTitle(row.title, placeholderLabel)}
           </div>
           <div className="text-[11px] text-[var(--muted-foreground)]">
             {row.messageCount || visible.length} {t("messages")}
