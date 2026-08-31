@@ -5,25 +5,39 @@ from __future__ import annotations
 import asyncio
 import os
 from pathlib import Path
+import secrets
 import shutil
 from typing import Any
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field, StrictBool
+from pydantic import BaseModel, Field, StrictBool, field_validator
 
-from deeptutor.api.routers.auth import require_admin
+from deeptutor.api.routers.auth import require_admin, require_auth
 from deeptutor.knowledge.manager import KnowledgeBaseManager
 from deeptutor.reading import ReadingStore
 from deeptutor.reading.extensions import get_reading_extension_registry
+from deeptutor.services.auth import POCKETBASE_ENABLED, hash_password
 from deeptutor.services.config.model_catalog import ModelCatalogService
 from deeptutor.services.skill.service import SkillService
 
-from .audit import log_admin_action
+from .audit import log_admin_action, log_guardian_action
 from .book_permission import BookDefaultLevel, BookPermission, BookPermissionLevel
 from .context import get_current_user
 from .grants import load_grant, normalize_grant, save_grant, validate_grant
-from .identity import get_user_by_id, list_user_info, set_book_permission
+from .guardians import (
+    GUARDIAN_PERMISSIONS,
+    authorize_guardian,
+    guardian_can_access,
+    list_relationships,
+    revoke_guardian,
+)
+from .identity import (
+    get_user_by_id,
+    list_user_info,
+    set_book_permission,
+    set_password,
+)
 from .knowledge_access import admin_kb_base_dir
 from .model_access import is_owner_bound
 from .paths import get_admin_path_service, get_path_service_for_scope, scope_for_user
@@ -39,6 +53,36 @@ class BookPermissionPayload(BaseModel):
     create: StrictBool = True
     default: BookDefaultLevel = "none"
     books: dict[str, BookPermissionLevel] = Field(default_factory=dict)
+
+
+class GuardianAuthorizationPayload(BaseModel):
+    guardian_user_id: str = Field(min_length=1, max_length=64)
+    learner_user_id: str = Field(min_length=1, max_length=64)
+    permissions: list[str] = Field(default_factory=lambda: sorted(GUARDIAN_PERMISSIONS))
+
+    @field_validator("permissions")
+    @classmethod
+    def permissions_valid(cls, value: list[str]) -> list[str]:
+        permissions = sorted(set(value))
+        if not permissions or not set(permissions).issubset(GUARDIAN_PERMISSIONS):
+            raise ValueError("Unknown guardian permission")
+        return permissions
+
+
+class GuardianMaterialsPayload(BaseModel):
+    book_ids: list[str]
+
+    @field_validator("book_ids")
+    @classmethod
+    def book_ids_valid(cls, value: list[str]) -> list[str]:
+        book_ids: list[str] = []
+        for raw_id in value:
+            book_id = raw_id.strip()
+            if not book_id:
+                raise ValueError("Book ids cannot be empty")
+            if book_id not in book_ids:
+                book_ids.append(book_id)
+        return book_ids
 
 
 class SkillInstallPayload(BaseModel):
@@ -190,6 +234,33 @@ def _require_assignable_user(user_id: str) -> tuple[str, dict[str, Any]]:
     return username, record
 
 
+def _users_by_id() -> dict[str, dict[str, Any]]:
+    return {str(user.get("id") or ""): user for user in list_user_info()}
+
+
+def _relationship_view(
+    relationship: dict[str, Any], users: dict[str, dict[str, Any]]
+) -> dict[str, Any]:
+    guardian = users.get(relationship["guardian_user_id"], {})
+    learner = users.get(relationship["learner_user_id"], {})
+    return {
+        **relationship,
+        "guardian_username": str(guardian.get("username") or ""),
+        "learner_username": str(learner.get("username") or ""),
+    }
+
+
+def _require_guardian_access(
+    current: object, learner_user_id: str, permission: str
+) -> tuple[str, dict[str, Any], str]:
+    guardian_user_id = str(getattr(current, "user_id", "") or "")
+    _guardian_username, _guardian_record = _require_assignable_user(guardian_user_id)
+    learner_username, learner_record = _require_assignable_user(learner_user_id)
+    if not guardian_can_access(guardian_user_id, learner_user_id, permission):
+        raise HTTPException(status_code=403, detail="Guardian authorization required")
+    return learner_username, learner_record, guardian_user_id
+
+
 @router.get("/admin/resources")
 async def admin_resources(_: object = Depends(require_admin)) -> dict[str, Any]:
     """Everything an admin can assign to a user: models, KBs, skills, and
@@ -216,6 +287,198 @@ async def admin_books(_: object = Depends(require_admin)) -> dict[str, Any]:
     from .book_access import admin_book_catalog
 
     return {"books": admin_book_catalog()}
+
+
+@router.get("/guardians")
+async def list_guardian_relationships(
+    include_revoked: bool = False,
+    _: object = Depends(require_admin),
+) -> dict[str, Any]:
+    users = _users_by_id()
+    relationships = [
+        _relationship_view(relationship, users)
+        for relationship in list_relationships(include_revoked=include_revoked)
+    ]
+    return {"relationships": relationships}
+
+
+@router.post("/guardians", status_code=201)
+async def authorize_guardian_relationship(
+    payload: GuardianAuthorizationPayload,
+    current: object = Depends(require_admin),
+) -> dict[str, Any]:
+    _require_assignable_user(payload.guardian_user_id)
+    _require_assignable_user(payload.learner_user_id)
+    try:
+        relationship = authorize_guardian(
+            payload.guardian_user_id,
+            payload.learner_user_id,
+            payload.permissions,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 409 if "already authorized" in message else 400
+        raise HTTPException(status_code=status_code, detail=message) from exc
+    log_admin_action(
+        "guardian_authorize",
+        target_user_id=payload.learner_user_id,
+        summary={
+            "relationship_id": relationship["id"],
+            "guardian_user_id": payload.guardian_user_id,
+            "permissions": relationship["permissions"],
+        },
+    )
+    return {
+        "relationship": _relationship_view(relationship, _users_by_id()),
+        "actor_username": str(getattr(current, "username", "") or ""),
+    }
+
+
+@router.delete("/guardians/{relationship_id}")
+async def revoke_guardian_relationship(
+    relationship_id: str,
+    current: object = Depends(require_admin),
+) -> dict[str, Any]:
+    revoked_by = str(getattr(current, "user_id", "") or "")
+    relationship = revoke_guardian(relationship_id, revoked_by=revoked_by)
+    if relationship is None:
+        raise HTTPException(status_code=404, detail="Guardian relationship not found")
+    log_admin_action(
+        "guardian_revoke",
+        target_user_id=relationship["learner_user_id"],
+        summary={
+            "relationship_id": relationship["id"],
+            "guardian_user_id": relationship["guardian_user_id"],
+        },
+    )
+    return {
+        "relationship": _relationship_view(relationship, _users_by_id()),
+        "ok": True,
+    }
+
+
+@router.get("/me/guardianships")
+async def my_guardianships(
+    current: object = Depends(require_auth),
+) -> dict[str, Any]:
+    guardian_user_id = str(getattr(current, "user_id", "") or "")
+    _require_assignable_user(guardian_user_id)
+    users = _users_by_id()
+    relationships = [
+        _relationship_view(relationship, users)
+        for relationship in list_relationships(guardian_user_id=guardian_user_id)
+    ]
+    return {"relationships": relationships}
+
+
+@router.get("/learners/{learner_user_id}/guardian-report")
+async def guardian_report(
+    learner_user_id: str,
+    current: object = Depends(require_auth),
+) -> dict[str, Any]:
+    learner_username, learner_record, guardian_user_id = _require_guardian_access(
+        current, learner_user_id, "view_reports"
+    )
+    from .book_access import admin_book_catalog
+    from .book_permission import normalize_book_permission, public_permission_dict
+
+    permission = normalize_book_permission(learner_record.get("book_permission"))
+    permission_dict = public_permission_dict(permission)
+    assigned_materials = [
+        {**book, "permission": permission.level_for(book["book_id"])}
+        for book in admin_book_catalog()
+        if permission.level_for(book["book_id"]) != "none"
+    ]
+    grant = load_grant(learner_user_id)
+    log_guardian_action(
+        "guardian_report_view",
+        guardian_user_id=guardian_user_id,
+        learner_user_id=learner_user_id,
+        summary={"assigned_material_count": len(assigned_materials)},
+    )
+    return {
+        "learner": {
+            "id": learner_user_id,
+            "username": learner_username,
+            "disabled": bool(learner_record.get("disabled", False)),
+        },
+        "book_permission": permission_dict,
+        "assigned_materials": assigned_materials,
+        "grant_summary": {
+            "model_count": len(grant.get("models", {}).get("llm", []) or []),
+            "knowledge_base_count": len(grant.get("knowledge_bases") or []),
+            "skill_count": len(grant.get("skills") or []),
+            "enabled_tools": grant.get("enabled_tools"),
+        },
+    }
+
+
+@router.put("/learners/{learner_user_id}/materials")
+async def assign_guardian_materials(
+    learner_user_id: str,
+    payload: GuardianMaterialsPayload,
+    current: object = Depends(require_auth),
+) -> dict[str, Any]:
+    learner_username, learner_record, guardian_user_id = _require_guardian_access(
+        current, learner_user_id, "assign_materials"
+    )
+    from .book_access import shared_book_exists
+    from .book_permission import (
+        BookPermission,
+        normalize_book_permission,
+        public_permission_dict,
+    )
+
+    unknown = next(
+        (book_id for book_id in payload.book_ids if not shared_book_exists(book_id)),
+        None,
+    )
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"Unknown approved book id: {unknown}")
+
+    # Guardians hand out the admin-approved catalogue as read-only material.
+    # Admins remain the only source of edit/create capability.
+    existing = normalize_book_permission(learner_record.get("book_permission"))
+    permission = BookPermission(
+        create=existing.create,
+        default=existing.default,
+        books=tuple((book_id, "read") for book_id in payload.book_ids),
+    )
+    if not set_book_permission(learner_username, permission):
+        raise HTTPException(status_code=404, detail="User not found")
+    result = public_permission_dict(permission)
+    log_guardian_action(
+        "guardian_material_assign",
+        guardian_user_id=guardian_user_id,
+        learner_user_id=learner_user_id,
+        summary={"book_ids": payload.book_ids, "read_only": True},
+    )
+    return {"book_permission": result}
+
+
+@router.post("/learners/{learner_user_id}/credentials/reset")
+async def reset_learner_credentials(
+    learner_user_id: str,
+    current: object = Depends(require_auth),
+) -> dict[str, Any]:
+    learner_username, _learner_record, guardian_user_id = _require_guardian_access(
+        current, learner_user_id, "reset_credentials"
+    )
+    if POCKETBASE_ENABLED:
+        raise HTTPException(
+            status_code=400,
+            detail="Guardian credential reset requires built-in local authentication.",
+        )
+    temporary_password = secrets.token_urlsafe(18)
+    if set_password(learner_username, hash_password(temporary_password)) is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    log_guardian_action(
+        "guardian_credential_reset",
+        guardian_user_id=guardian_user_id,
+        learner_user_id=learner_user_id,
+        summary={"credential_reset": True},
+    )
+    return {"temporary_password": temporary_password}
 
 
 @router.get("/users/{user_id}/grants")
