@@ -57,6 +57,18 @@ export interface TimedMediaMaterial {
   playback: VideoPlayback;
 }
 
+export interface VideoNote {
+  notebook_id: string;
+  note_id: string;
+  material_id: string;
+  body: string;
+  time_seconds: number;
+  locator: number;
+  quote: string;
+  created_at: number;
+  updated_at: number;
+}
+
 export interface VideoLearningSettings {
   version: 1;
   default_provider: VideoProvider;
@@ -67,11 +79,84 @@ export interface VideoLearningSettings {
 async function unwrap<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
+    const detail = (payload as { detail?: unknown })?.detail;
+    const message =
+      typeof detail === "string"
+        ? detail
+        : typeof (detail as { message?: unknown } | undefined)?.message ===
+            "string"
+          ? (detail as { message: string }).message
+          : null;
     throw new Error(
-      String(payload?.detail || `Request failed (${response.status})`),
+      message || `Request failed (${response.status})`,
     );
   }
   return (await response.json()) as T;
+}
+
+export async function listVideoNotes(
+  materialId: string,
+): Promise<VideoNote[]> {
+  return unwrap(
+    await apiFetch(
+      apiUrl(
+        `/api/v1/video-learning/materials/${encodeURIComponent(materialId)}/notes`,
+      ),
+      { cache: "no-store" },
+    ),
+  );
+}
+
+export async function createVideoNote(
+  materialId: string,
+  body: string,
+  timeSeconds: number,
+): Promise<VideoNote> {
+  return unwrap(
+    await apiFetch(
+      apiUrl(
+        `/api/v1/video-learning/materials/${encodeURIComponent(materialId)}/notes`,
+      ),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body, time_seconds: timeSeconds }),
+      },
+    ),
+  );
+}
+
+export async function updateVideoNote(
+  materialId: string,
+  noteId: string,
+  body: string,
+): Promise<VideoNote> {
+  return unwrap(
+    await apiFetch(
+      apiUrl(
+        `/api/v1/video-learning/materials/${encodeURIComponent(materialId)}/notes/${encodeURIComponent(noteId)}`,
+      ),
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      },
+    ),
+  );
+}
+
+export async function deleteVideoNote(
+  materialId: string,
+  noteId: string,
+): Promise<void> {
+  await unwrap(
+    await apiFetch(
+      apiUrl(
+        `/api/v1/video-learning/materials/${encodeURIComponent(materialId)}/notes/${encodeURIComponent(noteId)}`,
+      ),
+      { method: "DELETE" },
+    ),
+  );
 }
 
 export async function resolveVideo(

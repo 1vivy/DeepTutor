@@ -4483,5 +4483,19 @@
   "Assigned reading materials": "已分配阅读材料",
   "Upload books in Reading before assigning them.": "请先在阅读区上传书籍，再分配给学习者。",
   "Allow learner uploads": "允许学习者上传",
-  "Reading extensions": "阅读扩展"
+  "Reading extensions": "阅读扩展",
+  "Video notes": "视频笔记",
+  "Add video note": "添加视频笔记",
+  "Save video note": "保存视频笔记",
+  "Note at {{time}}": "{{time}} 的笔记",
+  "Edit note at {{time}}": "编辑 {{time}} 的笔记",
+  "Delete note at {{time}}": "删除 {{time}} 的笔记",
+  "Delete this note?": "删除这条笔记？",
+  "This note will be removed from Video Learning.": "这条笔记将从视频学习中移除。",
+  "No notes yet.": "暂无笔记。",
+  "Loading notes.": "正在加载笔记。",
+  "Notes could not be loaded.": "无法加载笔记。",
+  "Note was not saved.": "笔记未保存。",
+  "Note was not deleted.": "笔记未删除。",
+  "Video learning panels": "视频学习面板"
 }

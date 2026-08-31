@@ -4483,5 +4483,19 @@
   "Assigned reading materials": "Assigned reading materials",
   "Upload books in Reading before assigning them.": "Upload books in Reading before assigning them.",
   "Allow learner uploads": "Allow learner uploads",
-  "Reading extensions": "Reading extensions"
+  "Reading extensions": "Reading extensions",
+  "Video notes": "Video notes",
+  "Add video note": "Add video note",
+  "Save video note": "Save video note",
+  "Note at {{time}}": "Note at {{time}}",
+  "Edit note at {{time}}": "Edit note at {{time}}",
+  "Delete note at {{time}}": "Delete note at {{time}}",
+  "Delete this note?": "Delete this note?",
+  "This note will be removed from Video Learning.": "This note will be removed from Video Learning.",
+  "No notes yet.": "No notes yet.",
+  "Loading notes.": "Loading notes.",
+  "Notes could not be loaded.": "Notes could not be loaded.",
+  "Note was not saved.": "Note was not saved.",
+  "Note was not deleted.": "Note was not deleted.",
+  "Video learning panels": "Video learning panels"
 }
