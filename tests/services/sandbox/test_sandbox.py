@@ -240,8 +240,8 @@ async def test_restricted_subprocess_timeout() -> None:
 async def test_restricted_subprocess_caps_output_while_draining_streams() -> None:
     backend = RestrictedSubprocessBackend()
     result = await backend.exec(
-        ExecRequest(
-            command="python3 -c \"print('x' * 50_000, end='')\"",
+        ExecRequest.of_argv(
+            [sys.executable, "-X", "utf8", "-c", "print('x' * 50_000, end='')"],
             limits=ResourceLimits(timeout_s=10, max_output_chars=1_000),
         )
     )
