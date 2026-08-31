@@ -9,11 +9,17 @@ from typing import Any
 from . import paths
 from .context import get_current_user
 
+# Keep the legacy module-level hook for callers and tests that redirect the
+# audit root directly; path resolution remains dynamic per call.
+SYSTEM_ROOT = paths.SYSTEM_ROOT
+_DEFAULT_SYSTEM_ROOT = SYSTEM_ROOT
+
 
 def _audit_file():
     # Resolved per call so monkey-patched SYSTEM_ROOT (e.g. in tests) takes
     # effect without a module reload.
-    return paths.SYSTEM_ROOT / "audit" / "usage.jsonl"
+    root = SYSTEM_ROOT if SYSTEM_ROOT != _DEFAULT_SYSTEM_ROOT else paths.SYSTEM_ROOT
+    return root / "audit" / "usage.jsonl"
 
 
 def _write(payload: dict[str, Any]) -> None:
