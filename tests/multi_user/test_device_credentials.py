@@ -19,11 +19,6 @@ def _client(mu_isolated_root, monkeypatch) -> tuple[TestClient, dict]:
 
     admin = save_user("root", hash_password("root-password"), role="admin")
     learner = save_user("learner", hash_password("learner-password"))
-    auth_service.AUTH_ENABLED = True
-    auth_service.AUTH_SECRET = "device-credential-test-secret"
-    auth_service.POCKETBASE_ENABLED = False
-    auth_router.AUTH_ENABLED = True
-    auth_router.POCKETBASE_ENABLED = False
     monkeypatch.setattr(auth_service, "AUTH_ENABLED", True)
     monkeypatch.setattr(auth_service, "AUTH_SECRET", "device-credential-test-secret")
     monkeypatch.setattr(auth_service, "POCKETBASE_ENABLED", False)
