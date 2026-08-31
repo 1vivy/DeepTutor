@@ -1,6 +1,8 @@
 import { GeogebraTabProvider } from "@/context/GeogebraTabContext";
 import { QuizFollowupProvider } from "@/context/QuizFollowupContext";
 import { UnifiedChatProvider } from "@/context/UnifiedChatContext";
+import { ReadingProvider } from "@/context/ReadingContext";
+import { WatchingProvider } from "@/context/WatchingContext";
 
 /**
  * The chat engine is scoped to the study session, not to the whole Mastery
@@ -12,10 +14,14 @@ export default function MasteryStudyLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <UnifiedChatProvider>
-      <QuizFollowupProvider>
-        <GeogebraTabProvider>{children}</GeogebraTabProvider>
-      </QuizFollowupProvider>
-    </UnifiedChatProvider>
+    <ReadingProvider>
+      <WatchingProvider>
+        <UnifiedChatProvider>
+          <QuizFollowupProvider>
+            <GeogebraTabProvider>{children}</GeogebraTabProvider>
+          </QuizFollowupProvider>
+        </UnifiedChatProvider>
+      </WatchingProvider>
+    </ReadingProvider>
   );
 }
