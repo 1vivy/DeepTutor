@@ -184,6 +184,7 @@ class AuthStatusResponse(BaseModel):
     role: str | None = None
     is_admin: bool = False
     avatar: str = ""
+    preset: AccountPreset | None = None
     learning_policy: dict | None = None
 
 
@@ -492,16 +493,25 @@ async def auth_status(
             username="local",
             role="admin",
             is_admin=True,
+            preset="standard",
         )
 
     token = _extract_token(authorization, dt_token)
     payload = decode_token(token) if token else None
     avatar = ""
+    preset: AccountPreset | None = None
     learning_policy = None
     if payload is not None:
         info = get_user_info(payload.username)
         if info:
             avatar = str(info.get("avatar") or "")
+            raw_preset = str(info.get("preset") or "standard")
+            if raw_preset == "learner":
+                preset = "learner"
+            elif raw_preset == "custom":
+                preset = "custom"
+            else:
+                preset = "standard"
         learning_policy = learning_policy_for_user(
             payload.user_id,
             is_admin=payload.role == "admin",
@@ -514,6 +524,7 @@ async def auth_status(
         role=payload.role if payload else None,
         is_admin=payload.role == "admin" if payload else False,
         avatar=avatar,
+        preset=preset,
         learning_policy=learning_policy,
     )
 

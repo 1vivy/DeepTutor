@@ -191,6 +191,7 @@ def test_auth_status_returns_the_effective_learning_policy(preset_client):
     )
 
     assert response.status_code == 200
+    assert response.json()["preset"] == "learner"
     assert response.json()["learning_policy"]["default_capability"] == ("immersive_reading")
 
 

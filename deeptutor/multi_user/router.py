@@ -24,6 +24,7 @@ from deeptutor.services.skill.service import SkillService
 from .audit import log_admin_action, log_guardian_action
 from .book_permission import BookDefaultLevel, BookPermission, BookPermissionLevel
 from .context import get_current_user
+from .device_credentials import revoke_device_credentials_for_user
 from .grants import load_grant, normalize_grant, save_grant, validate_grant
 from .guardians import (
     GUARDIAN_PERMISSIONS,
@@ -470,13 +471,23 @@ async def reset_learner_credentials(
             detail="Guardian credential reset requires built-in local authentication.",
         )
     temporary_password = secrets.token_urlsafe(18)
+    # Revoke device access first. If that write fails, the learner's existing
+    # password remains valid and no one-time replacement secret is lost in a
+    # failed HTTP response.
+    revoked_devices = revoke_device_credentials_for_user(
+        learner_user_id,
+        revoked_by=guardian_user_id,
+    )
     if set_password(learner_username, hash_password(temporary_password)) is None:
         raise HTTPException(status_code=404, detail="User not found")
     log_guardian_action(
         "guardian_credential_reset",
         guardian_user_id=guardian_user_id,
         learner_user_id=learner_user_id,
-        summary={"credential_reset": True},
+        summary={
+            "credential_reset": True,
+            "device_credentials_revoked": revoked_devices,
+        },
     )
     return {"temporary_password": temporary_password}
 

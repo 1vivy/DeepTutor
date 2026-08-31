@@ -20,6 +20,7 @@ import {
   Palette,
   Paperclip,
   Search,
+  ShieldCheck,
   SlidersHorizontal,
   Sparkles,
   UserRound,
@@ -82,6 +83,8 @@ export interface SettingsCategory {
   children?: SettingsLeaf[];
   /** Shown only when the backend reports an active learner policy. */
   learnerOnly?: boolean;
+  /** Shown only to authenticated standard users who may act as guardians. */
+  guardianOnly?: boolean;
 }
 
 const MODEL_CHILDREN: SettingsLeaf[] = [
@@ -431,6 +434,17 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     },
     icon: UserRound,
     href: "/settings/learner-profile",
+  },
+  {
+    key: "guardian",
+    guardianOnly: true,
+    label: { zh: "监护管理", en: "Guardian" },
+    blurb: {
+      zh: "查看已授权学习者与学习材料。",
+      en: "Review authorized learners and learning materials.",
+    },
+    icon: ShieldCheck,
+    href: "/settings/guardian",
   },
   {
     key: "memory",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import json
 
 from fastapi import FastAPI
@@ -266,6 +267,11 @@ def test_guardian_can_reset_local_credentials_once_and_audit_hides_secret(
     assert created.status_code == 201
 
     from deeptutor.multi_user import router as multi_user_router
+    from deeptutor.multi_user.device_credentials import (
+        begin_device_session,
+        issue_device_credential,
+        validate_device_token,
+    )
     from deeptutor.services.auth import verify_password
 
     monkeypatch.setattr(multi_user_router, "POCKETBASE_ENABLED", True)
@@ -275,6 +281,17 @@ def test_guardian_can_reset_local_credentials_once_and_audit_hides_secret(
     )
     assert unsupported.status_code == 400
     monkeypatch.setattr(multi_user_router, "POCKETBASE_ENABLED", False)
+
+    _device, pairing_code, pin = issue_device_credential(
+        user_id=learner_id,
+        device_name="Learner tablet",
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        daily_limit_minutes=30,
+    )
+    session = begin_device_session(pairing_code, pin)
+    assert session is not None
+    device, _username, _role, _user_id, session_nonce = session
+    assert validate_device_token(learner_id, device["id"], session_nonce) is True
 
     reset = client.post(
         f"/api/v1/multi-user/learners/{learner_id}/credentials/reset",
@@ -289,6 +306,7 @@ def test_guardian_can_reset_local_credentials_once_and_audit_hides_secret(
     learner_hash = load_users()["learner"]["hash"]
     assert verify_password("learner-password", learner_hash) is False
     assert verify_password(temporary_password, learner_hash) is True
+    assert validate_device_token(learner_id, device["id"], session_nonce) is False
 
     audit_path = mu_isolated_root / "data" / "system" / "audit" / "usage.jsonl"
     assert temporary_password not in audit_path.read_text()

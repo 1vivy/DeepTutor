@@ -405,6 +405,27 @@ def revoke_device_credential(
     return None
 
 
+def revoke_device_credentials_for_user(
+    user_id: str, *, revoked_by: str, now: datetime | None = None
+) -> int:
+    """Revoke every active device credential and session for one learner."""
+
+    current = now or utc_now()
+    with _DEVICE_WRITE_LOCK:
+        records = _load_records()
+        changed = 0
+        for record in records:
+            if record["user_id"] != user_id or record["revoked_at"] is not None:
+                continue
+            record["revoked_at"] = _iso(current)
+            record["revoked_by"] = revoked_by
+            record["session_nonce_hash"] = ""
+            changed += 1
+        if changed:
+            _write_records(records)
+    return changed
+
+
 __all__ = [
     "DEVICE_CREDENTIALS_FILE",
     "HEARTBEAT_TIMEOUT_SECONDS",
@@ -415,5 +436,6 @@ __all__ = [
     "issue_device_credential",
     "list_device_credentials",
     "revoke_device_credential",
+    "revoke_device_credentials_for_user",
     "validate_device_token",
 ]
