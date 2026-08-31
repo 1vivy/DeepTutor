@@ -95,6 +95,8 @@ export interface StartTurnMessage {
   /** Immersive reading: the document open in the reader pane, if any. Its
    *  presence is what activates the reading capability for the turn. */
   reading_material_id?: string;
+  /** Immutable content revision displayed when this turn was submitted. */
+  reading_material_revision?: number;
   /** What the reader is showing right now — the locator on screen and any text
    *  the user has selected. Advisory context, not a citation. */
   reading_viewport?: {

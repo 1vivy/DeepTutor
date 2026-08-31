@@ -21,6 +21,7 @@ import {
 import { citationTargetFromHref } from "@/lib/reading-citations";
 import {
   fetchExport,
+  getMaterial,
   type AnnotationColor,
   type AnnotationItem,
 } from "@/lib/reading-api";
@@ -168,13 +169,46 @@ export function ReaderPane({
       const target = citationTargetFromHref(href);
       if (!target) return false;
       if (target.materialId && target.materialId !== material?.material_id) {
-        const opened = await openMaterial(target.materialId);
-        if (!opened) return true;
+        try {
+          const candidate = await getMaterial(target.materialId);
+          if (
+            target.materialRevision &&
+            candidate.revision !== target.materialRevision
+          ) {
+            setError(
+              "This citation points to an older material revision that is not available in the reader.",
+            );
+            return true;
+          }
+          const opened = await openMaterial(candidate);
+          if (!opened) return true;
+        } catch (caught) {
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : "This citation's material could not be opened.",
+          );
+          return true;
+        }
+      } else if (
+        target.materialRevision &&
+        material?.revision !== target.materialRevision
+      ) {
+        setError(
+          "This citation points to an older material revision that is not available in the reader.",
+        );
+        return true;
       }
       requestJump(target.locator);
       return true;
     },
-    [material?.material_id, openMaterial, requestJump],
+    [
+      material?.material_id,
+      material?.revision,
+      openMaterial,
+      requestJump,
+      setError,
+    ],
   );
 
   useEffect(() => {

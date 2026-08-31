@@ -47,6 +47,7 @@ import { notify } from "@/lib/notifications";
 import { forwardReaderAction } from "@/lib/reading-reader-action";
 import {
   normalizeReadingMaterialId,
+  normalizeReadingMaterialRevision,
   readingTurnFields,
 } from "@/lib/reading-turn-state";
 import { watchingTurnFields } from "@/lib/watching-turn-state";
@@ -183,6 +184,8 @@ export interface MessageRequestSnapshot {
   llmSelection?: LLMSelection | null;
   /** Stable identity of the material open for this turn. */
   readingMaterialId?: string;
+  /** Immutable content revision open when the turn was submitted. */
+  readingMaterialRevision?: number;
 }
 
 export interface MessageItem {
@@ -1162,6 +1165,9 @@ function hydrateRequestSnapshot(
   const readingMaterialId = normalizeReadingMaterialId(
     stored.readingMaterialId ?? stored.reading_material_id,
   );
+  const readingMaterialRevision = normalizeReadingMaterialRevision(
+    stored.readingMaterialRevision ?? stored.reading_material_revision,
+  );
   const timedMediaId =
     typeof (stored.timedMediaId ?? stored.timed_media_id) === "string"
       ? String(stored.timedMediaId ?? stored.timed_media_id).trim()
@@ -1184,6 +1190,9 @@ function hydrateRequestSnapshot(
   if (masteryPathId) snapshot.masteryPathId = masteryPathId;
   if (readingMaterialId) {
     snapshot.readingMaterialId = readingMaterialId;
+    if (readingMaterialRevision) {
+      snapshot.readingMaterialRevision = readingMaterialRevision;
+    }
   }
   if (timedMediaId) snapshot.timedMediaId = timedMediaId;
   return snapshot;
@@ -1816,6 +1825,9 @@ export function UnifiedChatProvider({
       const effectiveReadingMaterialId =
         replaySnapshot?.readingMaterialId ??
         liveReadingFields.reading_material_id;
+      const effectiveReadingMaterialRevision =
+        replaySnapshot?.readingMaterialRevision ??
+        liveReadingFields.reading_material_revision;
       const liveWatchingFields = watchingTurnFields(effectiveCapability);
       const effectiveTimedMediaId =
         replaySnapshot?.timedMediaId ?? liveWatchingFields.timed_media_id;
@@ -1863,6 +1875,9 @@ export function UnifiedChatProvider({
           : {}),
         ...(effectiveReadingMaterialId
           ? { readingMaterialId: effectiveReadingMaterialId }
+          : {}),
+        ...(effectiveReadingMaterialId && effectiveReadingMaterialRevision
+          ? { readingMaterialRevision: effectiveReadingMaterialRevision }
           : {}),
         ...(effectiveTimedMediaId
           ? { timedMediaId: effectiveTimedMediaId }
@@ -1945,7 +1960,15 @@ export function UnifiedChatProvider({
         // Read from a module cell rather than context state so scrolling the
         // reader never re-renders the chat.
         ...(replaySnapshot?.readingMaterialId
-          ? { reading_material_id: replaySnapshot.readingMaterialId }
+          ? {
+              reading_material_id: replaySnapshot.readingMaterialId,
+              ...(replaySnapshot.readingMaterialRevision
+                ? {
+                    reading_material_revision:
+                      replaySnapshot.readingMaterialRevision,
+                  }
+                : {}),
+            }
           : liveReadingFields),
         ...(replaySnapshot?.timedMediaId
           ? { timed_media_id: replaySnapshot.timedMediaId }

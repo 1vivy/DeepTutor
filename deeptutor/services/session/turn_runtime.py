@@ -440,6 +440,15 @@ def _reading_material_id(value: Any) -> str:
     return candidate if _READING_ID_RE.match(candidate) else ""
 
 
+def _reading_material_revision(value: Any) -> int | None:
+    """Normalize the immutable content revision displayed for this turn."""
+    try:
+        revision = int(value)
+    except (TypeError, ValueError):
+        return None
+    return revision if revision >= 1 else None
+
+
 def _reading_workspace_id(value: Any) -> str:
     """Normalize the owner-scoped reading workspace bound to this turn."""
     candidate = str(value or "").strip()
@@ -661,6 +670,11 @@ def _request_snapshot_metadata(
     reading_material_id = _reading_material_id(payload.get("reading_material_id"))
     if reading_material_id:
         snapshot["readingMaterialId"] = reading_material_id
+        reading_material_revision = _reading_material_revision(
+            payload.get("reading_material_revision")
+        )
+        if reading_material_revision is not None:
+            snapshot["readingMaterialRevision"] = reading_material_revision
     reading_workspace_id = _reading_workspace_id(payload.get("reading_workspace_id"))
     if reading_workspace_id:
         snapshot["readingWorkspaceId"] = reading_workspace_id
@@ -1585,6 +1599,9 @@ class TurnRuntimeManager:
         }
         reading_workspace_id = _reading_workspace_id(payload.get("reading_workspace_id"))
         reading_material_id = _reading_material_id(payload.get("reading_material_id"))
+        reading_material_revision = _reading_material_revision(
+            payload.get("reading_material_revision")
+        )
         if workspace_mode == WORKSPACE_MODE_READING and reading_workspace_id:
             from deeptutor.reading import ReadingCatalogStore
 
@@ -1609,6 +1626,7 @@ class TurnRuntimeManager:
                 **payload,
                 "reading_workspace_id": reading_workspace_id,
                 "reading_material_id": reading_material_id,
+                "reading_material_revision": reading_material_revision,
             }
         # A mastery path has a longer lifetime than any one conversation.
         # Persist the explicit association on the session, and restore it on
@@ -2077,6 +2095,11 @@ class TurnRuntimeManager:
                 overrides.get("reading_material_id")
                 if "reading_material_id" in overrides
                 else snapshot.get("readingMaterialId")
+            ),
+            "reading_material_revision": _reading_material_revision(
+                overrides.get("reading_material_revision")
+                if "reading_material_revision" in overrides
+                else snapshot.get("readingMaterialRevision")
             ),
             "reading_workspace_id": _reading_workspace_id(
                 overrides.get("reading_workspace_id")
@@ -2890,6 +2913,9 @@ class TurnRuntimeManager:
                     # capability and binds its tools; the viewport tells the
                     # model where the user is actually looking.
                     "reading_material_id": _reading_material_id(payload.get("reading_material_id")),
+                    "reading_material_revision": _reading_material_revision(
+                        payload.get("reading_material_revision")
+                    ),
                     "reading_workspace_id": _reading_workspace_id(
                         payload.get("reading_workspace_id")
                     ),

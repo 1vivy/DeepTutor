@@ -17,6 +17,7 @@ function material(materialId: string, title: string) {
     created_at: 1,
     has_raw_view: false,
     render_mode: "text",
+    revision: 4,
     annotation_count: 0,
     outline: [],
     outline_text: "",
@@ -83,6 +84,7 @@ test.beforeEach(async ({ page }) => {
                 knowledgeBases: [],
                 language: "en",
                 readingMaterialId: MATERIAL_A,
+                readingMaterialRevision: 4,
               },
             },
             created_at: 1,
@@ -108,6 +110,7 @@ test.beforeEach(async ({ page }) => {
                   tool: "read_material",
                   tool_metadata: {
                     material_id: MATERIAL_A,
+                    material_revision: 4,
                     locators: [2],
                   },
                 },
@@ -159,7 +162,7 @@ test("historical citation reopens its turn material and unsupported locator stay
 
   await expect(page.getByRole("link", { name: "p.2" })).toHaveAttribute(
     "href",
-    `#dt-material-${MATERIAL_A}-locator-2`,
+    `#dt-material-${MATERIAL_A}-revision-4-locator-2`,
   );
   await expect(page.getByRole("link", { name: "p.1" })).toHaveCount(0);
 

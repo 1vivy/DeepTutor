@@ -100,7 +100,10 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
   // reads when it sends. One effect rather than writes scattered through the
   // mutators, so the two can never disagree.
   useEffect(() => {
-    setReadingMaterial(material?.material_id ?? null);
+    setReadingMaterial(
+      material?.material_id ?? null,
+      material?.revision ?? null,
+    );
   }, [material]);
 
   const openMaterial = useCallback(

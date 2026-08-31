@@ -352,6 +352,8 @@ const AssistantMessage = memo(function AssistantMessage({
 }) {
   const events = useMemo(() => msg.events ?? [], [msg.events]);
   const readingMaterialId = researchRequestSnapshot?.readingMaterialId;
+  const readingMaterialRevision =
+    researchRequestSnapshot?.readingMaterialRevision;
   const resultEvent = useMemo(
     () => msg.events?.find((event) => event.type === "result") ?? null,
     [msg.events],
@@ -531,6 +533,7 @@ const AssistantMessage = memo(function AssistantMessage({
               content={msg.content}
               isStreaming={isStreaming}
               readingMaterialId={readingMaterialId}
+              readingMaterialRevision={readingMaterialRevision}
               events={events}
             />
           ) : null}
@@ -555,6 +558,7 @@ const AssistantMessage = memo(function AssistantMessage({
               content={msg.content}
               isStreaming={isStreaming}
               readingMaterialId={readingMaterialId}
+              readingMaterialRevision={readingMaterialRevision}
               events={events}
             />
           ) : null}
@@ -577,6 +581,7 @@ const AssistantMessage = memo(function AssistantMessage({
               content={seg.text}
               isStreaming={isStreaming}
               readingMaterialId={readingMaterialId}
+              readingMaterialRevision={readingMaterialRevision}
               events={events}
             />
           ) : seg.kind === "trace" ? (
@@ -603,6 +608,7 @@ const AssistantMessage = memo(function AssistantMessage({
           content={body}
           isStreaming={isStreaming}
           readingMaterialId={readingMaterialId}
+          readingMaterialRevision={readingMaterialRevision}
           events={events}
         />
       )}
