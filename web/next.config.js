@@ -109,6 +109,12 @@ const nextConfig = {
   // This eliminates the need to copy the full node_modules into Docker production images
   output: "standalone",
 
+  // Keep the standalone bundle rooted at this frontend directory. Without an
+  // explicit root, Next.js can mirror the absolute checkout path inside
+  // `.next-deeptutor/standalone`, while the DeepTutor launcher expects
+  // `.next-deeptutor/standalone/server.js` directly.
+  outputFileTracingRoot: __dirname,
+
   // web/proxy.ts clones request bodies before rewriting them. Keep enough room
   // for individual large-body endpoints that still use Proxy. Knowledge-base
   // create/upload batches use dedicated streaming route handlers instead, so
