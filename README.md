@@ -485,6 +485,64 @@ silently retried through Chat Completions. The equivalent profile field in
 
 </details>
 
+<details>
+<summary><b>Uninstall and cleanup</b></summary>
+
+DeepTutor separates its installed code from its runtime workspace. By default,
+the workspace is the directory where you run `deeptutor init` / `deeptutor
+start`; `--home PATH` or `DEEPTUTOR_HOME` overrides it. Runtime output is the
+`data` directory inside that workspace, so the startup banner line beginning
+with `Workspace:` identifies what to clean up.
+
+1. Stop the app. Press `Ctrl+C` in the terminal running `deeptutor start`, stop
+   any running Partner, and stop detached Docker containers before deleting
+   their data.
+2. Delete the runtime data. This removes settings, API keys, chat history,
+   sessions, Memory, Notebooks, Books, Reading state, Skills, Partners state,
+   logs, Knowledge Bases, parse caches, generated artifacts, and the packaged
+   frontend runtime cache:
+
+   ```bash
+   # macOS / Linux, from the workspace directory
+   rm -rf ./data
+
+   # Windows PowerShell, from the workspace directory
+   Remove-Item -Recurse -Force .\data
+   ```
+
+3. Remove the installed package. Use the command that matches the distribution:
+
+   ```bash
+   python -m pip uninstall deeptutor
+   python -m pip uninstall deeptutor-cli
+   ```
+
+   If the venv was created only for DeepTutor, delete it. For a source install,
+   deactivate the venv, leave the source directory, and remove that checkout
+   only if it contains no unrelated work.
+
+   ```bash
+   # macOS / Linux
+   rm -rf ./DeepTutor
+
+   # Windows PowerShell
+   Remove-Item -Recurse -Force .\DeepTutor
+   ```
+
+4. For the Docker path, remove the container and its named data volume:
+
+   ```bash
+   docker rm -f deeptutor
+   docker volume rm deeptutor-data
+   ```
+
+Destructive filesystem commands do not send files to the recycle bin or trash.
+Check that the selected workspace and source checkout are correct before running
+them, especially when `DEEPTUTOR_HOME` points somewhere other than the app
+checkout.
+
+</details>
+
 ## 📖 Explore DeepTutor
 
 Start with the main surfaces you will use day to day: Chat, Partners, My Agents, Co-Writer, Book, Knowledge Center, Learning Space, Memory, and Settings. The tour then covers Multi-User deployments for shared, isolated workspaces.
