@@ -80,3 +80,18 @@ test("study-guidance steps are visible in the result card", () => {
   assert.match(component, /steps\.map\(\(step, index\) =>/);
   assert.match(component, /list-decimal/);
 });
+
+test("the built-in vocabulary action is localized", () => {
+  assert.match(component, /extensionId === "vocabulary" && actionId === "explain"/);
+  assert.match(english, /"Explain vocabulary": "Explain vocabulary"/);
+  assert.match(chinese, /"Explain vocabulary": "解释词汇"/);
+});
+
+test("vocabulary terms are visible in the result card", () => {
+  assert.match(component, /result\.payload\.terms/);
+  assert.match(component, /String\(term\.term \|\| ""\)/);
+  assert.match(component, /terms\.map\(\(term, index\) =>/);
+  assert.match(component, /<dt className="font-medium">\{term\.term\}<\/dt>/);
+  assert.match(component, /\{term\.meaning\}/);
+  assert.match(component, /\{term\.usage\}/);
+});

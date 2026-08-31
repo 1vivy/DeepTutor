@@ -10,6 +10,12 @@ import {
   type ReadingExtensionResult,
 } from "@/lib/reading-api";
 
+type VocabularyTerm = {
+  term: string;
+  meaning: string;
+  usage: string;
+};
+
 export function ReadingExtensionBar({
   materialId,
   locator,
@@ -168,6 +174,9 @@ function builtInActionLabel(extensionId: string, actionId: string) {
   if (extensionId === "guided_learning" && actionId === "guide") {
     return "Guide me";
   }
+  if (extensionId === "vocabulary" && actionId === "explain") {
+    return "Explain vocabulary";
+  }
   return "";
 }
 
@@ -192,6 +201,19 @@ function ExtensionResult({
     : [];
   const steps = Array.isArray(result.payload.steps)
     ? result.payload.steps.map(String)
+    : [];
+  const terms: VocabularyTerm[] = Array.isArray(result.payload.terms)
+    ? result.payload.terms
+        .map((row) => {
+          if (typeof row !== "object" || row === null) return null;
+          const term = row as Partial<VocabularyTerm>;
+          return {
+            term: String(term.term || ""),
+            meaning: String(term.meaning || ""),
+            usage: String(term.usage || ""),
+          };
+        })
+        .filter((row): row is VocabularyTerm => row !== null)
     : [];
   const body = String(result.payload.body || result.payload.overview || "");
   return (
@@ -222,6 +244,24 @@ function ExtensionResult({
             <li key={`${index}-${step}`}>{step}</li>
           ))}
         </ol>
+      ) : null}
+      {terms.length ? (
+        <dl className="mt-2 space-y-2">
+          {terms.map((term, index) => (
+            <div
+              key={`${index}-${term.term}`}
+              className="border-t border-[var(--border)] pt-2 first:border-t-0 first:pt-0"
+            >
+              <dt className="font-medium">{term.term}</dt>
+              <dd className="mt-1 text-[var(--muted-foreground)]">
+                {term.meaning}
+              </dd>
+              <dd className="mt-1 text-[var(--muted-foreground)]">
+                {term.usage}
+              </dd>
+            </div>
+          ))}
+        </dl>
       ) : null}
       {questions.map((question, index) => (
         <div key={question.id || index} className="mt-3">
