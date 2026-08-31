@@ -31,3 +31,11 @@ export function getGuardianReport(learnerId: string): Promise<GuardianReport> {
 export function resetLearnerCredentials(learnerId: string): Promise<void> {
   return request(`/api/v1/multi-user/learners/${encodeURIComponent(learnerId)}/credentials/reset`, { method: "POST" }).then(() => undefined);
 }
+
+export function clearGuardianMaterials(learnerId: string): Promise<void> {
+  return request(`/api/v1/multi-user/learners/${encodeURIComponent(learnerId)}/materials`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ book_ids: [] }),
+  }).then(() => undefined);
+}
