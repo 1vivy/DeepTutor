@@ -2123,6 +2123,8 @@
   "Save Network": "Save Network",
   "Built-in tools the chat agent can invoke.": "Built-in tools the chat agent can invoke.",
   "Built-in tools the chat agent can invoke. Each shows its description, parameters, and prompt hints in your current language.": "Built-in tools the chat agent can invoke. Each shows its description, parameters, and prompt hints in your current language.",
+  "Search tools": "Search tools",
+  "No tools match “{{query}}”.": "No tools match “{{query}}”.",
   "Failed to load tools": "Failed to load tools",
   "When to use": "When to use",
   "Input format": "Input format",

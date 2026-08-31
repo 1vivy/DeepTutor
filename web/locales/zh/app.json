@@ -1422,6 +1422,8 @@
   "Save Network": "保存网络设置",
   "Built-in tools the chat agent can invoke.": "聊天 agent 可调用的内置工具。",
   "Built-in tools the chat agent can invoke. Each shows its description, parameters, and prompt hints in your current language.": "聊天 agent 可调用的内置工具。每个工具列出当前语言下的描述、参数和提示。",
+  "Search tools": "搜索工具",
+  "No tools match “{{query}}”.": "没有工具匹配「{{query}}」。",
   "Failed to load tools": "加载工具列表失败",
   "When to use": "何时使用",
   "Input format": "输入格式",

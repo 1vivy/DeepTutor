@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, Loader2, Lock, Wrench } from "lucide-react";
+import { ChevronDown, Loader2, Lock, Search, Wrench, X } from "lucide-react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
 
@@ -82,6 +82,7 @@ export default function ToolsSettingsPage() {
   const [enabled, setEnabled] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -203,6 +204,52 @@ export default function ToolsSettingsPage() {
     return out;
   }, [tools, language]);
 
+  const filteredSections = useMemo<ToolSection[] | null>(() => {
+    if (!sections) return null;
+    const needle = query.trim().toLocaleLowerCase();
+    if (!needle) return sections;
+
+    return sections
+      .map((section) => ({
+        ...section,
+        tools: section.tools.filter((tool) => {
+          const hints = tool.hints[language];
+          const alternateHints = tool.hints[language === "zh" ? "en" : "zh"];
+          const searchableText = [
+            tool.name,
+            tool.description,
+            ...tool.aliases,
+            hints.short_description,
+            hints.when_to_use,
+            hints.input_format,
+            hints.guideline,
+            hints.note,
+            ...hints.aliases.flatMap((alias) => [
+              alias.name,
+              alias.description,
+              alias.phase,
+            ]),
+            alternateHints.short_description,
+            alternateHints.when_to_use,
+            alternateHints.input_format,
+            alternateHints.guideline,
+            alternateHints.note,
+            ...tool.parameters.flatMap((parameter) => [
+              parameter.name,
+              parameter.type,
+              parameter.description,
+              ...(parameter.enum ?? []),
+            ]),
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLocaleLowerCase();
+          return searchableText.includes(needle);
+        }),
+      }))
+      .filter((section) => section.tools.length > 0);
+  }, [language, query, sections]);
+
   const toggleExpanded = (name: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -220,6 +267,35 @@ export default function ToolsSettingsPage() {
           "Switch user-toggleable tools on or off. Locked tools are mounted automatically when the chat agent needs them.",
         )}
       />
+
+      <div className="mb-8">
+        <label className="sr-only" htmlFor="tools-search">
+          {t("Search tools")}
+        </label>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+          <input
+            id="tools-search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={t("Search tools")}
+            aria-label={t("Search tools")}
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--card)] py-2.5 pl-10 pr-10 text-[13px] text-[var(--foreground)] outline-none transition-colors placeholder:text-[var(--muted-foreground)]/60 focus:border-[var(--ring)] focus:ring-2 focus:ring-[var(--ring)]/20"
+            spellCheck={false}
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label={t("Clear")}
+              title={t("Clear")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)]/60 hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]/30"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
 
       {error && (
         <div className="rounded-xl border border-red-500/40 bg-red-500/5 px-4 py-3 text-[12px] text-red-500">
@@ -240,9 +316,15 @@ export default function ToolsSettingsPage() {
         </div>
       )}
 
-      {sections && (
+      {filteredSections && query.trim() && filteredSections.length === 0 && (
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-8 text-center text-[12.5px] text-[var(--muted-foreground)]">
+          {t('No tools match “{{query}}”.', { query: query.trim() })}
+        </div>
+      )}
+
+      {filteredSections && filteredSections.length > 0 && (
         <div className="space-y-8">
-          {sections.map((section) => {
+          {filteredSections.map((section) => {
             const list = section.tools;
             if (list.length === 0) return null;
             return (
