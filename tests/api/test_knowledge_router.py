@@ -2247,3 +2247,51 @@ def test_llamaindex_config_endpoint_round_trips_reranker_knobs(monkeypatch, tmp_
     again = client.get("/api/v1/knowledge/rag-pipelines/llamaindex/config").json()
     assert again["reranker_model"] == "BAAI/bge-reranker-base"
     assert again["rerank_top_k"] == 25
+
+
+def test_lightrag_config_validates_dedicated_llm_selection(monkeypatch, tmp_path: Path) -> None:
+    from deeptutor.services.config.model_catalog import ModelCatalogService
+
+    settings_service = RuntimeSettingsService(tmp_path, process_env={})
+    catalog_service = ModelCatalogService(tmp_path / "model_catalog.json")
+    catalog_service.save(
+        {
+            "services": {
+                "llm": {
+                    "active_profile_id": "profile-1",
+                    "active_model_id": "model-1",
+                    "profiles": [
+                        {
+                            "id": "profile-1",
+                            "name": "Dedicated",
+                            "binding": "openai",
+                            "base_url": "https://api.openai.com/v1",
+                            "api_key": "secret",
+                            "models": [{"id": "model-1", "name": "Model", "model": "gpt-4o"}],
+                        }
+                    ],
+                }
+            }
+        }
+    )
+    monkeypatch.setattr(config_module, "get_runtime_settings_service", lambda: settings_service)
+    monkeypatch.setattr(config_module, "get_model_catalog_service", lambda: catalog_service)
+
+    client = TestClient(_build_app())
+    saved = client.put(
+        "/api/v1/knowledge/rag-pipelines/lightrag/config",
+        json={"llm_profile_id": "profile-1", "llm_model_id": "model-1"},
+    )
+    assert saved.status_code == 200
+
+    unknown = client.put(
+        "/api/v1/knowledge/rag-pipelines/lightrag/config",
+        json={"llm_model_id": "missing"},
+    )
+    assert unknown.status_code == 422
+
+    cleared = client.put(
+        "/api/v1/knowledge/rag-pipelines/lightrag/config",
+        json={"llm_profile_id": "", "llm_model_id": ""},
+    )
+    assert cleared.status_code == 200
