@@ -829,6 +829,17 @@ export interface LightRagServerProbe {
   error: string | null;
 }
 
+export interface WeKnoraProbe {
+  ok: boolean;
+  base_url: string;
+  knowledge_base_id: string;
+  reachable: boolean;
+  credentials_ok: boolean;
+  knowledge_base_found: boolean;
+  knowledge_base_name: string | null;
+  error: string | null;
+}
+
 export interface ImaKnowledgeBasePage {
   knowledge_bases: ImaKnowledgeBaseOption[];
   next_cursor: string;
@@ -992,6 +1003,61 @@ export async function connectLightRagServer(payload: {
     status: string;
     name: string;
     server_url: string;
+    rag_provider: string;
+  };
+}
+
+export async function probeWeKnora(payload: {
+  serverUrl: string;
+  apiKey: string;
+  knowledgeBaseId: string;
+}): Promise<WeKnoraProbe> {
+  const res = await apiFetch(apiUrl("/api/v1/knowledge/probe-weknora"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      server_url: payload.serverUrl,
+      api_key: payload.apiKey,
+      knowledge_base_id: payload.knowledgeBaseId,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(await readErrorDetail(res, "Failed to reach WeKnora"));
+  }
+  return (await res.json()) as WeKnoraProbe;
+}
+
+export async function connectWeKnora(payload: {
+  name: string;
+  serverUrl: string;
+  apiKey: string;
+  knowledgeBaseId: string;
+}): Promise<{
+  status: string;
+  name: string;
+  server_url: string;
+  knowledge_base_id: string;
+  rag_provider: string;
+}> {
+  const res = await apiFetch(apiUrl("/api/v1/knowledge/connect-weknora"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: payload.name,
+      server_url: payload.serverUrl,
+      api_key: payload.apiKey,
+      knowledge_base_id: payload.knowledgeBaseId,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(await readErrorDetail(res, "Failed to connect WeKnora"));
+  }
+  invalidateKnowledgeCaches();
+  return (await res.json()) as {
+    status: string;
+    name: string;
+    server_url: string;
+    knowledge_base_id: string;
     rag_provider: string;
   };
 }

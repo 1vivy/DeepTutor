@@ -98,6 +98,29 @@ class _FakeKBManager:
         self.config.setdefault("knowledge_bases", {})[name] = entry
         return entry
 
+    def register_weknora_kb(
+        self,
+        name: str,
+        server_url: str,
+        api_key: str,
+        knowledge_base_id: str,
+        *,
+        description: str = "",
+    ) -> dict:
+        if name in self.config.get("knowledge_bases", {}):
+            raise ValueError(f"A knowledge base named '{name}' already exists.")
+        entry = {
+            "path": name,
+            "type": "weknora",
+            "rag_provider": "weknora",
+            "server_url": server_url,
+            "api_key": api_key,
+            "knowledge_base_id": knowledge_base_id,
+            "status": "ready",
+        }
+        self.config.setdefault("knowledge_bases", {})[name] = entry
+        return entry
+
 
 class _FakeInitializer:
     def __init__(self, kb_name: str, base_dir: str, **_kwargs) -> None:
@@ -153,6 +176,7 @@ def test_rag_providers_lists_llamaindex_and_pageindex(monkeypatch) -> None:
         "lightrag",
         "lightrag-server",
         "ima",
+        "weknora",
     }
     # LlamaIndex works out of the box; PageIndex needs an API key; GraphRAG and
     # LightRAG are optional local engines (no API key, configured = installed).
@@ -165,6 +189,8 @@ def test_rag_providers_lists_llamaindex_and_pageindex(monkeypatch) -> None:
     # (the per-KB endpoint is configured at connect time).
     assert by_id["lightrag-server"]["requires_api_key"] is False
     assert by_id["lightrag-server"]["configured"] is True
+    assert by_id["weknora"]["requires_api_key"] is True
+    assert by_id["weknora"]["configured"] is True
     # IMA is a thin HTTPS client with no install, but it does need an account
     # credential pair — configured here by the patched account settings.
     assert by_id["ima"]["requires_api_key"] is True
@@ -1903,11 +1929,99 @@ def test_connect_lightrag_server_rejects_unreachable(monkeypatch, tmp_path: Path
     assert "bad" not in manager.config["knowledge_bases"]
 
 
+def _patch_weknora_probe(monkeypatch, *, ok: bool, error: str | None = None) -> None:
+    from deeptutor.services.rag.pipelines.weknora import probe as probe_module
+
+    async def _fake_probe(server_url: str, api_key: str, knowledge_base_id: str, **_kwargs):
+        result = probe_module.WeKnoraProbe(
+            base_url=server_url.rstrip("/"),
+            knowledge_base_id=knowledge_base_id,
+        )
+        result.ok = ok
+        result.reachable = ok
+        result.credentials_ok = ok
+        result.knowledge_base_found = ok
+        result.knowledge_base_name = "Research" if ok else None
+        result.error = error
+        return result
+
+    monkeypatch.setattr(probe_module, "probe_weknora", _fake_probe)
+
+
+def test_weknora_probe_and_connect_endpoints(monkeypatch, tmp_path: Path) -> None:
+    manager = _FakeKBManager(tmp_path / "knowledge_bases")
+    monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
+    _patch_weknora_probe(monkeypatch, ok=True)
+
+    with TestClient(_build_app()) as client:
+        probe = client.post(
+            "/api/v1/knowledge/probe-weknora",
+            json={
+                "server_url": "http://localhost:8080/",
+                "api_key": "secret",
+                "knowledge_base_id": "kb-1",
+            },
+        )
+        connected = client.post(
+            "/api/v1/knowledge/connect-weknora",
+            json={
+                "name": "weknora-kb",
+                "server_url": "http://localhost:8080/",
+                "api_key": "secret",
+                "knowledge_base_id": "kb-1",
+            },
+        )
+
+    assert probe.status_code == 200
+    assert probe.json()["ok"] is True
+    assert probe.json()["knowledge_base_name"] == "Research"
+    assert connected.status_code == 200
+    body = connected.json()
+    assert body["rag_provider"] == "weknora"
+    entry = manager.config["knowledge_bases"]["weknora-kb"]
+    assert entry["server_url"] == "http://localhost:8080"
+    assert entry["knowledge_base_id"] == "kb-1"
+
+
+def test_weknora_connection_routes_are_admin_gated() -> None:
+    from deeptutor.api.routers.auth import require_admin
+
+    routes = {
+        route.path: route
+        for route in knowledge_router_module.router.routes
+        if route.path in {"/probe-weknora", "/connect-weknora"}
+    }
+    assert set(routes) == {"/probe-weknora", "/connect-weknora"}
+    for route in routes.values():
+        assert any(dependency.call is require_admin for dependency in route.dependant.dependencies)
+
+
+def test_connect_weknora_rejects_failed_probe(monkeypatch, tmp_path: Path) -> None:
+    manager = _FakeKBManager(tmp_path / "knowledge_bases")
+    monkeypatch.setattr(knowledge_router_module, "get_kb_manager", lambda: manager)
+    _patch_weknora_probe(monkeypatch, ok=False, error="Knowledge base missing")
+
+    with TestClient(_build_app()) as client:
+        response = client.post(
+            "/api/v1/knowledge/connect-weknora",
+            json={
+                "name": "bad",
+                "server_url": "http://localhost:8080",
+                "api_key": "secret",
+                "knowledge_base_id": "missing",
+            },
+        )
+
+    assert response.status_code == 400
+    assert "WeKnora" in response.json()["detail"] or "Knowledge base" in response.json()["detail"]
+    assert "bad" not in manager.config["knowledge_bases"]
+
+
 def test_assert_not_connected_kb_blocks_connected_writes() -> None:
     from fastapi import HTTPException
 
     guard = knowledge_router_module._assert_not_connected_kb
-    for kind in ("linked", "obsidian", "lightrag_server"):
+    for kind in ("linked", "obsidian", "lightrag_server", "weknora"):
         with pytest.raises(HTTPException) as excinfo:
             guard("kb", {"type": kind})
         assert excinfo.value.status_code == 409

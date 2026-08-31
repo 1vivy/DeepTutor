@@ -116,6 +116,7 @@ const ENGINE_MODEL_KINDS: Record<string, ("llm" | "embedding")[]> = {
   graphrag: ["llm", "embedding"],
   lightrag: ["llm", "embedding"],
   "lightrag-server": [],
+  weknora: [],
 };
 
 const MODEL_KIND_LABEL: Record<string, string> = {

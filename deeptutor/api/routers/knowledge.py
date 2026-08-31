@@ -20,6 +20,7 @@ from uuid import uuid4
 from fastapi import (
     APIRouter,
     BackgroundTasks,
+    Depends,
     File,
     Form,
     HTTPException,
@@ -30,6 +31,7 @@ from fastapi import (
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
+from deeptutor.api.routers.auth import require_admin
 from deeptutor.api.utils.progress_broadcaster import ProgressBroadcaster
 from deeptutor.api.utils.task_id_manager import TaskIDManager
 from deeptutor.api.utils.task_log_stream import capture_task_logs, get_task_stream_manager
@@ -1953,6 +1955,19 @@ class ConnectLightRagServerRequest(BaseModel):
     search_mode: str = ""
 
 
+class ProbeWeKnoraRequest(BaseModel):
+    server_url: str
+    api_key: str
+    knowledge_base_id: str
+
+
+class ConnectWeKnoraRequest(BaseModel):
+    name: str
+    server_url: str
+    api_key: str
+    knowledge_base_id: str
+
+
 @router.post("/probe-lightrag-server")
 async def probe_lightrag_server_route(payload: ProbeLightRagServerRequest):
     """Test-connect to an external LightRAG server before binding a KB to it.
@@ -2032,6 +2047,76 @@ async def connect_lightrag_server_route(payload: ConnectLightRagServerRequest):
         "status": "connected",
         "name": name,
         "server_url": entry["server_url"],
+        "rag_provider": entry["rag_provider"],
+    }
+
+
+@router.post("/probe-weknora", dependencies=[Depends(require_admin)])
+async def probe_weknora_route(payload: ProbeWeKnoraRequest):
+    """Validate a WeKnora server and knowledge-base binding without registering."""
+    from deeptutor.services.rag.pipelines.weknora.probe import probe_weknora
+
+    server_url = (payload.server_url or "").strip()
+    knowledge_base_id = (payload.knowledge_base_id or "").strip()
+    if not server_url or not knowledge_base_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Both server_url and knowledge_base_id are required.",
+        )
+    result = await probe_weknora(
+        server_url,
+        payload.api_key or "",
+        knowledge_base_id,
+    )
+    return result.to_dict()
+
+
+@router.post("/connect-weknora", dependencies=[Depends(require_admin)])
+async def connect_weknora_route(payload: ConnectWeKnoraRequest):
+    """Connect a self-hosted WeKnora knowledge base for retrieval only."""
+    from deeptutor.services.rag.pipelines.weknora.probe import probe_weknora
+
+    name = (payload.name or "").strip()
+    server_url = (payload.server_url or "").strip()
+    knowledge_base_id = (payload.knowledge_base_id or "").strip()
+    if not name or not server_url or not knowledge_base_id:
+        raise HTTPException(
+            status_code=400,
+            detail="name, server_url, and knowledge_base_id are required.",
+        )
+
+    result = await probe_weknora(
+        server_url,
+        payload.api_key or "",
+        knowledge_base_id,
+    )
+    if not result.ok:
+        raise HTTPException(
+            status_code=400,
+            detail=result.error or "Could not connect to the WeKnora knowledge base.",
+        )
+
+    try:
+        manager = get_kb_manager()
+        entry = manager.register_weknora_kb(
+            name,
+            result.base_url,
+            payload.api_key or "",
+            result.knowledge_base_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error connecting WeKnora knowledge base: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return {
+        "status": "connected",
+        "name": name,
+        "server_url": entry["server_url"],
+        "knowledge_base_id": entry["knowledge_base_id"],
         "rag_provider": entry["rag_provider"],
     }
 
