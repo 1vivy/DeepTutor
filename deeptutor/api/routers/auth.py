@@ -50,6 +50,9 @@ from deeptutor.services.auth import (
     set_learner_profile,
     set_role,
 )
+from deeptutor.services.auth import (
+    get_learner_profile as load_learner_profile,
+)
 from deeptutor.services.codex_auth.contracts import CodexAuthError
 from deeptutor.services.codex_auth.service import deliver_codex_oauth_callback
 
@@ -763,6 +766,41 @@ async def get_avatar_image(
 async def get_users(_: TokenPayload = Depends(require_admin)) -> list[UserInfo]:
     """List all registered users. Requires admin role."""
     return [UserInfo(**u) for u in list_users()]
+
+
+@router.get("/profile/learner-profile")
+async def get_current_learner_profile(current: TokenPayload = Depends(require_auth)) -> dict:
+    """Return the authenticated learner's own profile."""
+    if current.role != "user":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Learner profile required"
+        )
+    profile = load_learner_profile(current.username)
+    return {"learner_profile": profile}
+
+
+@router.put("/profile/learner-profile")
+async def put_current_learner_profile(
+    body: LearnerProfileRequest,
+    current: TokenPayload = Depends(require_auth),
+) -> dict:
+    """Update only the authenticated learner's own profile."""
+    if current.role != "user":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Learner profile required"
+        )
+    from deeptutor.multi_user.learner_profile import normalize_profile
+
+    try:
+        profile = normalize_profile(body.model_dump(exclude_none=True))
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+    updated = set_learner_profile(current.username, profile)
+    if updated is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return {"learner_profile": updated}
 
 
 @router.get("/users/{username}/learner-profile")

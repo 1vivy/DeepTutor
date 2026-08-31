@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from deeptutor.multi_user.identity import set_learner_profile
 from deeptutor.multi_user.learner_profile import normalize_profile, prompt_block
 
 
@@ -43,3 +44,11 @@ def test_prompt_block_is_empty_for_missing_profile_and_lists_trusted_values() ->
     assert "trusted learner profile" in block
     assert "Age: 8" in block
     assert "Grade level: primary_4" in block
+
+
+def test_profile_store_rejects_admin_accounts(tmp_path, monkeypatch) -> None:
+    from deeptutor.multi_user import identity
+
+    monkeypatch.setattr(identity, "USERS_FILE", tmp_path / "users.json")
+    identity.save_user("admin", "hash", role="admin")
+    assert set_learner_profile("admin", {"age": 10}) is None
