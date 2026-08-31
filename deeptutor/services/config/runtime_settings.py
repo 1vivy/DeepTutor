@@ -256,6 +256,8 @@ DEFAULT_IMA_SETTINGS: dict[str, Any] = {
 # * ``top_k`` — default number of chunks a query returns.
 # * ``vector_top_k_multiplier`` / ``bm25_top_k_multiplier`` — how many extra
 #   candidates each child retriever fetches before fusion re-ranks to ``top_k``.
+# * ``reranker_model`` / ``rerank_top_k`` — optional cross-encoder refinement.
+#   An empty model keeps the existing embedding-only ranking.
 # * ``vector_index_type`` — FAISS index type for the next full index build.
 #   HNSW is opt-in and trades exact recall for sub-linear search at scale.
 # * ``chunk_size`` / ``chunk_overlap`` — indexing chunk geometry; changes apply
@@ -281,6 +283,8 @@ DEFAULT_LLAMAINDEX_SETTINGS: dict[str, Any] = {
     "top_k": 5,
     "vector_top_k_multiplier": 2,
     "bm25_top_k_multiplier": 2,
+    "reranker_model": "",
+    "rerank_top_k": 50,
     "vector_index_type": LLAMAINDEX_FLAT_VECTOR_INDEX,
     "hnsw_m": 32,
     "hnsw_ef_construction": 200,
@@ -871,6 +875,8 @@ class RuntimeSettingsService:
             "bm25_top_k_multiplier": _coerce_clamped_int(
                 settings.get("bm25_top_k_multiplier"), 2, 1, 10
             ),
+            "reranker_model": _string(settings.get("reranker_model"))[:200],
+            "rerank_top_k": _coerce_clamped_int(settings.get("rerank_top_k"), 50, 1, 100),
             "vector_index_type": vector_index_type,
             "hnsw_m": _coerce_clamped_int(settings.get("hnsw_m"), 32, 4, 64),
             "hnsw_ef_construction": _coerce_clamped_int(

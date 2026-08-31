@@ -4274,5 +4274,10 @@
   "Approximate graph search for large knowledge bases. Faster at scale with a small recall trade-off.": "Approximate graph search for large knowledge bases. Faster at scale with a small recall trade-off.",
   "HNSW graph degree": "HNSW graph degree",
   "HNSW construction candidates": "HNSW construction candidates",
-  "HNSW search candidates": "HNSW search candidates"
+  "HNSW search candidates": "HNSW search candidates",
+  "Reranking": "Reranking",
+  "Applies on the next query": "Applies on the next query",
+  "Reranker model": "Reranker model",
+  "Leave empty to disable. Example: BAAI/bge-reranker-base. Requires the optional rag-rerank extra.": "Leave empty to disable. Example: BAAI/bge-reranker-base. Requires the optional rag-rerank extra.",
+  "Rerank candidates": "Rerank candidates"
 }

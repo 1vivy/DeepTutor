@@ -60,6 +60,10 @@ export interface LlamaIndexConfig {
   top_k: number;
   vector_top_k_multiplier: number;
   bm25_top_k_multiplier: number;
+  /** Optional Hugging Face cross-encoder model; empty disables reranking. */
+  reranker_model: string;
+  /** First-stage candidates scored by the optional cross-encoder. */
+  rerank_top_k: number;
   /** Vector index type used by the next full index build. */
   vector_index_type: "flat" | "hnsw";
   hnsw_m: number;

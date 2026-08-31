@@ -1297,6 +1297,8 @@ class LlamaIndexConfigUpdate(BaseModel):
     top_k: int | None = None
     vector_top_k_multiplier: int | None = None
     bm25_top_k_multiplier: int | None = None
+    reranker_model: str | None = None
+    rerank_top_k: int | None = None
     vector_index_type: str | None = None
     hnsw_m: int | None = None
     hnsw_ef_construction: int | None = None

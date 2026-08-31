@@ -244,6 +244,12 @@ graphrag = ["graphrag>=3.0.1,<4.0.0; python_version < '3.14'"]
 # transitive dependency of this extra.
 rag-lightrag = ["lightrag-hku==1.5.7rc2"]
 
+# Optional cross-encoder reranker for the default LlamaIndex engine. The
+# sentence-transformers/torch stack is heavy and model-dependent, so it stays
+# out of `all`; retrieval lazily falls back to embedding-only ranking when the
+# package or configured model is unavailable.
+rag-rerank = ["sentence-transformers>=3.0.0,<6.0.0; python_version < '3.14'"]
+
 # Dev/test tooling. Mirrors requirements/dev.txt.
 dev = [
     "deeptutor[server]",

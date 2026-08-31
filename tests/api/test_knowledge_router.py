@@ -2220,3 +2220,30 @@ def test_llamaindex_config_endpoint_round_trips_vector_index_knobs(
     again = client.get("/api/v1/knowledge/rag-pipelines/llamaindex/config").json()
     assert again["vector_index_type"] == "hnsw"
     assert again["hnsw_ef_search"] == 48
+
+
+def test_llamaindex_config_endpoint_round_trips_reranker_knobs(monkeypatch, tmp_path: Path) -> None:
+    """The reranker form depends on both fields surviving save/reload."""
+    service = RuntimeSettingsService(tmp_path, process_env={})
+    monkeypatch.setattr(config_module, "get_runtime_settings_service", lambda: service)
+
+    client = TestClient(_build_app())
+    initial = client.get("/api/v1/knowledge/rag-pipelines/llamaindex/config")
+    assert initial.status_code == 200
+    assert initial.json()["reranker_model"] == ""
+    assert initial.json()["rerank_top_k"] == 50
+
+    saved = client.put(
+        "/api/v1/knowledge/rag-pipelines/llamaindex/config",
+        json={
+            "reranker_model": " BAAI/bge-reranker-base ",
+            "rerank_top_k": 25,
+        },
+    )
+    assert saved.status_code == 200
+    assert saved.json()["reranker_model"] == "BAAI/bge-reranker-base"
+    assert saved.json()["rerank_top_k"] == 25
+
+    again = client.get("/api/v1/knowledge/rag-pipelines/llamaindex/config").json()
+    assert again["reranker_model"] == "BAAI/bge-reranker-base"
+    assert again["rerank_top_k"] == 25

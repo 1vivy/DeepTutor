@@ -4274,5 +4274,10 @@
   "Approximate graph search for large knowledge bases. Faster at scale with a small recall trade-off.": "面向大型知识库的近似图搜索，规模更大时更快，但会有少量召回损失。",
   "HNSW graph degree": "HNSW 图连接度",
   "HNSW construction candidates": "HNSW 构建候选数",
-  "HNSW search candidates": "HNSW 搜索候选数"
+  "HNSW search candidates": "HNSW 搜索候选数",
+  "Reranking": "重排序",
+  "Applies on the next query": "在下次查询时生效",
+  "Reranker model": "重排序模型",
+  "Leave empty to disable. Example: BAAI/bge-reranker-base. Requires the optional rag-rerank extra.": "留空表示禁用。示例：BAAI/bge-reranker-base。需要可选的 rag-rerank 依赖。",
+  "Rerank candidates": "重排序候选数"
 }
