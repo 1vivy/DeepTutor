@@ -123,6 +123,7 @@ import {
   textFromDomSelection,
   type SelectionTutorContext,
 } from "@/lib/selection-tutor";
+import { shouldReturnToChatAfterResearch } from "@/lib/deep-research-report";
 
 const NotebookRecordPicker = dynamic(
   () => import("@/components/notebook/NotebookRecordPicker"),
@@ -602,6 +603,30 @@ export default function ChatPage() {
   const isResearchMode = activeCap.value === "deep_research";
   const isWatchingMode = activeCap.value === "immersive_watching";
   const capabilityNeedsConfig = isQuizMode || isVisualizeMode || isResearchMode;
+  const returnedResearchTurnRef = useRef<string | null>(null);
+
+  // Deep Research is a one-shot workflow: once its confirmed-outline turn
+  // reaches a terminal event, ordinary composer messages should discuss the
+  // report in chat context. Keeping the mode selected caused follow-ups such
+  // as "why did this stop?" to become brand-new research outlines. The Retry
+  // button still submits the preserved outline explicitly as deep_research.
+  useEffect(() => {
+    if (state.isStreaming || state.activeCapability !== "deep_research") return;
+    const latestAssistant = [...state.messages]
+      .reverse()
+      .find((message) => message.role === "assistant");
+    if (!latestAssistant || !shouldReturnToChatAfterResearch(latestAssistant.events)) {
+      return;
+    }
+    const terminal = [...(latestAssistant.events ?? [])]
+      .reverse()
+      .find((event) => event.type === "done");
+    const turnKey = String(terminal?.turn_id || latestAssistant.id || "");
+    if (!turnKey || returnedResearchTurnRef.current === turnKey) return;
+    returnedResearchTurnRef.current = turnKey;
+    setCapability(null);
+    setCapabilityConfigConfirmed(false);
+  }, [setCapability, state.activeCapability, state.isStreaming, state.messages]);
 
   // Edit-invalidates-confirm wrappers — flipping any field after the user
   // hit *Confirm* should restore the gate so they re-confirm intentionally.
