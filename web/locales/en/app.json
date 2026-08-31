@@ -1340,6 +1340,8 @@
   "settingsTour.apply.desc": "Save Draft persists your changes; Apply activates them right away. Both controls live in the top toolbar, always within reach.",
   "Step {{current}} of {{total}}": "Step {{current}} of {{total}}",
   "Back": "Back",
+  "Forward": "Forward",
+  "Unavailable": "Unavailable",
   "settings.configNote": "Save Draft persists all profiles to model_catalog.json, which DeepTutor reads at runtime. Apply activates the selected profile and refreshes runtime clients. You can keep multiple profiles in the catalog and switch between them anytime.",
   "Unsupported file type": "Unsupported file type",
   "No extension": "No extension",
