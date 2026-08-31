@@ -37,9 +37,12 @@ from deeptutor.utils.document_extractor import (
 from .envelope import ImaAPIError
 
 # Official IMA media links are short-lived Tencent COS download URLs, and
-# note/file content is served from IMA's own resource host (res-pkb.ima.qq.com);
-# the downloader refuses anything outside these trusted Tencent domains.
-_ALLOWED_MEDIA_ROOT_DOMAINS = ("myqcloud.com", "ima.qq.com")
+# note/file content is served from IMA's exact resource host
+# (res-pkb.ima.qq.com). Do not trust every sibling under ima.qq.com: a broad
+# suffix allowlist would let an unrelated or later-compromised service become
+# an SSRF relay.
+_ALLOWED_MEDIA_ROOT_DOMAINS = ("myqcloud.com",)
+_ALLOWED_MEDIA_HOSTS = frozenset({"res-pkb.ima.qq.com"})
 
 # Headers we never forward, whatever the API response asks for: hop-by-hop
 # fields and anything that would carry identity to COS.
@@ -142,10 +145,11 @@ def validate_media_url(url: str) -> None:
     hostname = (parsed.hostname or "").rstrip(".").lower()
     if parsed.scheme != "https" or not hostname:
         raise ImaAPIError("IMA media URL must use HTTPS.")
-    if not any(
+    trusted_root = any(
         hostname == root or hostname.endswith(f".{root}") for root in _ALLOWED_MEDIA_ROOT_DOMAINS
-    ):
-        raise ImaAPIError("IMA media URL is outside Tencent COS.")
+    )
+    if hostname not in _ALLOWED_MEDIA_HOSTS and not trusted_root:
+        raise ImaAPIError("IMA media URL is outside the trusted Tencent media hosts.")
 
 
 def media_headers(raw: object) -> dict[str, str]:

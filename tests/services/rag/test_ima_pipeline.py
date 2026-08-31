@@ -314,6 +314,7 @@ class TestClientWire:
             "http://bucket.cos.ap-guangzhou.myqcloud.com/file.pdf",
             "https://example.com/file.pdf",
             "https://myqcloud.com.evil.test/file.pdf",
+            "https://other.ima.qq.com/file.pdf",
         ],
     )
     def test_file_media_rejects_urls_outside_official_cos(self, url: str) -> None:
