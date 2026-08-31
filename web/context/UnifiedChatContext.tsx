@@ -61,14 +61,13 @@ import {
   normalizeWorkspaceMode,
   type WorkspaceMode,
 } from "@/lib/workspace-mode";
+import {
+  normalizeReadingReferences,
+  type ReadingReferencePayload,
+} from "@/lib/reading-references";
 
 type SessionRuntimeStatus =
-  | "idle"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "rejected";
+  "idle" | "running" | "completed" | "failed" | "cancelled" | "rejected";
 
 interface OutgoingAttachment {
   type: string;
@@ -94,6 +93,7 @@ export interface SendMessageOptions {
   persistUserMessage?: boolean;
   requestSnapshotOverride?: MessageRequestSnapshot;
   bookReferences?: BookReferencePayload[];
+  readingReferences?: ReadingReferencePayload[];
   /** Edit-branching: when set, the new user message is inserted as a
    *  sibling under this parent rather than appended to the session tail.
    *  ``null`` means "explicitly attach to the session root". */
@@ -175,6 +175,7 @@ export interface MessageRequestSnapshot {
   historyReferences?: HistoryReferencePayload;
   questionNotebookReferences?: QuestionNotebookReferencePayload;
   bookReferences?: BookReferencePayload[];
+  readingReferences?: ReadingReferencePayload[];
   masteryPathId?: string;
   timedMediaId?: string;
   persona?: string;
@@ -1150,6 +1151,9 @@ function hydrateRequestSnapshot(
       : "";
   const memoryReferences = asMemoryReferences(stored.memoryReferences);
   const bookReferences = normalizeBookReferences(stored.bookReferences);
+  const readingReferences = normalizeReadingReferences(
+    stored.readingReferences,
+  );
   const llmSelection = asLLMSelection(stored.llmSelection);
   const masteryPathId =
     typeof (stored.masteryPathId ?? stored.mastery_path_id) === "string"
@@ -1171,6 +1175,9 @@ function hydrateRequestSnapshot(
     snapshot.questionNotebookReferences = questionNotebookReferences;
   }
   if (bookReferences.length) snapshot.bookReferences = bookReferences;
+  if (readingReferences.length) {
+    snapshot.readingReferences = readingReferences;
+  }
   if (persona) snapshot.persona = persona;
   if (memoryReferences.length) snapshot.memoryReferences = memoryReferences;
   if (llmSelection) snapshot.llmSelection = llmSelection;
@@ -1307,8 +1314,7 @@ export function UnifiedChatProvider({
         // so applying it here only catches the open client up to what a
         // reload would already show.
         const meta = event.metadata as
-          | { title?: string; mastery_path_id?: string }
-          | undefined;
+          { title?: string; mastery_path_id?: string } | undefined;
         // The tutor can move a conversation between mastery paths mid-turn;
         // without this the composer would keep naming the path it started on.
         if (typeof meta?.mastery_path_id === "string") {
@@ -1788,6 +1794,8 @@ export function UnifiedChatProvider({
         replaySnapshot?.memoryReferences ?? memoryReferences;
       const effectiveBookReferences =
         replaySnapshot?.bookReferences ?? options?.bookReferences;
+      const effectiveReadingReferences =
+        replaySnapshot?.readingReferences ?? options?.readingReferences;
       const effectiveAttachments =
         replaySnapshot?.attachments?.map((a) => ({
           type: a.type,
@@ -1839,6 +1847,9 @@ export function UnifiedChatProvider({
           : {}),
         ...(effectiveBookReferences?.length
           ? { bookReferences: effectiveBookReferences }
+          : {}),
+        ...(effectiveReadingReferences?.length
+          ? { readingReferences: effectiveReadingReferences }
           : {}),
         ...(effectiveMasteryPathId
           ? { masteryPathId: effectiveMasteryPathId }
@@ -1921,6 +1932,9 @@ export function UnifiedChatProvider({
           : {}),
         ...(effectiveBookReferences?.length
           ? { book_references: effectiveBookReferences }
+          : {}),
+        ...(effectiveReadingReferences?.length
+          ? { reading_references: effectiveReadingReferences }
           : {}),
         ...(effectiveMasteryPathId
           ? { mastery_path_id: effectiveMasteryPathId }

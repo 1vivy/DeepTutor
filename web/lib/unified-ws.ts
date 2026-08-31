@@ -81,6 +81,13 @@ export interface StartTurnMessage {
     book_id: string;
     page_ids: string[];
   }[];
+  /** Explicit units from imported Reading materials. The server resolves the
+   *  exact stored revision; clients never send trusted content. */
+  reading_references?: {
+    material_id: string;
+    revision: number;
+    locators: number[];
+  }[];
   /** Persistent mastery state to use independently of this chat session. */
   mastery_path_id?: string;
   /** Private Immersive Reading workspace that owns this turn/session. */

@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  BookMarked,
   BookOpen,
   Bot,
   Brain,
@@ -1079,45 +1080,43 @@ const UserMessage = memo(function UserMessage({
           label: name,
         };
       }),
-    ...(snap?.bookReferences ?? []).map(
-      (ref): ContextTreeItem => ({
-        key: `book-${ref.book_id}`,
-        icon: BookOpen,
-        kind: t("Book"),
-        label: `${ref.page_ids.length} ${t("chapters")}`,
-      }),
-    ),
-    ...(snap?.notebookReferences ?? []).map(
-      (ref): ContextTreeItem => ({
-        key: `nb-${ref.notebook_id}`,
-        icon: BookOpen,
-        kind: t("Notebook"),
-        label: `${ref.record_ids.length} ${t("records")}`,
-      }),
-    ),
+    ...(snap?.bookReferences ?? []).map((ref): ContextTreeItem => ({
+      key: `book-${ref.book_id}`,
+      icon: BookOpen,
+      kind: t("Book"),
+      label: `${ref.page_ids.length} ${t("chapters")}`,
+    })),
+    ...(snap?.readingReferences ?? []).map((ref): ContextTreeItem => ({
+      key: `reading-${ref.material_id}-r${ref.revision}`,
+      icon: BookMarked,
+      kind: t("Reading"),
+      label: `${ref.locators.length} ${t("reading sections")}`,
+    })),
+    ...(snap?.notebookReferences ?? []).map((ref): ContextTreeItem => ({
+      key: `nb-${ref.notebook_id}`,
+      icon: BookOpen,
+      kind: t("Notebook"),
+      label: `${ref.record_ids.length} ${t("records")}`,
+    })),
     // Imported agent conversations are folded into the same history_references
     // payload but carry the `imported_` id prefix — split them back out so they
     // read as "My Agents" rather than "Chat History" (mirrors the composer).
     ...(snap?.historyReferences ?? [])
       .filter((sid) => !sid.startsWith("imported_"))
-      .map(
-        (sid): ContextTreeItem => ({
-          key: `hist-${sid}`,
-          icon: MessageSquare,
-          kind: t("Chat History"),
-          label: "",
-        }),
-      ),
+      .map((sid): ContextTreeItem => ({
+        key: `hist-${sid}`,
+        icon: MessageSquare,
+        kind: t("Chat History"),
+        label: "",
+      })),
     ...(snap?.historyReferences ?? [])
       .filter((sid) => sid.startsWith("imported_"))
-      .map(
-        (sid): ContextTreeItem => ({
-          key: `agent-${sid}`,
-          icon: Bot,
-          kind: t("My Agents"),
-          label: "",
-        }),
-      ),
+      .map((sid): ContextTreeItem => ({
+        key: `agent-${sid}`,
+        icon: Bot,
+        kind: t("My Agents"),
+        label: "",
+      })),
     ...(snap?.questionNotebookReferences?.length
       ? [
           {
@@ -1138,14 +1137,12 @@ const UserMessage = memo(function UserMessage({
           } satisfies ContextTreeItem,
         ]
       : []),
-    ...(snap?.memoryReferences ?? []).map(
-      (file): ContextTreeItem => ({
-        key: `mem-${file}`,
-        icon: Brain,
-        kind: t("Memory"),
-        label: file === "summary" ? t("Summary") : t("Profile"),
-      }),
-    ),
+    ...(snap?.memoryReferences ?? []).map((file): ContextTreeItem => ({
+      key: `mem-${file}`,
+      icon: Brain,
+      kind: t("Memory"),
+      label: file === "summary" ? t("Summary") : t("Profile"),
+    })),
   ];
 
   return (
@@ -1533,8 +1530,7 @@ export const ChatMessageList = memo(function ChatMessageList({
           const resultEv = msg.events?.find((e) => e.type === "result");
           if (!resultEv) return null;
           const meta = resultEv.metadata?.metadata as
-            | Record<string, unknown>
-            | undefined;
+            Record<string, unknown> | undefined;
           const cs = meta?.cost_summary as
             | {
                 total_cost_usd?: number;
