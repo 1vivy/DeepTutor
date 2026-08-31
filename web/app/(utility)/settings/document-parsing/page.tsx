@@ -43,6 +43,30 @@ const PIP_HINT: Record<string, string> = {
   liteparse: "pip install deeptutor[parse-liteparse]",
 };
 
+// Engine names and descriptions are returned by the backend so unknown or
+// future engines can still render. Known descriptions use locale keys to keep
+// the settings page translated without changing the API metadata contract.
+const ENGINE_NAME_KEYS: Record<string, string> = {
+  text_only: "Text-only",
+};
+
+const ENGINE_DESCRIPTION_KEYS: Record<string, string> = {
+  text_only:
+    "Built-in plain text extraction for PDF/Office/text files. No optional parser package, no model download, no layout structure.",
+  mineru:
+    "Highest-fidelity multimodal parsing (layout, tables, formulas). Local CLI downloads models, or use the hosted cloud API. Supports PDF, common images, DOCX, PPTX, and XLSX.",
+  docling:
+    "Structured document conversion (layout/tables). Runs the in-process docling package (downloads models on first run) or points at a remote Docling Serve server. PDF/Office/HTML/images.",
+  markitdown:
+    "Lightweight, no model downloads — broad format support, Markdown output. Works out of the box.",
+  pymupdf4llm:
+    "Lightweight, no model downloads or CUDA — runs on low-end / GPU-less machines. PDF/e-book → Markdown and can extract images. PDF and e-book formats only.",
+  liteparse:
+    "Fast, lightweight PDF parser with spatial text extraction. Markdown output, optional image extraction. No model downloads. Developed by LlamaIndex.",
+  tika:
+    "Remote Apache Tika server. Broad format support, no local install or model downloads. Point at an existing tika-server container.",
+};
+
 export default function DocumentParsingSettingsPage() {
   const { t } = useTranslation();
   const [data, setData] = useState<DocumentParsingPayload | null>(null);
@@ -151,6 +175,8 @@ export default function DocumentParsingSettingsPage() {
             <div className="flex flex-col gap-2">
               {data.available_engines.map((engine) => {
                 const active = engine.id === data.engine;
+                const nameKey = ENGINE_NAME_KEYS[engine.id];
+                const descriptionKey = ENGINE_DESCRIPTION_KEYS[engine.id];
                 return (
                   <button
                     key={engine.id}
@@ -168,7 +194,7 @@ export default function DocumentParsingSettingsPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-[13px] font-medium text-[var(--foreground)]">
-                          {engine.name}
+                          {nameKey ? t(nameKey) : engine.name}
                         </span>
                         {active && (
                           <span className="rounded-full bg-[var(--foreground)] px-2 py-0.5 text-[10px] font-medium text-[var(--background)]">
@@ -182,7 +208,7 @@ export default function DocumentParsingSettingsPage() {
                         )}
                       </div>
                       <p className="mt-1 text-[12px] text-[var(--muted-foreground)]">
-                        {engine.description}
+                        {descriptionKey ? t(descriptionKey) : engine.description}
                       </p>
                     </div>
                   </button>
@@ -310,7 +336,7 @@ function ReadinessBadge({ readiness }: { readiness?: Readiness }) {
       ) : (
         <XCircle className="h-3.5 w-3.5 shrink-0" />
       )}
-      {readiness.ready ? t("Ready to parse.") : readiness.message}
+      {readiness.ready ? t("Ready to parse.") : t(readiness.message)}
     </span>
   );
 }
@@ -334,7 +360,7 @@ function ReadinessNotice({ readiness }: { readiness?: Readiness }) {
     <div className="py-3.5">
       <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[12px] leading-relaxed text-amber-700 dark:text-amber-300">
         <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <span className="min-w-0">{readiness.message}</span>
+        <span className="min-w-0">{t(readiness.message)}</span>
       </div>
     </div>
   );
