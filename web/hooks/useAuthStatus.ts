@@ -10,6 +10,10 @@ export interface AuthStatusState {
   authenticated: boolean;
   /** Whether the authenticated user is an admin. */
   isAdmin: boolean;
+  /** Stable account id for account-scoped browser state. */
+  userId: string | null;
+  /** False when the runtime status endpoint could not be reached. */
+  statusAvailable: boolean;
   /** True until the first status fetch resolves. */
   loading: boolean;
 }
@@ -18,6 +22,8 @@ const INITIAL: AuthStatusState = {
   enabled: false,
   authenticated: false,
   isAdmin: false,
+  userId: null,
+  statusAvailable: false,
   loading: true,
 };
 
@@ -44,6 +50,11 @@ function loadAuthStatus(): Promise<AuthStatusState> {
         enabled: Boolean(status?.enabled),
         authenticated: Boolean(status?.authenticated),
         isAdmin: status?.role === "admin",
+        userId:
+          typeof status?.user_id === "string" && status.user_id.trim()
+            ? status.user_id
+            : null,
+        statusAvailable: status !== null,
         loading: false,
       }))
       .finally(() => {

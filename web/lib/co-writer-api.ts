@@ -39,7 +39,7 @@ export async function listCoWriterDocuments(): Promise<
 }
 
 export async function createCoWriterDocument(payload?: {
-  title?: string;
+  title?: string | null;
   content?: string;
 }): Promise<CoWriterDocument> {
   const res = await apiFetch(apiUrl(`${BASE}/documents`), {

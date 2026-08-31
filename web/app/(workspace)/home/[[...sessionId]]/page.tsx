@@ -11,7 +11,12 @@ import {
 } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import { GraduationCap, PenLine, type LucideIcon } from "lucide-react";
+import {
+  GraduationCap,
+  NotebookPen,
+  PenLine,
+  type LucideIcon,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { SelectedRecord } from "@/lib/notebook-selection-types";
 import type { SelectedHistorySession } from "@/components/chat/HistorySessionPicker";
@@ -2286,6 +2291,14 @@ export default function ChatPage() {
                   icon={Download}
                   label={t("Download Markdown")}
                   title={t("Download chat history as Markdown")}
+                />
+                <HeaderActionButton
+                  onClick={() =>
+                    viewerPanelRef.current?.openMarkdownNoteTab()
+                  }
+                  icon={NotebookPen}
+                  label={t("Markdown note")}
+                  title={t("Write Markdown in chat")}
                 />
                 <HeaderActionButton
                   onClick={toggleViewerPanel}
