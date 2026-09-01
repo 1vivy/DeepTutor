@@ -42,16 +42,19 @@ export default function Button({
     <button
       className={`
         inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-all
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]
+        focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]
         disabled:opacity-50 disabled:cursor-not-allowed
         ${variantStyles[variant]}
         ${sizeStyles[size]}
         ${className}
       `}
       disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
     >
       {loading ? (
-        <Loader2 className="w-4 h-4 animate-spin" />
+        <Loader2 aria-hidden="true" className="w-4 h-4 animate-spin" />
       ) : icon ? (
         icon
       ) : null}

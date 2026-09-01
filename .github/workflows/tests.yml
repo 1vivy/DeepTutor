@@ -80,6 +80,10 @@ jobs:
         working-directory: web
         run: npm run test:node
 
+      - name: Run frontend component tests
+        working-directory: web
+        run: npm run test:unit
+
       # eslint was not a gate, so #921 landed two real React violations: a
       # predicate named like a hook (tripping rules-of-hooks) and a synchronous
       # setState inside an effect. Errors only — the repo still carries i18n
