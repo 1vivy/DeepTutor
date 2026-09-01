@@ -6,6 +6,8 @@ import {
 } from "@/contracts/parse/turn-command";
 
 import type { ChatMessage, ChatSession } from "../model/types";
+import type { StartTurnInput } from "../model/start-turn";
+import { buildStartTurnInput } from "../controllers/buildStartTurnInput";
 import type { TurnRuntimeClient } from "../transport/TurnRuntimeClient";
 import type { ChatStore } from "./createChatStore";
 import { sessionClient, type SessionClient, type SessionWireDetail } from "../api/session-client";
@@ -95,6 +97,20 @@ export class ChatActions {
     const runtime = this.runtime(input.sessionKey);
     runtime.connect();
     runtime.send(input.command);
+  }
+
+  startTurnInput(input: {
+    sessionKey: string;
+    turn: StartTurnInput;
+    user: ChatMessage;
+    assistant: ChatMessage;
+  }): void {
+    this.startTurn({
+      sessionKey: input.sessionKey,
+      command: buildStartTurnInput(input.turn),
+      user: input.user,
+      assistant: input.assistant,
+    });
   }
 
   cancelTurn(sessionKey: string): void {
