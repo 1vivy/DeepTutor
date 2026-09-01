@@ -10,6 +10,8 @@ import {
   useState,
 } from "react";
 import { useChatRouteSession } from "@/features/chat/controllers/useChatRouteSession";
+import { turnViewState } from "@/features/chat/model/turn-state";
+import { TurnStatusBar } from "@/features/chat/components/turn";
 
 import {
   GraduationCap,
@@ -1012,6 +1014,13 @@ export default function ChatWorkspace() {
      quiz card would appear below the fold, under the composer, and the
      conversation looked stalled. Re-arm the pin and land on the card. */
   const awaitingUserReply = hasPendingAskUser(lastMessage?.events);
+  const activeTurnViewState = turnViewState({
+    status: awaitingUserReply
+      ? "waiting_input"
+      : state.isStreaming
+        ? "running"
+        : undefined,
+  });
   // Read inside ``handleSend`` without adding a dependency that would rebuild
   // the callback (and so the composer) on every streamed event.
   const awaitingUserReplyRef = useRef(awaitingUserReply);
@@ -2500,6 +2509,15 @@ export default function ChatWorkspace() {
                 </div>
               )}
 
+              <div className="mx-auto w-full max-w-[960px] px-6">
+                <TurnStatusBar
+                  state={activeTurnViewState}
+                  stage={state.currentStage || undefined}
+                  onCancel={cancelStreamingTurn}
+                  onAnswer={() => prefillInputRef.current?.("")}
+                  className="mb-2"
+                />
+              </div>
               <ChatComposer
                 composerRef={composerRef}
                 capMenuRef={capMenuRef}

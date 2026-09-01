@@ -21,12 +21,15 @@ import SessionViewerPanel, {
   type SessionViewerPanelHandle,
 } from "@/components/chat/home/SessionViewerPanel";
 import { useUnifiedChat } from "@/features/chat/compat/UnifiedChatFacade";
+import { TurnStatusBar } from "@/features/chat/components/turn";
+import { turnViewState } from "@/features/chat/model/turn-state";
 import { useChatAutoScroll } from "@/hooks/useChatAutoScroll";
 import { useMasteryStudySession } from "@/hooks/useMasteryStudySession";
 import { useMeasuredHeight } from "@/hooks/useMeasuredHeight";
 import { useResearchOutlineContinuation } from "@/hooks/useResearchOutlineContinuation";
 import { fetchMasteryAskHint, type MasteryTopic } from "@/lib/learning-api";
 import { consumePendingPrompt } from "@/lib/pending-prompt";
+import { hasPendingAskUser } from "@/lib/ask-user-state";
 import { workspaceActionNeedsConfiguration } from "@/lib/workspace-mode";
 
 import { topicDisplayName, type Translate } from "./format";
@@ -81,6 +84,7 @@ export function MasteryStudy({
     state,
     sendMessage,
     submitUserReply,
+    cancelStreamingTurn,
     regenerateLastMessage,
     deleteTurn,
     editMessage,
@@ -101,6 +105,14 @@ export function MasteryStudy({
   const { ref: composerBoxRef, height: composerHeight } =
     useMeasuredHeight<HTMLDivElement>();
   const lastMessage = state.messages[state.messages.length - 1];
+  const awaitingUserReply = hasPendingAskUser(lastMessage?.events);
+  const activeTurnViewState = turnViewState({
+    status: awaitingUserReply
+      ? "waiting_input"
+      : state.isStreaming
+        ? "running"
+        : undefined,
+  });
   const {
     containerRef: messagesContainerRef,
     endRef: messagesEndRef,
@@ -467,6 +479,13 @@ export function MasteryStudy({
               ref={composerBoxRef}
               className="shrink-0 bg-[var(--background)]"
             >
+              <TurnStatusBar
+                state={activeTurnViewState}
+                stage={state.currentStage || undefined}
+                onCancel={cancelStreamingTurn}
+                onAnswer={() => prefillInputRef.current?.("")}
+                className="mx-4 mb-2"
+              />
               <MasteryComposer
                 placeholder={t("Ask your tutor about “{{waypoint}}”…", {
                   waypoint: waypoint.name,
