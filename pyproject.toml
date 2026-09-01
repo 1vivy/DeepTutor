@@ -78,7 +78,7 @@ dependencies = [
     "redis>=5.0.0,<7.0.0",
     "loguru>=0.7.3,<1.0.0",
     "json-repair>=0.57.0,<1.0.0",
-    # Process-tree memory readings for /api/v1/system/memory. Soft dependency:
+    # Process-tree memory readings for /api/system/memory. Soft dependency:
     # deeptutor.runtime.memory_probe imports it lazily and falls back to /proc,
     # so a missing wheel costs the settings strip, not the app.
     "psutil>=5.9.0,<8.0.0",
@@ -86,6 +86,7 @@ dependencies = [
 
 [project.scripts]
 deeptutor = "deeptutor_cli.main:main"
+deeptutor-export-frontend-contracts = "deeptutor.api.contracts.export:main"
 
 [project.entry-points."deeptutor.reading_extensions"]
 read_aloud = "deeptutor.reading.read_aloud:ReadAloudExtension"

@@ -109,7 +109,7 @@ export function MinerUEngineSettings() {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiFetch(apiUrl("/api/v1/settings/mineru"));
+        const response = await apiFetch(apiUrl("/api/settings/mineru"));
         const data = (await response.json().catch(() => ({}))) as
           | MinerUPayload
           | { detail?: string };
@@ -173,7 +173,7 @@ export function MinerUEngineSettings() {
         ...draft,
         api_token: tokenTouched ? tokenDraft : null,
       };
-      const response = await apiFetch(apiUrl("/api/v1/settings/mineru"), {
+      const response = await apiFetch(apiUrl("/api/settings/mineru"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -211,7 +211,7 @@ export function MinerUEngineSettings() {
         ...draft,
         api_token: tokenTouched ? tokenDraft : null,
       };
-      const response = await apiFetch(apiUrl("/api/v1/settings/mineru/test"), {
+      const response = await apiFetch(apiUrl("/api/settings/mineru/test"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -247,7 +247,7 @@ export function MinerUEngineSettings() {
       try {
         const response = await apiFetch(
           apiUrl(
-            `/api/v1/settings/mineru/models/download/status?cursor=${downloadCursor.current}`,
+            `/api/settings/mineru/models/download/status?cursor=${downloadCursor.current}`,
           ),
         );
         if (!response.ok) return;
@@ -279,7 +279,7 @@ export function MinerUEngineSettings() {
     setStartingDownload(true);
     try {
       const response = await apiFetch(
-        apiUrl("/api/v1/settings/mineru/models/download"),
+        apiUrl("/api/settings/mineru/models/download"),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -313,7 +313,7 @@ export function MinerUEngineSettings() {
 
   async function cancelDownload() {
     try {
-      await apiFetch(apiUrl("/api/v1/settings/mineru/models/download/cancel"), {
+      await apiFetch(apiUrl("/api/settings/mineru/models/download/cancel"), {
         method: "POST",
       });
     } catch {

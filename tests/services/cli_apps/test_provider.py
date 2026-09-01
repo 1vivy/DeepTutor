@@ -320,7 +320,7 @@ def test_a_file_the_app_wrote_is_surfaced_as_a_link(
                 filename="out.png",
                 path=str(workdir / "out.png"),
                 relative_path="out.png",
-                url="/api/outputs/out.png",
+                url="/files/outputs/out.png",
                 size_bytes=8,
                 mime_type="image/png",
             )

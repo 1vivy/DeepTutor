@@ -28,7 +28,7 @@ import {
   sameLLMSelection,
   type LLMOption,
 } from "@/lib/llm-options";
-import type { LLMSelection } from "@/lib/unified-ws";
+import type { LLMSelection } from "@/features/chat/model/protocol";
 import { apiFetch, apiUrl } from "@/lib/api";
 import {
   useMemoryRun,
@@ -108,7 +108,7 @@ export default function MemoryRunPanel({
       }
     })();
     void (async () => {
-      const res = await apiFetch(apiUrl("/api/v1/memory/settings"));
+      const res = await apiFetch(apiUrl("/api/memory/settings"));
       const data = (await res.json()) as MemorySettingsDTO;
       setSettings(data);
     })();
@@ -234,7 +234,7 @@ export default function MemoryRunPanel({
     try {
       const res = await apiFetch(
         apiUrl(
-          `/api/v1/memory/doc/${layer}/${encodeURIComponent(docKey)}/reset`,
+          `/api/memory/doc/${layer}/${encodeURIComponent(docKey)}/reset`,
         ),
         { method: "POST" },
       );

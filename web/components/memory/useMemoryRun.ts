@@ -1,10 +1,12 @@
 "use client";
 
+import { browserStorage } from "@/shared/storage";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import i18n from "i18next";
 
 import { apiFetch, apiUrl } from "@/lib/api";
-import type { LLMSelection } from "@/lib/unified-ws";
+import type { LLMSelection } from "@/features/chat/model/protocol";
 
 export type RunMode = "update" | "audit" | "dedup";
 export type RunStatus = "queued" | "running" | "cancelled" | "done" | "error";
@@ -60,15 +62,15 @@ function storageKey(layer: string, key: string) {
 
 function readPersistedRunId(layer: string, key: string): string | null {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(storageKey(layer, key));
+  return browserStorage.readRaw("local", storageKey(layer, key));
 }
 
 function writePersistedRunId(layer: string, key: string, runId: string | null) {
   if (typeof window === "undefined") return;
   if (runId) {
-    window.localStorage.setItem(storageKey(layer, key), runId);
+    browserStorage.writeRaw("local", storageKey(layer, key), runId);
   } else {
-    window.localStorage.removeItem(storageKey(layer, key));
+    browserStorage.removeRaw("local", storageKey(layer, key));
   }
 }
 
@@ -113,13 +115,13 @@ export function useMemoryRun(layer: "L2" | "L3", key: string) {
       // this doc has an active run.
       try {
         if (runId) {
-          const res = await apiFetch(apiUrl(`/api/v1/memory/runs/${runId}`));
+          const res = await apiFetch(apiUrl(`/api/memory/runs/${runId}`));
           if (!res.ok) runId = null;
         }
         if (!runId) {
           const res = await apiFetch(
             apiUrl(
-              `/api/v1/memory/runs?layer=${layer}&key=${encodeURIComponent(key)}`,
+              `/api/memory/runs?layer=${layer}&key=${encodeURIComponent(key)}`,
             ),
           );
           if (res.ok) {
@@ -152,7 +154,7 @@ export function useMemoryRun(layer: "L2" | "L3", key: string) {
     async (runId: string, since = 0): Promise<void> => {
       // Pull the run handle first.
       try {
-        const res = await apiFetch(apiUrl(`/api/v1/memory/runs/${runId}`));
+        const res = await apiFetch(apiUrl(`/api/memory/runs/${runId}`));
         if (!res.ok) {
           writePersistedRunId(layer, key, null);
           return;
@@ -175,7 +177,7 @@ export function useMemoryRun(layer: "L2" | "L3", key: string) {
 
       try {
         const res = await apiFetch(
-          apiUrl(`/api/v1/memory/runs/${runId}/events?since=${since}`),
+          apiUrl(`/api/memory/runs/${runId}/events?since=${since}`),
           { signal: ctl.signal, cache: "no-store" },
         );
         const reader = res.body?.getReader();
@@ -262,7 +264,7 @@ export function useMemoryRun(layer: "L2" | "L3", key: string) {
     async (args: StartArgs): Promise<void> => {
       setState((s) => ({ ...s, error: null, events: [], status: "queued" }));
       try {
-        const res = await apiFetch(apiUrl("/api/v1/memory/runs/start"), {
+        const res = await apiFetch(apiUrl("/api/memory/runs/start"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -299,7 +301,7 @@ export function useMemoryRun(layer: "L2" | "L3", key: string) {
   const cancel = useCallback(async (): Promise<void> => {
     if (!state.run) return;
     try {
-      await apiFetch(apiUrl(`/api/v1/memory/runs/${state.run.id}/cancel`), {
+      await apiFetch(apiUrl(`/api/memory/runs/${state.run.id}/cancel`), {
         method: "POST",
       });
     } catch {
@@ -311,7 +313,7 @@ export function useMemoryRun(layer: "L2" | "L3", key: string) {
     if (!state.run) return false;
     try {
       const res = await apiFetch(
-        apiUrl(`/api/v1/memory/runs/${state.run.id}/undo`),
+        apiUrl(`/api/memory/runs/${state.run.id}/undo`),
         {
           method: "POST",
         },

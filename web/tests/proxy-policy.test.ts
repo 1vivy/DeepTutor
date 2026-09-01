@@ -26,9 +26,9 @@ function makeToken(payload: Record<string, unknown>): string {
 }
 
 test("isBackendPath matches /api and /ws paths only", () => {
-  assert.equal(isBackendPath("/api/v1/knowledge/list"), true);
+  assert.equal(isBackendPath("/api/knowledge-bases"), true);
   assert.equal(isBackendPath("/ws/chat"), true);
-  assert.equal(isBackendPath("/home"), false);
+  assert.equal(isBackendPath("/chat"), false);
   assert.equal(isBackendPath("/apidocs"), false); // no trailing slash → not backend
   assert.equal(isBackendPath("/logo.png"), false);
 });
@@ -37,13 +37,16 @@ test("large knowledge uploads bypass the buffering proxy", () => {
   const matches = (url: string) =>
     unstable_doesMiddlewareMatch({ config: proxyConfig, url });
 
-  assert.equal(matches("http://localhost/api/v1/knowledge/create"), false);
+  assert.equal(matches("http://localhost/api/knowledge-bases"), false);
   assert.equal(
-    matches("http://localhost/api/v1/knowledge/my%20kb/upload"),
+    matches("http://localhost/api/knowledge-bases/my%20kb/upload"),
     false,
   );
-  assert.equal(matches("http://localhost/api/v1/knowledge/list"), true);
-  assert.equal(matches("http://localhost/home"), true);
+  assert.equal(
+    matches("http://localhost/api/knowledge-bases/my%20kb/files"),
+    true,
+  );
+  assert.equal(matches("http://localhost/chat"), true);
 });
 
 test("backend proxy allows long-running agent requests", () => {
@@ -58,7 +61,7 @@ test("backend proxy allows long-running agent requests", () => {
 
 test("isCodexCallbackPath matches only the exact public callback path", () => {
   assert.equal(CODEX_CALLBACK_PATH, "/auth/callback");
-  assert.equal(CODEX_CALLBACK_API_PATH, "/api/v1/auth/openai-codex/callback");
+  assert.equal(CODEX_CALLBACK_API_PATH, "/api/auth/openai-codex/callback");
   assert.equal(isCodexCallbackPath("/auth/callback"), true);
   assert.equal(isCodexCallbackPath("/auth/callback/"), false);
   assert.equal(isCodexCallbackPath("/auth/callback/extra"), false);
@@ -96,15 +99,15 @@ test("isAuthExempt allows public static assets through the auth gate (issue #599
 test("isAuthExempt allows auth pages and Next internals", () => {
   assert.equal(isAuthExempt("/login"), true);
   assert.equal(isAuthExempt("/register"), true);
-  assert.equal(isAuthExempt("/_next/data/build/home.json"), true);
+  assert.equal(isAuthExempt("/_next/data/build/chat.json"), true);
   assert.equal(isAuthExempt("/favicon-32x32.png"), true);
 });
 
 test("isAuthExempt does NOT exempt protected app routes", () => {
-  assert.equal(isAuthExempt("/home"), false);
+  assert.equal(isAuthExempt("/chat"), false);
   assert.equal(isAuthExempt("/dashboard"), false);
   assert.equal(isAuthExempt("/space/agents"), false);
-  assert.equal(isAuthExempt("/knowledge"), false);
+  assert.equal(isAuthExempt("/knowledge-bases"), false);
 });
 
 test("classifyToken reports missing for absent or empty cookie", () => {

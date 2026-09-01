@@ -100,7 +100,7 @@ test("mastery hand-offs land on the study route, which has a composer", () => {
       label: "",
       course_id: "c1",
     }),
-    "/mastery/path%201%2Fa/study?course=c1",
+    "/mastery/path%201%2Fa/sessions?course=c1",
   );
 });
 
@@ -163,14 +163,13 @@ test("global surfaces are handed the course so they can scope themselves", () =>
     }),
     "/space/questions?course=course%20a%2Fb",
   );
-  // The console's own route, not the `/space/notebooks` redirect in front of it.
   assert.equal(
     courseHandoffHref({ ...base, target: "notebook", course_id: "c1" }),
-    "/notebook?course=c1",
+    "/notebooks?course=c1",
   );
   assert.equal(
     courseHandoffHref({ ...base, target: "chat", course_id: "c1" }),
-    "/home?course=c1",
+    "/chat?course=c1",
   );
 });
 

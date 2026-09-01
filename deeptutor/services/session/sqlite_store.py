@@ -1759,7 +1759,8 @@ class SQLiteSessionStore:
     #
     # Reading conversations used to be filtered out here. They were hidden
     # because a flat "Recents" list mixed them in with ordinary chats and
-    # clicking one dropped the reader into /home without their material — but
+    # clicking one dropped the reader into the generic chat surface without
+    # their material — but
     # hiding them meant a learner had no way back to a reading conversation
     # except by reopening its collection. The sidebar now files them under
     # their collection and ``sessionRoute`` sends a click back to the reader,

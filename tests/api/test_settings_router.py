@@ -1411,7 +1411,7 @@ async def test_update_ui_settings_persists_explicit_theme_and_language_defaults(
 def test_get_ui_settings_is_public_without_auth(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     """Auth pages bootstrap the interface language *before* a session exists.
 
-    Regression for #760: the app shell fetches GET /api/v1/settings/ui on the
+    Regression for #760: the app shell fetches GET /api/settings/ui on the
     /register and /login pages, which have no session. When the endpoint sat
     behind the ``_auth`` dependency it returned 401, the bootstrap silently
     bailed out, and the auth pages stayed English even with the persisted
@@ -1432,10 +1432,10 @@ def test_get_ui_settings_is_public_without_auth(monkeypatch: pytest.MonkeyPatch,
     )
 
     app = FastAPI()
-    app.include_router(settings_router.public_router, prefix="/api/v1/settings")
+    app.include_router(settings_router.public_router, prefix="/api/settings")
 
     client = TestClient(app)
-    response = client.get("/api/v1/settings/ui")
+    response = client.get("/api/settings/ui")
 
     assert response.status_code == 200
     payload = response.json()
@@ -1470,11 +1470,11 @@ def test_auth_disabled_settings_endpoint_does_not_expose_provider_secrets(
     app = FastAPI()
     app.include_router(
         settings_router.router,
-        prefix="/api/v1/settings",
+        prefix="/api/settings",
         dependencies=[Depends(auth_router.require_auth)],
     )
 
-    response = TestClient(app).get("/api/v1/settings")
+    response = TestClient(app).get("/api/settings")
 
     assert response.status_code == 200
     serialized = response.text
@@ -1508,9 +1508,9 @@ def test_public_ui_read_omits_deployment_configuration(
     )
 
     app = FastAPI()
-    app.include_router(settings_router.public_router, prefix="/api/v1/settings")
+    app.include_router(settings_router.public_router, prefix="/api/settings")
 
-    payload = TestClient(app).get("/api/v1/settings/ui").json()
+    payload = TestClient(app).get("/api/settings/ui").json()
 
     assert set(payload) == set(settings_router.PRESESSION_UI_FIELDS)
     assert "enabled_optional_tools" not in payload

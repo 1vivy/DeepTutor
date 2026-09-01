@@ -2,27 +2,13 @@
 
 import dynamic from "next/dynamic";
 import SimpleMarkdownRenderer from "./SimpleMarkdownRenderer";
+import type { MarkdownRendererProps } from "./markdown-renderer-types";
+
+export type { MarkdownRendererProps } from "./markdown-renderer-types";
 
 const RichMarkdownRenderer = dynamic(() => import("./RichMarkdownRenderer"), {
   ssr: false,
 });
-
-export interface MarkdownRendererProps {
-  content: string;
-  className?: string;
-  variant?: "default" | "compact" | "prose" | "trace";
-  enableMath?: boolean;
-  enableCode?: boolean;
-  enableMermaid?: boolean;
-  enableImages?: boolean;
-  allowHtml?: boolean;
-  /**
-   * When true, top-level block elements receive a `data-source-line` attribute
-   * pointing at their starting line in the original markdown source. Useful for
-   * editor/preview scroll synchronization.
-   */
-  trackSourceLines?: boolean;
-}
 
 // Detection during streaming has a subtle correctness requirement: it must
 // be monotonic. Once `true`, it should stay `true` as more tokens arrive so

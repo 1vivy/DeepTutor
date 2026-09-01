@@ -212,7 +212,7 @@ export default function NotebookConsole({
 
   const openSession = useCallback(
     (sessionId: string) => {
-      router.push(`/?session=${encodeURIComponent(sessionId)}`);
+      router.push(`/chat/${encodeURIComponent(sessionId)}`);
     },
     [router],
   );
@@ -314,7 +314,7 @@ export default function NotebookConsole({
                 {courseScope.name || t("This course")}
               </Link>
               <Link
-                href="/notebook"
+                href="/notebooks"
                 aria-label={t("Show every notebook")}
                 className="shrink-0 rounded p-0.5 transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
               >

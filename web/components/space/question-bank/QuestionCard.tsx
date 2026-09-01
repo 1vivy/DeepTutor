@@ -367,7 +367,7 @@ export default function QuestionCard({
               </span>
             ))}
             <Link
-              href={`/?session=${encodeURIComponent(entry.session_id)}`}
+              href={`/chat/${encodeURIComponent(entry.session_id)}`}
               className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--muted)]/40 px-2 py-0.5 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
             >
               <ExternalLink size={10} />
@@ -375,7 +375,7 @@ export default function QuestionCard({
             </Link>
             {entry.source === "book" && entry.material_id && (
               <Link
-                href={`/book?book=${encodeURIComponent(entry.material_id)}${
+                href={`/books?book=${encodeURIComponent(entry.material_id)}${
                   entry.section_id
                     ? `&page=${encodeURIComponent(entry.section_id)}`
                     : ""
@@ -394,7 +394,7 @@ export default function QuestionCard({
             )}
             {entry.followup_session_id && (
               <Link
-                href={`/?session=${encodeURIComponent(entry.followup_session_id)}`}
+                href={`/chat/${encodeURIComponent(entry.followup_session_id)}`}
                 className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--muted)]/40 px-2 py-0.5 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
               >
                 <MessageSquare size={10} />

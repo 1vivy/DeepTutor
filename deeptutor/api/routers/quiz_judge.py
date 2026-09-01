@@ -138,7 +138,7 @@ async def _build_multimodal_user_content(
 
     For ``url``-only records we resolve local AttachmentStore paths to
     base64 here (most providers can fetch external URLs themselves, but
-    locally-hosted ``/api/attachments/...`` is only reachable from the
+    locally-hosted ``/files/attachments/...`` is only reachable from the
     browser). Falls back to passing the URL through when resolution is
     not possible.
     """

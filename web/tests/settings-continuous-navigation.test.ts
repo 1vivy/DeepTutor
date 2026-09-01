@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { settingsAnchorHref, storagePathFor } from "../lib/settings-nav";
+import {
+  settingsAnchorHref,
+  storagePathFor,
+} from "../features/settings/navigation/settings-nav";
 
 const readWebFile = (...parts: string[]) =>
   readFileSync(path.join(process.cwd(), ...parts), "utf8");

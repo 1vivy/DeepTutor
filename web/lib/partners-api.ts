@@ -1,7 +1,7 @@
-/** Typed client for the /api/v1/partners backend. */
+/** Typed client for the /api/partners backend. */
 
 import { apiFetch, apiUrl } from "@/lib/api";
-import type { LLMSelection } from "@/lib/unified-ws";
+import type { LLMSelection } from "@/features/chat/model/protocol";
 
 export interface PartnerInfo {
   partner_id: string;
@@ -149,7 +149,7 @@ async function json<T>(res: Response): Promise<T> {
 
 export async function listPartners(): Promise<PartnerInfo[]> {
   return json(
-    await apiFetch(apiUrl("/api/v1/partners"), { cache: "no-store" }),
+    await apiFetch(apiUrl("/api/partners"), { cache: "no-store" }),
   );
 }
 
@@ -160,7 +160,7 @@ export async function getPartner(
   const query = options?.includeSecrets ? "?include_secrets=true" : "";
   return json(
     await apiFetch(
-      apiUrl(`/api/v1/partners/${encodeURIComponent(partnerId)}${query}`),
+      apiUrl(`/api/partners/${encodeURIComponent(partnerId)}${query}`),
     ),
   );
 }
@@ -169,7 +169,7 @@ export async function createPartner(
   payload: CreatePartnerPayload,
 ): Promise<PartnerInfo> {
   return json(
-    await apiFetch(apiUrl("/api/v1/partners"), {
+    await apiFetch(apiUrl("/api/partners"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -183,7 +183,7 @@ export async function confirmPartnerDraft(
 ): Promise<PartnerInfo> {
   return json(
     await apiFetch(
-      apiUrl(`/api/v1/partners/drafts/${encodeURIComponent(draftId)}/confirm`),
+      apiUrl(`/api/partners/drafts/${encodeURIComponent(draftId)}/confirm`),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -201,7 +201,7 @@ export async function updatePartner(
 ): Promise<PartnerInfo> {
   return json(
     await apiFetch(
-      apiUrl(`/api/v1/partners/${encodeURIComponent(partnerId)}`),
+      apiUrl(`/api/partners/${encodeURIComponent(partnerId)}`),
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -214,7 +214,7 @@ export async function updatePartner(
 export async function startPartner(partnerId: string): Promise<PartnerInfo> {
   return json(
     await apiFetch(
-      apiUrl(`/api/v1/partners/${encodeURIComponent(partnerId)}/start`),
+      apiUrl(`/api/partners/${encodeURIComponent(partnerId)}/start`),
       { method: "POST" },
     ),
   );
@@ -223,7 +223,7 @@ export async function startPartner(partnerId: string): Promise<PartnerInfo> {
 export async function stopPartner(partnerId: string): Promise<void> {
   await json(
     await apiFetch(
-      apiUrl(`/api/v1/partners/${encodeURIComponent(partnerId)}/stop`),
+      apiUrl(`/api/partners/${encodeURIComponent(partnerId)}/stop`),
       { method: "POST" },
     ),
   );
@@ -232,7 +232,7 @@ export async function stopPartner(partnerId: string): Promise<void> {
 export async function destroyPartner(partnerId: string): Promise<void> {
   await json(
     await apiFetch(
-      apiUrl(`/api/v1/partners/${encodeURIComponent(partnerId)}`),
+      apiUrl(`/api/partners/${encodeURIComponent(partnerId)}`),
       {
         method: "DELETE",
       },
@@ -243,7 +243,7 @@ export async function destroyPartner(partnerId: string): Promise<void> {
 export async function getPartnerSoul(partnerId: string): Promise<string> {
   const data = await json<{ content: string }>(
     await apiFetch(
-      apiUrl(`/api/v1/partners/${encodeURIComponent(partnerId)}/soul`),
+      apiUrl(`/api/partners/${encodeURIComponent(partnerId)}/soul`),
     ),
   );
   return data.content ?? "";
@@ -255,7 +255,7 @@ export async function savePartnerSoul(
 ): Promise<void> {
   await json(
     await apiFetch(
-      apiUrl(`/api/v1/partners/${encodeURIComponent(partnerId)}/soul`),
+      apiUrl(`/api/partners/${encodeURIComponent(partnerId)}/soul`),
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -266,7 +266,7 @@ export async function savePartnerSoul(
 }
 
 export async function getSoulSources(): Promise<SoulSources> {
-  return json(await apiFetch(apiUrl("/api/v1/partners/soul-sources")));
+  return json(await apiFetch(apiUrl("/api/partners/soul-sources")));
 }
 
 export async function createSoulTemplate(
@@ -275,7 +275,7 @@ export async function createSoulTemplate(
   content: string,
 ): Promise<SoulTemplate> {
   return json(
-    await apiFetch(apiUrl("/api/v1/partners/souls"), {
+    await apiFetch(apiUrl("/api/partners/souls"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, name, content }),
@@ -284,12 +284,12 @@ export async function createSoulTemplate(
 }
 
 export async function getToolOptions(): Promise<ToolOptions> {
-  return json(await apiFetch(apiUrl("/api/v1/partners/tool-options")));
+  return json(await apiFetch(apiUrl("/api/partners/tool-options")));
 }
 
 export async function getPartnerCommands(): Promise<PartnerCommandInfo[]> {
   const data = await json<{ commands: PartnerCommandInfo[] }>(
-    await apiFetch(apiUrl("/api/v1/partners/commands/palette")),
+    await apiFetch(apiUrl("/api/partners/commands/palette")),
   );
   return data.commands;
 }
@@ -299,7 +299,7 @@ export async function getPartnerAssets(
 ): Promise<PartnerAssets> {
   return json(
     await apiFetch(
-      apiUrl(`/api/v1/partners/${encodeURIComponent(partnerId)}/assets`),
+      apiUrl(`/api/partners/${encodeURIComponent(partnerId)}/assets`),
     ),
   );
 }
@@ -314,7 +314,7 @@ export async function addPartnerAssets(
 ): Promise<{ assets: PartnerAssets } & ProvisioningReport> {
   return json(
     await apiFetch(
-      apiUrl(`/api/v1/partners/${encodeURIComponent(partnerId)}/assets`),
+      apiUrl(`/api/partners/${encodeURIComponent(partnerId)}/assets`),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -332,7 +332,7 @@ export async function removePartnerAsset(
   return json(
     await apiFetch(
       apiUrl(
-        `/api/v1/partners/${encodeURIComponent(partnerId)}/assets/${assetType}/${encodeURIComponent(name)}`,
+        `/api/partners/${encodeURIComponent(partnerId)}/assets/${assetType}/${encodeURIComponent(name)}`,
       ),
       { method: "DELETE" },
     ),
@@ -380,7 +380,7 @@ export async function getPartnerChannelRuntime(
   return json(
     await apiFetch(
       apiUrl(
-        `/api/v1/partners/${encodeURIComponent(partnerId)}/channels/status`,
+        `/api/partners/${encodeURIComponent(partnerId)}/channels/status`,
       ),
       { cache: "no-store" },
     ),
@@ -425,7 +425,7 @@ export async function startChannelOnboarding(
   return json(
     await apiFetch(
       apiUrl(
-        `/api/v1/partners/${encodeURIComponent(partnerId)}/channel-onboarding/start`,
+        `/api/partners/${encodeURIComponent(partnerId)}/channel-onboarding/start`,
       ),
       {
         method: "POST",
@@ -443,7 +443,7 @@ export async function getChannelOnboarding(
   return json(
     await apiFetch(
       apiUrl(
-        `/api/v1/partners/${encodeURIComponent(partnerId)}/channel-onboarding/${encodeURIComponent(sessionId)}`,
+        `/api/partners/${encodeURIComponent(partnerId)}/channel-onboarding/${encodeURIComponent(sessionId)}`,
       ),
       { cache: "no-store" },
     ),
@@ -457,7 +457,7 @@ export async function cancelChannelOnboarding(
   return json(
     await apiFetch(
       apiUrl(
-        `/api/v1/partners/${encodeURIComponent(partnerId)}/channel-onboarding/${encodeURIComponent(sessionId)}`,
+        `/api/partners/${encodeURIComponent(partnerId)}/channel-onboarding/${encodeURIComponent(sessionId)}`,
       ),
       { method: "DELETE" },
     ),
@@ -471,7 +471,7 @@ export async function applyChannelOnboarding(
   return json(
     await apiFetch(
       apiUrl(
-        `/api/v1/partners/${encodeURIComponent(partnerId)}/channel-onboarding/${encodeURIComponent(sessionId)}/apply`,
+        `/api/partners/${encodeURIComponent(partnerId)}/channel-onboarding/${encodeURIComponent(sessionId)}/apply`,
       ),
       { method: "POST" },
     ),
@@ -482,7 +482,7 @@ export async function getChannelSchemas(): Promise<ChannelsSchemaResponse> {
   // no-store: availability reflects live server imports (e.g. a dependency
   // installed minutes ago) — a cached copy here shows phantom-missing channels.
   return json(
-    await apiFetch(apiUrl("/api/v1/partners/channels/schema"), {
+    await apiFetch(apiUrl("/api/partners/channels/schema"), {
       cache: "no-store",
     }),
   );
@@ -512,7 +512,7 @@ export async function getPartnerHistory(
   return json(
     await apiFetch(
       apiUrl(
-        `/api/v1/partners/${encodeURIComponent(partnerId)}/history${query}`,
+        `/api/partners/${encodeURIComponent(partnerId)}/history${query}`,
       ),
     ),
   );
@@ -523,7 +523,7 @@ export async function getPartnerSessions(
 ): Promise<PartnerSessionInfo[]> {
   return json(
     await apiFetch(
-      apiUrl(`/api/v1/partners/${encodeURIComponent(partnerId)}/sessions`),
+      apiUrl(`/api/partners/${encodeURIComponent(partnerId)}/sessions`),
       { cache: "no-store" },
     ),
   );
@@ -536,7 +536,7 @@ async function postSessionAction(
 ): Promise<void> {
   await apiFetch(
     apiUrl(
-      `/api/v1/partners/${encodeURIComponent(partnerId)}/sessions/${action}`,
+      `/api/partners/${encodeURIComponent(partnerId)}/sessions/${action}`,
     ),
     {
       method: "POST",
@@ -566,7 +566,7 @@ export async function branchPartnerSession(
   return json(
     await apiFetch(
       apiUrl(
-        `/api/v1/partners/${encodeURIComponent(partnerId)}/sessions/branch`,
+        `/api/partners/${encodeURIComponent(partnerId)}/sessions/branch`,
       ),
       {
         method: "POST",
@@ -602,7 +602,7 @@ export async function createPartnerLinkCode(
 ): Promise<PartnerLinkCode> {
   return json(
     await apiFetch(
-      apiUrl(`/api/v1/partners/${encodeURIComponent(partnerId)}/links/code`),
+      apiUrl(`/api/partners/${encodeURIComponent(partnerId)}/links/code`),
       { method: "POST" },
     ),
   );
@@ -613,7 +613,7 @@ export async function listPartnerLinks(
 ): Promise<PartnerLink[]> {
   const data = await json<{ links: PartnerLink[] }>(
     await apiFetch(
-      apiUrl(`/api/v1/partners/${encodeURIComponent(partnerId)}/links`),
+      apiUrl(`/api/partners/${encodeURIComponent(partnerId)}/links`),
     ),
   );
   return data.links ?? [];
@@ -626,7 +626,7 @@ export async function removePartnerLink(
   await json(
     await apiFetch(
       apiUrl(
-        `/api/v1/partners/${encodeURIComponent(partnerId)}/links/${encodeURIComponent(key)}`,
+        `/api/partners/${encodeURIComponent(partnerId)}/links/${encodeURIComponent(key)}`,
       ),
       { method: "DELETE" },
     ),
@@ -661,7 +661,7 @@ export async function startWeixinQr(
   return json(
     await apiFetch(
       apiUrl(
-        `/api/v1/partners/${encodeURIComponent(partnerId)}/channels/weixin/qr`,
+        `/api/partners/${encodeURIComponent(partnerId)}/channels/weixin/qr`,
       ),
       { method: "POST" },
     ),
@@ -675,7 +675,7 @@ export async function pollWeixinQr(
   return json(
     await apiFetch(
       apiUrl(
-        `/api/v1/partners/${encodeURIComponent(partnerId)}/channels/weixin/qr/${encodeURIComponent(sessionId)}`,
+        `/api/partners/${encodeURIComponent(partnerId)}/channels/weixin/qr/${encodeURIComponent(sessionId)}`,
       ),
       { cache: "no-store" },
     ),

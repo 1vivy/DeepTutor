@@ -89,7 +89,7 @@ export default function StarterSuggestions({
     async (signal?: AbortSignal): Promise<SuggestionPayload | null> => {
       try {
         const response = await apiFetch(
-          apiUrl("/api/v1/dashboard/suggestions"),
+          apiUrl("/api/dashboard/suggestions"),
           {
             signal,
             cache: "no-store",
@@ -149,7 +149,7 @@ export default function StarterSuggestions({
     setView({ kind: "working" });
     try {
       const response = await apiFetch(
-        apiUrl("/api/v1/dashboard/suggestions/refresh"),
+        apiUrl("/api/dashboard/suggestions/refresh"),
         { method: "POST" },
       );
       if (!response.ok) {

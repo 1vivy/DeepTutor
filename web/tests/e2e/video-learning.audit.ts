@@ -72,8 +72,8 @@ test("YouTube learning survives reload and switches to Invidious without silent 
             kind: "html5",
             format_id: "18",
             mime_type: "video/mp4",
-            stream_url: `/api/v1/video-learning/materials/${MATERIAL_ID}/stream/18`,
-            subtitles_url: `/api/v1/video-learning/materials/${MATERIAL_ID}/subtitles.vtt`,
+            stream_url: `/api/video-learning/materials/${MATERIAL_ID}/stream/18`,
+            subtitles_url: `/api/video-learning/materials/${MATERIAL_ID}/subtitles.vtt`,
             start_seconds: savedPosition,
           },
   });
@@ -126,13 +126,13 @@ test("YouTube learning survives reload and switches to Invidious without silent 
     (window as typeof window & { YT?: unknown }).YT = { Player: FakePlayer };
   });
 
-  await page.route("**/api/v1/**", async (route) => {
+  await page.route("**/api/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     const json = (payload: unknown, status = 200) =>
       route.fulfill({ status, json: payload });
 
-    if (path === "/api/v1/auth/status") {
+    if (path === "/api/auth/status") {
       return json({
         enabled: false,
         authenticated: true,
@@ -140,19 +140,27 @@ test("YouTube learning survives reload and switches to Invidious without silent 
         is_admin: true,
       });
     }
-    if (path === "/api/v1/settings/ui") return json({ language: "en" });
-    if (path === "/api/v1/settings") return json({ catalog: {} });
-    if (path === "/api/v1/settings/llm-options") {
+    if (path === "/api/settings/ui") return json({ language: "en" });
+    if (path === "/api/capabilities/registered") {
+      return json({
+        capabilities: [
+          { id: "chat", kind: "turn", available: true },
+          { id: "immersive_watching", kind: "turn", available: true },
+        ],
+      });
+    }
+    if (path === "/api/settings") return json({ catalog: {} });
+    if (path === "/api/settings/llm-options") {
       return json({ active: { profile_id: "p", model_id: "m" }, options: [] });
     }
-    if (path === "/api/v1/dashboard/suggestions")
+    if (path === "/api/dashboard/suggestions")
       return json({ suggestions: [], stale: false });
-    if (path === "/api/v1/video-learning/materials/resolve") {
+    if (path === "/api/video-learning/materials/resolve") {
       const body = request.postDataJSON() as { provider_override?: "youtube" };
       if (body.provider_override === "youtube") nativeResolveCount += 1;
       return json(material(body.provider_override || provider));
     }
-    if (path === `/api/v1/video-learning/materials/${MATERIAL_ID}`) {
+    if (path === `/api/video-learning/materials/${MATERIAL_ID}`) {
       if (provider === "invidious" && invidiousOffline) {
         return json({ detail: "Invidious is offline" }, 400);
       }
@@ -160,7 +168,7 @@ test("YouTube learning survives reload and switches to Invidious without silent 
     }
     if (
       path ===
-      `/api/v1/video-learning/materials/${MATERIAL_ID}/transcript/refresh`
+      `/api/video-learning/materials/${MATERIAL_ID}/transcript/refresh`
     ) {
       transcriptRefreshCount += 1;
       transcriptReady = true;
@@ -229,11 +237,7 @@ test("YouTube learning survives reload and switches to Invidious without silent 
     return json({});
   });
 
-  await page.goto("/home");
-  await page
-    .getByRole("button", { name: /Immersive Watching/ })
-    .last()
-    .click();
+  await page.goto("/chat?capability=immersive_watching");
   await page
     .getByPlaceholder("https://youtu.be/…")
     .fill("https://youtu.be/dQw4w9WgXcQ?t=7");
@@ -262,11 +266,6 @@ test("YouTube learning survives reload and switches to Invidious without silent 
   await expect(page.getByText("The first grounded concept.")).toBeVisible();
 
   await page.reload();
-  await page.getByRole("button", { name: "Chat", exact: true }).click();
-  await page
-    .getByRole("button", { name: /Immersive Watching/ })
-    .last()
-    .click();
   await expect(page.getByText("Timestamped lesson")).toBeVisible();
   await page.getByRole("tab", { name: "Video notes" }).click();
   await expect(page.getByText("First timestamped note")).toBeVisible();
@@ -339,10 +338,6 @@ test("YouTube learning survives reload and switches to Invidious without silent 
     });
   await expect.poll(() => savedPosition).toBeGreaterThanOrEqual(70);
   await page.reload();
-  await page
-    .getByRole("button", { name: /Immersive Watching/ })
-    .last()
-    .click();
   await expect(page.getByText("Timestamped lesson")).toBeVisible();
   await expect
     .poll(() =>

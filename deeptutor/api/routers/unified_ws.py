@@ -13,9 +13,16 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from pydantic import TypeAdapter, ValidationError
+
+from deeptutor.api.contracts.turn_protocol import (
+    PROTOCOL_VERSION,
+    ClientCommand,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+_CLIENT_COMMAND_ADAPTER = TypeAdapter(ClientCommand)
 
 
 def _clean_answers(value: Any) -> list[dict[str, Any]] | None:
@@ -58,9 +65,29 @@ async def unified_websocket(ws: WebSocket) -> None:
         if closed:
             return
         try:
-            await ws.send_text(json.dumps(data, ensure_ascii=False, default=str))
+            payload = {**data, "protocol_version": PROTOCOL_VERSION}
+            await ws.send_text(json.dumps(payload, ensure_ascii=False, default=str))
         except Exception:
             closed = True
+
+    async def send_protocol_error(
+        message: str,
+        *,
+        error_code: str,
+        session_id: str = "",
+        turn_id: str = "",
+        retryable: bool = False,
+    ) -> None:
+        await safe_send(
+            {
+                "type": "protocol_error",
+                "error_code": error_code,
+                "message": message,
+                "retryable": retryable,
+                "session_id": session_id,
+                "turn_id": turn_id,
+            }
+        )
 
     async def send_error(
         content: str,
@@ -71,21 +98,30 @@ async def unified_websocket(ws: WebSocket) -> None:
         retryable: bool = False,
         terminal: bool = False,
     ) -> None:
+        await send_protocol_error(
+            content,
+            error_code=error_code,
+            session_id=session_id,
+            turn_id=turn_id,
+            retryable=retryable or terminal,
+        )
+
+    async def send_command_ack(
+        msg: dict[str, Any],
+        *,
+        accepted: bool,
+        error_code: str = "",
+        message: str = "",
+    ) -> None:
         await safe_send(
             {
-                "type": "error",
-                "source": "unified_ws",
-                "stage": "",
-                "content": content,
-                "metadata": {
-                    "turn_terminal": terminal,
-                    "status": "failed" if terminal else "",
-                    "error_code": error_code,
-                    "retryable": retryable,
-                },
-                "session_id": session_id,
-                "turn_id": turn_id,
-                "seq": 0,
+                "type": "command_ack",
+                "command_id": str(msg["command_id"]),
+                "command_type": str(msg["type"]),
+                "accepted": accepted,
+                "turn_id": str(msg.get("turn_id") or ""),
+                "error_code": error_code,
+                "message": message,
             }
         )
 
@@ -142,17 +178,44 @@ async def unified_websocket(ws: WebSocket) -> None:
         while not closed:
             raw = await ws.receive_text()
             try:
-                msg = json.loads(raw)
+                decoded = json.loads(raw)
             except json.JSONDecodeError:
-                await send_error("Invalid JSON.", error_code="invalid_json")
+                await send_protocol_error("Invalid JSON.", error_code="invalid_json")
                 continue
+
+            if not isinstance(decoded, dict):
+                await send_protocol_error(
+                    "WebSocket commands must be JSON objects.",
+                    error_code="invalid_command",
+                )
+                continue
+            if decoded.get("protocol_version") != PROTOCOL_VERSION:
+                await send_protocol_error(
+                    f"Unsupported or missing protocol_version; expected {PROTOCOL_VERSION}.",
+                    error_code="unsupported_protocol_version",
+                )
+                continue
+            try:
+                command = _CLIENT_COMMAND_ADAPTER.validate_python(decoded)
+            except ValidationError:
+                await send_protocol_error(
+                    "Command does not match the turn protocol.",
+                    error_code="invalid_command",
+                )
+                continue
+
+            msg = command.model_dump(mode="python")
 
             msg_type = msg.get("type")
 
             if msg_type in {"message", "start_turn"}:
                 try:
                     _, turn = await turns.start_turn(
-                        {key: value for key, value in msg.items() if key != "type"}
+                        {
+                            key: value
+                            for key, value in msg.items()
+                            if key not in {"type", "protocol_version"}
+                        }
                     )
                 except RuntimeError as exc:
                     await send_error(
@@ -218,15 +281,16 @@ async def unified_websocket(ws: WebSocket) -> None:
                 if not turn_id:
                     await send_error("Missing turn_id.", error_code="missing_turn_id")
                     continue
-                accepted = await turns.cancel_turn(
-                    turn_id, command_id=str(msg.get("command_id") or "") or None
-                )
+                accepted = await turns.cancel_turn(turn_id, command_id=str(msg["command_id"]))
                 if not accepted:
-                    await send_error(
-                        f"Turn is not active or recoverable: {turn_id}",
+                    await send_command_ack(
+                        msg,
+                        accepted=False,
                         error_code="turn_not_active",
-                        turn_id=turn_id,
+                        message=f"Turn is not active or recoverable: {turn_id}",
                     )
+                else:
+                    await send_command_ack(msg, accepted=True)
                 continue
 
             if msg_type == "submit_user_reply":
@@ -239,14 +303,17 @@ async def unified_websocket(ws: WebSocket) -> None:
                     turn_id,
                     text=str(text) if text is not None else None,
                     answers=_clean_answers(msg.get("answers")),
-                    command_id=str(msg.get("command_id") or "") or None,
+                    command_id=str(msg["command_id"]),
                 )
                 if not accepted:
-                    await send_error(
-                        f"Turn {turn_id} is not awaiting a user reply.",
+                    await send_command_ack(
+                        msg,
+                        accepted=False,
                         error_code="turn_not_waiting_input",
-                        turn_id=turn_id,
+                        message=f"Turn {turn_id} is not awaiting a user reply.",
                     )
+                else:
+                    await send_command_ack(msg, accepted=True)
                 continue
 
             if msg_type == "regenerate":
@@ -278,17 +345,22 @@ async def unified_websocket(ws: WebSocket) -> None:
                 accepted = await turns.submit_user_input(
                     turn_id,
                     str(msg.get("content") or ""),
-                    command_id=str(msg.get("command_id") or "") or None,
+                    command_id=str(msg["command_id"]),
                 )
                 if not accepted:
-                    await send_error(
-                        f"Turn is not active: {turn_id}",
+                    await send_command_ack(
+                        msg,
+                        accepted=False,
                         error_code="turn_not_active",
-                        turn_id=turn_id,
+                        message=f"Turn is not active: {turn_id}",
                     )
+                else:
+                    await send_command_ack(msg, accepted=True)
                 continue
 
-            await send_error(f"Unknown type: {msg_type}", error_code="unknown_message_type")
+            await send_protocol_error(
+                f"Unknown type: {msg_type}", error_code="unknown_message_type"
+            )
 
     except WebSocketDisconnect:
         logger.debug("Client disconnected from /ws")

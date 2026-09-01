@@ -1,4 +1,4 @@
-import type { StreamEvent } from "./unified-ws";
+import type { StreamEvent } from "@/features/chat/model/protocol";
 
 export type DeepResearchFollowupStatus = "researching" | "done" | "failed";
 

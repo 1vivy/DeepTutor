@@ -1,6 +1,6 @@
 import { apiFetch, apiUrl } from "@/lib/api";
 
-const BASE = "/api/v1/co_writer";
+const BASE = "/api";
 
 export interface CoWriterDocumentSummary {
   id: string;

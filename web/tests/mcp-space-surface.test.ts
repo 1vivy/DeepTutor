@@ -109,7 +109,7 @@ test("the per-user surface reads its own route and keeps the additive fields", a
   try {
     const state = await loadMcpSurface(SPACE_MCP_SURFACE);
     // /servers, not the admin registry's bare base path.
-    assert.equal(stub.calls[0].url, "/api/v1/space/mcp/servers");
+    assert.equal(stub.calls[0].url, "/api/space/mcp/servers");
     assert.equal(stub.calls[0].method, "GET");
     assert.ok(state.user);
     // Field names only — the values never leave the backend.
@@ -148,7 +148,7 @@ test("toggling one server writes only that server", async () => {
     // scope, and a whole-map save is how a concurrent edit gets clobbered.
     assert.deepEqual(
       stub.calls.map((call) => `${call.method} ${call.url}`),
-      ["PUT /api/v1/space/mcp/servers/tavily"],
+      ["PUT /api/space/mcp/servers/tavily"],
     );
     assert.deepEqual(stub.calls[0].body, {
       config: next.tavily,
@@ -170,8 +170,8 @@ test("a rename adds the new server before removing the old one", async () => {
     assert.deepEqual(
       stub.calls.map((call) => `${call.method} ${call.url}`),
       [
-        "PUT /api/v1/space/mcp/servers/exa2",
-        "DELETE /api/v1/space/mcp/servers/exa",
+        "PUT /api/space/mcp/servers/exa2",
+        "DELETE /api/space/mcp/servers/exa",
       ],
     );
   } finally {
@@ -192,7 +192,7 @@ test("a refused rename never reaches the delete", async () => {
     );
     assert.deepEqual(
       stub.calls.map((call) => `${call.method} ${call.url}`),
-      ["PUT /api/v1/space/mcp/servers/exa2"],
+      ["PUT /api/space/mcp/servers/exa2"],
     );
   } finally {
     stub.restore();
@@ -205,7 +205,7 @@ test("a name with URL-significant characters is escaped in the path", async () =
   const stub = stubFetch(storeState({}));
   try {
     await writeMcpSurface(SPACE_MCP_SURFACE, previous, next);
-    assert.equal(stub.calls[0].url, "/api/v1/space/mcp/servers/a%20b");
+    assert.equal(stub.calls[0].url, "/api/space/mcp/servers/a%20b");
   } finally {
     stub.restore();
   }
@@ -218,7 +218,7 @@ test("removing the last server still refreshes from the response", async () => {
     const state = await writeMcpSurface(SPACE_MCP_SURFACE, previous, {});
     assert.deepEqual(
       stub.calls.map((call) => `${call.method} ${call.url}`),
-      ["DELETE /api/v1/space/mcp/servers/exa"],
+      ["DELETE /api/space/mcp/servers/exa"],
     );
     assert.deepEqual(state.servers, {});
   } finally {
@@ -233,7 +233,7 @@ test("a no-op write re-reads instead of PUTting anything", async () => {
     await writeMcpSurface(SPACE_MCP_SURFACE, previous, { ...previous });
     assert.deepEqual(
       stub.calls.map((call) => `${call.method} ${call.url}`),
-      ["GET /api/v1/space/mcp/servers"],
+      ["GET /api/space/mcp/servers"],
     );
   } finally {
     stub.restore();
@@ -250,7 +250,7 @@ test("the admin registry keeps its whole-map PUT", async () => {
     // sending the per-server shape here would 405 (or worse, half-apply).
     assert.deepEqual(
       stub.calls.map((call) => `${call.method} ${call.url}`),
-      ["PUT /api/v1/settings/mcp"],
+      ["PUT /api/settings/mcp"],
     );
     assert.deepEqual(stub.calls[0].body, { servers: next });
   } finally {

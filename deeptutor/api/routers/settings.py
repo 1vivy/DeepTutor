@@ -71,7 +71,7 @@ from deeptutor.tools.builtin import USER_TOGGLEABLE_TOOL_NAMES
 
 router = APIRouter()
 # Public UI-settings router. The app shell bootstraps the interface language
-# from GET /api/v1/settings/ui, and auth pages (/register, /login) must be
+# from GET /api/settings/ui, and auth pages (/register, /login) must be
 # able to do the same *before* a session exists — so this one read endpoint
 # is intentionally mounted outside the ``_auth`` dependency (see main.py).
 # It only exposes non-sensitive UI preferences (theme/language), never the
@@ -98,7 +98,7 @@ def _tour_cache_file():
 
 
 DEFAULT_SIDEBAR_NAV_ORDER = {
-    "start": ["/", "/history", "/knowledge", "/notebook"],
+    "start": ["/", "/history", "/knowledge-bases", "/notebooks"],
     "learnResearch": ["/question", "/solver", "/research", "/co_writer"],
 }
 
@@ -147,7 +147,7 @@ class UISettings(BaseModel):
 
 
 class UISettingsUpdate(BaseModel):
-    """Partial UI settings for user-initiated PATCH/PUT updates via /api/v1/settings/ui.
+    """Partial UI settings for user-initiated PATCH/PUT updates via /api/settings/ui.
 
     All fields have None defaults so `model_dump(exclude_unset=True)` naturally
     excludes fields not provided in the frontend payload, while explicitly provided

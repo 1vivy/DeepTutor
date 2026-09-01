@@ -42,6 +42,7 @@ from deeptutor.multi_user.identity import remove_book_permission_overrides
 from deeptutor.runtime.stream_bus import StreamBus
 
 router = APIRouter()
+ws_router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
@@ -399,7 +400,7 @@ def _derive_capture_title_values(
                 chapter_title = chapter.title
                 break
 
-    base_locator = f"/book/{book_id}/pages/{page_id}"
+    base_locator = f"/books/{book_id}/pages/{page_id}"
     source_locator = f"{base_locator}/block/{block_id}" if block_id else base_locator
     return book.title, chapter_title, source_locator
 
@@ -449,12 +450,12 @@ def _capture_payload(capture: LearningCapture) -> dict[str, object]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@router.get("/health")
+@router.get("/books/health")
 async def health_check() -> dict[str, str]:
     return {"status": "healthy", "service": "book"}
 
 
-@router.get("/estimate-basis")
+@router.get("/books/estimate-basis")
 async def estimate_basis(depth: str = "standard") -> dict[str, Any]:
     """Per-chapter generation cost, keyed by content type.
 
@@ -1311,7 +1312,7 @@ class _SocketFanout:
         self._tasks.clear()
 
 
-@router.websocket("/ws")
+@ws_router.websocket("/books")
 async def book_websocket(ws: WebSocket) -> None:
     """Streaming endpoint.
 

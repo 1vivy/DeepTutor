@@ -11,11 +11,11 @@ function source(file: string): string {
  * AssistantResponse is shared by every chat surface and reads both viewer
  * contexts even when a mastery turn has no reading or watching attachment.
  * Missing either provider makes an existing assistant message throw during
- * render, before the bare `/study` route can initialise its new session.
+ * render, before the bare `/sessions` route can initialise its new session.
  */
 test("the mastery study route provides every shared chat viewer context", () => {
   const layout = source(
-    "app/(utility)/mastery/[pathId]/study/layout.tsx",
+    "app/(utility)/mastery/[pathId]/sessions/layout.tsx",
   );
   const response = source("components/common/AssistantResponse.tsx");
 
@@ -25,5 +25,5 @@ test("the mastery study route provides every shared chat viewer context", () => 
   assert.match(layout, /import \{ WatchingProvider \}/);
   assert.match(layout, /<ReadingProvider>/);
   assert.match(layout, /<WatchingProvider>/);
-  assert.match(layout, /<UnifiedChatProvider>/);
+  assert.match(layout, /<ChatRuntimeProvider>/);
 });

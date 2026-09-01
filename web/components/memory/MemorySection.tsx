@@ -1,5 +1,7 @@
 "use client";
 
+import { browserStorage } from "@/shared/storage";
+
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -220,17 +222,17 @@ function entityDeepLinkUrl(surface: Surface, ent: Entity): string | null {
   const m = ent.metadata || {};
   switch (surface) {
     case "chat":
-      return `/home/${encodeURIComponent(ent.id)}`;
+      return `/chat/${encodeURIComponent(ent.id)}`;
     case "cowriter":
       return `/co-writer/${encodeURIComponent(ent.id)}`;
     case "notebook": {
       const nbId = asString(m.notebook_id);
       return nbId
-        ? `/notebook?notebook=${encodeURIComponent(nbId)}`
-        : "/notebook";
+        ? `/notebooks?notebook=${encodeURIComponent(nbId)}`
+        : "/notebooks";
     }
     case "book":
-      return `/book?book=${encodeURIComponent(ent.id)}`;
+      return `/books?book=${encodeURIComponent(ent.id)}`;
     case "partner": {
       // Partner entity.id is `partnerId:sessionKey`. Deep-link to the partner.
       const partnerId = asString(m.partner_id) || ent.id.split(":")[0];
@@ -242,11 +244,11 @@ function entityDeepLinkUrl(surface: Surface, ent: Entity): string | null {
       // Quiz entity.id is `session:question`. Deep-link to the session.
       const sessionId = asString(m.session_id) || ent.id.split(":")[0];
       return sessionId
-        ? `/?session=${encodeURIComponent(sessionId)}`
+        ? `/chat/${encodeURIComponent(sessionId)}`
         : "/space/questions";
     }
     case "kb":
-      return `/knowledge?kb=${encodeURIComponent(ent.id)}`;
+      return `/knowledge-bases?kb=${encodeURIComponent(ent.id)}`;
   }
   return null;
 }
@@ -283,7 +285,7 @@ export default function MemorySection({
   useEffect(() => {
     if (typeof window === "undefined") return;
     setDismissedBackup(
-      window.localStorage.getItem("dt:memory:banner-dismissed") || null,
+      browserStorage.readRaw("local", "dt:memory:banner-dismissed") || null,
     );
   }, []);
 
@@ -293,7 +295,7 @@ export default function MemorySection({
   const dismissArchivedBanner = useCallback(() => {
     if (!latestBackup) return;
     if (typeof window !== "undefined") {
-      window.localStorage.setItem("dt:memory:banner-dismissed", latestBackup);
+      browserStorage.writeRaw("local", "dt:memory:banner-dismissed", latestBackup);
     }
     setDismissedBackup(latestBackup);
   }, [latestBackup]);
@@ -301,7 +303,7 @@ export default function MemorySection({
   const loadOverview = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetch(apiUrl("/api/v1/memory/overview"));
+      const res = await apiFetch(apiUrl("/api/memory/overview"));
       const data = (await res.json()) as OverviewResponse;
       setOverview(data);
     } catch (e) {
@@ -326,7 +328,7 @@ export default function MemorySection({
     setEditing(false);
     setStream([]);
     try {
-      const res = await apiFetch(apiUrl(`/api/v1/memory/doc/${layer}/${key}`));
+      const res = await apiFetch(apiUrl(`/api/memory/doc/${layer}/${key}`));
       const data = await res.json();
       const md = String(data?.content || "");
       setContent(md);
@@ -341,7 +343,7 @@ export default function MemorySection({
     setBusy(true);
     try {
       await apiFetch(
-        apiUrl(`/api/v1/memory/doc/${selected.layer}/${selected.key}`),
+        apiUrl(`/api/memory/doc/${selected.layer}/${selected.key}`),
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -371,7 +373,7 @@ export default function MemorySection({
     setStream([]);
     try {
       const res = await apiFetch(
-        apiUrl(`/api/v1/memory/doc/${selected.layer}/${selected.key}/update`),
+        apiUrl(`/api/memory/doc/${selected.layer}/${selected.key}/update`),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -681,7 +683,7 @@ export function L1View({
   const loadSnapshot = useCallback(async () => {
     setLoadingSnapshot(true);
     try {
-      const res = await apiFetch(apiUrl(`/api/v1/memory/snapshot/${surface}`));
+      const res = await apiFetch(apiUrl(`/api/memory/snapshot/${surface}`));
       const data = (await res.json()) as SnapshotResponse;
       setSnapshot(data);
     } catch (e) {
@@ -695,7 +697,7 @@ export function L1View({
     setLoadingChanges(true);
     try {
       const res = await apiFetch(
-        apiUrl(`/api/v1/memory/snapshot/${surface}/changes`),
+        apiUrl(`/api/memory/snapshot/${surface}/changes`),
       );
       const data = (await res.json()) as ChangesResponse;
       setChanges(data.changes);
@@ -710,7 +712,7 @@ export function L1View({
     if (surface !== "kb") return;
     setLoadingQueries(true);
     try {
-      const res = await apiFetch(apiUrl("/api/v1/memory/trace/kb?limit=200"));
+      const res = await apiFetch(apiUrl("/api/memory/trace/kb?limit=200"));
       const data = (await res.json()) as KbQueriesResponse;
       setKbQueries(data.events);
     } catch (e) {
@@ -770,7 +772,7 @@ export function L1View({
     setRefreshing(true);
     try {
       const res = await apiFetch(
-        apiUrl(`/api/v1/memory/snapshot/${surface}/refresh`),
+        apiUrl(`/api/memory/snapshot/${surface}/refresh`),
         { method: "POST" },
       );
       const data = await res.json();

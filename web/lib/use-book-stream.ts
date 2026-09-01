@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 import { wsUrl } from "@/lib/api";
 import type { BookWsEvent } from "@/lib/book-ws-operation";
 
-const BOOK_WS_PATH = "/api/v1/book/ws";
+const BOOK_WS_PATH = "/ws/books";
 
 // Backs off quickly at first — a dropped socket is usually a transient blip —
 // then settles so a backend that is genuinely down isn't hammered.

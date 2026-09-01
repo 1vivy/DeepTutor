@@ -18,7 +18,7 @@ from deeptutor.tools.builtin import (
 async def test_list_builtin_tools_marks_toggleable_set(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    """The /api/v1/tools response must clearly separate user-toggleable
+    """The /api/tools response must clearly separate user-toggleable
     tools from locked-on (auto-mounted) tools so the /settings/tools UI
     can render the right control per row."""
     settings_file = tmp_path / "interface.json"

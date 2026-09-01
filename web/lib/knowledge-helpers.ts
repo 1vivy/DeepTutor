@@ -348,9 +348,9 @@ export const resolveKnowledgeIndexFailure = (
     retryable: progress?.retryable ?? storedProgress?.retryable,
     requiresModelChange: requiresEmbeddingChange || requiresCompletionChange,
     settingsHref: requiresEmbeddingChange
-      ? "/settings/models#embedding"
+      ? "/settings#embedding"
       : requiresCompletionChange
-        ? "/settings/models"
+        ? "/settings#models"
         : undefined,
   };
 };

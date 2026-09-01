@@ -69,7 +69,7 @@ export function VersionBadge({ collapsed = false }: VersionBadgeProps) {
 
   return (
     <Link
-      href="/settings/about"
+      href="/settings#about"
       title={`${displayTag} · ${state.label}`}
       aria-label={`${displayTag} · ${state.label}`}
       className="group/ver flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-1.5 font-serif text-[14px] font-semibold tabular-nums tracking-[-0.025em] text-[var(--foreground)]/80 transition-colors hover:bg-[var(--background)]/50 hover:text-[var(--foreground)]"

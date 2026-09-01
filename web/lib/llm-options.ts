@@ -1,6 +1,6 @@
 import { apiFetch, apiUrl } from "@/lib/api";
 import { invalidateClientCache, withClientCache } from "@/lib/client-cache";
-import type { LLMSelection } from "@/lib/unified-ws";
+import type { LLMSelection } from "@/features/chat/model/protocol";
 
 const LLM_OPTIONS_CACHE_KEY = "llm-options:list";
 const DEFAULT_LLM_OPTIONS_TIMEOUT_MS = 30_000;
@@ -53,7 +53,7 @@ export async function listLLMOptions(options?: {
       );
       try {
         const response = await apiFetch(
-          apiUrl("/api/v1/settings/llm-options"),
+          apiUrl("/api/settings/llm-options"),
           {
             cache: "no-store",
             signal: controller.signal,

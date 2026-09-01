@@ -13,7 +13,7 @@ const HOP_BY_HOP_HEADERS = new Set([
   "upgrade",
 ]);
 
-type StreamingRequestInit = RequestInit & { duplex: "half" };
+type StreamingRequestInit = RequestInit & { duplex?: "half" };
 
 export interface UploadProxyDependencies {
   apiBaseUrl?: string;
@@ -57,11 +57,13 @@ export async function forwardBackendUpload(
   const init: StreamingRequestInit = {
     method: request.method,
     headers: forwardedHeaders(request.headers, { request: true }),
-    body: request.body,
     signal: request.signal,
     redirect: "manual",
-    duplex: "half",
   };
+  if (request.body !== null && request.method !== "GET" && request.method !== "HEAD") {
+    init.body = request.body;
+    init.duplex = "half";
+  }
   const upstream = await fetchImpl(upstreamUrl, init);
 
   return new Response(upstream.body, {

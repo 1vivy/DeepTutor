@@ -127,7 +127,7 @@ export function useKnowledgeProgress(options?: UseKnowledgeProgressOptions) {
         : "";
       const socket = new WebSocket(
         wsUrl(
-          `/api/v1/knowledge/${encodeURIComponent(kbName)}/progress/ws${query}`,
+          `/api/knowledge-bases/${encodeURIComponent(kbName)}/progress/ws${query}`,
         ),
       );
       socketsRef.current[kbName] = socket;
@@ -219,7 +219,7 @@ export function useKnowledgeProgress(options?: UseKnowledgeProgressOptions) {
       }));
 
       const source = new EventSource(
-        apiUrl(`/api/v1/knowledge/tasks/${encodeURIComponent(taskId)}/stream`),
+        apiUrl(`/api/knowledge-bases/tasks/${encodeURIComponent(taskId)}/stream`),
         { withCredentials: true },
       );
       sourcesRef.current[kbName] = source;

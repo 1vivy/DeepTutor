@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import { useSettings } from "./SettingsContext";
+import { useSettings } from "@/features/settings/store/SettingsStore";
 
 export type CategorySection = {
   key: string;

@@ -61,7 +61,7 @@ async def test_math_animator_capability_emits_summary_and_result(
                         SimpleNamespace(
                             model_dump=lambda: {
                                 "type": "video",
-                                "url": "/api/outputs/agent/math_animator/turn_1/artifacts/video.mp4",
+                                "url": "/files/outputs/agent/math_animator/turn_1/artifacts/video.mp4",
                                 "filename": "video.mp4",
                                 "content_type": "video/mp4",
                                 "label": "Animation video",

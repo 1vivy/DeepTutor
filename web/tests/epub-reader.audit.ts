@@ -43,7 +43,7 @@ test("EPUB headings feed and navigate the current-page outline", async ({
   page,
 }, testInfo) => {
   const filename = `epub-page-headings-${Date.now()}-${testInfo.project.name}.epub`;
-  await page.goto("/home?capability=immersive_reading");
+  await page.goto("/chat?capability=immersive_reading");
   const fileInput = page
     .getByRole("button", { name: /Open a document to read/i })
     .locator('input[type="file"]');
@@ -98,7 +98,7 @@ test("faithfully renders EPUB resources, navigates, and restores its CFI", async
   page,
 }, testInfo) => {
   const filename = `faithful-reader-${Date.now()}-${testInfo.project.name}.epub`;
-  await page.goto("/home?capability=immersive_reading");
+  await page.goto("/chat?capability=immersive_reading");
   const fileInput = page
     .getByRole("button", { name: /Open a document to read/i })
     .locator('input[type="file"]');
@@ -136,7 +136,7 @@ test("faithfully renders EPUB resources, navigates, and restores its CFI", async
   ).toBeVisible();
   await expect
     .poll(async () => {
-      const response = await page.request.get("/api/v1/reading/materials");
+      const response = await page.request.get("/api/reading/materials");
       const rows = (await response.json()) as Array<{
         material_id: string;
         filename: string;
@@ -144,7 +144,7 @@ test("faithfully renders EPUB resources, navigates, and restores its CFI", async
       const material = rows.find((row) => row.filename === filename);
       if (!material) return 0;
       const position = await page.request.get(
-        `/api/v1/reading/materials/${material.material_id}/position`,
+        `/api/reading/materials/${material.material_id}/position`,
       );
       return ((await position.json()) as { locator: number }).locator;
     })

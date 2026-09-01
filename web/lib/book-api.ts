@@ -18,7 +18,8 @@ import type {
   GenerationSummary,
 } from "@/lib/book-types";
 
-const BASE = "/api/v1/book";
+const BASE = "/api";
+const BOOK_WS_PATH = "/ws/books";
 
 export class BookApiError extends Error {
   constructor(
@@ -37,7 +38,7 @@ function requestOverSocket<T extends BookWsEvent>(
   resultType: string,
   onEvent?: (event: BookWsEvent) => void,
 ): Promise<T> {
-  return runBookSocketOperation<T>(() => new WebSocket(wsUrl(`${BASE}/ws`)), {
+  return runBookSocketOperation<T>(() => new WebSocket(wsUrl(BOOK_WS_PATH)), {
     message,
     resultType,
     onEvent,

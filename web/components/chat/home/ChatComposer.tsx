@@ -29,7 +29,6 @@ import {
   Square,
   UserRound,
   X,
-  type LucideIcon,
 } from "lucide-react";
 import {
   ATTACHMENT_ACCEPT,
@@ -44,7 +43,7 @@ import type { StudyCourse } from "@/lib/courses-api";
 import type { SelectedHistorySession } from "@/components/chat/HistorySessionPicker";
 import type { SelectedQuestionEntry } from "@/components/chat/QuestionBankPicker";
 import type { SelectedRecord } from "@/lib/notebook-selection-types";
-import type { LLMSelection } from "@/lib/unified-ws";
+import type { LLMSelection } from "@/features/chat/model/protocol";
 import type { LLMOption } from "@/lib/llm-options";
 import ChatSpaceMenu from "@/components/chat/space/ChatSpaceMenu";
 import type { SpaceMemoryFile } from "@/lib/space-items";
@@ -73,6 +72,7 @@ import ContextReferenceTree, {
 } from "./ContextReferenceTree";
 import { ComposerInput, type ComposerInputHandle } from "./ComposerInput";
 import { useVoiceRecorder } from "@/hooks/useVoiceRecorder";
+import type { CapabilityDef } from "@/features/capabilities/presentation";
 
 interface PendingAttachment {
   type: string;
@@ -85,24 +85,6 @@ interface PendingAttachment {
 
 interface KnowledgeBase {
   name: string;
-}
-
-/**
- * The picker's view of a capability. The authoritative list — including
- * `defaultTools` and the prose — lives with the capabilities themselves in
- * `app/(workspace)/home/[[...sessionId]]/page.tsx`; this is the subset the
- * composer renders, so the two must stay in step.
- */
-export interface CapabilityDef {
-  value: string;
-  label: string;
-  description: string;
-  icon: LucideIcon;
-  allowedTools: string[];
-  /** Collapse into the "More" flyout instead of listing directly. */
-  secondary?: boolean;
-  /** Still resolvable for existing sessions, but never offered as a new one. */
-  legacy?: boolean;
 }
 
 /** One row in the capability picker — shared by the built-in list and the
@@ -962,7 +944,7 @@ export default memo(function ChatComposer({
                       className="dt-popup-up absolute bottom-full left-0 z-50 mb-1.5 w-[260px] overflow-visible rounded-xl border border-[var(--border)] bg-[var(--popover)] py-1 shadow-lg backdrop-blur-md"
                     >
                       {capabilities
-                        .filter((cap) => !cap.secondary && !cap.legacy)
+                        .filter((cap) => !cap.secondary)
                         .map((cap) => (
                           <CapMenuItem
                             key={cap.value}
@@ -973,7 +955,7 @@ export default memo(function ChatComposer({
                         ))}
                       {(() => {
                         const loopCaps = capabilities.filter(
-                          (cap) => cap.secondary && !cap.legacy,
+                          (cap) => cap.secondary,
                         );
                         if (loopCaps.length === 0) return null;
                         const loopSelected = loopCaps.some(

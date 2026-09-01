@@ -153,10 +153,11 @@ class TurnApplicationService:
             return False
         if await self.coordinator.get_lease(turn_id) is None:
             return False
-        command = await self.coordinator.submit_command(
-            turn_id, "cancel", {}, command_id=command_id
-        )
-        return command is not None
+        await self.coordinator.submit_command(turn_id, "cancel", {}, command_id=command_id)
+        # A duplicate command ID means the mutation was already accepted. The
+        # WebSocket adapter must acknowledge that retry as success so a client
+        # that lost the first ACK can retire its durable outbox entry.
+        return True
 
     async def submit_user_reply(
         self,
@@ -168,13 +169,13 @@ class TurnApplicationService:
     ) -> bool:
         if await self.coordinator.get_lease(turn_id) is None:
             return False
-        command = await self.coordinator.submit_command(
+        await self.coordinator.submit_command(
             turn_id,
             "submit_user_reply",
             {"text": text or "", "answers": answers},
             command_id=command_id,
         )
-        return command is not None
+        return True
 
     async def submit_user_input(
         self,
@@ -185,13 +186,13 @@ class TurnApplicationService:
     ) -> bool:
         if await self.coordinator.get_lease(turn_id) is None:
             return False
-        command = await self.coordinator.submit_command(
+        await self.coordinator.submit_command(
             turn_id,
             "user_input",
             {"content": content},
             command_id=command_id,
         )
-        return command is not None
+        return True
 
     async def list_sessions(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
         store, _runtime = self._resolve()

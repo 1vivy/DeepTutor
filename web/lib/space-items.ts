@@ -45,7 +45,7 @@ export const SPACE_ITEMS: SpaceItem[] = [
   },
   {
     key: "notebooks",
-    href: "/notebook",
+    href: "/notebooks",
     label: "Notebooks",
     description:
       "Organize saved outputs from chat, research, Co-Writer, and more.",

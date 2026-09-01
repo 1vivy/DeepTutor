@@ -36,7 +36,7 @@ export function startQuizJudge(
   payload: QuizJudgeRequest,
   handlers: QuizJudgeHandlers,
 ): QuizJudgeHandle {
-  const ws = new WebSocket(wsUrl("/api/v1/question/judge"));
+  const ws = new WebSocket(wsUrl("/ws/question/judge"));
   let buffer = "";
   let finished = false;
 

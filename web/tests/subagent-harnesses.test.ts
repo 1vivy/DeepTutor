@@ -40,16 +40,11 @@ test("Gemini CLI is retired and agent glyphs use official local assets", () => {
 
   assert.doesNotMatch(connected, /kind === ["']gemini["']/);
   assert.doesNotMatch(registry, /GeminiBackend/);
-  const retiredRoute = readWebFile(
-    "app",
-    "(utility)",
-    "settings",
-    "agents",
-    "gemini",
-    "page.tsx",
+  const retiredRoute = path.join(
+    process.cwd(),
+    "app/(utility)/settings/agents/gemini/page.tsx",
   );
-  assert.match(retiredRoute, /agent-antigravity/);
-  assert.doesNotMatch(retiredRoute, /SubagentSettingsEditor/);
+  assert.equal(existsSync(retiredRoute), false);
 
   for (const asset of [
     "kimi.svg",
@@ -67,34 +62,29 @@ test("Gemini CLI is retired and agent glyphs use official local assets", () => {
   }
 });
 
-test("new harnesses have settings routes and category sections", () => {
+test("new harnesses have settings anchors and category sections", () => {
   const editor = readWebFile(
     "components",
     "settings",
     "SubagentSettingsEditor.tsx",
   );
   const category = readWebFile(
-    "app",
-    "(utility)",
+    "features",
     "settings",
-    "agents",
-    "page.tsx",
+    "sections",
+    "AgentsSettingsSection.tsx",
   );
-  const nav = readWebFile("lib", "settings-nav.ts");
+  const nav = readWebFile(
+    "features",
+    "settings",
+    "navigation",
+    "settings-nav.ts",
+  );
 
   for (const harness of HARNESSES) {
-    const page = path.join(
-      process.cwd(),
-      "app",
-      "(utility)",
-      "settings",
-      "agents",
-      harness.route,
-      "page.tsx",
-    );
-    assert.ok(existsSync(page), `${harness.route} settings page is missing`);
     assert.match(editor, new RegExp(`${harness.kind}: \\{`));
     assert.match(category, new RegExp(`agent-${harness.route}`));
     assert.match(nav, new RegExp(`agent-${harness.route}`));
+    assert.match(nav, new RegExp(`/settings#agent-${harness.route}`));
   }
 });

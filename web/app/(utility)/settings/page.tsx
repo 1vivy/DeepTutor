@@ -3,20 +3,22 @@
 import { CategoryScroll } from "@/components/settings/CategoryScroll";
 import SettingsOverview from "@/components/settings/SettingsOverview";
 
-import AboutSettingsPage from "./about/page";
-import AgentsSettingsPage from "./agents/page";
-import AppearanceSettingsPage from "./appearance/page";
-import ChatSettingsPage from "./chat/page";
-import DocumentParsingSettingsPage from "./document-parsing/page";
-import MemorySettingsPage from "./memory/page";
-import ModelsSettingsPage from "./models/page";
-import NetworkSettingsPage from "./network/page";
+import AboutSettingsPage from "@/features/settings/sections/AboutSettingsSection";
+import AgentsSettingsPage from "@/features/settings/sections/AgentsSettingsSection";
+import AppearanceSettingsPage from "@/features/settings/sections/AppearanceSettingsSection";
+import ChatSettingsPage from "@/features/settings/sections/ChatSettingsSection";
+import DocumentParsingSettingsPage from "@/features/settings/sections/DocumentParsingSettingsSection";
+import GuardianSettingsPage from "@/features/settings/sections/GuardianSettingsSection";
+import LearnerProfileSettingsPage from "@/features/settings/sections/LearnerProfileSettingsSection";
+import MemorySettingsPage from "@/features/settings/sections/MemorySettingsSection";
+import ModelsSettingsPage from "@/features/settings/sections/ModelsSettingsSection";
+import NetworkSettingsPage from "@/features/settings/sections/NetworkSettingsSection";
 
 /**
  * Settings is one document: users can read it from Overview to About with a
  * normal scroll, while the persistent navigator links to these same anchors.
- * The category pages remain as legacy deep-link targets, but normal Settings
- * navigation no longer remounts the right-hand pane.
+ * Every navigator target is an anchor in this document; no duplicate leaf
+ * routes or redirect aliases remain.
  */
 export default function SettingsPage() {
   return (
@@ -29,6 +31,8 @@ export default function SettingsPage() {
         { key: "knowledge", Component: DocumentParsingSettingsPage },
         { key: "chat", Component: ChatSettingsPage },
         { key: "agents", Component: AgentsSettingsPage },
+        { key: "learner-profile", Component: LearnerProfileSettingsPage },
+        { key: "guardian", Component: GuardianSettingsPage },
         { key: "memory", Component: MemorySettingsPage },
         { key: "about", Component: AboutSettingsPage },
       ]}

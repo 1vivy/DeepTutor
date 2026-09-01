@@ -140,7 +140,9 @@ async def test_second_worker_cancel_is_consumed_by_owner_worker(tmp_path) -> Non
     )
 
     assert await remote_service.cancel_turn(turn_id, command_id="cancel-once") is True
-    assert await remote_service.cancel_turn(turn_id, command_id="cancel-once") is False
+    # A retry of an already accepted command is acknowledged as success so a
+    # client that lost the first ACK can safely retire its outbox entry.
+    assert await remote_service.cancel_turn(turn_id, command_id="cancel-once") is True
     with pytest.raises(asyncio.CancelledError):
         await asyncio.wait_for(execution.task, timeout=1)
     await asyncio.wait_for(execution.coordination_task, timeout=1)

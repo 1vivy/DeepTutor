@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Web chat with a partner over `WS /api/v1/partners/{id}/ws`.
+ * Web chat with a partner over `WS /api/partners/{id}/ws`.
  *
  * The socket forwards every chat-loop StreamEvent verbatim (`stream_event`
  * frames carry the backend event's `to_dict()`, which IS the frontend
@@ -29,7 +29,7 @@ import { displaySessionTitle } from "@/lib/session-title";
 import { createPartnerDraftPublisher } from "@/lib/partner-chat-draft";
 import { ReconnectingWebSocket } from "@/lib/reconnecting-websocket";
 import type { ExportableMessage } from "@/lib/chat-export";
-import type { StreamEvent } from "@/lib/unified-ws";
+import type { StreamEvent } from "@/features/chat/model/protocol";
 import { docIconFor, formatBytes, isSvgFilename } from "@/lib/doc-attachments";
 import {
   isNarrationMarker,
@@ -37,7 +37,7 @@ import {
   shouldAppendEventContent,
 } from "@/lib/stream";
 import { useChatAutoScroll } from "@/hooks/useChatAutoScroll";
-import { AssistantActivity } from "@/components/chat/home/TracePanels";
+import { AssistantActivity } from "@/features/chat/trace";
 import {
   PartnerComposer,
   type PartnerPendingAttachment,
@@ -529,7 +529,7 @@ export default function PartnerChat({
     };
 
     const connection = new ReconnectingWebSocket(
-      wsUrl(`/api/v1/partners/${partnerId}/ws`),
+      wsUrl(`/api/partners/${partnerId}/ws`),
       {
         onOpen: () => {
           setConnected(true);

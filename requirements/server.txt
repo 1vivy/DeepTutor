@@ -34,6 +34,6 @@ json-repair>=0.57.0,<1.0.0
 croniter>=6.0.0,<7.0.0
 
 # --- Runtime observability ---
-# Process-tree memory readings behind /api/v1/system/memory. Imported lazily
+# Process-tree memory readings behind /api/system/memory. Imported lazily
 # with a /proc fallback, so it is soft rather than required.
 psutil>=5.9.0,<8.0.0

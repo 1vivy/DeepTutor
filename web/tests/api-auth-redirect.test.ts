@@ -67,7 +67,7 @@ test("apiFetch redirects to /login on 401 when auth is enabled and no opt-out", 
   const restore = stubFetch(jsonResponse(401, { detail: "unauthorized" }));
   try {
     // Do not await: apiFetch returns a never-resolving promise once it redirects.
-    void apiFetch("http://localhost:8001/api/v1/knowledge/list");
+    void apiFetch("http://localhost:8001/api/knowledge-bases");
     await tick();
     assert.equal(win.redirectedTo(), "/login?next=%2Fdashboard");
   } finally {
@@ -84,7 +84,7 @@ test("apiFetch does NOT redirect on 401 when auth is disabled (default)", async 
   const win = installWindow("/dashboard");
   const restore = stubFetch(jsonResponse(401, { detail: "unauthorized" }));
   try {
-    const res = await apiFetch("http://localhost:8001/api/v1/knowledge/list");
+    const res = await apiFetch("http://localhost:8001/api/knowledge-bases");
     assert.equal(res.status, 401);
     assert.equal(win.redirectedTo(), null);
   } finally {
@@ -103,7 +103,7 @@ test("apiFetch does NOT redirect on 401 when skipAuthRedirect is set", async () 
     jsonResponse(401, { detail: "Incorrect username or password" }),
   );
   try {
-    const res = await apiFetch("http://localhost:8001/api/v1/auth/login", {
+    const res = await apiFetch("http://localhost:8001/api/auth/login", {
       method: "POST",
       skipAuthRedirect: true,
     });
@@ -122,7 +122,7 @@ test("apiFetch passes successful responses through without redirecting", async (
   const win = installWindow("/dashboard");
   const restore = stubFetch(jsonResponse(200, { ok: true }));
   try {
-    const res = await apiFetch("http://localhost:8001/api/v1/auth/status");
+    const res = await apiFetch("http://localhost:8001/api/auth/status");
     assert.equal(res.status, 200);
     assert.equal(win.redirectedTo(), null);
   } finally {

@@ -100,7 +100,7 @@ async def list_visible_partners():
     """Partners the current user can connect & consult.
 
     Returns every partner for an admin, or just the ones an admin has assigned
-    for a non-admin. The partner CRUD API (``/api/v1/partners``) stays fully
+    for a non-admin. The partner CRUD API (``/api/partners``) stays fully
     admin-gated; this is the read surface the connect flow and the partner list
     page use, so a non-admin sees their assigned partners without a 403.
     """

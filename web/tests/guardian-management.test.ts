@@ -8,11 +8,10 @@ const readWebFile = (...parts: string[]) =>
 
 const api = readWebFile("lib", "guardian-api.ts");
 const page = readWebFile(
-  "app",
-  "(utility)",
+  "features",
   "settings",
-  "guardian",
-  "page.tsx",
+  "sections",
+  "GuardianSettingsSection.tsx",
 );
 const adminEditor = readWebFile(
   "features",

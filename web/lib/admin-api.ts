@@ -32,7 +32,7 @@ export async function getLearnerProfile(
 ): Promise<LearnerProfile | null> {
   const res = await apiFetch(
     apiUrl(
-      `/api/v1/auth/users/${encodeURIComponent(username)}/learner-profile`,
+      `/api/auth/users/${encodeURIComponent(username)}/learner-profile`,
     ),
   );
   if (!res.ok) throw new Error("Failed to fetch learner profile");
@@ -48,7 +48,7 @@ export async function setLearnerProfile(
 ): Promise<LearnerProfile | null> {
   const res = await apiFetch(
     apiUrl(
-      `/api/v1/auth/users/${encodeURIComponent(username)}/learner-profile`,
+      `/api/auth/users/${encodeURIComponent(username)}/learner-profile`,
     ),
     {
       method: "PUT",
@@ -67,14 +67,14 @@ export async function setLearnerProfile(
 }
 
 export async function listUsers(): Promise<UserRecord[]> {
-  const res = await apiFetch(apiUrl("/api/v1/auth/users"));
+  const res = await apiFetch(apiUrl("/api/auth/users"));
   if (!res.ok) throw new Error("Failed to fetch users");
   return res.json();
 }
 
 export async function deleteUser(username: string): Promise<void> {
   const res = await apiFetch(
-    apiUrl(`/api/v1/auth/users/${encodeURIComponent(username)}`),
+    apiUrl(`/api/auth/users/${encodeURIComponent(username)}`),
     {
       method: "DELETE",
     },
@@ -90,7 +90,7 @@ export async function setUserRole(
   role: "admin" | "user",
 ): Promise<void> {
   const res = await apiFetch(
-    apiUrl(`/api/v1/auth/users/${encodeURIComponent(username)}/role`),
+    apiUrl(`/api/auth/users/${encodeURIComponent(username)}/role`),
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -116,7 +116,7 @@ export async function createUser(
   password: string,
   preset: AccountPreset = "standard",
 ): Promise<CreatedUser> {
-  const res = await apiFetch(apiUrl("/api/v1/auth/users"), {
+  const res = await apiFetch(apiUrl("/api/auth/users"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password, preset }),

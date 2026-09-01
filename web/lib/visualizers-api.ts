@@ -1,6 +1,6 @@
 import { apiFetch, apiUrl } from "@/lib/api";
 
-const BASE = "/api/v1/visualizers";
+const BASE = "/api/visualizers";
 
 export interface VisualizerCatalogItem {
   id: string;

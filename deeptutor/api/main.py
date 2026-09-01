@@ -400,7 +400,7 @@ async def json_error_boundary(request: Request, call_next):
 # Access logging is funneled through this one middleware. uvicorn's own
 # per-request access log is disabled on every launch path (run_server.py via
 # access_log=False; the launcher and Docker via `--no-access-log`), so routine
-# 200s — the chatty frontend polling of /settings, /tools, /knowledge/list,
+# 200s — the chatty frontend polling of /settings, /tools, /knowledge-bases,
 # etc. — never reach the logs. Only non-200s are surfaced, since those are the
 # ones worth seeing.
 #
@@ -508,8 +508,8 @@ from deeptutor.api.routers import (
 from deeptutor.api.routers.multi_user import router as multi_user_router  # noqa: E402
 
 # Auth router is public — login/logout/register/status require no token
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
-app.include_router(outputs.router, prefix="/api/outputs", tags=["outputs"])
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(outputs.router, prefix="/files/outputs", tags=["outputs"])
 
 # All other routers require a valid session when AUTH_ENABLED=true.
 # require_auth is a no-op when AUTH_ENABLED=false, so this is safe for local use.
@@ -526,85 +526,74 @@ _admin = [Depends(require_admin)]
 
 app.include_router(
     multi_user_router,
-    prefix="/api/v1/multi-user",
+    prefix="/api/multi-user",
     tags=["multi-user"],
     dependencies=_auth,
 )
 
+app.include_router(question.router, prefix="/api/question", tags=["question"], dependencies=_auth)
+app.include_router(knowledge.router, prefix="/api", tags=["knowledge-bases"], dependencies=_auth)
+app.include_router(imports.router, prefix="/api/imports", tags=["imports"], dependencies=_auth)
 app.include_router(
-    question.router, prefix="/api/v1/question", tags=["question"], dependencies=_auth
-)
-app.include_router(
-    knowledge.router, prefix="/api/v1/knowledge", tags=["knowledge"], dependencies=_auth
-)
-app.include_router(imports.router, prefix="/api/v1/imports", tags=["imports"], dependencies=_auth)
-app.include_router(
-    dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"], dependencies=_auth
+    dashboard.router, prefix="/api/dashboard", tags=["dashboard"], dependencies=_auth
 )
 app.include_router(
     mastery_path.router,
-    prefix="/api/v1/learning",
+    prefix="/api/mastery-paths",
     tags=["mastery-path"],
     dependencies=_auth,
 )
-app.include_router(
-    co_writer.router, prefix="/api/v1/co_writer", tags=["co_writer"], dependencies=_auth
-)
-app.include_router(
-    notebook.router, prefix="/api/v1/notebook", tags=["notebook"], dependencies=_auth
-)
-app.include_router(book.router, prefix="/api/v1/book", tags=["book"], dependencies=_auth)
-app.include_router(reading.router, prefix="/api/v1/reading", tags=["reading"], dependencies=_auth)
+app.include_router(co_writer.router, prefix="/api", tags=["documents"], dependencies=_auth)
+app.include_router(notebook.router, prefix="/api", tags=["notebooks"], dependencies=_auth)
+app.include_router(book.router, prefix="/api", tags=["books"], dependencies=_auth)
+app.include_router(book.ws_router, prefix="/ws", tags=["books"])
+app.include_router(reading.router, prefix="/api/reading", tags=["reading"], dependencies=_auth)
 app.include_router(
     reading_extensions.router,
-    prefix="/api/v1/reading",
+    prefix="/api/reading",
     tags=["reading-extensions"],
     dependencies=_auth,
 )
-app.include_router(memory.router, prefix="/api/v1/memory", tags=["memory"], dependencies=_auth)
+app.include_router(memory.router, prefix="/api/memory", tags=["memory"], dependencies=_auth)
 app.include_router(
     capabilities_settings.router,
-    prefix="/api/v1/capabilities",
+    prefix="/api/capabilities",
     tags=["capabilities"],
     dependencies=_auth,
 )
 app.include_router(
     capabilities.router,
-    prefix="/api/v1/capabilities",
+    prefix="/api/capabilities",
     tags=["capabilities"],
     dependencies=_auth,
 )
-app.include_router(
-    sessions.router, prefix="/api/v1/sessions", tags=["sessions"], dependencies=_auth
-)
-app.include_router(courses.router, prefix="/api/v1/courses", tags=["courses"], dependencies=_auth)
+app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"], dependencies=_auth)
+app.include_router(courses.router, prefix="/api/courses", tags=["courses"], dependencies=_auth)
 app.include_router(
     question_notebook.router,
-    prefix="/api/v1/question-notebook",
+    prefix="/api/question-notebook",
     tags=["question-notebook"],
     dependencies=_auth,
 )
 # Public UI-settings read (auth pages bootstrap the interface language
-# before a session exists, so GET /api/v1/settings/ui must not be gated
+# before a session exists, so GET /api/settings/ui must not be gated
 # by _auth). Mounted first so the path resolves here, not on the gated
 # settings router below.
 app.include_router(
     settings.public_router,
-    prefix="/api/v1/settings",
+    prefix="/api/settings",
     tags=["settings"],
 )
-app.include_router(
-    settings.router, prefix="/api/v1/settings", tags=["settings"], dependencies=_auth
-)
+app.include_router(settings.router, prefix="/api/settings", tags=["settings"], dependencies=_auth)
 app.include_router(
     video_learning.settings_router,
-    prefix="/api/v1/settings/video-learning",
+    prefix="/api/settings/video-learning",
     tags=["video-learning-settings"],
     dependencies=_admin,
 )
 app.include_router(
     mcp_settings.router,
-    prefix="/api/v1/settings/mcp",
+    prefix="/api/settings/mcp",
     tags=["mcp-settings"],
     dependencies=_auth,
 )
@@ -614,7 +603,7 @@ app.include_router(
 # keeps its own ``require_admin``.
 app.include_router(
     space_mcp.router,
-    prefix="/api/v1/space/mcp",
+    prefix="/api/space/mcp",
     tags=["space-mcp"],
     dependencies=_auth,
 )
@@ -624,52 +613,48 @@ app.include_router(
 # own preference among apps an administrator already granted it.
 app.include_router(
     space_cli_apps.router,
-    prefix="/api/v1/space/cli-apps",
+    prefix="/api/space/cli-apps",
     tags=["space-cli-apps"],
     dependencies=_auth,
 )
-app.include_router(skills.router, prefix="/api/v1/skills", tags=["skills"], dependencies=_auth)
+app.include_router(skills.router, prefix="/api/skills", tags=["skills"], dependencies=_auth)
 app.include_router(
-    subagents.router, prefix="/api/v1/subagents", tags=["subagents"], dependencies=_auth
+    subagents.router, prefix="/api/subagents", tags=["subagents"], dependencies=_auth
 )
-app.include_router(
-    personas.router, prefix="/api/v1/personas", tags=["personas"], dependencies=_auth
-)
-app.include_router(tools_router.router, prefix="/api/v1/tools", tags=["tools"], dependencies=_auth)
-app.include_router(system.router, prefix="/api/v1/system", tags=["system"], dependencies=_auth)
-app.include_router(voice.router, prefix="/api/v1/voice", tags=["voice"], dependencies=_auth)
+app.include_router(personas.router, prefix="/api", tags=["personas"], dependencies=_auth)
+app.include_router(tools_router.router, prefix="/api/tools", tags=["tools"], dependencies=_auth)
+app.include_router(system.router, prefix="/api/system", tags=["system"], dependencies=_auth)
+app.include_router(voice.router, prefix="/api/voice", tags=["voice"], dependencies=_auth)
 app.include_router(
     video_learning.router,
-    prefix="/api/v1/video-learning",
+    prefix="/api/video-learning",
     tags=["video-learning"],
     dependencies=_auth,
 )
 app.include_router(
     visualizers.router,
-    prefix="/api/v1/visualizers",
+    prefix="/api/visualizers",
     tags=["visualizers"],
     dependencies=_auth,
 )
 app.include_router(
-    agent_config.router, prefix="/api/v1/agent-config", tags=["agent-config"], dependencies=_auth
+    agent_config.router, prefix="/api/agent-config", tags=["agent-config"], dependencies=_auth
 )
 # Partners are per-user resources now: anyone may build their own, and an admin
 # may assign theirs to others. Only ``_auth`` here — every route in the router
 # declares whether it needs *use* or *manage* rights on the partner it names
 # (see ``multi_user.partner_access``), which a blanket admin gate could not
 # express.
-app.include_router(
-    partners.router, prefix="/api/v1/partners", tags=["partners"], dependencies=_auth
-)
+app.include_router(partners.router, prefix="/api/partners", tags=["partners"], dependencies=_auth)
 app.include_router(
     partner_groups.router,
-    prefix="/api/v1/partner-groups",
+    prefix="/api/partner-groups",
     tags=["partner-groups"],
     dependencies=_auth,
 )
 app.include_router(
     attachments.router,
-    prefix="/api/attachments",
+    prefix="/files/attachments",
     tags=["attachments"],
     dependencies=_auth,
 )
@@ -678,17 +663,17 @@ app.include_router(
 # sync/heartbeat use device-token auth (the Add-on has no session).
 app.include_router(
     marginnote4.router,
-    prefix="/api/v1/marginnote4",
+    prefix="/api/marginnote4",
     tags=["marginnote4"],
 )
 
 # Unified WebSocket endpoint — auth is checked inside the handler (WebSockets
 # cannot use FastAPI dependencies in the standard way)
-app.include_router(unified_ws.router, prefix="/api/v1", tags=["unified-ws"])
+app.include_router(unified_ws.router, tags=["unified-ws"])
 
 # Quiz AI-judge WebSocket — same caveat as unified_ws above; auth is checked
 # inside the handler so the WS upgrade isn't rejected by an HTTP-style dep.
-app.include_router(quiz_judge.router, prefix="/api/v1", tags=["quiz-judge"])
+app.include_router(quiz_judge.router, prefix="/ws", tags=["quiz-judge"])
 
 
 @app.get("/")

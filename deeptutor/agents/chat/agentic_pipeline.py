@@ -1141,7 +1141,7 @@ class AgenticChatPipeline:
             # A CLI app runs like exec, and for the same reason gets its workdir
             # from here rather than choosing one: one directory per turn shared by
             # every app, so the model can render with one and post-process with
-            # another, and the files land where /api/outputs will serve them
+            # another, and the files land where /files/outputs will serve them
             # (``PathService.is_public_output_path`` has the matching branch).
             from deeptutor.services.sandbox import Mount
 
@@ -1166,7 +1166,7 @@ class AgenticChatPipeline:
                 )
         elif tool_name in ("imagegen", "videogen"):
             # Generated media lands in the turn's public workspace so it
-            # surfaces as a download card via /api/outputs (same convention as
+            # surfaces as a download card via /files/outputs (same convention as
             # exec/code_execution artifacts).
             media_dir = task_dir / "media" if task_dir is not None else None
             if media_dir is not None:

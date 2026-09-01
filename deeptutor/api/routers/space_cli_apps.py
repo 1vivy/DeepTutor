@@ -2,7 +2,7 @@
 CLI apps API
 ============
 
-Mounted at ``/api/v1/space/cli-apps``. Two audiences on one surface, split by
+Mounted at ``/api/space/cli-apps``. Two audiences on one surface, split by
 method rather than by route prefix so the page has one thing to read:
 
 * **anyone signed in** — ``GET /apps`` (what is installed, and whether I may use

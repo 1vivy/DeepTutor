@@ -1026,7 +1026,7 @@ async def test_handoff_drops_a_ref_that_matches_nothing_attached(
     """Observed live: a syllabus unit id handed in as a mastery path.
 
     Both namespaces appear in the state summary and look alike. Passing the id
-    through builds a card pointing at /mastery/u2/study — a page that does not
+    through builds a card pointing at /mastery/u2/sessions — a page that does not
     exist — and, being non-empty, also tells the client the destination has a
     composer, so the prepared opening line is stored for a surface that never
     consumes it.
