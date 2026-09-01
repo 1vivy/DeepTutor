@@ -19,7 +19,7 @@ function SidebarConsumer({ onRender }: { onRender: () => void }) {
 }
 
 describe("chat selector isolation", () => {
-  it("does not rerender sidebar consumers for streamed content", () => {
+  it("does not rerender sidebar consumers during a 500-token stream", () => {
     const onMessageRender = vi.fn();
     const onSidebarRender = vi.fn();
     const store = createChatStore();
@@ -38,24 +38,26 @@ describe("chat selector isolation", () => {
     );
 
     const sidebarBefore = screen.getByTestId("sidebar").textContent;
-    act(() => {
-      store.dispatch({
-        type: "stream_event",
-        key: "draft",
-        event: {
-          type: "content",
-          turn_id: "turn-1",
-          seq: 1,
-          timestamp: 1,
-          content: "token",
-          metadata: {},
-        },
+    for (let seq = 1; seq <= 500; seq += 1) {
+      act(() => {
+        store.dispatch({
+          type: "stream_event",
+          key: "draft",
+          event: {
+            type: "content",
+            turn_id: "turn-1",
+            seq,
+            timestamp: seq,
+            content: "x",
+            metadata: {},
+          },
+        });
       });
-    });
+    }
 
-    expect(screen.getByTestId("messages")).toHaveTextContent("token");
+    expect(screen.getByTestId("messages").textContent).toHaveLength(500);
     expect(screen.getByTestId("sidebar").textContent).toBe(sidebarBefore);
-    expect(onMessageRender).toHaveBeenCalledTimes(2);
+    expect(onMessageRender).toHaveBeenCalledTimes(501);
     expect(onSidebarRender).toHaveBeenCalledTimes(1);
   });
 });

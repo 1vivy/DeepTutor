@@ -488,11 +488,23 @@ export function WatchingPane({ onClose }: { onClose(): void }) {
             {tab === "transcript" ? (
               material.transcript.status !== "ready" ? (
                 <div className="rounded-lg border border-[var(--border)] p-4 text-sm text-[var(--muted-foreground)]">
-                  {t(
-                    "Transcript learning is unavailable ({{reason}}). Playback still works, but Explain here is disabled.",
-                    {
-                      reason: material.transcript.reason || t("no captions"),
-                    },
+                  <p>
+                    {t(
+                      "Transcript learning is unavailable ({{reason}}). Playback still works, but Explain here is disabled.",
+                      {
+                        reason: material.transcript.reason || t("no captions"),
+                      },
+                    )}
+                  </p>
+                  {material.playback.provider === "invidious" && (
+                    <button
+                      type="button"
+                      onClick={() => void retryTranscript()}
+                      disabled={loading}
+                      className="mt-3 rounded border border-[var(--border)] px-2 py-1 font-medium text-[var(--foreground)] disabled:opacity-50"
+                    >
+                      {t("Retry captions")}
+                    </button>
                   )}
                 </div>
               ) : (
@@ -664,16 +676,6 @@ export function WatchingPane({ onClose }: { onClose(): void }) {
                   ))
                 ) : (
                   !notesError && <p className="text-sm">{t("No notes yet.")}</p>
-                )}
-                {material.playback.provider === "invidious" && (
-                  <button
-                    type="button"
-                    onClick={() => void retryTranscript()}
-                    disabled={loading}
-                    className="mt-3 rounded border border-[var(--border)] px-2 py-1 text-sm font-medium disabled:opacity-50"
-                  >
-                    {t("Retry captions")}
-                  </button>
                 )}
               </div>
             )}

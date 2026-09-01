@@ -155,3 +155,9 @@ npm run perf:check
 ```
 
 The lifecycle browser audit is registered under the `critical-turns` Playwright project. It remains explicitly skipped until the deterministic backend fixture is delivered in the multi-worker acceptance phase.
+
+## 7. Post-refactor comparison
+
+The completed frontend pass replaces the obsolete manifest-based bundle estimate with an HTML-entry measurement from a production Next.js server. The two size tables therefore use different methods and must not be interpreted as a byte-for-byte regression chart. The new measurement is reproducible, route-specific, and enforced by `npm run perf:check`.
+
+The final implementation and gate evidence are recorded in [`2026-09-01-frontend-stabilization-v2-acceptance.md`](./2026-09-01-frontend-stabilization-v2-acceptance.md). In particular, the old `/api/v1/chat` browser transport and compatibility surfaces have been removed, route shells now sit behind explicit feature boundaries, and a 500-event selector test proves that streamed content does not rerender the session sidebar.

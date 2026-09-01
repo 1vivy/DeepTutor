@@ -75,29 +75,31 @@ jobs:
         working-directory: web
         run: npm ci --legacy-peer-deps
 
-      - name: Check generated frontend contracts
+      - name: Run complete deterministic frontend gate
         working-directory: web
-        run: npm run contracts:check
+        run: npm run check
 
-      - name: Typecheck frontend
+      - name: Install Playwright Chromium
         working-directory: web
-        run: npm run typecheck
+        run: npx playwright install --with-deps chromium
 
-      - name: Run frontend node tests
+      - name: Run interaction, accessibility, and visual matrix audits
         working-directory: web
-        run: npm run test:node
-
-      - name: Run frontend component tests
-        working-directory: web
-        run: npm run test:unit
-
-      # eslint was not a gate, so #921 landed two real React violations: a
-      # predicate named like a hook (tripping rules-of-hooks) and a synchronous
-      # setState inside an effect. Errors only — the repo still carries i18n
-      # literal warnings, and turning those red is a separate cleanup.
-      - name: Lint frontend
-        working-directory: web
-        run: npx eslint .
+        run: |
+          npm start -- --hostname 127.0.0.1 --port 3000 > /tmp/deeptutor-web-audit.log 2>&1 &
+          audit_server_pid=$!
+          trap 'kill "$audit_server_pid"' EXIT
+          for attempt in $(seq 1 100); do
+            if curl --fail --silent http://127.0.0.1:3000/ > /dev/null; then
+              break
+            fi
+            if ! kill -0 "$audit_server_pid" 2>/dev/null; then
+              cat /tmp/deeptutor-web-audit.log
+              exit 1
+            fi
+            sleep 0.1
+          done
+          WEB_BASE_URL=http://127.0.0.1:3000 npm run audit
 
   multi-worker-web:
     name: Four-worker browser acceptance

@@ -67,10 +67,16 @@ test("package exposes deterministic frontend checks", () => {
   const scripts = packageJson.scripts as Record<string, string>;
 
   assert.equal(scripts.typecheck, "tsc --noEmit --incremental false");
-  assert.ok(scripts["check:fast"]);
-  assert.ok(scripts.check);
-  assert.match(scripts.check, /build/);
-  assert.match(scripts.check, /perf:check/);
+  assert.equal(
+    scripts["check:fast"],
+    "npm run contracts:check && npm run architecture:check && npm run typecheck && npm run test:node && npm run test:unit && npm run lint && npm run i18n:check",
+  );
+  assert.equal(
+    scripts.check,
+    "npm run check:fast && npm run build && npm run perf:check",
+  );
+  assert.match(scripts["test:e2e:critical"], /critical-turns/);
+  assert.match(scripts["test:e2e:multi-worker"], /multi-worker-turns-desktop/);
 });
 
 test("tracked frontend files contain no generated or backup artifacts", () => {

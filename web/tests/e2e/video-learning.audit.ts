@@ -141,6 +141,14 @@ test("YouTube learning survives reload and switches to Invidious without silent 
       });
     }
     if (path === "/api/v1/settings/ui") return json({ language: "en" });
+    if (path === "/api/v1/capabilities/registered") {
+      return json({
+        capabilities: [
+          { id: "chat", kind: "turn", available: true },
+          { id: "immersive_watching", kind: "turn", available: true },
+        ],
+      });
+    }
     if (path === "/api/v1/settings") return json({ catalog: {} });
     if (path === "/api/v1/settings/llm-options") {
       return json({ active: { profile_id: "p", model_id: "m" }, options: [] });
@@ -222,11 +230,7 @@ test("YouTube learning survives reload and switches to Invidious without silent 
     return json({});
   });
 
-  await page.goto("/home");
-  await page
-    .getByRole("button", { name: /Immersive Watching/ })
-    .last()
-    .click();
+  await page.goto("/home?capability=immersive_watching");
   await page
     .getByPlaceholder("https://youtu.be/…")
     .fill("https://youtu.be/dQw4w9WgXcQ?t=7");
@@ -257,11 +261,6 @@ test("YouTube learning survives reload and switches to Invidious without silent 
   await expect(page.getByText("The first grounded concept.")).toBeVisible();
 
   await page.reload();
-  await page.getByRole("button", { name: "Chat", exact: true }).click();
-  await page
-    .getByRole("button", { name: /Immersive Watching/ })
-    .last()
-    .click();
   await expect(page.getByText("Timestamped lesson")).toBeVisible();
   await page.getByRole("tab", { name: "Video notes" }).click();
   await expect(page.getByText("First timestamped note")).toBeVisible();
@@ -332,10 +331,6 @@ test("YouTube learning survives reload and switches to Invidious without silent 
     });
   await expect.poll(() => savedPosition).toBeGreaterThanOrEqual(70);
   await page.reload();
-  await page
-    .getByRole("button", { name: /Immersive Watching/ })
-    .last()
-    .click();
   await expect(page.getByText("Timestamped lesson")).toBeVisible();
   await expect
     .poll(() =>

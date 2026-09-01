@@ -14,7 +14,7 @@
     "test:unit:watch": "vitest",
     "contracts:generate": "node ./scripts/generate-contracts.mjs",
     "contracts:check": "node ./scripts/generate-contracts.mjs --check",
-    "check:fast": "npm run contracts:check && npm run typecheck && npm run test:node && npm run test:unit && npm run lint && npm run i18n:check",
+    "check:fast": "npm run contracts:check && npm run architecture:check && npm run typecheck && npm run test:node && npm run test:unit && npm run lint && npm run i18n:check",
     "check": "npm run check:fast && npm run build && npm run perf:check",
     "perf:check": "node ./scripts/route_budgets.mjs",
     "build:perf": "npm run build && npm run perf:check",
@@ -26,6 +26,8 @@
     "audit": "playwright test --project=ui-audit",
     "audit:ui": "playwright test --ui --project=ui-audit",
     "audit:report": "playwright show-report",
+    "test:e2e:critical": "playwright test --project=critical-turns",
+    "test:e2e:multi-worker": "playwright test --project=multi-worker-turns-desktop --project=multi-worker-turns-mobile",
     "build:brand-icons": "tsx ./scripts/build-brand-icons.mts"
   },
   "dependencies": {

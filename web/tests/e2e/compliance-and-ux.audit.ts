@@ -57,7 +57,15 @@ test.describe("Compliance :: Accessibility & Semantics", () => {
           const text = (a.textContent || "").trim();
           const aria = (a.getAttribute("aria-label") || "").trim();
           const title = (a.getAttribute("title") || "").trim();
-          return text.length === 0 && aria.length === 0 && title.length === 0;
+          const imageName = Array.from(a.querySelectorAll("img")).some(
+            (image) => (image.getAttribute("alt") || "").trim().length > 0,
+          );
+          return (
+            text.length === 0 &&
+            aria.length === 0 &&
+            title.length === 0 &&
+            !imageName
+          );
         }).length,
     );
     expect(
