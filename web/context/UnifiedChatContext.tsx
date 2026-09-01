@@ -2354,6 +2354,7 @@ export function UnifiedChatProvider({
   return <ChatCtx.Provider value={value}>{children}</ChatCtx.Provider>;
 }
 
+/** @deprecated Migrate to narrow selectors/actions from `@/features/chat` (Task 14). */
 export function useUnifiedChat() {
   const ctx = useContext(ChatCtx);
   if (!ctx)

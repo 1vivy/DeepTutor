@@ -68,6 +68,7 @@ export interface ChatStoreState {
 export type ChatStoreAction =
   | { type: "ensure_session"; key: string }
   | { type: "select_session"; key: string }
+  | { type: "remove_session"; key: string }
   | { type: "load_session"; session: ChatSession }
   | {
       type: "add_optimistic_turn";

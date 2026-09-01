@@ -1,6 +1,6 @@
 import { GeogebraTabProvider } from "@/context/GeogebraTabContext";
 import { QuizFollowupProvider } from "@/context/QuizFollowupContext";
-import { UnifiedChatProvider } from "@/context/UnifiedChatContext";
+import { ChatRuntimeProvider } from "@/features/chat";
 import { ReadingProvider } from "@/context/ReadingContext";
 import { WatchingProvider } from "@/context/WatchingContext";
 
@@ -16,11 +16,11 @@ export default function MasteryStudyLayout({
   return (
     <ReadingProvider>
       <WatchingProvider>
-        <UnifiedChatProvider>
+        <ChatRuntimeProvider>
           <QuizFollowupProvider>
             <GeogebraTabProvider>{children}</GeogebraTabProvider>
           </QuizFollowupProvider>
-        </UnifiedChatProvider>
+        </ChatRuntimeProvider>
       </WatchingProvider>
     </ReadingProvider>
   );

@@ -115,6 +115,20 @@ export function chatReducer(state: ChatStoreState, action: ChatStoreAction): Cha
       return state.sessions[action.key] && state.activeKey !== action.key
         ? { ...state, activeKey: action.key }
         : state;
+    case "remove_session": {
+      if (!state.sessions[action.key]) return state;
+      const sessions = { ...state.sessions };
+      delete sessions[action.key];
+      return {
+        ...state,
+        activeKey: state.activeKey === action.key ? null : state.activeKey,
+        sessions,
+        sidebar: {
+          revision: state.sidebar.revision + 1,
+          sessions: state.sidebar.sessions.filter((item) => item.key !== action.key),
+        },
+      };
+    }
     case "load_session": {
       const next = {
         ...state,
