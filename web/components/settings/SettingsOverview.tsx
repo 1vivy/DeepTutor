@@ -14,7 +14,7 @@ import {
   settingsAnchorHref,
   type Lang,
   type SettingsLeaf,
-} from "@/lib/settings-nav";
+} from "@/features/settings/navigation/settings-nav";
 import {
   getActiveModel,
   getActiveProfile,

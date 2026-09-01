@@ -1,5 +1,7 @@
 "use client";
 
+import { browserStorage } from "@/shared/storage";
+
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -283,7 +285,7 @@ export default function MemorySection({
   useEffect(() => {
     if (typeof window === "undefined") return;
     setDismissedBackup(
-      window.localStorage.getItem("dt:memory:banner-dismissed") || null,
+      browserStorage.readRaw("local", "dt:memory:banner-dismissed") || null,
     );
   }, []);
 
@@ -293,7 +295,7 @@ export default function MemorySection({
   const dismissArchivedBanner = useCallback(() => {
     if (!latestBackup) return;
     if (typeof window !== "undefined") {
-      window.localStorage.setItem("dt:memory:banner-dismissed", latestBackup);
+      browserStorage.writeRaw("local", "dt:memory:banner-dismissed", latestBackup);
     }
     setDismissedBackup(latestBackup);
   }, [latestBackup]);

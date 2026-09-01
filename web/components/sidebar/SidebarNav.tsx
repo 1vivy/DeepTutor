@@ -1,5 +1,7 @@
 "use client";
 
+import { browserStorage } from "@/shared/storage";
+
 /**
  * The workspace feature list — the part of the sidebar a learner owns.
  *
@@ -99,7 +101,7 @@ export function SidebarNav({
     if (typeof window === "undefined") return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLayout(readNavLayout());
-    setMoreExpanded(window.localStorage.getItem(MORE_EXPANDED_KEY) === "1");
+    setMoreExpanded(browserStorage.readRaw("local", MORE_EXPANDED_KEY) === "1");
   }, []);
 
   const resolved = useMemo(
@@ -120,7 +122,7 @@ export function SidebarNav({
   const showMore = useCallback((next: boolean) => {
     setMoreExpanded(next);
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(MORE_EXPANDED_KEY, next ? "1" : "0");
+      browserStorage.writeRaw("local", MORE_EXPANDED_KEY, next ? "1" : "0");
     }
   }, []);
 

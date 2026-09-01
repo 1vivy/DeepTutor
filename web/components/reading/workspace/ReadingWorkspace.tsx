@@ -1,5 +1,7 @@
 "use client";
 
+import { browserStorage } from "@/shared/storage";
+
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -144,7 +146,7 @@ export function ReadingWorkspacePage() {
     if (typeof window === "undefined") return 380;
     try {
       const stored = Number(
-        window.localStorage.getItem("dt.reader.companionWidth"),
+        browserStorage.readRaw("local", "dt.reader.companionWidth"),
       );
       return Number.isFinite(stored) && stored >= 300 && stored <= 640
         ? stored
@@ -260,7 +262,8 @@ export function ReadingWorkspacePage() {
         window.removeEventListener("pointerup", onUp);
         setCompanionWidth((current) => {
           try {
-            window.localStorage.setItem(
+            browserStorage.writeRaw(
+              "local",
               "dt.reader.companionWidth",
               String(current),
             );

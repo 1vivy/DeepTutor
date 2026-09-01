@@ -1,5 +1,7 @@
 "use client";
 
+import { browserStorage } from "@/shared/storage";
+
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -142,7 +144,7 @@ export function MasteryStudy({
   useEffect(() => {
     try {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setOutlineOpen(localStorage.getItem(OUTLINE_STORAGE_KEY) !== "0");
+      setOutlineOpen(browserStorage.readRaw("local", OUTLINE_STORAGE_KEY) !== "0");
     } catch {
       // Private mode / blocked storage: the default (open) stands.
     }
@@ -151,7 +153,7 @@ export function MasteryStudy({
     setOutlineOpen((open) => {
       const next = !open;
       try {
-        localStorage.setItem(OUTLINE_STORAGE_KEY, next ? "1" : "0");
+        browserStorage.writeRaw("local", OUTLINE_STORAGE_KEY, next ? "1" : "0");
       } catch {
         // Preference is best-effort; the session still honours the toggle.
       }

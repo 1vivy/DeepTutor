@@ -111,6 +111,7 @@ import {
   type ToolName,
 } from "@/features/capabilities/presentation";
 import { useCapabilityCatalog } from "@/features/capabilities/useCapabilityCatalog";
+import { browserStorage } from "@/shared/storage";
 import { downloadChatMarkdown } from "@/lib/chat-export";
 import { buildChatOutline } from "@/lib/chat-outline";
 import { isPlaceholderSessionTitle } from "@/lib/session-title";
@@ -371,21 +372,21 @@ export default function ChatWorkspace() {
   } | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (window.localStorage.getItem("dt:chat:viewer-panel") === "1") {
+    if (browserStorage.readRaw("local", "dt:chat:viewer-panel") === "1") {
       setViewerPanelOpen(true);
     }
   }, []);
   const setViewerOpen = useCallback((next: boolean) => {
     setViewerPanelOpen(next);
     if (typeof window !== "undefined") {
-      window.localStorage.setItem("dt:chat:viewer-panel", next ? "1" : "0");
+      browserStorage.writeRaw("local", "dt:chat:viewer-panel", next ? "1" : "0");
     }
   }, []);
   const toggleViewerPanel = useCallback(() => {
     setViewerPanelOpen((prev) => {
       const next = !prev;
       if (typeof window !== "undefined") {
-        window.localStorage.setItem("dt:chat:viewer-panel", next ? "1" : "0");
+        browserStorage.writeRaw("local", "dt:chat:viewer-panel", next ? "1" : "0");
       }
       return next;
     });
@@ -446,7 +447,7 @@ export default function ChatWorkspace() {
     if (!capabilityConfigStorageKey) return;
     if (lastHydratedConfigKeyRef.current === capabilityConfigStorageKey) return;
     lastHydratedConfigKeyRef.current = capabilityConfigStorageKey;
-    const raw = window.localStorage.getItem(capabilityConfigStorageKey);
+    const raw = browserStorage.readRaw("local", capabilityConfigStorageKey);
     if (!raw) return;
     try {
       const parsed = JSON.parse(raw) as {
@@ -470,7 +471,8 @@ export default function ChatWorkspace() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!capabilityConfigStorageKey) return;
-    window.localStorage.setItem(
+    browserStorage.writeRaw(
+      "local",
       capabilityConfigStorageKey,
       JSON.stringify({
         quizConfig,

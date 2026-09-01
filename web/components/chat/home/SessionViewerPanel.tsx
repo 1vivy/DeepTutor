@@ -1,5 +1,7 @@
 "use client";
 
+import { browserStorage } from "@/shared/storage";
+
 /**
  * SessionViewerPanel — full right-side sidebar with browser-style tabs that
  * can hold (a) attachment previews and (b) embedded web pages clicked from
@@ -126,7 +128,7 @@ function clampViewerWidth(px: number): number {
 
 function readStoredViewerWidth(): number {
   if (typeof window === "undefined") return VIEWER_WIDTH_DEFAULT;
-  const raw = window.localStorage.getItem(VIEWER_WIDTH_KEY);
+  const raw = browserStorage.readRaw("local", VIEWER_WIDTH_KEY);
   const parsed = raw ? Number(raw) : NaN;
   return Number.isFinite(parsed)
     ? clampViewerWidth(parsed)
@@ -308,7 +310,7 @@ function SessionViewerPanelInner(
       document.body.style.cursor = "";
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
-      window.localStorage.setItem(VIEWER_WIDTH_KEY, String(widthRef.current));
+      browserStorage.writeRaw("local", VIEWER_WIDTH_KEY, String(widthRef.current));
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);

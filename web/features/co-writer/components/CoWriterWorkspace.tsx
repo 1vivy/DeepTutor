@@ -315,7 +315,7 @@ export default function CoWriterWorkspace({ docId }: CoWriterWorkspaceProps) {
       markdown,
       draftRevisionRef.current,
     );
-  }, [docId, hasLoadedDraft, markdown]);
+  }, [docId, hasLoadedDraft, isUnmountedRef, markdown]);
 
   // Debounced autosave to the server.
   useEffect(() => {
@@ -518,7 +518,7 @@ export default function CoWriterWorkspace({ docId }: CoWriterWorkspaceProps) {
     } finally {
       if (!isUnmountedRef.current) setIsSavingDoc(false);
     }
-  }, [docId, docTitle, titleDraft]);
+  }, [docId, docTitle, isUnmountedRef, titleDraft]);
 
   useEffect(() => {
     if (!isEditingTitle) return;
@@ -1538,6 +1538,7 @@ export default function CoWriterWorkspace({ docId }: CoWriterWorkspaceProps) {
   }, [
     buildJointMarkers,
     releaseScrollSyncSource,
+    scrollSyncSourceRef,
     syncScrollEnabled,
     updateSelectionPopover,
   ]);
@@ -1576,7 +1577,12 @@ export default function CoWriterWorkspace({ docId }: CoWriterWorkspaceProps) {
     scrollSyncSourceRef.current = "preview";
     editor.scrollTop = next;
     releaseScrollSyncSource();
-  }, [buildJointMarkers, releaseScrollSyncSource, syncScrollEnabled]);
+  }, [
+    buildJointMarkers,
+    releaseScrollSyncSource,
+    syncScrollEnabled,
+    scrollSyncSourceRef,
+  ]);
 
   // Mermaid diagrams, images, and KaTeX render asynchronously, so the preview's
   // scrollHeight (and the y position of every marker after them) shifts well
@@ -1626,7 +1632,7 @@ export default function CoWriterWorkspace({ docId }: CoWriterWorkspaceProps) {
       observer.disconnect();
       inner.removeEventListener("load", onLoad, true);
     };
-  }, [showPreview]);
+  }, [scrollSyncSourceRef, showPreview]);
 
   if (docNotFound) {
     return (

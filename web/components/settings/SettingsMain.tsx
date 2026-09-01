@@ -7,7 +7,7 @@ import SettingsNav, {
 } from "@/components/settings/SettingsNav";
 import { SettingsToolbar } from "@/components/settings/SettingsToolbar";
 import { SettingsLoadStatusBanner } from "@/components/settings/SettingsLoadStatusBanner";
-import { isNavOnlyRoute } from "@/lib/settings-nav";
+import { isNavOnlyRoute } from "@/features/settings/navigation/settings-nav";
 
 /**
  * Settings shell: a persistent navigator on the left, one page on the right.

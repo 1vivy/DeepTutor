@@ -1,5 +1,7 @@
 "use client";
 
+import { browserStorage } from "@/shared/storage";
+
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type {
   ChangeEvent,
@@ -120,7 +122,7 @@ export default function BookChatPanel({
     useImeComposing();
 
   useEffect(() => {
-    const raw = window.localStorage.getItem("deeptutor.bookChat.width");
+    const raw = browserStorage.readRaw("local", "deeptutor.bookChat.width");
     const parsed = Number(raw);
     if (Number.isFinite(parsed) && parsed >= 300 && parsed <= 720) {
       // Hydrate persisted panel width after the SSR-safe default render.
@@ -130,7 +132,7 @@ export default function BookChatPanel({
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem("deeptutor.bookChat.width", String(width));
+    browserStorage.writeRaw("local", "deeptutor.bookChat.width", String(width));
   }, [width]);
 
   useEffect(() => {

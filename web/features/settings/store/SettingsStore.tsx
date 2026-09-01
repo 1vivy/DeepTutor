@@ -28,6 +28,7 @@ import { invalidateLLMOptionsCache } from "@/lib/llm-options";
 import { setModelReasoningEffort } from "@/lib/reasoning-effort";
 import { applyExtensionPayload } from "@/lib/settings-extensions";
 import { setTheme as applyThemePreference } from "@/lib/theme";
+import { browserStorage } from "@/shared/storage";
 
 // ─── Domain types ─────────────────────────────────────────────────────────
 
@@ -501,7 +502,7 @@ function readStoredDiagnosticsResults(): Partial<
   if (typeof window === "undefined") return {};
   try {
     const parsed = JSON.parse(
-      window.sessionStorage.getItem(DIAGNOSTICS_RESULTS_KEY) || "{}",
+      browserStorage.readRaw("session", DIAGNOSTICS_RESULTS_KEY) || "{}",
     ) as Partial<Record<ServiceName, DiagnosticsResult>>;
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
@@ -913,7 +914,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      window.sessionStorage.setItem(
+      browserStorage.writeRaw(
+        "session",
         DIAGNOSTICS_RESULTS_KEY,
         JSON.stringify(diagnosticsResults),
       );

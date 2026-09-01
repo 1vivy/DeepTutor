@@ -1,6 +1,7 @@
 /** Typed client for first-class Partner Groups. */
 
 import { apiFetch, apiUrl } from "@/lib/api";
+import { browserStorage } from "@/shared/storage";
 import type { PartnerInfo } from "@/lib/partners-api";
 import type { StreamEvent } from "@/lib/unified-ws";
 
@@ -199,10 +200,10 @@ export async function getPartnerGroupInvocations(
 export function partnerGroupSessionKey(groupId: string): string {
   const storageKey = `deeptutor:partner-group:${groupId}:session`;
   if (typeof window === "undefined") return "default";
-  const existing = window.localStorage.getItem(storageKey);
+  const existing = browserStorage.readRaw("local", storageKey);
   if (existing) return existing;
   const created = `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-  window.localStorage.setItem(storageKey, created);
+  browserStorage.writeRaw("local", storageKey, created);
   return created;
 }
 
@@ -242,7 +243,8 @@ export async function deletePartnerGroupSession(
 /** Point this group at another (or brand new) discussion thread. */
 export function setPartnerGroupSessionKey(groupId: string, key: string): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(
+  browserStorage.writeRaw(
+    "local",
     `deeptutor:partner-group:${groupId}:session`,
     key,
   );

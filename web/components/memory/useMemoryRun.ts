@@ -1,5 +1,7 @@
 "use client";
 
+import { browserStorage } from "@/shared/storage";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import i18n from "i18next";
 
@@ -60,15 +62,15 @@ function storageKey(layer: string, key: string) {
 
 function readPersistedRunId(layer: string, key: string): string | null {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(storageKey(layer, key));
+  return browserStorage.readRaw("local", storageKey(layer, key));
 }
 
 function writePersistedRunId(layer: string, key: string, runId: string | null) {
   if (typeof window === "undefined") return;
   if (runId) {
-    window.localStorage.setItem(storageKey(layer, key), runId);
+    browserStorage.writeRaw("local", storageKey(layer, key), runId);
   } else {
-    window.localStorage.removeItem(storageKey(layer, key));
+    browserStorage.removeRaw("local", storageKey(layer, key));
   }
 }
 
