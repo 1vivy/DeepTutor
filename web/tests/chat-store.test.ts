@@ -60,9 +60,18 @@ test("branching, delete, regenerate rollback, and metadata remain session scoped
     user: user(1),
     assistant: assistant(2, "old"),
   });
-  store.dispatch({ type: "set_branch", key: "one", parentKey: "null", childId: 1 });
+  store.dispatch({
+    type: "set_branch",
+    key: "one",
+    parentKey: "null",
+    childId: 1,
+  });
   store.dispatch({ type: "delete_messages", key: "one", ids: [1, 2] });
-  store.dispatch({ type: "regenerate_rollback", key: "one", assistant: assistant(2, "old") });
+  store.dispatch({
+    type: "regenerate_rollback",
+    key: "one",
+    assistant: assistant(2, "old"),
+  });
   store.dispatch({ type: "session_meta", key: "one", title: "Stable title" });
   assert.equal(store.getState().sessions.one.title, "Stable title");
   assert.equal(store.getState().sessions.one.messages.at(-1)?.content, "old");
@@ -87,6 +96,9 @@ test("cache bounds evict old idle sessions and retain live work", () => {
     };
     store.dispatch({ type: "load_session", session });
   }
-  assert.ok(Object.keys(store.getState().sessions).length <= MAX_CACHED_CHAT_SESSIONS + 1);
+  assert.ok(
+    Object.keys(store.getState().sessions).length <=
+      MAX_CACHED_CHAT_SESSIONS + 1,
+  );
   assert.ok(store.getState().sessions.s0);
 });

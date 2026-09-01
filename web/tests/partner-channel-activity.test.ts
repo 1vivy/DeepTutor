@@ -8,9 +8,11 @@ const source = readFileSync(
   "utf8",
 );
 
-test("partner chat loads the merged web and channel activity timeline", () => {
-  assert.match(source, /getPartnerHistory\(partnerId, \{ limit: 60 \}\)/);
-  assert.doesNotMatch(source, /getPartnerHistory\(partnerId, \{\s*sessionKey,/);
+test("partner chat restores only the active conversation", () => {
+  assert.match(
+    source,
+    /getPartnerHistory\(partnerId, \{ sessionKey, limit: 60 \}\)/,
+  );
 });
 
 test("partner chat renders external user echoes and live trace events", () => {

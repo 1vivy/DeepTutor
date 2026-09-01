@@ -11,19 +11,19 @@ const quizViewer = readFileSync(
 test("fill-in-the-blank questions expose the existing image answer flow", () => {
   assert.match(
     quizViewer,
-    /const canAttachImage = isFillBlank \|\| !isGradable;/,
+    /const canAttachImage = isFillBlank \|\| !isGradable;?/,
   );
   assert.match(quizViewer, /\{canAttachImage && \(/);
   assert.match(
     quizViewer,
-    /if \(canAttachImage && ans\.images\.length > 0\) return false;/,
+    /if \(canAttachImage && ans\.images\.length > 0\) return false;?/,
   );
 });
 
 test("image-only fill-in-the-blank submissions wait for AI judgment", () => {
   assert.match(
     quizViewer,
-    /const canShowCorrectness = isGradable && currentUserAnswer\.length > 0;/,
+    /const canShowCorrectness = isGradable && currentUserAnswer\.length > 0;?/,
   );
   assert.match(
     quizViewer,

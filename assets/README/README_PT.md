@@ -1,6 +1,6 @@
 <div align="center">
 
-<p align="center"><img src="../../assets/figs/logo/logo.png" alt="DeepTutor logo" height="56" style="vertical-align: middle;">&nbsp;<img src="../../assets/figs/logo/banner.png" alt="DeepTutor" height="48" style="vertical-align: middle;"></p>
+<p align="center"><img src="../../assets/figs/logo/logo.png" alt="Logótipo do DeepTutor" height="56" style="vertical-align: middle;">&nbsp;<img src="../../assets/figs/logo/banner.png" alt="DeepTutor" height="48" style="vertical-align: middle;"></p>
 
 # DeepTutor: Tutoria Personalizada Vitalícia
 
@@ -62,12 +62,12 @@
 O DeepTutor é um espaço de trabalho de aprendizagem nativo de agentes que conecta tutoria, resolução de problemas, geração de quizzes, pesquisa, visualização e prática de domínio num sistema extensível.
 
 - **Um runtime para todos os modos** — Chat, Ask Questions, Quiz, Research, Visualize, Solve, Course Study, Mastery Path, Immersive Reading e Immersive Watching partilham o mesmo runtime de capacidades e o mesmo contexto de sessão, mantendo loops e pipelines específicos para cada finalidade.
-- **Contexto de aprendizado conectado** — bases de conhecimento, livros, rascunhos Co-Writer, cadernos, bancos de questões, personas e Memory permanecem disponíveis em todos os fluxos de trabalho em vez de viverem em ferramentas isoladas.
+- **Contexto de aprendizagem conectado** — bases de conhecimento, livros, rascunhos Co-Writer, notebooks, bancos de questões, personas e Memory podem ser reutilizados nos fluxos de trabalho que os suportam, sujeitos às concessões da conta e às políticas de aprendizagem.
 - **Aprendizagem imersiva por vídeo** — cole um link do YouTube para reprodução nativa com privacidade melhorada, legendas sincronizadas, tutoria fundamentada em marcas temporais e progresso retomável; os administradores podem mudar a reprodução para uma instância Invidious auto-hospedada sem reconstruir materiais.
-- **Subagentes e Partners** — consulte um harness de agente ao vivo (Claude Code, Codex, Antigravity, Kimi, opencode, MiMo, Hermes, OpenClaw ou DeepSeek) ou um Partner a partir de qualquer turno (ou importe conversas anteriores), e execute companheiros IM persistentes no mesmo cérebro.
+- **Subagentes e Partners** — a partir do Chat, consulte um harness de agente ao vivo (Claude Code, Codex, Antigravity, Kimi, opencode, MiMo, Hermes, OpenClaw ou DeepSeek) ou um Partner, importe conversas anteriores e execute companheiros IM persistentes no mesmo cérebro.
 - **Conhecimento multi-motor** — bibliotecas RAG com versões: LlamaIndex, PageIndex, GraphRAG, LightRAG, um LightRAG Server remoto, bases de conhecimento WeKnora auto-hospedadas, uma biblioteca Tencent IMA ou MarginNote 4, ou um vault Obsidian vinculado, com análise de documentos conectável.
 - **Ferramentas e habilidades extensíveis** — ferramentas integradas, servidores MCP, aplicações CLI, modelos de geração de imagem / vídeo / voz e habilidades da comunidade instaláveis do EduHub.
-- **Memória inspecionável** — rastreamentos L1, resumos de superfície L2 e síntese L3 tornam a personalização visível e editável, com um Memory Graph que rastreia cada afirmação até à sua evidência.
+- **Memória inspecionável** — rastreamentos L1, resumos de superfície L2 e síntese L3 tornam a personalização visível e editável; o Memory Graph liga os factos L2 às evidências L1 e a síntese L3 às superfícies contribuintes.
 
 ---
 
@@ -136,7 +136,7 @@ pip install -e ".[rag-lightrag]"    # Built-in LightRAG engine (exact supported 
 pip install -e ".[graphrag]"        # Microsoft GraphRAG engine (Python 3.11–3.13)
 pip install -e ".[dev]"             # tests/lint tools
 pip install -e ".[partners]"        # Partner IM channel SDKs
-pip install -e ".[video-learning]"  # optional YouTube public-caption adapter
+pip install -e ".[video-learning]"  # compatibility extra; captions ship in the full/CLI installs
 pip install -e ".[matrix]"          # Matrix channel without E2EE/libolm
 pip install -e ".[matrix-e2e]"      # Matrix E2EE; requires libolm
 pip install -e ".[math-animator]"   # Manim addon; requires LaTeX/ffmpeg/system libs
@@ -165,8 +165,8 @@ deeptutor start --dev
 
 Um contentor para a aplicação web completa. Imagens no GitHub Container Registry:
 
-- `ghcr.io/hkuds/deeptutor:latest` — lançamento estável
-- `ghcr.io/hkuds/deeptutor:pre` — pré-lançamento, quando disponível
+- `ghcr.io/hkuds/deeptutor:latest` — lançamento estável mais recente
+- `ghcr.io/hkuds/deeptutor:<version>` — lançamento exato sem o `v` inicial (por exemplo, `:1.6.3`); os pré-lançamentos recebem apenas a respetiva tag de versão
 
 > Consulte [CONTAINERIZATION.md](../../CONTAINERIZATION.md) para implementações podman/rootless/read-only-rootfs e o guia completo por instalação.
 
@@ -248,7 +248,7 @@ deeptutor init --cli
 deeptutor chat
 ```
 
-`deeptutor init --cli` partilha o mesmo layout `data/user/settings/` que a aplicação completa mas omite as solicitações de portas de backend/frontend e define embeddings como **desativado** (escolha `Yes` se planear usar `deeptutor kb …` ou ferramentas RAG). Ainda escreve os ficheiros de runtime essenciais (`system.json`, `auth.json`, `integrations.json`, `interface.json`, `model_catalog.json`, `main.yaml`, `agents.yaml`) e solicita o provedor LLM e modelo ativos.
+`deeptutor init --cli` partilha o mesmo layout `data/user/settings/` que a aplicação completa, mas omite as solicitações de portas de backend/frontend. Continua a oferecer os seletores Embedding e Search (escolha **Skip** quando não precisar deles), escreve os ficheiros de runtime essenciais (`system.json`, `auth.json`, `integrations.json`, `interface.json`, `model_catalog.json`, `main.yaml`, `agents.yaml`) e solicita o provedor LLM e o modelo ativos.
 
 <details>
 <summary><b>Comandos comuns</b></summary>
@@ -272,24 +272,13 @@ A instalação local de `deeptutor-cli` não inclui ativos web nem dependências
 <details>
 <summary><b>Sandbox de Execução de Código (skills de escritório)</b> · executar código gerado pelo modelo para docx / pdf / pptx / xlsx</summary>
 
-As skills de escritório integradas — **docx / pdf / pptx / xlsx** — funcionam fazendo com que o
-modelo escreva um script Python curto (`python-docx`, `reportlab`, `openpyxl`, …),
-o execute através das ferramentas `exec` / `code_execution` e devolva um URL de download.
-Essas ferramentas montam sempre que um backend de sandbox está ativo, o que é o caso **por predefinição**
-em cada forma de implementação:
+As skills de escritório integradas — **docx / pdf / pptx / xlsx** — funcionam fazendo com que o modelo escreva um script Python curto (`python-docx`, `reportlab`, `openpyxl`, …), o execute através das ferramentas `exec` / `code_execution` e devolva um URL de download. Essas ferramentas são montadas sempre que um backend de sandbox está ativo. O DeepTutor seleciona o backend configurado mais robusto pela seguinte ordem:
 
-- **Local (Opção 1 / 2) e Docker (Opção 3, contentor único):** um sandbox de subprocesso restrito
-  executa o código do modelo (localmente no host, ou dentro do contentor sob Docker — o contentor
-  sendo o seu próprio limite de isolamento).
-- **docker-compose:** encaminhado em vez disso para um **sidecar runner** endurecido e com privilégios
-  mínimos (`Dockerfile.runner`) via `DEEPTUTOR_SANDBOX_RUNNER_URL` — a postura mais sólida,
-  e preferida automaticamente quando presente.
+- **Sidecar runner:** `DEEPTUTOR_SANDBOX_RUNNER_URL` encaminha a execução para o serviço endurecido e de privilégios mínimos de `Dockerfile.runner`.
+- **Linux bubblewrap:** quando disponível, `bwrap` isola o processo e os ficheiros.
+- **Fallback de subprocesso restrito:** as instalações locais e de contentor único só o utilizam quando permitido; no Docker, o contentor continua a ser outro limite.
 
-O sandbox de subprocesso é controlado pela configuração `sandbox_allow_subprocess` em
-`data/user/settings/system.json` (predefinição `true`). Executar código gerado pelo modelo no seu host
-é uma decisão real de confiança — defina-o como `false` (ou exporte
-`DEEPTUTOR_SANDBOX_ALLOW_SUBPROCESS=0`) para desativar a execução do lado do host, à custa das
-skills de escritório já não conseguirem produzir ficheiros.
+A configuração `sandbox_allow_subprocess` em `data/user/settings/system.json` (predefinição `true`) controla apenas o último fallback. Defina-a como `false` (ou exporte `DEEPTUTOR_SANDBOX_ALLOW_SUBPROCESS=0`) para recusar a execução por subprocesso quando não estiver disponível nenhum backend runner ou `bwrap`; isto não desativa esses backends mais robustos.
 
 </details>
 
@@ -300,7 +289,7 @@ Tudo sob `data/user/settings/` é JSON/YAML simples. A página **Settings** no n
 
 | Ficheiro | Propósito |
 |:---|:---|
-| `model_catalog.json` | Perfis de provedores LLM, embeddings e pesquisa; chaves API; modelos ativos |
+| `model_catalog.json` | Ligações a provedores, perfis LLM, de tarefas, embeddings, pesquisa, TTS, STT, imagem e vídeo, credenciais e seleções ativas |
 | `system.json` | Portas de backend/frontend, base de API pública, CORS, verificação SSL, diretório de anexos e limites de carregamento/extração |
 | `auth.json` | Interruptor de autenticação opcional, nome de utilizador, hash de palavra-passe, configurações de token/cookie |
 | `integrations.json` | Configurações opcionais de PocketBase e integrações sidecar |
@@ -366,7 +355,7 @@ Comece pelas superfícies principais que usará no dia a dia: Chat, Partners, Me
 Se uma resposta perder uma restrição anterior, citar evidências fracas ou discordar do material selecionado, recolha os diagnósticos em [`REASONING_SAFETY_CHECKLIST.md`](../../REASONING_SAFETY_CHECKLIST.md) antes de abrir uma issue.
 
 <div align="center">
-<img src="../../assets/figs/web-1.6.0/OVERVIEW.png" alt="DeepTutor home — o espaço de trabalho Chat com todas as superfícies na barra lateral" width="900">
+<img src="../../assets/figs/web-1.6.0/OVERVIEW.png" alt="Página inicial do DeepTutor — o espaço de trabalho Chat com todas as superfícies na barra lateral" width="900">
 </div>
 
 <details>
@@ -395,7 +384,7 @@ O loop é deliberadamente simples: o modelo pensa em rondas, chama ferramentas q
 
 As ferramentas ativáveis pelo utilizador são `brainstorm`, `web_search`, `paper_search`, `reason` e `geogebra_analysis` — mais `imagegen` e `videogen` depois de configurar o modelo de geração correspondente. Ferramentas contextuais como `rag`, `kb_files`, `read_source`, `read_memory`, `write_memory`, `read_skill`, `load_tools`, `exec`, `web_fetch`, `ask_user`, `list_notebook`, `write_note`, `question_bank`, `github` e `consult_subagent` montam automaticamente quando o turno tem o contexto certo.
 
-O contexto é de dois tipos: **contexto de sessão fixo** (subagente, bases de conhecimento, persona, modelo, voz) vive na barra de ferramentas do compositor e persiste entre turnos; **referências únicas** (ficheiros, histórico de chat, livros, secções de leitura, notebooks, banco de questões, agentes importados) vêm do menu `+` para um único turno.
+O contexto é de dois tipos: o **contexto de sessão fixo** (capacidade, espaço de trabalho ou curso, ferramentas, bases de conhecimento, persona, modelo e estado de Reading / Mastery) persiste entre turnos; as **referências únicas** (ficheiros, histórico de chat, livros, secções de leitura, notebooks, banco de questões, agentes importados) vêm do menu `+` para um único turno. O botão de voz transcreve apenas a mensagem atual.
 
 A página inicial mantém **Chat**, **Ask Questions**, **Quiz**, **Visualize** e **Immersive Watching** a um clique de distância; **Research** para relatórios com citações e **Solve** para raciocínio desenvolvido ficam em *More Capabilities*. **Mastery Path** e **Immersive Reading** são espaços de trabalho dedicados na barra lateral. Reading acrescenta citações verificadas e clicáveis, citações e notas guardadas, ações de áudio / guia de estudo / vocabulário / quiz / tradução fundamentadas nas fontes e captura para notebooks, enquanto Course Study mantém o seu próprio contexto vinculado ao curso.
 
@@ -414,7 +403,7 @@ Os Partners são companheiros persistentes com a sua própria alma, política de
 <img src="../../assets/figs/system/partners-architecture.png" alt="Arquitetura de partners DeepTutor" width="900">
 </div>
 
-Cada partner tem um `SOUL.md`, seleção de modelo, canais, política de ferramentas e biblioteca atribuída. As bases de conhecimento, skills e notebooks são copiadas para `data/partners/<id>/workspace/`, pelo que as mesmas ferramentas de RAG, skill, notebook e memória funcionam sem casos especiais. Um partner lê a memória do seu proprietário mas escreve apenas a sua própria.
+Cada partner tem um `SOUL.md`, seleção de modelo, canais, política de ferramentas e biblioteca atribuída. As bases de conhecimento, skills e notebooks são copiadas para `data/partners/<id>/workspace/`, pelo que as mesmas ferramentas de RAG, skill, notebook e memória funcionam sem casos especiais. Os utilizadores autenticados que não sejam administradores mantêm sessões Partner e memória de relacionamento privadas, enquanto o Partner lê a sua memória pessoal em modo somente leitura; o tráfego de administrador, de grupo e não vinculado usa o âmbito Partner partilhado.
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/partners/02-IM%20config%20for%20each%20partner.png" alt="Configuração de canal IM por partner" width="900">
@@ -433,13 +422,13 @@ Para uma configuração mais rápida, a página de canal do Partner pode criar u
 <img src="../../assets/figs/web-1.4.6+/myagents/00-overview.png" alt="Espaço de trabalho Meus Agentes DeepTutor" width="900">
 </div>
 
-Meus Agentes transforma outros agentes em contexto para o DeepTutor, e faz duas coisas distintas. **Conectar um agente ao vivo** — Claude Code, Codex, Antigravity, Kimi, opencode, MiMo Code, Hermes Agent, OpenClaw ou DeepSeek Harness na sua máquina, ou um dos seus Partners — e consultá-lo a partir de dentro de um turno de chat: o DeepTutor *executa* mesmo o outro agente e transmite o seu trabalho para o painel de Atividade via a ferramenta `consult_subagent`. Selecione-o com o chip de Agente (ou escreva `@`), e defina quantas rondas a consulta pode ter.
+Meus Agentes transforma outros agentes em contexto para o DeepTutor, e faz duas coisas distintas. **Conectar um agente ao vivo** — Claude Code, Codex, Antigravity, Kimi, opencode, MiMo Code, Hermes Agent, OpenClaw ou DeepSeek Harness na sua máquina, ou um dos seus Partners — e consultá-lo a partir de dentro de um turno de chat: o DeepTutor *executa* mesmo o outro agente e transmite o seu trabalho para o painel de Atividade via a ferramenta `consult_subagent`. Selecione-o e o respetivo limite de rondas com o chip de Agente, ou filtre a mesma lista de agentes conectados com `@`; a escolha permanece associada à sessão.
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/home/08-subagent%20demo%20with%20claude%20code.png" alt="Consultar um subagente Claude Code ao vivo" width="900">
 </div>
 
-**Importar conversas anteriores** — traga o seu histórico existente do Claude Code e Codex como agentes nomeados, pesquisáveis e retomáveis. Escolha quais os dias a importar; atualizar ressincroniza-os. Referencie uma conversa importada a partir de qualquer turno de chat via `+` → Meus Agentes, e o DeepTutor lê-a como uma transcrição de terceiros — permanece *a conversa deles*, não a voz própria do DeepTutor.
+**Importar conversas anteriores** — traga o seu histórico existente do Claude Code e Codex como agentes nomeados, pesquisáveis e retomáveis. Escolha o histórico do Claude por projeto / diretório de trabalho e o histórico do Codex por data do calendário; atualizar ressincroniza esse âmbito e obtém novas conversas. Referencie uma a partir de um turno do Chat via `+` → Meus Agentes, e o DeepTutor lê-a como uma transcrição de terceiros — permanece *a conversa deles*, não a voz própria do DeepTutor.
 
 </details>
 
@@ -456,7 +445,7 @@ Co-Writer é um espaço de trabalho Markdown de vista dividida para relatórios,
 <img src="../../assets/figs/web-1.4.6+/co-writer/01-edit%20panel.png" alt="Editor Co-Writer com pré-visualização em tempo real" width="900">
 </div>
 
-A sua ideia central é a **edição cirúrgica**: selecione um trecho e peça ao DeepTutor para reescrever, expandir ou encurtar. O agente de edição pode fundamentar a alteração numa base de conhecimento ou evidência web, mantém um rasto das suas chamadas de ferramentas e mostra cada alteração como um diff aceitar/rejeitar — pelo que nada aterra até que aprove.
+A sua ideia central é a **edição cirúrgica**: selecione um trecho e peça ao DeepTutor para reescrever, expandir ou encurtar. O agente de edição pode fundamentar a alteração numa base de conhecimento ou evidência web e mantém um rasto das suas chamadas de ferramentas. Se o rascunho não tiver mudado durante o trabalho, o resultado substitui diretamente o texto selecionado e continua reversível com **Undo**.
 
 </details>
 
@@ -509,7 +498,7 @@ O motor LightRAG integrado é instalado com `pip install 'deeptutor[rag-lightrag
 <img src="../../assets/figs/web-1.4.6+/learning-space/00-overview.png" alt="Hub do Espaço de Aprendizado DeepTutor" width="900">
 </div>
 
-O Espaço de Aprendizado é a camada de biblioteca, organização e personalização. **My courses** agrupa as conversas de cada disciplina e mantém os threads do tutor aninhados sob a respetiva conversa principal; o Chat History filtra por curso ou tipo de thread e permite fixar, arquivar ou mover sessões. **Conversas e Materiais** também contém notebooks — com registos que se movem ou copiam entre notebooks e uma exportação em Markdown — e um banco de questões que guarda a sua resposta, a resposta de referência e uma explicação. **Personalização** contém personas, skills (playbooks `SKILL.md`), **Serviços MCP** de um clique e **Aplicações CLI** do catálogo [CLI-Anything](https://github.com/HKUDS/CLI-Anything), cada uma com um guia de utilização carregado a pedido. Tudo aqui pode ser reutilizado a partir do Chat, Partners, Co-Writer e Book.
+O Espaço de Aprendizado é a camada de biblioteca, organização e personalização. **Conversas e Materiais** contém o Chat History, notebooks — com registos que se movem ou copiam entre notebooks e uma exportação em Markdown — e um banco de questões que guarda a sua resposta, a resposta de referência e uma explicação. **Personalização** contém personas, skills (playbooks `SKILL.md`), **Serviços MCP** de um clique e **Aplicações CLI** do catálogo [CLI-Anything](https://github.com/HKUDS/CLI-Anything), cada uma com um guia de utilização carregado a pedido. O espaço de trabalho separado **My Courses** agrupa conversas por disciplina e threads de tutoria; cada recurso é oferecido apenas nos fluxos de trabalho que o suportam.
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/learning-space/07-%20download%20skills%20from%20eduhub.png" alt="Importar skills do EduHub" width="900">
@@ -526,13 +515,13 @@ Não tem de escrever cada skill você mesmo — **Importar do EduHub** navega no
 <img src="../../assets/figs/web-1.4.6+/memory/00-overview.png" alt="Visão geral da memória DeepTutor" width="900">
 </div>
 
-A Memória é um sistema de três camadas suportado por ficheiros que pode ler, curar e auditar — deliberadamente *não* um armazém de vetores oculto. **L1** é o espelho do espaço de trabalho mais um rasto de eventos append-only (`trace/<surface>/<date>.jsonl`); **L2** são factos curados por superfície (`L2/<surface>.md`); **L3** é a síntese entre superfícies (`L3/<profile|recent|scope|preferences>.md`). Como L2 cita L1 e L3 cita L2, nada no seu perfil é incontabilizável.
+A Memória é um sistema de três camadas suportado por ficheiros que pode ler, curar e auditar — deliberadamente *não* um armazém de vetores oculto. **L1** é o espelho do espaço de trabalho mais um rasto de eventos append-only (`trace/<surface>/<date>.jsonl`); **L2** são factos curados por superfície (`L2/<surface>.md`) com referências a entidades L1; **L3** é a síntese entre superfícies (`L3/<profile|recent|scope|preferences>.md`) que regista as superfícies L2 contribuintes.
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/memory/01-3%20layer%20memory%20graph.png" alt="Gráfico de memória de três camadas DeepTutor" width="900">
 </div>
 
-O Memory Graph mostra toda a pirâmide — síntese L3 no centro, L2 no anel do meio, rastreamentos L1 no exterior — para que possa rastrear qualquer afirmação sintetizada até ao evento bruto exato que lhe deu origem. A memória é rastreada nas superfícies `chat`, `notebook`, `quiz`, `kb`, `book`, partner e `cowriter`; os orçamentos de Atualização / Auditoria / Deduplicação do consolidador são ajustados em **Settings → Memory**.
+O Memory Graph mostra toda a pirâmide — síntese L3 no centro, L2 no anel do meio, rastreamentos L1 no exterior — com arestas de evidência L2 → L1 exatas e ligações L3 → superfícies contribuintes. A memória é rastreada nas superfícies `chat`, `notebook`, `quiz`, `kb`, `book`, partner e `cowriter`; os orçamentos de Atualização / Auditoria / Deduplicação do consolidador são ajustados em **Settings → Memory**.
 
 </details>
 
@@ -606,7 +595,7 @@ Um binário `deeptutor`, duas formas de entrada: um **REPL** interativo para pes
 <details>
 <summary><b>Conduzir você mesmo</b></summary>
 
-`deeptutor chat` abre um REPL interativo; `deeptutor run <capability> "<message>"` dispara um único turno e sai. Ambos usam os mesmos flags `--capability`, `--tool`, `--kb` e `--config`.
+`deeptutor chat` abre um REPL interativo e seleciona um modo com `--capability`; `deeptutor run <capability> "<message>"` recebe essa capacidade como primeiro argumento posicional e sai após um turno. Ambos aceitam `--tool`, `--kb` e `--config`.
 
 ```bash
 deeptutor chat                                              # interactive REPL
@@ -714,11 +703,11 @@ O EduHub também é um registo independente compatível com ClawHub, por isso ag
 Seja qual for a fonte, cada importação passa pela **mesma porta de segurança** antes de qualquer coisa tocar no seu espaço de trabalho:
 
 - o **veredicto de segurança** do registo é verificado primeiro — os pacotes sinalizados são recusados a menos que passe `--allow-unverified`;
-- os arquivos são extraídos defensivamente (proteções zip-slip / zip-bomb) atrás de uma **lista branca de sufixos** de texto/script, para que binários nunca aterrem no espaço de trabalho;
+- os arquivos são extraídos defensivamente com verificações de travessia de caminhos, número de entradas, tamanho, taxa de compressão, sufixo e links simbólicos; os bits executáveis são removidos, enquanto ficheiros sem extensão continuam a ser permitidos;
 - o frontmatter é normalizado para o esquema do DeepTutor e `always:` é **removido**, por isso uma skill descarregada nunca pode forçar-se em cada prompt do sistema;
 - a proveniência — hub, versão, veredicto e hora de instalação — é escrita em `.hub-lock.json` para auditorias e atualizações.
 
-Em implementações multi-utilizador, as importações chegam à biblioteca de skills do próprio chamador; as skills atribuídas pelo administrador permanecem limitadas pelas concessões e em modo somente leitura.
+Em implementações multi-utilizador, as importações pelo navegador chegam à camada de skills do chamador autenticado, enquanto as instalações pela CLI e pela consola de administração têm como alvo o espaço de trabalho do proprietário/administrador; as skills do administrador permanecem ocultas e em modo somente leitura para utilizadores comuns até serem atribuídas.
 
 </details>
 

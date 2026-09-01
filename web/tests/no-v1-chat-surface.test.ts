@@ -23,7 +23,9 @@ function sourceFiles(directory: string): string[] {
 
 test("the frontend has no retired transport, URL, or compatibility surface", () => {
   const cwd = process.cwd();
-  const files = SOURCE_ROOTS.flatMap((root) => sourceFiles(path.resolve(cwd, root)));
+  const files = SOURCE_ROOTS.flatMap((root) =>
+    sourceFiles(path.resolve(cwd, root)),
+  );
   const forbidden = [
     /\/api\/v1(?:\/|["'`])/,
     /\/api\/(?:attachments|book|co_writer|knowledge|learning|notebook|outputs)(?:\/|["'`])/,
@@ -37,7 +39,11 @@ test("the frontend has no retired transport, URL, or compatibility surface", () 
   for (const file of files) {
     const source = fs.readFileSync(file, "utf8");
     for (const pattern of forbidden) {
-      assert.doesNotMatch(source, pattern, `${path.relative(cwd, file)} contains ${pattern}`);
+      assert.doesNotMatch(
+        source,
+        pattern,
+        `${path.relative(cwd, file)} contains ${pattern}`,
+      );
     }
   }
 
@@ -56,7 +62,11 @@ test("the frontend has no retired transport, URL, or compatibility surface", () 
     "app/(utility)/notebook",
     "app/(utility)/space/notebooks/page.tsx",
   ]) {
-    assert.equal(fs.existsSync(path.resolve(cwd, relative)), false, `${relative} must stay deleted`);
+    assert.equal(
+      fs.existsSync(path.resolve(cwd, relative)),
+      false,
+      `${relative} must stay deleted`,
+    );
   }
 });
 

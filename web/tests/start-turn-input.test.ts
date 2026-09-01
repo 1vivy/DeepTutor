@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildStartTurnInput, legacySendMessageInput } from "../features/chat/controllers/buildStartTurnInput";
+import {
+  buildStartTurnInput,
+  legacySendMessageInput,
+} from "../features/chat/controllers/buildStartTurnInput";
 import type { StartTurnInput } from "../features/chat/model/start-turn";
 import { ApiError } from "../shared/api/errors";
 
@@ -52,7 +55,9 @@ test("course, Reading, Watching, Mastery, references, edit, and budget are expli
     subagentConsultBudget: 3,
     notebookReferences: [{ notebook_id: "nb", record_ids: ["r1"] }],
     bookReferences: [{ book_id: "book", page_ids: ["p1"] }],
-    readingReferences: [{ material_id: "material-1", revision: 2, locators: [4] }],
+    readingReferences: [
+      { material_id: "material-1", revision: 2, locators: [4] },
+    ],
     attachments: [{ type: "document", filename: "notes.pdf", url: "/a" }],
   });
   assert.equal(wire.course_id, "course-1");

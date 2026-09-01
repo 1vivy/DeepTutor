@@ -18,6 +18,8 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 export interface BookProgressTimelineProps {
   progress: BookProgress;
+  /** Durable chapter counts from the Book API (not replay-derived events). */
+  pageCounts?: { ready: number; total: number };
   /** Compact mode — single-line horizontal pill strip (for reader header). */
   compact?: boolean;
   /** Mini mode — extra-thin floating chip (line + circles) for top-right. */
@@ -169,6 +171,7 @@ function formatStageDetail(detail: string | undefined, t: Translate): string {
 
 export default function BookProgressTimeline({
   progress,
+  pageCounts,
   compact = false,
   mini = false,
   className = "",
@@ -234,7 +237,9 @@ export default function BookProgressTimeline({
           {activeLabel}
         </span>
         <span className="tabular-nums text-[10px] font-medium text-[var(--muted-foreground)]">
-          {Math.round(fraction * 100)}%
+          {activeStage === "compilation" && pageCounts?.total
+            ? t("{{ready}}/{{total}} pages", pageCounts)
+            : `${Math.round(fraction * 100)}%`}
         </span>
       </div>
     );
@@ -289,9 +294,7 @@ export default function BookProgressTimeline({
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
               <Loader2
-                className={`h-3 w-3 ${
-                  fraction < 1 ? "animate-spin" : "opacity-0"
-                }`}
+                className={`h-3 w-3 ${fraction < 1 ? "animate-spin" : "opacity-0"}`}
               />
               {t("Generating book")}
             </div>

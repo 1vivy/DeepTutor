@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from datetime import datetime
 import json
 import logging
 import re
@@ -26,6 +27,8 @@ import uuid
 
 from .ask_user_trace import filter_ask_user_events
 from .provider_response_state import redact_private_message_metadata
+from .scope import StoreScope
+from .workspace_preferences import upgrade_workspace_preferences
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +66,11 @@ def _to_float(value: Any, default: float = 0.0) -> float:
     try:
         return float(value) if value is not None else default
     except (TypeError, ValueError):
+        if isinstance(value, str):
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+            except ValueError:
+                pass
         return default
 
 
@@ -105,6 +113,7 @@ class PocketBaseSessionStore:
 
     def __init__(self) -> None:
         self._closed = False
+        self.store_scope: StoreScope | None = None
 
     async def close(self) -> None:
         """Prevent lifecycle owners from retaining an already-closed store."""
@@ -113,6 +122,53 @@ class PocketBaseSessionStore:
     # ------------------------------------------------------------------
     # Sessions
     # ------------------------------------------------------------------
+
+    async def migrate_workspace_preferences(self) -> int:
+        """Persist canonical workspace metadata for the current PocketBase user.
+
+        The explicit logical timestamps keep this metadata-only migration from
+        changing conversation order even though PocketBase updates its own
+        system ``updated`` field whenever a record is written.
+        """
+
+        uid = _current_user_id()
+
+        def _migrate() -> int:
+            collection = _pb().collection("sessions")
+            records = collection.get_full_list(query_params={"filter": f'user_id="{uid}"'})
+            records.sort(
+                key=lambda record: (
+                    _to_float(getattr(record, "session_updated_at", None))
+                    or _to_float(getattr(record, "updated", None))
+                )
+            )
+            migrated = 0
+            for record in records:
+                current = _json_loads(getattr(record, "preferences_json", None), {})
+                upgraded = upgrade_workspace_preferences(current)
+                created_at = (
+                    _to_float(getattr(record, "session_created_at", None))
+                    or _to_float(getattr(record, "created", None))
+                    or time.time()
+                )
+                updated_at = (
+                    _to_float(getattr(record, "session_updated_at", None))
+                    or _to_float(getattr(record, "updated", None))
+                    or created_at
+                )
+                payload: dict[str, Any] = {}
+                if upgraded != current:
+                    payload["preferences_json"] = upgraded
+                    migrated += 1
+                if not _to_float(getattr(record, "session_created_at", None)):
+                    payload["session_created_at"] = created_at
+                if not _to_float(getattr(record, "session_updated_at", None)):
+                    payload["session_updated_at"] = updated_at
+                if payload:
+                    collection.update(record.id, payload)
+            return migrated
+
+        return await asyncio.to_thread(_migrate)
 
     async def create_session(
         self,
@@ -138,6 +194,8 @@ class PocketBaseSessionStore:
                         "preferences_json": {},
                         "capability": "",
                         "status": "idle",
+                        "session_created_at": now,
+                        "session_updated_at": now,
                     }
                 )
             )
@@ -200,7 +258,10 @@ class PocketBaseSessionStore:
             "updated_at": updated,
             "compressed_summary": getattr(record, "compressed_summary", "") or "",
             "summary_up_to_msg_id": int(getattr(record, "summary_up_to_msg_id", 0) or 0),
-            "preferences": _json_loads(preferences_raw, {}),
+            # PocketBase has no local schema-upgrade hook. Normalize at the
+            # repository boundary so old remote rows immediately satisfy the
+            # same API contract; their next preference write persists it.
+            "preferences": upgrade_workspace_preferences(_json_loads(preferences_raw, {})),
             "capability": getattr(record, "capability", "") or "",
             "status": getattr(record, "status", "idle") or "idle",
             "active_turn_id": "",
@@ -215,7 +276,11 @@ class PocketBaseSessionStore:
             if record is None:
                 return False
             _pb().collection("sessions").update(
-                record.id, {"title": (title.strip() or "New conversation")[:100]}
+                record.id,
+                {
+                    "title": (title.strip() or "New conversation")[:100],
+                    "session_updated_at": time.time(),
+                },
             )
             return True
 
@@ -328,7 +393,10 @@ class PocketBaseSessionStore:
         uid = _current_user_id()
 
         def _list():
-            query_params: dict[str, Any] = {"sort": "-updated", "filter": f'user_id="{uid}"'}
+            query_params: dict[str, Any] = {
+                "sort": "-session_updated_at",
+                "filter": f'user_id="{uid}"',
+            }
             return _pb().collection("sessions").get_list(page, limit, query_params=query_params)
 
         try:
@@ -430,14 +498,19 @@ class PocketBaseSessionStore:
             session = await self.get_session(sid)
             if session is None:
                 return False
-            merged = {**session.get("preferences", {}), **(preferences or {})}
+            merged = upgrade_workspace_preferences(
+                {**session.get("preferences", {}), **(preferences or {})}
+            )
             uid = _current_user_id()
 
             def _update():
                 record = _find_session_record(_pb(), sid, uid)
                 if record is None:
                     return False
-                _pb().collection("sessions").update(record.id, {"preferences_json": merged})
+                _pb().collection("sessions").update(
+                    record.id,
+                    {"preferences_json": merged, "session_updated_at": time.time()},
+                )
                 return True
 
             return await asyncio.to_thread(_update)
@@ -498,6 +571,10 @@ class PocketBaseSessionStore:
                 "msg_created_at": now,
             }
             record = _pb().collection("messages").create(payload)
+            uid = _current_user_id()
+            session_record = _find_session_record(_pb(), sid, uid)
+            if session_record is not None:
+                _pb().collection("sessions").update(session_record.id, {"session_updated_at": now})
             # Title generation is owned by the turn runtime (LLM-driven
             # after the first user+assistant pair). Until that runs the
             # session keeps the ``New conversation`` sentinel.

@@ -20,6 +20,7 @@ import {
   MessageSquarePlus,
   RotateCcw,
   Sparkles,
+  Square,
   X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -667,14 +668,16 @@ export default function QuizViewer({
             };
           });
         },
-        onDone: () => {
-          let finalText = "";
+        onDone: (finalText) => {
           setJudgments((prev) => {
             const current = prev[idx] ?? EMPTY_JUDGMENT;
-            finalText = current.text;
             return {
               ...prev,
-              [idx]: { ...current, isStreaming: false },
+              [idx]: {
+                ...current,
+                text: finalText || current.text,
+                isStreaming: false,
+              },
             };
           });
           judgeHandlesRef.current.delete(idx);
@@ -703,6 +706,11 @@ export default function QuizViewer({
     );
     judgeHandlesRef.current.set(idx, handle);
   }, [answers, entryIds, idx, language, q]);
+
+  const handleStopAiJudge = useCallback(() => {
+    judgeHandlesRef.current.get(idx)?.cancel();
+    judgeHandlesRef.current.delete(idx);
+  }, [idx]);
 
   const handleToggleAnswerView = useCallback(
     (view: AnswerView) => {
@@ -950,6 +958,7 @@ export default function QuizViewer({
             content={q.question}
             variant="prose"
             className="text-[var(--foreground)]"
+            enableMath
           />
         </div>
 
@@ -1214,17 +1223,16 @@ export default function QuizViewer({
                 const hasJudgment = j.text.length > 0 || j.error !== null;
                 return (
                   <button
-                    onClick={handleAiJudge}
-                    disabled={j.isStreaming}
+                    onClick={j.isStreaming ? handleStopAiJudge : handleAiJudge}
                     className="inline-flex items-center gap-1 rounded-lg border border-[var(--primary)]/60 bg-[var(--primary)]/10 px-2.5 py-1.5 text-[12px] font-medium text-[var(--primary)] transition-colors hover:bg-[var(--primary)]/15 disabled:opacity-50"
                   >
                     {j.isStreaming ? (
-                      <Loader2 size={11} className="animate-spin" />
+                      <Square size={10} fill="currentColor" />
                     ) : (
                       <Sparkles size={11} />
                     )}
                     {j.isStreaming
-                      ? t("Judging...")
+                      ? t("Stop judging")
                       : hasJudgment
                         ? t("Re-judge")
                         : t("AI Judge")}
@@ -1297,9 +1305,7 @@ export default function QuizViewer({
                     >
                       <ChevronDown
                         size={13}
-                        className={`transition-transform ${
-                          collapsed ? "-rotate-90" : ""
-                        }`}
+                        className={`transition-transform ${collapsed ? "-rotate-90" : ""}`}
                       />
                     </button>
                   </div>
@@ -1342,6 +1348,7 @@ export default function QuizViewer({
                         <MarkdownRenderer
                           content={judgment.text}
                           variant="prose"
+                          enableMath
                         />
                       </div>
                     ) : (
@@ -1366,6 +1373,7 @@ export default function QuizViewer({
                                 : q.correct_answer
                             }
                             variant="prose"
+                            enableMath
                           />
                         </div>
                       </div>
@@ -1379,6 +1387,7 @@ export default function QuizViewer({
                           <MarkdownRenderer
                             content={q.explanation}
                             variant="prose"
+                            enableMath
                           />
                         </div>
                       </div>

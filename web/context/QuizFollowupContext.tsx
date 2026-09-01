@@ -438,7 +438,8 @@ export function QuizFollowupProvider({ children }: ProviderProps) {
         ...(Object.keys(capabilityConfig).length
           ? { config: capabilityConfig }
           : {}),
-        ...(followupQuestionContext && typeof followupQuestionContext === "object"
+        ...(followupQuestionContext &&
+        typeof followupQuestionContext === "object"
           ? {
               followup_question_context: followupQuestionContext as Record<
                 string,
@@ -495,10 +496,11 @@ export function QuizFollowupProvider({ children }: ProviderProps) {
       );
       if (!current.isStreaming && !pendingAskUser) return;
 
-      const message: import("@/features/chat/model/protocol").SubmitUserReplyMessage = {
-        type: "submit_user_reply",
-        turn_id: turnId,
-      };
+      const message: import("@/features/chat/model/protocol").SubmitUserReplyMessage =
+        {
+          type: "submit_user_reply",
+          turn_id: turnId,
+        };
       if (typeof reply === "string") {
         message.text = reply;
       } else {

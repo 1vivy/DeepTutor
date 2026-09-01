@@ -26,15 +26,24 @@ const states: TurnViewState[] = [
   },
   {
     kind: "terminal_failure",
-    failure: { code: "rejected", message: "Request rejected", retryable: false },
+    failure: {
+      code: "rejected",
+      message: "Request rejected",
+      retryable: false,
+    },
   },
 ];
 
 describe("turn lifecycle UI", () => {
-  it.each(states)("renders the $kind state without changing the shared layout", (state) => {
-    const { container } = render(<TurnStatusBar state={state} showSettled />);
-    expect(container.querySelector(`[data-turn-state="${state.kind}"]`)).toBeVisible();
-  });
+  it.each(states)(
+    "renders the $kind state without changing the shared layout",
+    (state) => {
+      const { container } = render(<TurnStatusBar state={state} showSettled />);
+      expect(
+        container.querySelector(`[data-turn-state="${state.kind}"]`),
+      ).toBeVisible();
+    },
+  );
 
   it("connects lifecycle actions to their exact semantics", async () => {
     const user = userEvent.setup();
@@ -66,7 +75,9 @@ describe("turn lifecycle UI", () => {
     const liveRegion = screen.getByRole("status");
     expect(liveRegion).toHaveTextContent("Working");
     expect(liveRegion).not.toHaveTextContent("Searching sources");
-    rerender(<TurnStatusBar state={{ kind: "recovering" }} stage="Attempt 2" />);
+    rerender(
+      <TurnStatusBar state={{ kind: "recovering" }} stage="Attempt 2" />,
+    );
     expect(liveRegion).toHaveTextContent("Reconnecting");
     expect(liveRegion).not.toHaveTextContent("Attempt 2");
   });

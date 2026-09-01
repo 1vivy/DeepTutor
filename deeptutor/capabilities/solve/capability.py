@@ -20,11 +20,16 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import cast
 
 from deeptutor.agents.chat.agentic_pipeline import AgenticChatPipeline
 from deeptutor.capabilities.solve.session import DEFAULT_MAX_REPLANS
 from deeptutor.capabilities.solve.tools import SOLVE_TOOL_NAMES
-from deeptutor.core.capability_protocol import CapabilityManifest, TurnCapability
+from deeptutor.core.capability_protocol import (
+    CapabilityManifest,
+    StreamBusProtocol,
+    TurnCapability,
+)
 from deeptutor.core.context import UnifiedContext
 from deeptutor.runtime.request_contracts import get_capability_request_schema
 from deeptutor.runtime.stream_bus import StreamBus
@@ -66,7 +71,7 @@ class DeepSolveCapability(TurnCapability):
         request_schema=get_capability_request_schema("deep_solve"),
     )
 
-    async def run(self, context: UnifiedContext, stream: StreamBus) -> None:
+    async def run(self, context: UnifiedContext, stream: StreamBusProtocol) -> None:
         context.metadata["solve_mode"] = True
         context.metadata["solve_session_id"] = resolve_solve_session_id(context)
         # Read the solve settings and forward them so the page actually drives
@@ -85,7 +90,7 @@ class DeepSolveCapability(TurnCapability):
             temperature=params.get("temperature"),
             max_tokens=params.get("max_tokens"),
         )
-        await pipeline.run(context, stream)
+        await pipeline.run(context, cast(StreamBus, stream))
 
 
 __all__ = ["DeepSolveCapability", "resolve_solve_session_id"]

@@ -34,6 +34,9 @@ export function decideIdleTurnRecovery(
   if (!input.activeTurnId) return { kind: "reconcile" };
   return {
     kind: "resubscribe",
-    message: buildResumeTurn({ turnId: input.activeTurnId, afterSeq: input.lastSeq }),
+    message: buildResumeTurn({
+      turnId: input.activeTurnId,
+      afterSeq: input.lastSeq,
+    }),
   };
 }

@@ -62,12 +62,12 @@
 DeepTutor 是代理程式原生的學習工作區，在同一個可擴充系統中串聯教學、解題、測驗生成、研究、視覺化與精熟練習。
 
 - **所有模式共用一套執行階段** — Chat、Ask Questions、Quiz、Research、Visualize、Solve、Course Study、Mastery Path、Immersive Reading 與 Immersive Watching 共用同一套能力執行階段與工作階段情境，同時保有針對各自用途設計的迴圈與管線。
-- **相互連結的學習情境** — 知識庫、書籍、Co-Writer 草稿、筆記本、題庫、角色設定與 Memory 在每個工作流程中皆可使用，不再分散於彼此隔離的工具。
+- **相互連結的學習情境** — 知識庫、書籍、Co-Writer 草稿、筆記本、題庫、角色設定與 Memory 可在支援這些內容的工作流程中重複使用，但仍受帳號授權與學習政策限制。
 - **沉浸式影片學習** — 貼上 YouTube 連結，即可使用隱私強化的原生播放、同步字幕、以時間戳為依據的教學，以及可續接的學習進度；管理員也能將播放切換至自架的 Invidious 執行個體，無須重新建立素材。
-- **子代理程式與 Partners** — 可在任何回合諮詢即時代理程式執行框架（Claude Code、Codex、Antigravity、Kimi、opencode、MiMo、Hermes、OpenClaw 或 DeepSeek）或 Partner（也能匯入過往對話），並讓持續運作的 IM 夥伴共用同一套核心。
+- **子代理程式與 Partners** — 可從 Chat 諮詢即時代理程式執行框架（Claude Code、Codex、Antigravity、Kimi、opencode、MiMo、Hermes、OpenClaw 或 DeepSeek）或 Partner、匯入過往對話，並讓持續運作的 IM 夥伴共用同一套核心。
 - **多引擎知識系統** — 透過 LlamaIndex、PageIndex、GraphRAG、LightRAG、遠端 LightRAG Server、自架 WeKnora 知識庫、Tencent IMA 或 MarginNote 4 知識庫，或連結的 Obsidian vault 建立版本化 RAG 知識庫，並支援可插拔的文件解析。
 - **可擴充的工具與技能** — 內建工具、MCP 伺服器、CLI 應用程式、影像／影片／語音生成模型，以及可從 EduHub 安裝的社群技能。
-- **可檢視的記憶** — L1 軌跡、L2 介面摘要與 L3 綜整讓個人化內容透明且可編輯；Memory Graph 可將每項主張追溯到其證據。
+- **可檢視的記憶** — L1 軌跡、L2 介面摘要與 L3 綜整讓個人化內容透明且可編輯；Memory Graph 會將 L2 事實連結至 L1 證據，並將 L3 綜整連結至其貢獻來源介面。
 
 ---
 
@@ -136,7 +136,7 @@ pip install -e ".[rag-lightrag]"    # Built-in LightRAG engine (exact supported 
 pip install -e ".[graphrag]"        # Microsoft GraphRAG engine (Python 3.11–3.13)
 pip install -e ".[dev]"             # tests/lint tools
 pip install -e ".[partners]"        # Partner IM channel SDKs
-pip install -e ".[video-learning]"  # optional YouTube public-caption adapter
+pip install -e ".[video-learning]"  # compatibility extra; captions ship in the full/CLI installs
 pip install -e ".[matrix]"          # Matrix channel without E2EE/libolm
 pip install -e ".[matrix-e2e]"      # Matrix E2EE; requires libolm
 pip install -e ".[math-animator]"   # Manim addon; requires LaTeX/ffmpeg/system libs
@@ -165,8 +165,8 @@ deeptutor start --dev
 
 以單一容器執行完整 Web 應用程式。映像檔位於 GitHub Container Registry：
 
-- `ghcr.io/hkuds/deeptutor:latest` — 穩定版本
-- `ghcr.io/hkuds/deeptutor:pre` — 有提供時為預先發行版本
+- `ghcr.io/hkuds/deeptutor:latest` — 最新穩定版本
+- `ghcr.io/hkuds/deeptutor:<version>` — 不含開頭 `v` 的確切版本（例如 `:1.6.3`）；預先發行版本只會提供其版本標籤
 
 > 如需 podman／rootless／唯讀 rootfs 部署及各安裝方式的完整指南，請參閱 [CONTAINERIZATION.md](../../CONTAINERIZATION.md)。
 
@@ -248,7 +248,7 @@ deeptutor init --cli
 deeptutor chat
 ```
 
-`deeptutor init --cli` 與完整應用程式共用相同的 `data/user/settings/` 配置，但會略過後端／前端連接埠提示，並預設**關閉** embedding（若打算使用 `deeptutor kb …` 或 RAG 工具，請選擇 `Yes`）。它仍會寫入主要的執行階段檔案（`system.json`、`auth.json`、`integrations.json`、`interface.json`、`model_catalog.json`、`main.yaml`、`agents.yaml`），並會詢問目前使用的 LLM 供應商與模型。
+`deeptutor init --cli` 與完整應用程式共用相同的 `data/user/settings/` 配置，但會略過後端／前端連接埠提示。它仍會提供 Embedding 與 Search 選擇器（不需要時請選擇 **Skip**）、寫入主要的執行階段檔案（`system.json`、`auth.json`、`integrations.json`、`interface.json`、`model_catalog.json`、`main.yaml`、`agents.yaml`），並會詢問目前使用的 LLM 供應商與模型。
 
 <details>
 <summary><b>常用指令</b></summary>
@@ -272,12 +272,13 @@ deeptutor config show
 <details>
 <summary><b>程式碼執行沙箱（office skills）</b> · 執行模型為 docx／pdf／pptx／xlsx 產生的程式碼</summary>
 
-內建的 office skills（**docx／pdf／pptx／xlsx**）會讓模型撰寫一段簡短的 Python 指令碼（`python-docx`、`reportlab`、`openpyxl` 等），透過 `exec`／`code_execution` 工具執行，再提供下載 URL。只要啟用沙箱後端，這些工具就會掛載；所有部署方式**預設皆會啟用**：
+內建的 office skills（**docx／pdf／pptx／xlsx**）會讓模型撰寫一段簡短的 Python 指令碼（`python-docx`、`reportlab`、`openpyxl` 等），透過 `exec`／`code_execution` 工具執行，再提供下載 URL。只要有啟用中的沙箱後端，這些工具就會掛載。DeepTutor 會依下列順序選用已設定的最強後端：
 
-- **本機（方式一／二）與 Docker（方式三，單一容器）：** 受限制的子處理程序沙箱會執行模型的程式碼（本機部署時在主機上，Docker 部署時則在容器內；容器本身就是隔離邊界）。
-- **docker-compose：** 改由強化且採最低權限的 **runner sidecar**（`Dockerfile.runner`）透過 `DEEPTUTOR_SANDBOX_RUNNER_URL` 執行；這是最嚴格的安全方式，偵測到時會自動優先採用。
+- **Runner sidecar：** `DEEPTUTOR_SANDBOX_RUNNER_URL` 會將執行工作導向 `Dockerfile.runner` 所提供、經過強化且採最低權限的服務。
+- **Linux bubblewrap：** 若可使用 `bwrap`，它會隔離處理程序與檔案。
+- **受限制的子處理程序備援：** 本機與單一容器安裝只會在允許時採用此方式；在 Docker 下，容器本身仍是另一層隔離邊界。
 
-子處理程序沙箱由 `data/user/settings/system.json` 中的 `sandbox_allow_subprocess` 設定控制（預設 `true`）。在主機上執行模型產生的程式碼是一項實際的信任決策；可將其設為 `false`（或匯出 `DEEPTUTOR_SANDBOX_ALLOW_SUBPROCESS=0`）來停用主機端執行，但 office skills 將無法再產生檔案。
+`data/user/settings/system.json` 中的 `sandbox_allow_subprocess` 設定（預設 `true`）只控制最後一種備援方式。將其設為 `false`（或匯出 `DEEPTUTOR_SANDBOX_ALLOW_SUBPROCESS=0`），即可在沒有 runner 或 `bwrap` 後端時拒絕子處理程序執行；這不會停用前述較強的後端。
 
 </details>
 
@@ -288,7 +289,7 @@ deeptutor config show
 
 | 檔案 | 用途 |
 |:---|:---|
-| `model_catalog.json` | LLM、embedding 與搜尋供應商設定檔；API key；目前使用的模型 |
+| `model_catalog.json` | 供應商連線，以及 LLM、任務、embedding、搜尋、TTS、STT、影像與影片設定檔、憑證和目前選用項目 |
 | `system.json` | 後端／前端連接埠、公開 API base、CORS、SSL 驗證、附件目錄與上傳／擷取限制 |
 | `auth.json` | 選用的驗證開關、使用者名稱、密碼雜湊、token／cookie 設定 |
 | `integrations.json` | 選用的 PocketBase 與 sidecar 整合設定 |
@@ -383,7 +384,7 @@ Chat 是預設能力，也是大多數工作的起點。單一對話可以進行
 
 使用者可切換的工具包括 `brainstorm`、`web_search`、`paper_search`、`reason` 與 `geogebra_analysis`；設定對應的生成模型後，還會有 `imagegen` 與 `videogen`。`rag`、`kb_files`、`read_source`、`read_memory`、`write_memory`、`read_skill`、`load_tools`、`exec`、`web_fetch`、`ask_user`、`list_notebook`、`write_note`、`question_bank`、`github` 與 `consult_subagent` 等情境式工具，會在回合具有相符情境時自動掛載。
 
-情境分成兩類：**固定的工作階段情境**（子代理程式、知識庫、角色設定、模型、語音）位於輸入框工具列，並會延續到後續回合；**單次參照**（檔案、聊天記錄、書籍、閱讀章節、筆記本、題庫、匯入的代理程式）則從 `+` 選單加入，只用於單一回合。
+情境分成兩類：**固定的工作階段情境**（能力、工作區或課程、工具、知識庫、角色設定、模型，以及 Reading／Mastery 狀態）會延續到後續回合；**單次參照**（檔案、聊天記錄、書籍、閱讀章節、筆記本、題庫、匯入的代理程式）則從 `+` 選單加入，只用於單一回合。語音按鈕只會轉錄目前的訊息。
 
 Home 讓 **Chat**、**Ask Questions**、**Quiz**、**Visualize** 與 **Immersive Watching** 一鍵可達；用於建立附引用報告的 **Research** 與提供完整推理解題的 **Solve** 則位於 *More Capabilities* 之下。**Mastery Path** 與 **Immersive Reading** 是側邊欄中的專屬工作區。Reading 新增經驗證且可點擊的引用、已儲存的引文與筆記、以來源為依據的音訊／學習指南／詞彙／測驗／翻譯動作，以及擷取至筆記本的功能；Course Study 則保有自己的課程情境。
 
@@ -402,7 +403,7 @@ Partners 是持續運作的夥伴，各自擁有 soul、模型政策、知識庫
 <img src="../../assets/figs/system/partners-architecture.png" alt="DeepTutor Partners 架構" width="900">
 </div>
 
-每個 partner 都有 `SOUL.md`、模型選擇、頻道、工具政策與指派的知識庫。知識庫、技能與筆記本會複製到 `data/partners/<id>/workspace/`，因此同一套 RAG、skill、notebook 與 memory 工具都能直接運作，無須特殊處理。Partner 可以讀取擁有者的記憶，但只會寫入自己的記憶。
+每個 partner 都有 `SOUL.md`、模型選擇、頻道、工具政策與指派的知識庫。知識庫、技能與筆記本會複製到 `data/partners/<id>/workspace/`，因此同一套 RAG、skill、notebook 與 memory 工具都能直接運作，無須特殊處理。已驗證的非管理員使用者擁有私有的 Partner 工作階段與關係記憶，而 Partner 只能以唯讀方式讀取其個人記憶；管理員、群組與未繫結流量則使用共享的 Partner 範圍。
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/partners/02-IM%20config%20for%20each%20partner.png" alt="各 Partner 的 IM 頻道設定" width="900">
@@ -421,13 +422,13 @@ Partners 是持續運作的夥伴，各自擁有 soul、模型政策、知識庫
 <img src="../../assets/figs/web-1.4.6+/myagents/00-overview.png" alt="DeepTutor My Agents 工作區" width="900">
 </div>
 
-My Agents 會將其他代理程式變成 DeepTutor 的情境，並提供兩項不同功能。**連接即時代理程式** — 連接你電腦上的 Claude Code、Codex、Antigravity、Kimi、opencode、MiMo Code、Hermes Agent、OpenClaw 或 DeepSeek Harness，或你的一位 Partner，並從聊天回合內諮詢它。DeepTutor 會實際*執行*其他代理程式，再透過 `consult_subagent` 工具將其工作即時串流至 Activity 面板。使用 Agent chip（或輸入 `@`）選取代理程式，並設定諮詢可進行的回合數。
+My Agents 會將其他代理程式變成 DeepTutor 的情境，並提供兩項不同功能。**連接即時代理程式** — 連接你電腦上的 Claude Code、Codex、Antigravity、Kimi、opencode、MiMo Code、Hermes Agent、OpenClaw 或 DeepSeek Harness，或你的一位 Partner，並從聊天回合內諮詢它。DeepTutor 會實際*執行*其他代理程式，再透過 `consult_subagent` 工具將其工作即時串流至 Activity 面板。使用 Agent chip 選取代理程式及其回合上限，或透過 `@` 篩選同一份已連接代理程式清單；這項選擇會保留在工作階段中。
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/home/08-subagent%20demo%20with%20claude%20code.png" alt="即時諮詢 Claude Code 子代理程式" width="900">
 </div>
 
-**匯入過往對話** — 將現有的 Claude Code 與 Codex 記錄匯入為可命名、搜尋及繼續的代理程式。選擇要匯入哪些日期，重新整理時便會再次同步。你可以在任何聊天回合中透過 `+` → My Agents 參照匯入的對話；DeepTutor 會將其讀作第三方逐字稿，保留為*對方*的對話，而不是 DeepTutor 自己的口吻。
+**匯入過往對話** — 將現有的 Claude Code 與 Codex 記錄匯入為可命名、搜尋及繼續的代理程式。Claude 記錄依專案／工作目錄選取，Codex 記錄則依日曆日期選取；重新整理時會再次同步該範圍並拉取新對話。你可以在 Chat 回合中透過 `+` → My Agents 參照其中一段對話；DeepTutor 會將其讀作第三方逐字稿，保留為*對方*的對話，而不是 DeepTutor 自己的口吻。
 
 </details>
 
@@ -444,7 +445,7 @@ Co-Writer 是用於報告、教學文章、筆記與長篇學習作品的分割�
 <img src="../../assets/figs/web-1.4.6+/co-writer/01-edit%20panel.png" alt="Co-Writer 編輯器與即時預覽" width="900">
 </div>
 
-它的核心概念是**精準編輯**：選取一段內容，請 DeepTutor 改寫、擴寫或縮短。編輯代理程式可以知識庫或 Web 證據作為修改依據、保留工具呼叫軌跡，並將每項變更顯示成可接受／拒絕的 diff；只有在你核准後才會套用。
+它的核心概念是**精準編輯**：選取一段內容，請 DeepTutor 改寫、擴寫或縮短。編輯代理程式可以知識庫或 Web 證據作為修改依據，並保留工具呼叫軌跡。若代理程式工作期間草稿未發生變更，結果會直接取代所選文字，且仍可使用 **Undo** 復原。
 
 </details>
 
@@ -497,7 +498,7 @@ Book 會將選定來源轉換成互動式**活書**；它不是靜態 PDF，而�
 <img src="../../assets/figs/web-1.4.6+/learning-space/00-overview.png" alt="DeepTutor Learning Space 中心" width="900">
 </div>
 
-Learning Space 是資源庫、組織與個人化層。**My courses** 會依科目歸納對話，並將導師討論串嵌套在其上層討論串之下；Chat History 可依課程或討論串類型篩選，並支援釘選、封存或移動工作階段。**Conversations & Materials** 也包含筆記本 — 紀錄可在筆記本之間搬移或複製，並支援匯出為 Markdown — 以及保留你的答案、參考答案與解說的題庫。**Personalization** 包含角色設定、技能（`SKILL.md` 操作手冊）、一鍵安裝的 **MCP Services**，以及來自 [CLI-Anything](https://github.com/HKUDS/CLI-Anything) 型錄的 **CLI Apps**，每個應用程式的使用指南會按需載入。這裡的所有內容都能從 Chat、Partners、Co-Writer 與 Book 重複使用。
+Learning Space 是資源庫、組織與個人化層。**Conversations & Materials** 包含 Chat History、筆記本 — 紀錄可在筆記本之間搬移或複製，並支援匯出為 Markdown — 以及保留你的答案、參考答案與解說的題庫。**Personalization** 包含角色設定、技能（`SKILL.md` 操作手冊）、一鍵安裝的 **MCP Services**，以及來自 [CLI-Anything](https://github.com/HKUDS/CLI-Anything) 型錄的 **CLI Apps**，每個應用程式的使用指南會按需載入。獨立的 **My Courses** 工作區會依科目歸納對話與導師討論串；每項資產只會出現在支援它的工作流程中。
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/learning-space/07-%20download%20skills%20from%20eduhub.png" alt="從 EduHub 匯入技能" width="900">
@@ -514,13 +515,13 @@ Learning Space 是資源庫、組織與個人化層。**My courses** 會依科�
 <img src="../../assets/figs/web-1.4.6+/memory/00-overview.png" alt="DeepTutor Memory 總覽" width="900">
 </div>
 
-Memory 是以檔案為基礎、可讀取、整理及稽核的三層系統；它刻意*不使用*隱藏的向量儲存區。**L1** 是工作區鏡像與僅附加的事件軌跡（`trace/<surface>/<date>.jsonl`）；**L2** 是各介面整理後的事實（`L2/<surface>.md`）；**L3** 是跨介面的綜整（`L3/<profile|recent|scope|preferences>.md`）。由於 L2 引用 L1、L3 引用 L2，個人資料中的每項內容都有跡可循。
+Memory 是以檔案為基礎、可讀取、整理及稽核的三層系統；它刻意*不使用*隱藏的向量儲存區。**L1** 是工作區鏡像與僅附加的事件軌跡（`trace/<surface>/<date>.jsonl`）；**L2** 是各介面整理後的事實（`L2/<surface>.md`），並附有對 L1 實體的參照；**L3** 是跨介面的綜整（`L3/<profile|recent|scope|preferences>.md`），會記錄其貢獻來源 L2 介面。
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/memory/01-3%20layer%20memory%20graph.png" alt="DeepTutor Memory Graph" width="900">
 </div>
 
-Memory Graph 會呈現完整金字塔：L3 綜整位於中央、L2 位於中圈、L1 軌跡則在外圈，因此可將任何綜整後的主張追溯到背後的確切原始事件。Memory 會追蹤 `chat`、`notebook`、`quiz`、`kb`、`book`、partner 與 `cowriter` 等介面；綜整器的 Update／Audit／Dedup 預算可在 **Settings → Memory** 調整。
+Memory Graph 會呈現完整金字塔：L3 綜整位於中央、L2 位於中圈、L1 軌跡則在外圈，並提供精確的 L2 → L1 證據邊與 L3 → 貢獻來源介面連結。Memory 會追蹤 `chat`、`notebook`、`quiz`、`kb`、`book`、partner 與 `cowriter` 等介面；綜整器的 Update／Audit／Dedup 預算可在 **Settings → Memory** 調整。
 
 </details>
 
@@ -594,7 +595,7 @@ data/
 <details>
 <summary><b>自行操作</b></summary>
 
-`deeptutor chat` 會開啟互動式 REPL；`deeptutor run <capability> "<message>"` 則執行單一回合後結束。兩者都支援相同的 `--capability`、`--tool`、`--kb` 與 `--config` 旗標。
+`deeptutor chat` 會開啟互動式 REPL，並以 `--capability` 選擇模式；`deeptutor run <capability> "<message>"` 則將能力作為第一個位置引數，執行單一回合後結束。兩者都接受 `--tool`、`--kb` 與 `--config`。
 
 ```bash
 deeptutor chat                                              # interactive REPL
@@ -649,7 +650,7 @@ repo 根目錄附有 [`SKILL.md`](../../SKILL.md)，這份約 200 行的交接�
 | `deeptutor book list/health/refresh-fingerprints` | 檢視書籍並更新來源 fingerprint |
 | `deeptutor plugin list/info` | 檢視已註冊的工具與能力 |
 | `deeptutor config show` | 顯示設定摘要 |
-| `deeptutor provider login <provider>` | 供應商驗證（`openai-codex` OAuth 登入；`github-copilot` 會驗證既有 Copilot 登入工作階段） |
+| `deeptutor provider login <provider>` | 供應商驗證（`openai-codex` OAuth 登入；`github-copilot` 會驗證既有 Copilot 登入工作階段；`codebuddy` 會驗證 CodeBuddy SDK 驗證狀態，並在需要時開始登入） |
 
 </details>
 
@@ -702,11 +703,11 @@ EduHub 也是獨立且相容於 ClawHub 的 registry，因此不是 DeepTutor �
 不論來源為何，每次匯入都必須通過**相同的安全閘道**，才會有任何內容進入工作區：
 
 - 系統會先檢查 registry 的**安全性判定**；除非傳入 `--allow-unverified`，否則會拒絕標記有問題的套件；
-- 壓縮檔會在文字／指令碼**副檔名白名單**限制下進行防禦性解壓縮（防範 zip-slip／zip-bomb），因此二進位檔案不會進入工作區；
+- 壓縮檔會進行防禦性解壓縮，並檢查路徑穿越、項目數量、大小、壓縮率、副檔名與符號連結；可執行位元會被移除，而無副檔名檔案仍允許保留；
 - frontmatter 會正規化成 DeepTutor 的結構描述，並**移除** `always:`，因此下載的技能無法強迫自己進入每一個系統提示；
 - 來源資訊（hub、版本、判定與安裝時間）會寫入 `.hub-lock.json`，供稽核與更新使用。
 
-在多使用者部署中，匯入的技能會進入執行匯入者自己的技能庫；管理員指派的技能仍受授權範圍限制，且為唯讀。
+在多使用者部署中，瀏覽器匯入會進入已驗證呼叫者的技能層，CLI 與管理員控制台安裝則以擁有者／管理員工作區為目標；管理員技能在授權前會對一般使用者保持隱藏及唯讀。
 
 </details>
 

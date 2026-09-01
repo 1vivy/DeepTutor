@@ -31,9 +31,7 @@ export async function getLearnerProfile(
   username: string,
 ): Promise<LearnerProfile | null> {
   const res = await apiFetch(
-    apiUrl(
-      `/api/auth/users/${encodeURIComponent(username)}/learner-profile`,
-    ),
+    apiUrl(`/api/auth/users/${encodeURIComponent(username)}/learner-profile`),
   );
   if (!res.ok) throw new Error("Failed to fetch learner profile");
   const data = (await res.json()) as {
@@ -47,9 +45,7 @@ export async function setLearnerProfile(
   profile: LearnerProfile,
 ): Promise<LearnerProfile | null> {
   const res = await apiFetch(
-    apiUrl(
-      `/api/auth/users/${encodeURIComponent(username)}/learner-profile`,
-    ),
+    apiUrl(`/api/auth/users/${encodeURIComponent(username)}/learner-profile`),
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },

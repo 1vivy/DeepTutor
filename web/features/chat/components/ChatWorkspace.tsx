@@ -10,8 +10,6 @@ import {
   useState,
 } from "react";
 import { useChatRouteSession } from "@/features/chat/controllers/useChatRouteSession";
-import { turnViewState } from "@/features/chat/model/turn-state";
-import { TurnStatusBar } from "@/features/chat/components/turn";
 
 import {
   GraduationCap,
@@ -384,14 +382,22 @@ export default function ChatWorkspace() {
   const setViewerOpen = useCallback((next: boolean) => {
     setViewerPanelOpen(next);
     if (typeof window !== "undefined") {
-      browserStorage.writeRaw("local", "dt:chat:viewer-panel", next ? "1" : "0");
+      browserStorage.writeRaw(
+        "local",
+        "dt:chat:viewer-panel",
+        next ? "1" : "0",
+      );
     }
   }, []);
   const toggleViewerPanel = useCallback(() => {
     setViewerPanelOpen((prev) => {
       const next = !prev;
       if (typeof window !== "undefined") {
-        browserStorage.writeRaw("local", "dt:chat:viewer-panel", next ? "1" : "0");
+        browserStorage.writeRaw(
+          "local",
+          "dt:chat:viewer-panel",
+          next ? "1" : "0",
+        );
       }
       return next;
     });
@@ -639,7 +645,10 @@ export default function ChatWorkspace() {
     const latestAssistant = [...state.messages]
       .reverse()
       .find((message) => message.role === "assistant");
-    if (!latestAssistant || !shouldReturnToChatAfterResearch(latestAssistant.events)) {
+    if (
+      !latestAssistant ||
+      !shouldReturnToChatAfterResearch(latestAssistant.events)
+    ) {
       return;
     }
     const terminal = [...(latestAssistant.events ?? [])]
@@ -650,7 +659,12 @@ export default function ChatWorkspace() {
     returnedResearchTurnRef.current = turnKey;
     setCapability(null);
     setCapabilityConfigConfirmed(false);
-  }, [setCapability, state.activeCapability, state.isStreaming, state.messages]);
+  }, [
+    setCapability,
+    state.activeCapability,
+    state.isStreaming,
+    state.messages,
+  ]);
 
   // Edit-invalidates-confirm wrappers — flipping any field after the user
   // hit *Confirm* should restore the gate so they re-confirm intentionally.
@@ -1024,13 +1038,6 @@ export default function ChatWorkspace() {
      quiz card would appear below the fold, under the composer, and the
      conversation looked stalled. Re-arm the pin and land on the card. */
   const awaitingUserReply = hasPendingAskUser(lastMessage?.events);
-  const activeTurnViewState = turnViewState({
-    status: awaitingUserReply
-      ? "waiting_input"
-      : state.isStreaming
-        ? "running"
-        : undefined,
-  });
   // Read inside ``handleSend`` without adding a dependency that would rebuild
   // the callback (and so the composer) on every streamed event.
   const awaitingUserReplyRef = useRef(awaitingUserReply);
@@ -2375,9 +2382,7 @@ export default function ChatWorkspace() {
                   title={t("Download chat history as Markdown")}
                 />
                 <HeaderActionButton
-                  onClick={() =>
-                    viewerPanelRef.current?.openMarkdownNoteTab()
-                  }
+                  onClick={() => viewerPanelRef.current?.openMarkdownNoteTab()}
                   icon={NotebookPen}
                   label={t("Markdown note")}
                   title={t("Write Markdown in chat")}
@@ -2515,15 +2520,6 @@ export default function ChatWorkspace() {
                 </div>
               )}
 
-              <div className="mx-auto w-full max-w-[960px] px-6">
-                <TurnStatusBar
-                  state={activeTurnViewState}
-                  stage={state.currentStage || undefined}
-                  onCancel={cancelStreamingTurn}
-                  onAnswer={() => prefillInputRef.current?.("")}
-                  className="mb-2"
-                />
-              </div>
               <ChatComposer
                 composerRef={composerRef}
                 capMenuRef={capMenuRef}

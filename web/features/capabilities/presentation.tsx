@@ -183,7 +183,10 @@ export function getChatCapability(value: string | null): ChatCapabilityDef {
   );
 }
 
-const UNKNOWN_PRESENTATION: Omit<ChatCapabilityDef, "value" | "label" | "description"> = {
+const UNKNOWN_PRESENTATION: Omit<
+  ChatCapabilityDef,
+  "value" | "label" | "description"
+> = {
   icon: BrainCircuit,
   allowedTools: [],
   defaultTools: [],

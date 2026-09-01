@@ -485,7 +485,9 @@ export default function AdminUsersPage() {
                                   learnerUsername={user.username}
                                   users={users}
                                 />
-                                <LearnerProfileEditor username={user.username} />
+                                <LearnerProfileEditor
+                                  username={user.username}
+                                />
                               </>
                             )}
                           </td>

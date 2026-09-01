@@ -11,19 +11,19 @@ const NEXT_BIN = path.join(WEB_ROOT, "node_modules", "next", "dist", "bin", "nex
 
 const ROUTE_TARGETS = [
   { route: "/", requestPath: "/", budgetKb: 300 },
-  { route: "/chat/[[...sessionId]]", requestPath: "/chat/perf-budget", budgetKb: 1_020 },
+  { route: "/chat/[sessionId]", requestPath: "/chat/perf-budget", budgetKb: 1_020 },
   { route: "/settings", requestPath: "/settings", budgetKb: 840 },
   { route: "/knowledge-bases", requestPath: "/knowledge-bases", budgetKb: 540 },
   { route: "/co-writer", requestPath: "/co-writer", budgetKb: 320 },
   { route: "/co-writer/[docId]", requestPath: "/co-writer/perf-budget", budgetKb: 515 },
   {
-    route: "/reading/[workspaceId]/sessions/[[...sessionId]]",
-    requestPath: "/reading/perf-budget/sessions",
+    route: "/reading/[workspaceId]/sessions/[sessionId]",
+    requestPath: "/reading/perf-budget/sessions/perf-session",
     budgetKb: 1_120,
   },
   {
-    route: "/mastery/[pathId]/sessions/[[...sessionId]]",
-    requestPath: "/mastery/perf-budget/sessions",
+    route: "/mastery/[pathId]/sessions/[sessionId]",
+    requestPath: "/mastery/perf-budget/sessions/perf-session",
     budgetKb: 980,
   },
 ];

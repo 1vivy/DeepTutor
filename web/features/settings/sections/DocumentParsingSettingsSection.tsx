@@ -63,8 +63,7 @@ const ENGINE_DESCRIPTION_KEYS: Record<string, string> = {
     "Lightweight, no model downloads or CUDA — runs on low-end / GPU-less machines. PDF/e-book → Markdown and can extract images. PDF and e-book formats only.",
   liteparse:
     "Fast, lightweight PDF parser with spatial text extraction. Markdown output, optional image extraction. No model downloads. Developed by LlamaIndex.",
-  tika:
-    "Remote Apache Tika server. Broad format support, no local install or model downloads. Point at an existing tika-server container.",
+  tika: "Remote Apache Tika server. Broad format support, no local install or model downloads. Point at an existing tika-server container.",
 };
 
 export default function DocumentParsingSettingsPage() {
@@ -77,9 +76,7 @@ export default function DocumentParsingSettingsPage() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const response = await apiFetch(
-        apiUrl("/api/settings/document-parsing"),
-      );
+      const response = await apiFetch(apiUrl("/api/settings/document-parsing"));
       const payload = (await response.json().catch(() => ({}))) as
         | DocumentParsingPayload
         | { detail?: string };
@@ -208,7 +205,9 @@ export default function DocumentParsingSettingsPage() {
                         )}
                       </div>
                       <p className="mt-1 text-[12px] text-[var(--muted-foreground)]">
-                        {descriptionKey ? t(descriptionKey) : engine.description}
+                        {descriptionKey
+                          ? t(descriptionKey)
+                          : engine.description}
                       </p>
                     </div>
                   </button>

@@ -27,6 +27,7 @@ export default function BookPausedBanner({
   if (!book || book.status !== "paused") return null;
 
   const reason = String(book.metadata?.pause_reason || "").trim();
+  const manual = book.metadata?.pause_kind === "user";
 
   return (
     <div className="border-b border-amber-300/70 bg-amber-50 px-8 py-3 text-amber-950 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
@@ -37,9 +38,13 @@ export default function BookPausedBanner({
             {t("Generation paused")}
           </div>
           <p className="mt-0.5 text-xs leading-relaxed opacity-90">
-            {t(
-              "Your model provider kept refusing requests, so the remaining chapters were left untouched rather than half-written. Everything generated so far is saved.",
-            )}
+            {manual
+              ? t(
+                  "Generation was paused. Everything generated so far is saved, and unfinished chapters will continue only when you resume.",
+                )
+              : t(
+                  "Your model provider kept refusing requests, so the remaining chapters were left untouched rather than half-written. Everything generated so far is saved.",
+                )}
           </p>
           {reason && (
             <code className="mt-1.5 block truncate rounded bg-white/50 px-1.5 py-0.5 text-[11px] dark:bg-white/10">

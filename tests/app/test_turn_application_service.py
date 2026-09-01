@@ -101,6 +101,60 @@ async def test_second_worker_reads_shared_event_tail_without_mutating_turn(tmp_p
 
 
 @pytest.mark.asyncio
+async def test_durable_done_remains_terminal_when_post_turn_metadata_follows(tmp_path) -> None:
+    store = SQLiteSessionStore(tmp_path / "chat_history.db")
+    coordinator = MemoryCoordinator(lease_ttl_seconds=30)
+    service, _registry = _service(store, coordinator, "worker-a")
+    session = await store.ensure_session("post-turn-metadata")
+    turn = await store.begin_turn(session["id"], capability="chat")
+    await store.append_events(
+        turn["id"],
+        [
+            {
+                "type": "done",
+                "metadata": {"status": "completed"},
+                "session_id": session["id"],
+                "turn_id": turn["id"],
+            },
+            {
+                "type": "session_meta",
+                "stage": "title",
+                "content": "Recovered title",
+                "metadata": {"title": "Recovered title"},
+                "session_id": session["id"],
+                "turn_id": turn["id"],
+            },
+        ],
+    )
+    assert await store.update_turn_status(turn["id"], "completed") is True
+
+    events = [event async for event in service.subscribe_turn(turn["id"], after_seq=0)]
+
+    assert [(event["seq"], event["type"]) for event in events] == [
+        (1, "done"),
+        (2, "session_meta"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_legacy_terminal_row_synthesizes_protocol_valid_done(tmp_path) -> None:
+    store = SQLiteSessionStore(tmp_path / "chat_history.db")
+    coordinator = MemoryCoordinator(lease_ttl_seconds=30)
+    service, _registry = _service(store, coordinator, "worker-a")
+    session = await store.ensure_session("legacy-terminal")
+    turn = await store.begin_turn(session["id"], capability="chat")
+    assert await store.update_turn_status(turn["id"], "completed") is True
+
+    events = [event async for event in service.subscribe_turn(turn["id"], after_seq=0)]
+
+    assert len(events) == 1
+    assert events[0]["type"] == "done"
+    assert events[0]["seq"] == 1
+    assert isinstance(events[0]["timestamp"], float)
+    assert events[0]["metadata"]["synthesized"] is True
+
+
+@pytest.mark.asyncio
 async def test_second_worker_cancel_is_consumed_by_owner_worker(tmp_path) -> None:
     db_path = tmp_path / "chat_history.db"
     owner_store = SQLiteSessionStore(db_path)

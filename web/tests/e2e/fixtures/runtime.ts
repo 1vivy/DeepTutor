@@ -71,20 +71,32 @@ export class MultiWorkerRuntimeFixture {
   }
 
   async assertReady(): Promise<void> {
-    const response = await this.request.get(`${this.baseUrl}/api/system/runtime`);
-    expect(response.ok(), "runtime status endpoint must be reachable").toBeTruthy();
-    const status = (await response.json()) as RuntimeStatus;
-    expect(status.worker_count, "browser acceptance requires exactly four workers").toBe(4);
-    expect(status.coordination?.backend, "browser acceptance requires Redis coordination").toBe(
-      "redis",
+    const response = await this.request.get(
+      `${this.baseUrl}/api/system/runtime`,
     );
+    expect(
+      response.ok(),
+      "runtime status endpoint must be reachable",
+    ).toBeTruthy();
+    const status = (await response.json()) as RuntimeStatus;
+    expect(
+      status.worker_count,
+      "browser acceptance requires exactly four workers",
+    ).toBe(4);
+    expect(
+      status.coordination?.backend,
+      "browser acceptance requires Redis coordination",
+    ).toBe("redis");
     expect(
       status.coordination?.healthy ?? status.redis?.healthy,
       "Redis coordination must be healthy",
     ).toBe(true);
 
     const fixture = await this.request.get(this.controlUrl("health"));
-    expect(fixture.ok(), "the deterministic failure-injection fixture must be enabled").toBeTruthy();
+    expect(
+      fixture.ok(),
+      "the deterministic failure-injection fixture must be enabled",
+    ).toBeTruthy();
     const fixtureStatus = (await fixture.json()) as { worker_ids?: string[] };
     expect(fixtureStatus.worker_ids).toHaveLength(4);
   }

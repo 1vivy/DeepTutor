@@ -12,7 +12,11 @@ test("server turn states map to complete user-facing lifecycle states", () => {
     [{ status: "queued" }, "queued", "cancel"],
     [{ status: "running" }, "running", "cancel"],
     [{ status: "waiting_input" }, "waiting_input", "answer"],
-    [{ queryState: "recovering", status: "running" }, "recovering", "reconnect"],
+    [
+      { queryState: "recovering", status: "running" },
+      "recovering",
+      "reconnect",
+    ],
     [{ status: "completed" }, "completed", "none"],
     [{ status: "cancelled" }, "cancelled", "none"],
     [{ status: "running", cancellationRequested: true }, "cancelling", "none"],
@@ -22,12 +26,18 @@ test("server turn states map to complete user-facing lifecycle states", () => {
     const state = turnViewState(input);
     assert.equal(state.kind, expectedState);
     assert.equal(turnPrimaryAction(state), expectedAction);
-    assert.equal(turnStateMessageKey(state), `chat.turn.status.${expectedState}`);
+    assert.equal(
+      turnStateMessageKey(state),
+      `chat.turn.status.${expectedState}`,
+    );
   }
 });
 
 test("transport loss recovers live turns but does not fabricate work", () => {
-  assert.equal(turnViewState({ status: "running", transport: "offline" }).kind, "recovering");
+  assert.equal(
+    turnViewState({ status: "running", transport: "offline" }).kind,
+    "recovering",
+  );
   assert.equal(turnViewState({ transport: "connecting" }).kind, "connecting");
   assert.equal(turnViewState({ transport: "offline" }).kind, "idle");
 });

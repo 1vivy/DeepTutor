@@ -37,9 +37,15 @@ const STREAM_EVENT_TYPES = new Set<StreamEventType>([
 function diagnostic(value: unknown, detail: string): string {
   if (!value || typeof value !== "object") return detail;
   const record = value as Record<string, unknown>;
-  const type = typeof record.type === "string" ? record.type.slice(0, 48) : typeof record.type;
+  const type =
+    typeof record.type === "string"
+      ? record.type.slice(0, 48)
+      : typeof record.type;
   const keys = Object.keys(record)
-    .filter((key) => !["content", "metadata", "token", "password", "secret"].includes(key))
+    .filter(
+      (key) =>
+        !["content", "metadata", "token", "password", "secret"].includes(key),
+    )
     .slice(0, 12)
     .sort();
   return `${detail}; type=${type}; keys=${keys.join(",")}`;
@@ -73,7 +79,11 @@ export function parseTurnEvent(raw: unknown): ParseResult<ServerEvent> {
   const decoded = parseRaw(raw);
   if (!decoded.ok) return decoded;
   if (!isRecord(decoded.value)) {
-    return { ok: false, reason: "invalid", diagnostic: "event is not an object" };
+    return {
+      ok: false,
+      reason: "invalid",
+      diagnostic: "event is not an object",
+    };
   }
 
   const event = decoded.value;
@@ -81,7 +91,11 @@ export function parseTurnEvent(raw: unknown): ParseResult<ServerEvent> {
     return { ok: false, reason: "heartbeat", diagnostic: "heartbeat frame" };
   }
   if (typeof event.type !== "string") {
-    return { ok: false, reason: "invalid", diagnostic: diagnostic(event, "missing event type") };
+    return {
+      ok: false,
+      reason: "invalid",
+      diagnostic: diagnostic(event, "missing event type"),
+    };
   }
   if (!validProtocolVersion(event.protocol_version)) {
     return {
@@ -100,10 +114,13 @@ export function parseTurnEvent(raw: unknown): ParseResult<ServerEvent> {
     const valid =
       typeof event.command_id === "string" &&
       event.command_id.trim().length > 0 &&
-      ["cancel_turn", "submit_user_reply", "user_input"].includes(commandType) &&
+      ["cancel_turn", "submit_user_reply", "user_input"].includes(
+        commandType,
+      ) &&
       typeof event.accepted === "boolean" &&
       (event.turn_id === undefined || typeof event.turn_id === "string") &&
-      (event.error_code === undefined || typeof event.error_code === "string") &&
+      (event.error_code === undefined ||
+        typeof event.error_code === "string") &&
       (event.message === undefined || typeof event.message === "string");
     if (!valid) {
       return {
@@ -142,7 +159,10 @@ export function parseTurnEvent(raw: unknown): ParseResult<ServerEvent> {
       "failed",
       "cancelled",
     ]).has(String(event.status));
-    if (!validStatus || (event.turn_id !== undefined && typeof event.turn_id !== "string")) {
+    if (
+      !validStatus ||
+      (event.turn_id !== undefined && typeof event.turn_id !== "string")
+    ) {
       return {
         ok: false,
         reason: "invalid",

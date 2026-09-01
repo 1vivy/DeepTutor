@@ -19,6 +19,8 @@ course state and asks the learner to attach a course.
 
 from __future__ import annotations
 
+from typing import cast
+
 from deeptutor.agents.chat.agentic_pipeline import AgenticChatPipeline
 from deeptutor.capabilities.course_study.capability import (
     COURSE_STUDY_NAME,
@@ -29,7 +31,11 @@ from deeptutor.capabilities.course_study.tools import (
     COURSE_STUDY_TOOL_NAMES,
     COURSE_STUDY_TOOL_TYPES,
 )
-from deeptutor.core.capability_protocol import CapabilityManifest, TurnCapability
+from deeptutor.core.capability_protocol import (
+    CapabilityManifest,
+    StreamBusProtocol,
+    TurnCapability,
+)
 from deeptutor.core.context import UnifiedContext
 from deeptutor.runtime.stream_bus import StreamBus
 
@@ -63,7 +69,7 @@ class CourseStudyCapability(TurnCapability):
         cli_aliases=["course"],
     )
 
-    async def run(self, context: UnifiedContext, stream: StreamBus) -> None:
+    async def run(self, context: UnifiedContext, stream: StreamBusProtocol) -> None:
         context.active_capability = COURSE_STUDY_NAME
         _register_course_tools()
         if not resolve_course_id(context):
@@ -77,7 +83,7 @@ class CourseStudyCapability(TurnCapability):
                 context.sidebar_context = (
                     f"{existing}\n\n{block.content}" if existing else block.content
                 )
-        await AgenticChatPipeline(language=context.language).run(context, stream)
+        await AgenticChatPipeline(language=context.language).run(context, cast(StreamBus, stream))
 
 
 __all__ = ["CourseStudyCapability"]

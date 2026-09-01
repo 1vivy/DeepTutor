@@ -53,11 +53,16 @@ export function UiSettingsProvider({ children }: { children: ReactNode }) {
       source.updateCodeBlockWrapLongLines,
     ],
   );
-  return <UiSettingsContext.Provider value={value}>{children}</UiSettingsContext.Provider>;
+  return (
+    <UiSettingsContext.Provider value={value}>
+      {children}
+    </UiSettingsContext.Provider>
+  );
 }
 
 export function useUiSettings(): UiSettingsSlice {
   const value = useContext(UiSettingsContext);
-  if (!value) throw new Error("useUiSettings must be used inside UiSettingsProvider");
+  if (!value)
+    throw new Error("useUiSettings must be used inside UiSettingsProvider");
   return value;
 }

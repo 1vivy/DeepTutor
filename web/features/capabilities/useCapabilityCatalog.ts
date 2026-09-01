@@ -22,9 +22,8 @@ function fallbackDescriptors(): CapabilityDescriptor[] {
 }
 
 export function useCapabilityCatalog() {
-  const [descriptors, setDescriptors] = useState<CapabilityDescriptor[]>(
-    fallbackDescriptors,
-  );
+  const [descriptors, setDescriptors] =
+    useState<CapabilityDescriptor[]>(fallbackDescriptors);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 

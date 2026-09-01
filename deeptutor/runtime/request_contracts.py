@@ -162,13 +162,26 @@ CAPABILITY_CONFIG_MODELS: dict[str, type[BaseModel]] = {
     "immersive_watching": ImmersiveWatchingRequestConfig,
 }
 
+
+def _model_validator(
+    model_type: type[BaseModel],
+    capability_name: str,
+) -> Callable[[dict[str, Any] | None], BaseModel]:
+    def validate(raw_config: dict[str, Any] | None) -> BaseModel:
+        return _validate_model(
+            model_type,
+            raw_config,
+            label=capability_name.replace("_", " "),
+        )
+
+    return validate
+
+
 # Every built-in has an explicit validator, including no-options capabilities.
 for _capability_name, _model_type in CAPABILITY_CONFIG_MODELS.items():
     CAPABILITY_CONFIG_VALIDATORS.setdefault(
         _capability_name,
-        lambda raw_config, model_type=_model_type, name=_capability_name: _validate_model(
-            model_type, raw_config, label=name.replace("_", " ")
-        ),
+        _model_validator(_model_type, _capability_name),
     )
 
 CAPABILITY_REQUEST_SCHEMAS: dict[str, dict[str, Any]] = {

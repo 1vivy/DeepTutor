@@ -53,8 +53,9 @@ export default function GuardianSettingsPage() {
   const [report, setReport] = useState<GuardianReport | null>(null);
   const [materials, setMaterials] = useState<GuardianMaterial[]>([]);
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
-  const [restrictions, setRestrictions] =
-    useState<GuardianRestrictions | null>(null);
+  const [restrictions, setRestrictions] = useState<GuardianRestrictions | null>(
+    null,
+  );
   const [extensions, setExtensions] = useState<GuardianExtension[]>([]);
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(true);
@@ -110,7 +111,9 @@ export default function GuardianSettingsPage() {
       if (nextMaterials) {
         setMaterials(nextMaterials);
         setSelectedMaterialIds(
-          nextMaterials.filter((item) => item.assigned).map((item) => item.book_id),
+          nextMaterials
+            .filter((item) => item.assigned)
+            .map((item) => item.book_id),
         );
       }
       if (nextRestrictions) {
@@ -139,7 +142,9 @@ export default function GuardianSettingsPage() {
       );
       setMaterials(nextMaterials);
       if (can("view_reports")) {
-        setReport(await getGuardianReport(selectedRelationship.learner_user_id));
+        setReport(
+          await getGuardianReport(selectedRelationship.learner_user_id),
+        );
       }
       setMessage(t("Approved materials saved."));
     } catch (reason) {
@@ -274,7 +279,8 @@ export default function GuardianSettingsPage() {
         <section className="mt-8 space-y-6 border-t border-[var(--border)] pt-6">
           <div className="flex items-start justify-between gap-3">
             <h2 className="font-medium">
-              {report?.learner.username ?? selectedRelationship.learner_username}
+              {report?.learner.username ??
+                selectedRelationship.learner_username}
             </h2>
             <button
               type="button"
@@ -322,7 +328,9 @@ export default function GuardianSettingsPage() {
           {can("assign_materials") && (
             <div className="rounded-lg border border-[var(--border)] p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="text-sm font-medium">{t("Approved materials")}</h3>
+                <h3 className="text-sm font-medium">
+                  {t("Approved materials")}
+                </h3>
                 <button
                   type="button"
                   onClick={() => void saveMaterials()}
@@ -444,7 +452,9 @@ export default function GuardianSettingsPage() {
                           current
                             ? {
                                 ...current,
-                                extensions: current.extensions.includes(extension.id)
+                                extensions: current.extensions.includes(
+                                  extension.id,
+                                )
                                   ? current.extensions.filter(
                                       (id) => id !== extension.id,
                                     )

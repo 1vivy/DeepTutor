@@ -45,7 +45,9 @@ export function InlineAlert({
       <Icon aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
       <div className="min-w-0 flex-1">
         {title ? <p className="font-semibold">{title}</p> : null}
-        <div className={cn("leading-5", title && "mt-0.5 opacity-90")}>{children}</div>
+        <div className={cn("leading-5", title && "mt-0.5 opacity-90")}>
+          {children}
+        </div>
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>

@@ -78,7 +78,12 @@ def _drain_until(ws, predicate, *, limit=12):
 def test_subscribe_is_acknowledged(client: TestClient) -> None:
     with client.websocket_connect("/ws/books") as ws:
         ws.send_json({"type": "subscribe", "book_id": BOOK_ID})
-        assert ws.receive_json() == {"type": "subscribed", "book_id": BOOK_ID}
+        assert ws.receive_json() == {
+            "type": "subscribed",
+            "book_id": BOOK_ID,
+            "latest_seq": 0,
+            "reset": False,
+        }
 
 
 def test_subscribe_without_a_book_id_is_rejected(client: TestClient) -> None:
@@ -143,6 +148,35 @@ def test_a_reconnecting_client_catches_up_on_replayed_history(client: TestClient
             if "page_planned" in kinds and "block_ready" in kinds:
                 break
         assert "page_planned" in kinds and "block_ready" in kinds
+
+
+def test_reconnect_cursor_does_not_replay_already_seen_events(client: TestClient) -> None:
+    async def _emit_before_anyone_is_listening() -> None:
+        stream = get_book_stream(BOOK_ID)
+        await stream.book_event("page_planned", {"page_id": "pg_1"})
+        await stream.book_event("block_ready", {"page_id": "pg_1", "block_id": "blk_1"})
+
+    asyncio.run(_emit_before_anyone_is_listening())
+
+    with client.websocket_connect("/ws/books") as ws:
+        ws.send_json({"type": "subscribe", "book_id": BOOK_ID, "after_seq": 1})
+        ack = ws.receive_json()
+        assert ack["latest_seq"] == 2
+        event = ws.receive_json()
+        assert event["seq"] == 2
+        assert event["metadata"]["kind"] == "block_ready"
+
+
+def test_cursor_ahead_of_restarted_bus_requests_client_reset(client: TestClient) -> None:
+    with client.websocket_connect("/ws/books") as ws:
+        ws.send_json({"type": "subscribe", "book_id": BOOK_ID, "after_seq": 99})
+        ack = ws.receive_json()
+        assert ack == {
+            "type": "subscribed",
+            "book_id": BOOK_ID,
+            "latest_seq": 0,
+            "reset": True,
+        }
 
 
 def test_two_clients_watching_one_book_both_get_events(client: TestClient) -> None:

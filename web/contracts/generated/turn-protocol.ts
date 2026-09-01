@@ -40,7 +40,9 @@ export type ModelId = string;
 export type ProfileId = string;
 export type MasteryPathId = string | null;
 export type MasteryPathLeaseManaged = boolean;
-export type MemoryReferences = ("recent" | "profile" | "scope" | "preferences" | "summary")[];
+export type MemoryReferences = (
+  "recent" | "profile" | "scope" | "preferences" | "summary"
+)[];
 export type NotebookId = string;
 export type RecordIds = string[];
 export type NotebookReferences = NotebookReference[];
@@ -137,7 +139,11 @@ export type RenewIntervalSeconds = number;
 export type WorkerCount = number;
 export type WorkerId = string;
 export type ServerEvent =
-  StreamEvent | ActiveTurnInfo | PongEvent | CommandAckEvent | ProtocolErrorEvent;
+  | StreamEvent
+  | ActiveTurnInfo
+  | PongEvent
+  | CommandAckEvent
+  | ProtocolErrorEvent;
 export type Content2 = string;
 export type ProtocolVersion13 = "2.0";
 export type Seq1 = number;
@@ -176,7 +182,13 @@ export type Status = TurnQueryState | "none";
  * via the `definition` "TurnQueryState".
  */
 export type TurnQueryState =
-  "queued" | "running" | "waiting_input" | "recovering" | "completed" | "failed" | "cancelled";
+  | "queued"
+  | "running"
+  | "waiting_input"
+  | "recovering"
+  | "completed"
+  | "failed"
+  | "cancelled";
 export type TurnId7 = string;
 export type Type12 = "active_turn_info";
 export type ProtocolVersion15 = "2.0";

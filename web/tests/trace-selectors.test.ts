@@ -32,8 +32,14 @@ test("trace groups preserve first-seen call order and event order", () => {
     event("tool_call", "b", { tool_name: "rag" }),
     event("progress", "a", {}, "two"),
   ]);
-  assert.deepEqual(groups.map((group) => group.callId), ["a", "b"]);
-  assert.deepEqual(groups[0].events.map((item) => item.content), ["one", "two"]);
+  assert.deepEqual(
+    groups.map((group) => group.callId),
+    ["a", "b"],
+  );
+  assert.deepEqual(
+    groups[0].events.map((item) => item.content),
+    ["one", "two"],
+  );
 });
 
 test("pending state ends only when its own call reports a terminal marker", () => {
@@ -59,7 +65,12 @@ test("final answer and absorbed groups stay out of progressive trace disclosure"
 
 test("narration before a tool remains visible while a finish answer does not", () => {
   const narration = [
-    event("content", "round-1", { call_kind: "agent_loop_round" }, "I'll search."),
+    event(
+      "content",
+      "round-1",
+      { call_kind: "agent_loop_round" },
+      "I'll search.",
+    ),
     event("progress", "round-1", {
       trace_kind: "call_status",
       call_state: "complete",
@@ -67,7 +78,12 @@ test("narration before a tool remains visible while a finish answer does not", (
     }),
   ];
   const finish = [
-    event("content", "round-2", { call_kind: "agent_loop_round" }, "Final answer"),
+    event(
+      "content",
+      "round-2",
+      { call_kind: "agent_loop_round" },
+      "Final answer",
+    ),
     event("progress", "round-2", {
       trace_kind: "call_status",
       call_state: "complete",
@@ -80,7 +96,10 @@ test("narration before a tool remains visible while a finish answer does not", (
 });
 
 test("streaming mode follows the latest meaningful event", () => {
-  assert.equal(detectStreamingMode([event("tool_call", "a")], false, true), "exploring");
+  assert.equal(
+    detectStreamingMode([event("tool_call", "a")], false, true),
+    "exploring",
+  );
   assert.equal(
     detectStreamingMode(
       [event("thinking", "a", { call_kind: "tool_result_reflection" })],

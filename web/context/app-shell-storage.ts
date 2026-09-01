@@ -35,7 +35,10 @@ export function readStoredChatResponseTimeout(): number {
   if (typeof window === "undefined")
     return DEFAULT_CHAT_RESPONSE_TIMEOUT_SECONDS;
   try {
-    const raw = browserStorage.readRaw("local", CHAT_RESPONSE_TIMEOUT_STORAGE_KEY);
+    const raw = browserStorage.readRaw(
+      "local",
+      CHAT_RESPONSE_TIMEOUT_STORAGE_KEY,
+    );
     const parsed = raw ? Number.parseInt(raw, 10) : NaN;
     return Number.isFinite(parsed) && parsed > 0
       ? clampChatResponseTimeout(parsed)
@@ -82,7 +85,9 @@ export function resolveResponseLanguage(
 export function readStoredLanguage(): AppLanguage {
   if (typeof window === "undefined") return "en";
   try {
-    return normalizeLanguage(browserStorage.readRaw("local", LANGUAGE_STORAGE_KEY));
+    return normalizeLanguage(
+      browserStorage.readRaw("local", LANGUAGE_STORAGE_KEY),
+    );
   } catch {
     return "en";
   }
@@ -174,7 +179,9 @@ export function writeStoredActiveSessionId(sessionId: string | null): void {
 export function readStoredSidebarCollapsed(): boolean {
   if (typeof window === "undefined") return false;
   try {
-    return browserStorage.readRaw("local", SIDEBAR_COLLAPSED_STORAGE_KEY) === "1";
+    return (
+      browserStorage.readRaw("local", SIDEBAR_COLLAPSED_STORAGE_KEY) === "1"
+    );
   } catch {
     return false;
   }

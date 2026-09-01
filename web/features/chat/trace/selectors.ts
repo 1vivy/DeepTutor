@@ -39,7 +39,10 @@ export function getToolProvider(events: StreamEvent[]): ToolProvider | null {
   for (const event of events) {
     const meta = getTraceMeta(event);
     if (meta.tool_source) {
-      return { source: String(meta.tool_source), id: String(meta.tool_provider || "") };
+      return {
+        source: String(meta.tool_source),
+        id: String(meta.tool_provider || ""),
+      };
     }
   }
   return null;
@@ -107,23 +110,35 @@ export function isNarrationRound(events: StreamEvent[]): boolean {
 export function groupHasTraceSubstance(events: StreamEvent[]): boolean {
   const narration = isNarrationRound(events);
   return events.some((event) => {
-    if (event.type === "tool_call" || event.type === "tool_result" || event.type === "error") {
+    if (
+      event.type === "tool_call" ||
+      event.type === "tool_result" ||
+      event.type === "error"
+    ) {
       return true;
     }
     if (event.type === "thinking" || event.type === "observation") {
       return Boolean(event.content.trim());
     }
     if (event.type === "progress") {
-      return getTraceMeta(event).trace_kind !== "call_status" && Boolean(event.content.trim());
+      return (
+        getTraceMeta(event).trace_kind !== "call_status" &&
+        Boolean(event.content.trim())
+      );
     }
     if (event.type === "content") {
-      return (narration || !isChatLoopAnswerContent(event)) && Boolean(event.content.trim());
+      return (
+        (narration || !isChatLoopAnswerContent(event)) &&
+        Boolean(event.content.trim())
+      );
     }
     return false;
   });
 }
 
-export function selectTraceDisplayItems(traceGroups: TraceItem[]): TraceDisplayItem[] {
+export function selectTraceDisplayItems(
+  traceGroups: TraceItem[],
+): TraceDisplayItem[] {
   const items: TraceDisplayItem[] = [];
   let currentStep: string | null = null;
   let stepTraces: TraceItem[] = [];
@@ -141,7 +156,12 @@ export function selectTraceDisplayItems(traceGroups: TraceItem[]): TraceDisplayI
     const stepId = meta.step_id ? String(meta.step_id) : "";
     const kind = getTraceCallKind(group.events);
     if (kind === "llm_final_response") continue;
-    if (group.events.some((event) => getTraceMeta(event).absorbed_into_final === true)) continue;
+    if (
+      group.events.some(
+        (event) => getTraceMeta(event).absorbed_into_final === true,
+      )
+    )
+      continue;
     if (!groupHasTraceSubstance(group.events)) continue;
 
     if (groupType === "react_round" && stepId) {

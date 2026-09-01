@@ -138,7 +138,9 @@ export const bookApi = {
   delete: (book_id: string) =>
     request<{ deleted: boolean; book_id: string }>(
       `/books/${encodeURIComponent(book_id)}`,
-      { method: "DELETE" },
+      {
+        method: "DELETE",
+      },
     ),
   getSpine: (book_id: string) =>
     request<{ spine: Spine }>(`/books/${encodeURIComponent(book_id)}/spine`),
@@ -375,6 +377,13 @@ export const bookApi = {
       body: JSON.stringify({ book_id, expected_revision }),
     }),
 
+  /** Stop queued and in-flight generation while preserving completed output. */
+  pause: (book_id: string, expected_revision?: number) =>
+    request<{ pages: Page[]; book_revision: number }>("/books/pause", {
+      method: "POST",
+      body: JSON.stringify({ book_id, expected_revision }),
+    }),
+
   /** Destructive: discards every page and regenerates from the spine. */
   rebuild: (book_id: string, auto_compile = true, expected_revision?: number) =>
     request<{ pages: Page[]; book_revision: number }>("/books/rebuild", {
@@ -463,9 +472,7 @@ export const bookApi = {
     },
   ) =>
     request<{ capture: LearningCapture }>(
-      `/books/${encodeURIComponent(book_id)}/learning-captures/${encodeURIComponent(
-        capture_id,
-      )}`,
+      `/books/${encodeURIComponent(book_id)}/learning-captures/${encodeURIComponent(capture_id)}`,
       {
         method: "PATCH",
         body: JSON.stringify(payload),

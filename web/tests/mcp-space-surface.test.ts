@@ -169,10 +169,7 @@ test("a rename adds the new server before removing the old one", async () => {
     // add were refused (e.g. at the per-account cap).
     assert.deepEqual(
       stub.calls.map((call) => `${call.method} ${call.url}`),
-      [
-        "PUT /api/space/mcp/servers/exa2",
-        "DELETE /api/space/mcp/servers/exa",
-      ],
+      ["PUT /api/space/mcp/servers/exa2", "DELETE /api/space/mcp/servers/exa"],
     );
   } finally {
     stub.restore();

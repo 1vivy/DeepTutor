@@ -80,7 +80,10 @@ export function buildResumeTurn(input: {
   };
 }
 
-export function buildCancelTurn(turnId: string, stableCommandId?: string): CancelTurnCommand {
+export function buildCancelTurn(
+  turnId: string,
+  stableCommandId?: string,
+): CancelTurnCommand {
   return {
     type: "cancel_turn",
     turn_id: id(turnId, "turn_id"),
@@ -134,7 +137,9 @@ export function buildUserInput(input: {
   };
 }
 
-export function buildCheckActiveTurn(sessionId: string): CheckActiveTurnCommand {
+export function buildCheckActiveTurn(
+  sessionId: string,
+): CheckActiveTurnCommand {
   return {
     type: "check_active_turn",
     session_id: id(sessionId, "session_id"),
@@ -146,7 +151,8 @@ export function buildUnsubscribe(input: {
   turnId?: string;
   sessionId?: string;
 }): UnsubscribeCommand {
-  if (!input.turnId && !input.sessionId) throw new TypeError("unsubscribe requires a target");
+  if (!input.turnId && !input.sessionId)
+    throw new TypeError("unsubscribe requires a target");
   return {
     type: "unsubscribe",
     turn_id: input.turnId ? id(input.turnId, "turn_id") : undefined,

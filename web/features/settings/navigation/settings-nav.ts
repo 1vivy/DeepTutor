@@ -40,6 +40,7 @@ import {
   OpencodeGlyph,
 } from "@/components/agents/agent-icons";
 import type { ServiceName } from "@/features/settings/store/SettingsStore";
+import type { SettingsAccess } from "@/features/settings/navigation/settings-access";
 
 /**
  * Settings information architecture.
@@ -79,6 +80,35 @@ export interface SettingsCategory {
   learnerOnly?: boolean;
   /** Shown only to authenticated standard users who may act as guardians. */
   guardianOnly?: boolean;
+}
+
+export function isSettingsLeafVisible(
+  leaf: SettingsLeaf,
+  access: SettingsAccess,
+): boolean {
+  return !(leaf.adminOnly && access.hideAdminOnly);
+}
+
+export function isSettingsCategoryVisible(
+  category: SettingsCategory,
+  access: SettingsAccess,
+): boolean {
+  if (category.learnerOnly && !access.showLearnerOnly) return false;
+  if (category.guardianOnly && !access.showGuardianOnly) return false;
+  return (
+    !category.children ||
+    category.children.some((leaf) => isSettingsLeafVisible(leaf, access))
+  );
+}
+
+export function visibleSettingsChildren(
+  categoryKey: string,
+  access: SettingsAccess,
+): SettingsLeaf[] {
+  return (
+    SETTINGS_CATEGORIES.find((category) => category.key === categoryKey)
+      ?.children ?? []
+  ).filter((leaf) => isSettingsLeafVisible(leaf, access));
 }
 
 const MODEL_CHILDREN: SettingsLeaf[] = [

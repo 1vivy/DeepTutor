@@ -1,6 +1,7 @@
 import { apiFetch, apiUrl } from "@/lib/api";
 import { invalidateClientCache, withClientCache } from "@/lib/client-cache";
 import type { LLMSelection, StreamEvent } from "@/features/chat/model/protocol";
+import { browserReturnPath, loginHref } from "@/shared/auth/return-url";
 
 export interface SessionMessage {
   id: number;
@@ -123,8 +124,7 @@ export interface QuizResultItem {
 
 async function expectJson<T>(response: Response): Promise<T> {
   if (response.status === 401 && typeof window !== "undefined") {
-    const next = encodeURIComponent(window.location.pathname);
-    window.location.href = `/login?next=${next}`;
+    window.location.href = loginHref(browserReturnPath(window.location));
     return new Promise(() => {});
   }
   if (!response.ok) {

@@ -31,7 +31,12 @@ from deeptutor.core.trace import merge_trace_metadata
 class StreamBus:
     """Fan-out async event bus for a single chat turn."""
 
-    def __init__(self, *, max_history: int | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        max_history: int | None = None,
+        assign_seq: bool = False,
+    ) -> None:
         # Keep the owning loop with each queue. Production normally uses one
         # uvicorn loop, but desktop/TestClient hosts can serve sockets on
         # different loops; writing an asyncio.Queue from another loop does not
@@ -46,11 +51,21 @@ class StreamBus:
         # one turn). Long-lived buses pass a bound so replay stays useful
         # without growing without limit.
         self._max_history = max_history
+        self._assign_seq = assign_seq
+        self._next_seq = 1
+
+    @property
+    def latest_seq(self) -> int:
+        """Largest sequence issued by this bus, or zero before its first event."""
+        return self._next_seq - 1 if self._assign_seq else 0
 
     async def emit(self, event: StreamEvent) -> None:
         """Push *event* to every active subscriber."""
         if self._closed:
             return
+        if self._assign_seq:
+            event.seq = self._next_seq
+            self._next_seq += 1
         self._history.append(event)
         if self._max_history is not None and len(self._history) > self._max_history:
             del self._history[: len(self._history) - self._max_history]
@@ -61,7 +76,7 @@ class StreamBus:
             elif not loop.is_closed():
                 loop.call_soon_threadsafe(q.put_nowait, event)
 
-    async def subscribe(self) -> AsyncIterator[StreamEvent]:
+    async def subscribe(self, *, after_seq: int = 0) -> AsyncIterator[StreamEvent]:
         """Yield events until the bus is closed."""
         q: asyncio.Queue[StreamEvent | None] = asyncio.Queue()
         subscriber = (q, asyncio.get_running_loop())
@@ -73,6 +88,8 @@ class StreamBus:
         replay_count = len(self._history)
         try:
             for event in self._history[:replay_count]:
+                if self._assign_seq and event.seq <= after_seq:
+                    continue
                 yield event
             if self._closed and q.empty():
                 return

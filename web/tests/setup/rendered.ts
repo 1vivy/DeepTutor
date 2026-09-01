@@ -49,7 +49,8 @@ Object.defineProperty(globalThis, "sessionStorage", {
 });
 
 const originalConsoleError = console.error;
-const actWarning = /(?:not wrapped in act|testing environment is not configured to support act)/i;
+const actWarning =
+  /(?:not wrapped in act|testing environment is not configured to support act)/i;
 
 beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {

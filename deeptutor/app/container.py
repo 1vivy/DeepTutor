@@ -209,6 +209,53 @@ class ApplicationContainer:
 
         return await migrate_all_legacy_chat_scopes(dry_run=dry_run)
 
+    async def migrate_all_workspace_preferences(self) -> list[dict[str, Any]]:
+        """Upgrade legacy Reading/Mastery metadata in every account scope."""
+
+        from deeptutor.multi_user.identity import list_user_info
+        from deeptutor.multi_user.models import CurrentUser
+        from deeptutor.multi_user.paths import local_admin_user, scope_for_user, user_context
+
+        users = [local_admin_user()]
+        users.extend(
+            CurrentUser(
+                id=str(record.get("id") or ""),
+                username=str(record.get("username") or record.get("id") or ""),
+                role="admin" if str(record.get("role") or "user") == "admin" else "user",
+                scope=scope_for_user(
+                    str(record.get("id") or ""),
+                    is_admin=str(record.get("role") or "user") == "admin",
+                ),
+            )
+            for record in list_user_info()
+            if str(record.get("id") or "").strip()
+        )
+
+        reports: list[dict[str, Any]] = []
+        seen_users: set[str] = set()
+        for user in users:
+            if user.id in seen_users:
+                continue
+            seen_users.add(user.id)
+            with user_context(user):
+                migrated = await self.store_provider.get().migrate_workspace_preferences()
+            reports.append(
+                {
+                    "user_id": user.id,
+                    "scope": user.scope.cache_key,
+                    "migrated": migrated,
+                }
+            )
+        return reports
+
+    async def run_startup_data_migrations(self) -> dict[str, list[dict[str, Any]]]:
+        """Run every idempotent migration shared by all server launch modes."""
+
+        return {
+            "legacy_chat": await self.migrate_all_legacy_chats(),
+            "workspace_preferences": await self.migrate_all_workspace_preferences(),
+        }
+
     async def runtime_report(self) -> dict[str, Any]:
         report = self.settings.runtime_report()
         coordinator_healthy = await self.coordinator.health()

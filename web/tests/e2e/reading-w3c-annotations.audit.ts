@@ -169,10 +169,7 @@ test("a rich text annotation reflows and activates its sidebar entry", async ({
     .filter({ hasText: "Wave behavior" });
   await expect(sidebarEntry).toBeVisible();
   await page.getByRole("button", { name: "Close reading companion" }).click();
-  await page
-    .getByRole("button", { name: "Collapse contents" })
-    .first()
-    .click();
+  await page.getByRole("button", { name: "Collapse contents" }).first().click();
   await expect(page.getByRole("button", { name: "Close panels" })).toBeHidden();
   const article = page.locator("article.r6o-annotatable");
   const articleBox = await article.boundingBox();

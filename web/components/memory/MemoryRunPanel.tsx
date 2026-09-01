@@ -233,9 +233,7 @@ export default function MemoryRunPanel({
     if (!ok) return;
     try {
       const res = await apiFetch(
-        apiUrl(
-          `/api/memory/doc/${layer}/${encodeURIComponent(docKey)}/reset`,
-        ),
+        apiUrl(`/api/memory/doc/${layer}/${encodeURIComponent(docKey)}/reset`),
         { method: "POST" },
       );
       if (!res.ok) {

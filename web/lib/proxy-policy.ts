@@ -10,9 +10,15 @@ export const LOGIN_PATH = "/login";
 export const COOKIE_NAME = "dt_token";
 export const CODEX_CALLBACK_PATH = "/auth/callback";
 export const CODEX_CALLBACK_API_PATH = "/api/auth/openai-codex/callback";
+const RETIRED_PAGE_PATHS = new Set(["/partners/groups"]);
 
 export function isCodexCallbackPath(pathname: string): boolean {
   return pathname === CODEX_CALLBACK_PATH;
+}
+
+/** Exact retired pages that would otherwise collide with a dynamic route. */
+export function isRetiredPagePath(pathname: string): boolean {
+  return RETIRED_PAGE_PATHS.has(pathname);
 }
 
 // Paths whose responses come from the backend, not the Next app. The middleware

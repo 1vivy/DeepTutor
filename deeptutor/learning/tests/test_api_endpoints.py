@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
 
-from deeptutor.api.routers.mastery_path import router
+from deeptutor.api.routers.mastery_path import router, ws_router
 from deeptutor.learning.models import LearningProgress, PendingQuestion, QuizAttempt
 from deeptutor.learning.service import LearningService
 from deeptutor.learning.storage import LearningStore
@@ -28,6 +28,7 @@ def app(tmp_path, monkeypatch):
     app = FastAPI()
     app.state.learning_root = tmp_path
     app.include_router(router, prefix="/api/mastery-paths")
+    app.include_router(ws_router, prefix="/ws")
     return app
 
 
@@ -471,7 +472,7 @@ class TestTopicProductApi:
         path_id = created["path_id"]
         kp_id = created["map"]["modules"][0]["knowledge_points"][0]["id"]
 
-        with client.websocket_connect("/api/mastery-paths/ws") as socket:
+        with client.websocket_connect("/ws/mastery-paths") as socket:
             socket.send_json({"type": "subscribe", "path_id": path_id, "after_revision": 0})
             subscribed = socket.receive_json()
             assert subscribed["type"] == "subscribed"
@@ -502,7 +503,7 @@ class TestTopicProductApi:
         path_id = created["path_id"]
         kp_id = created["map"]["modules"][0]["knowledge_points"][0]["id"]
 
-        with client.websocket_connect("/api/mastery-paths/ws") as socket:
+        with client.websocket_connect("/ws/mastery-paths") as socket:
             socket.send_json({"type": "subscribe", "path_id": "../archive"})
             assert socket.receive_json() == {"type": "error", "content": "Invalid path_id"}
 

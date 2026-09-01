@@ -732,17 +732,20 @@ export async function connectMarginNote4Library(payload: {
   name: string;
   description?: string;
 }): Promise<{ status: string; name: string; db_path?: string }> {
-  const res = await apiFetch(apiUrl("/api/knowledge-bases/connect-marginnote4"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    // `db_path` is deliberately not sent: leaving it blank keeps one rule for
-    // where the store lives (derived from the name), which is what lets the
-    // pairing endpoints, the Add-on's syncs and the capability binding agree.
-    body: JSON.stringify({
-      name: payload.name,
-      description: payload.description ?? "",
-    }),
-  });
+  const res = await apiFetch(
+    apiUrl("/api/knowledge-bases/connect-marginnote4"),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // `db_path` is deliberately not sent: leaving it blank keeps one rule for
+      // where the store lives (derived from the name), which is what lets the
+      // pairing endpoints, the Add-on's syncs and the capability binding agree.
+      body: JSON.stringify({
+        name: payload.name,
+        description: payload.description ?? "",
+      }),
+    },
+  );
   if (!res.ok) {
     throw new Error(
       await readErrorDetail(res, "Failed to connect MarginNote 4 library"),

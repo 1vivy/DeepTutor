@@ -22,12 +22,17 @@ export function ChatStoreProvider({
 }) {
   const storeRef = useRef<ChatStore | null>(null);
   storeRef.current ??= store ?? createChatStore();
-  return <ChatStoreContext.Provider value={storeRef.current}>{children}</ChatStoreContext.Provider>;
+  return (
+    <ChatStoreContext.Provider value={storeRef.current}>
+      {children}
+    </ChatStoreContext.Provider>
+  );
 }
 
 export function useChatStore(): ChatStore {
   const store = useContext(ChatStoreContext);
-  if (!store) throw new Error("useChatStore must be used inside ChatStoreProvider");
+  if (!store)
+    throw new Error("useChatStore must be used inside ChatStoreProvider");
   return store;
 }
 

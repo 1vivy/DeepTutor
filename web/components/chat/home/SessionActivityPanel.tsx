@@ -156,7 +156,7 @@ const SPACE_CATEGORIES: Record<string, SpaceCategoryDef> = {
   },
   books: {
     key: "books",
-    href: "/space/books",
+    href: "/books",
     label: "Books",
     icon: BookOpen,
   },

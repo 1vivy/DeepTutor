@@ -9,8 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from deeptutor.app.contracts import TurnRequest
 
-PROTOCOL_VERSION = "2.0"
-MINIMUM_WEB_PROTOCOL_VERSION = "2.0"
+PROTOCOL_VERSION: Literal["2.0"] = "2.0"
+MINIMUM_WEB_PROTOCOL_VERSION: Literal["2.0"] = "2.0"
 
 
 class TurnStatus(str, Enum):

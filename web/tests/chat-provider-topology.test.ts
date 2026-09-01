@@ -3,7 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-const source = (relative: string) => fs.readFileSync(path.resolve(process.cwd(), relative), "utf8");
+const source = (relative: string) =>
+  fs.readFileSync(path.resolve(process.cwd(), relative), "utf8");
 
 test("workspace owns one runtime and Reading does not nest another", () => {
   assert.match(source("app/(workspace)/layout.tsx"), /ChatRuntimeProvider/);

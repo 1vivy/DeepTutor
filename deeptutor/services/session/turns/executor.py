@@ -17,10 +17,12 @@ from deeptutor.services.session.artifact_attachments import (
 from deeptutor.services.session.provider_response_state import (
     normalize_provider_response_state,
 )
-
-from .._turn_runtime_shared import (
+from deeptutor.services.session.workspace_preferences import (
     WORKSPACE_MODE_MASTERY,
     WORKSPACE_MODE_READING,
+)
+
+from .._turn_runtime_shared import (
     _assemble_persisted_answer,
     _build_question_bank_context,
     _clip_text,
@@ -53,12 +55,60 @@ from .._turn_runtime_shared import (
 )
 
 if TYPE_CHECKING:
+    from deeptutor.runtime.coordination import RuntimeCoordinator
     from deeptutor.services.llm.config import LLMConfig
+    from deeptutor.services.session.protocol import SessionStoreProtocol
 
 logger = logging.getLogger(__name__)
 
 
 class TurnExecutor:
+    if TYPE_CHECKING:
+        store: SessionStoreProtocol
+        coordinator: RuntimeCoordinator | None
+        turn_engine: Any
+        _lock: asyncio.Lock
+        _executions: dict[str, _TurnExecution]
+        _reply_queues: dict[str, asyncio.Queue[dict[str, Any] | None]]
+
+        def _create_context_builder(self) -> Any: ...
+
+        async def _publish_live_event(
+            self,
+            execution: _TurnExecution,
+            event: StreamEvent,
+        ) -> dict[str, Any]: ...
+
+        async def _publish_mastery_path_change(
+            self,
+            execution: _TurnExecution,
+            *,
+            capability_name: str,
+            started_on: str,
+            ended_on: str,
+            mastery_mode: bool = False,
+        ) -> None: ...
+
+        async def _flush_buffered_events(self, execution: _TurnExecution) -> None: ...
+
+        async def _transition_execution(
+            self,
+            execution: _TurnExecution,
+            status: str,
+            error: str = "",
+            *,
+            failure_code: str = "",
+            retryable: bool = False,
+        ) -> bool: ...
+
+        async def _maybe_generate_session_title(
+            self,
+            *,
+            execution: _TurnExecution,
+            session_id: str,
+            ui_language: str,
+        ) -> None: ...
+
     async def _run_turn(self, execution: _TurnExecution) -> None:
         payload = execution.payload
         session_id = execution.session_id

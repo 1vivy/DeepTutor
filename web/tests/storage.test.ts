@@ -31,10 +31,16 @@ class MemoryStorage implements StorageLike {
 
 class MemoryEvents implements StorageEventTargetLike {
   readonly listeners = new Set<(event: StorageEventLike) => void>();
-  addEventListener(_type: "storage", listener: (event: StorageEventLike) => void) {
+  addEventListener(
+    _type: "storage",
+    listener: (event: StorageEventLike) => void,
+  ) {
     this.listeners.add(listener);
   }
-  removeEventListener(_type: "storage", listener: (event: StorageEventLike) => void) {
+  removeEventListener(
+    _type: "storage",
+    listener: (event: StorageEventLike) => void,
+  ) {
     this.listeners.delete(listener);
   }
   dispatch(event: StorageEventLike) {
@@ -74,7 +80,10 @@ test("old schemas migrate and are rewritten at the current version", () => {
     JSON.stringify({ version: 1, value: "7", writtenAt: 1 }),
   );
   assert.equal(store.read(countKey), 7);
-  assert.equal(JSON.parse(local.getItem(physicalStorageKey(countKey))!).version, 2);
+  assert.equal(
+    JSON.parse(local.getItem(physicalStorageKey(countKey))!).version,
+    2,
+  );
 });
 
 test("quota failures never escape and do not replace the current value", () => {
@@ -101,7 +110,10 @@ test("local and session values with the same logical name stay isolated", () => 
   const local = new MemoryStorage();
   const session = new MemoryStorage();
   const store = new StorageStore({ local, session });
-  const sessionKey = defineStorageKey({ ...countKey, scope: "session" as const });
+  const sessionKey = defineStorageKey({
+    ...countKey,
+    scope: "session" as const,
+  });
   assert.equal(store.write(countKey, 2), true);
   assert.equal(store.write(sessionKey, 9), true);
   assert.equal(store.read(countKey), 2);
@@ -120,7 +132,11 @@ test("cross-tab storage events notify only matching typed keys", () => {
     newValue: encodeStorageValue(countKey, 11, 1),
     storageArea: local,
   });
-  events.dispatch({ key: physicalStorageKey(countKey), newValue: null, storageArea: local });
+  events.dispatch({
+    key: physicalStorageKey(countKey),
+    newValue: null,
+    storageArea: local,
+  });
   unsubscribe();
   assert.deepEqual(values, [11, 0]);
   assert.equal(events.listeners.size, 0);

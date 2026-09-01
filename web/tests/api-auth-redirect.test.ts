@@ -17,11 +17,15 @@ async function loadApiModule(): Promise<typeof import("../lib/api")> {
 
 // Install a fake `window` whose `location.href` assignment is recorded instead
 // of triggering a real navigation, so we can assert whether apiFetch redirected.
-function installWindow(pathname: string): {
+function installWindow(
+  pathname: string,
+  search = "",
+  hash = "",
+): {
   redirectedTo: () => string | null;
 } {
   let redirect: string | null = null;
-  const location = { pathname, href: "" };
+  const location = { pathname, search, hash, href: "" };
   Object.defineProperty(location, "href", {
     get: () => redirect ?? "",
     set: (value: string) => {
@@ -63,13 +67,16 @@ function tick(): Promise<void> {
 test("apiFetch redirects to /login on 401 when auth is enabled and no opt-out", async () => {
   const { apiFetch, setRuntimeAuthEnabled } = await loadApiModule();
   setRuntimeAuthEnabled(true);
-  const win = installWindow("/dashboard");
+  const win = installWindow("/notebooks/notes-1", "?course=course-2", "#notes");
   const restore = stubFetch(jsonResponse(401, { detail: "unauthorized" }));
   try {
     // Do not await: apiFetch returns a never-resolving promise once it redirects.
     void apiFetch("http://localhost:8001/api/knowledge-bases");
     await tick();
-    assert.equal(win.redirectedTo(), "/login?next=%2Fdashboard");
+    assert.equal(
+      win.redirectedTo(),
+      "/login?next=%2Fnotebooks%2Fnotes-1%3Fcourse%3Dcourse-2%23notes",
+    );
   } finally {
     restore();
     clearWindow();

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
+import time
 from typing import Any
 
 from deeptutor.runtime.coordination import RuntimeCoordinator
@@ -72,7 +73,7 @@ class TurnApplicationService:
             if seq <= last_seq:
                 continue
             last_seq = seq
-            done = str(event.get("type") or "") == "done"
+            done = done or str(event.get("type") or "") == "done"
             yield event
         if done:
             return
@@ -85,7 +86,7 @@ class TurnApplicationService:
                     continue
                 emitted = True
                 last_seq = seq
-                done = str(event.get("type") or "") == "done"
+                done = done or str(event.get("type") or "") == "done"
                 yield event
             if done:
                 return
@@ -112,6 +113,7 @@ class TurnApplicationService:
                     "session_id": turn.get("session_id", ""),
                     "turn_id": turn_id,
                     "seq": last_seq + 1,
+                    "timestamp": time.time(),
                 }
                 return
             if not emitted:

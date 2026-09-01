@@ -62,11 +62,18 @@ test("TypeScript includes canonical source roots and no named build output", () 
   assert.ok(include.includes(".next/types/**/*.ts"));
 });
 
+test("Next's checked-in environment declaration uses the canonical dev cache", () => {
+  const nextEnv = readFileSync(path.resolve(webRoot, "next-env.d.ts"), "utf8");
+
+  assert.match(nextEnv, /import "\.\/\.next\/dev\/types\/routes\.d\.ts";/);
+  assert.doesNotMatch(nextEnv, /\.next-[^/]+\//);
+});
+
 test("package exposes deterministic frontend checks", () => {
   const packageJson = readJson("package.json");
   const scripts = packageJson.scripts as Record<string, string>;
 
-  assert.equal(scripts.typecheck, "tsc --noEmit --incremental false");
+  assert.equal(scripts.typecheck, "node ./scripts/typecheck.mjs");
   assert.equal(
     scripts["check:fast"],
     "npm run contracts:check && npm run architecture:check && npm run typecheck && npm run test:node && npm run test:unit && npm run lint && npm run i18n:check",
@@ -77,6 +84,22 @@ test("package exposes deterministic frontend checks", () => {
   );
   assert.match(scripts["test:e2e:critical"], /critical-turns/);
   assert.match(scripts["test:e2e:multi-worker"], /multi-worker-turns-desktop/);
+});
+
+test("standalone typecheck ignores stale generated Next route validators", () => {
+  const source = readFileSync(
+    path.resolve(webRoot, "scripts", "typecheck.mjs"),
+    "utf8",
+  );
+
+  assert.match(source, /removeNextTypeIncludes\(original\)/);
+  assert.match(
+    source,
+    /tsconfig\.deeptutor-typecheck-\$\{process\.pid\}\.json/,
+  );
+  assert.match(source, /"-p",\s*isolatedTsconfigPath/);
+  assert.match(source, /finally\s*{\s*rmSync\(isolatedTsconfigPath/);
+  assert.doesNotMatch(source, /writeFileSync\(tsconfigPath/);
 });
 
 test("tracked frontend files contain no generated or backup artifacts", () => {

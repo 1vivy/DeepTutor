@@ -26,6 +26,7 @@ from deeptutor.services.path_service import get_path_service
 
 from .ask_user_trace import select_ask_user_events
 from .provider_response_state import redact_private_message_metadata
+from .workspace_preferences import upgrade_workspace_preferences
 
 
 def _json_dumps(value: Any) -> str:
@@ -348,6 +349,7 @@ class SQLiteSessionStore:
             columns = {row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()}
             if "preferences_json" not in columns:
                 conn.execute("ALTER TABLE sessions ADD COLUMN preferences_json TEXT DEFAULT '{}'")
+            self._migrate_workspace_preferences(conn)
             if "kind" in columns:
                 try:
                     conn.execute("ALTER TABLE sessions DROP COLUMN kind")
@@ -394,6 +396,39 @@ class SQLiteSessionStore:
             self._migrate_notebook_entries_add_assessment_review(conn)
             self._migrate_turn_runtime_columns(conn)
             conn.commit()
+
+    @staticmethod
+    def _migrate_workspace_preferences(conn: sqlite3.Connection) -> int:
+        """Backfill the explicit workspace discriminator without reordering history."""
+
+        migrated = 0
+        rows = conn.execute("SELECT id, preferences_json FROM sessions").fetchall()
+        for row in rows:
+            current = _json_loads(row["preferences_json"], {})
+            if not isinstance(current, dict):
+                continue
+            upgraded = upgrade_workspace_preferences(current)
+            if upgraded == current:
+                continue
+            conn.execute(
+                "UPDATE sessions SET preferences_json = ? WHERE id = ?",
+                (_json_dumps(upgraded), row["id"]),
+            )
+            migrated += 1
+        return migrated
+
+    def _migrate_workspace_preferences_sync(self) -> int:
+        """Run the idempotent data migration under the cross-process lock."""
+
+        with _migration_lock(self.db_path), self._connect() as conn:
+            migrated = self._migrate_workspace_preferences(conn)
+            conn.commit()
+        return migrated
+
+    async def migrate_workspace_preferences(self) -> int:
+        """Upgrade legacy Reading/Mastery session metadata for this user scope."""
+
+        return await self._run(self._migrate_workspace_preferences_sync)
 
     @staticmethod
     def _migrate_turn_runtime_columns(conn: sqlite3.Connection) -> None:
@@ -1870,6 +1905,7 @@ class SQLiteSessionStore:
                 **_json_loads(current["preferences_json"], {}),
                 **(preferences or {}),
             }
+            merged = upgrade_workspace_preferences(merged)
             cur = conn.execute(
                 """
                 UPDATE sessions

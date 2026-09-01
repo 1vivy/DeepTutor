@@ -318,7 +318,7 @@ export default function ToolsSettingsPage() {
 
       {filteredSections && query.trim() && filteredSections.length === 0 && (
         <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-8 text-center text-[12.5px] text-[var(--muted-foreground)]">
-          {t('No tools match “{{query}}”.', { query: query.trim() })}
+          {t("No tools match “{{query}}”.", { query: query.trim() })}
         </div>
       )}
 
@@ -429,7 +429,9 @@ export default function ToolsSettingsPage() {
                                       href={availability.href}
                                       className="font-medium underline underline-offset-2"
                                     >
-                                      {language === "zh" ? "打开设置" : "Open settings"}
+                                      {language === "zh"
+                                        ? "打开设置"
+                                        : "Open settings"}
                                     </Link>
                                   )}
                                 </p>
@@ -460,7 +462,9 @@ export default function ToolsSettingsPage() {
                                 onChange={() => {
                                   /* runtime unavailable */
                                 }}
-                                label={availability?.badge ?? t("Not configured")}
+                                label={
+                                  availability?.badge ?? t("Not configured")
+                                }
                               />
                             ) : tool.toggleable ? (
                               <ToolToggle

@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from deeptutor.agents.chat.agentic_pipeline import AgenticChatPipeline
-from deeptutor.core.capability_protocol import CapabilityManifest, TurnCapability
+from deeptutor.core.capability_protocol import (
+    CapabilityManifest,
+    StreamBusProtocol,
+    TurnCapability,
+)
 from deeptutor.core.context import UnifiedContext
 from deeptutor.runtime.request_contracts import get_capability_request_schema
 from deeptutor.runtime.stream_bus import StreamBus
@@ -24,7 +30,7 @@ class AskQuestionsCapability(TurnCapability):
         request_schema=get_capability_request_schema("chat"),
     )
 
-    async def run(self, context: UnifiedContext, stream: StreamBus) -> None:
+    async def run(self, context: UnifiedContext, stream: StreamBusProtocol) -> None:
         context.metadata["ask_questions_mode"] = True
         # This is the first *agent-loop round of the selected turn*, not the
         # first turn in the conversation.  The prompt still receives the full
@@ -33,7 +39,7 @@ class AskQuestionsCapability(TurnCapability):
             language=context.language,
             initial_tool_choice="ask_user",
         )
-        await pipeline.run(context, stream)
+        await pipeline.run(context, cast(StreamBus, stream))
 
 
 __all__ = ["AskQuestionsCapability"]

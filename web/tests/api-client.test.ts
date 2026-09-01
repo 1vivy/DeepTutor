@@ -55,12 +55,11 @@ test("requestBlob preserves binary bodies", async () => {
 });
 
 test("structured server errors retain stable fields and correlation IDs", async () => {
-  const restore = withFetch(
-    async () =>
-      Response.json(
-        { error_code: "worker_lost", message: "Owner exited", retryable: true },
-        { status: 503, headers: { "x-correlation-id": "corr-7" } },
-      ),
+  const restore = withFetch(async () =>
+    Response.json(
+      { error_code: "worker_lost", message: "Owner exited", retryable: true },
+      { status: 503, headers: { "x-correlation-id": "corr-7" } },
+    ),
   );
   try {
     const error = await expectApiError(() =>
@@ -81,7 +80,8 @@ test("structured server errors retain stable fields and correlation IDs", async 
 
 test("invalid JSON success becomes a normalized response error", async () => {
   const restore = withFetch(
-    async () => new Response("not-json", { headers: { "x-request-id": "req-1" } }),
+    async () =>
+      new Response("not-json", { headers: { "x-request-id": "req-1" } }),
   );
   try {
     const error = await expectApiError(() => requestJson("/broken"));
@@ -118,7 +118,9 @@ test("abort and network failures are distinguishable", async () => {
 
 test("the shared boundary keeps the single apiFetch auth redirect gate", async () => {
   setRuntimeAuthEnabled(false);
-  const restore = withFetch(async () => Response.json({ detail: "no" }, { status: 401 }));
+  const restore = withFetch(async () =>
+    Response.json({ detail: "no" }, { status: 401 }),
+  );
   try {
     const error = await expectApiError(() => requestJson("/private"));
     assert.equal(error.status, 401);

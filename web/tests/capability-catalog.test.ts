@@ -21,7 +21,10 @@ test("backend descriptors own identity, availability, manifest, and schema", () 
         kind: "plugin",
         available: false,
         manifest: { name: "Extension Lab", description: "Experimental tutor" },
-        config_schema: { type: "object", properties: { depth: { type: "integer" } } },
+        config_schema: {
+          type: "object",
+          properties: { depth: { type: "integer" } },
+        },
       },
       { id: "extension_lab", available: true },
       { nope: true },
@@ -60,7 +63,10 @@ test("unknown available extensions receive a generic presentation", () => {
   assert.equal(merged[1].value, "proof_coach");
   assert.equal(merged[1].label, "Proof Coach");
   assert.equal(merged[1].description, "Checks a proof step by step");
-  assert.equal(merged.some((item) => item.value === "offline_plugin"), false);
+  assert.equal(
+    merged.some((item) => item.value === "offline_plugin"),
+    false,
+  );
 });
 
 test("direct mastery capability is catalogued but not duplicated as a browser action", () => {
@@ -68,7 +74,10 @@ test("direct mastery capability is catalogued but not duplicated as a browser ac
     parseCapabilityCatalogPayload({ capabilities: ["chat", "mastery_path"] }),
   );
 
-  assert.equal(merged.some((item) => item.value === "mastery_path"), true);
+  assert.equal(
+    merged.some((item) => item.value === "mastery_path"),
+    true,
+  );
   assert.equal(
     visibleCapabilityPresentations(merged).some(
       (item) => item.value === "mastery_path",
@@ -98,7 +107,11 @@ test("safe schema fields are normalized and unknown fields are rejected", () => 
     },
   } as const;
   assert.deepEqual(
-    sanitizeCapabilityConfig(schema, { mode: "deep", depth: 3, citations: true }),
+    sanitizeCapabilityConfig(schema, {
+      mode: "deep",
+      depth: 3,
+      citations: true,
+    }),
     { ok: true, value: { mode: "deep", depth: 3, citations: true } },
   );
   const invalid = sanitizeCapabilityConfig(schema, {

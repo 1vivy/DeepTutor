@@ -5,10 +5,7 @@ import { useTranslation } from "react-i18next";
 import MemoryUsageItem from "@/components/settings/MemoryUsageItem";
 import { useSettings } from "@/features/settings/store/SettingsStore";
 import { statusDotClass } from "@/components/settings/shared";
-import {
-  RuntimeHealthCard,
-  useRuntimeStatus,
-} from "@/features/runtime-status";
+import { RuntimeHealthCard, useRuntimeStatus } from "@/features/runtime-status";
 
 /**
  * Resident status module on the settings hub — the old `/settings#status` page

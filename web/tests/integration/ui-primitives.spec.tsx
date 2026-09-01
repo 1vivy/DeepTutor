@@ -21,7 +21,9 @@ describe("shared UI primitives", () => {
 
   it("gives icon-only actions an accessible name and described tooltip", async () => {
     const user = userEvent.setup();
-    render(<IconButton label="Open details" icon={<span aria-hidden>+</span>} />);
+    render(
+      <IconButton label="Open details" icon={<span aria-hidden>+</span>} />,
+    );
     const button = screen.getByRole("button", { name: "Open details" });
     await user.tab();
     const tooltip = screen.getByRole("tooltip");
@@ -49,7 +51,9 @@ describe("shared UI primitives", () => {
         </Dialog>
       </>,
     );
-    expect(await screen.findByRole("dialog", { name: "Preferences" })).toBeVisible();
+    expect(
+      await screen.findByRole("dialog", { name: "Preferences" }),
+    ).toBeVisible();
     await user.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalledOnce();
     rerender(
@@ -65,7 +69,11 @@ describe("shared UI primitives", () => {
 
   it("connects fields to hint and error text", () => {
     render(
-      <Field label="Workspace name" hint="Shown to collaborators" error="Required">
+      <Field
+        label="Workspace name"
+        hint="Shown to collaborators"
+        error="Required"
+      >
         <input />
       </Field>,
     );
@@ -79,11 +87,16 @@ describe("shared UI primitives", () => {
       <>
         <StatusChip tone="success">Connected</StatusChip>
         <InlineAlert tone="warning">Connection is slow</InlineAlert>
-        <EmptyState title="No sessions yet" description="Start with a question." />
+        <EmptyState
+          title="No sessions yet"
+          description="Start with a question."
+        />
       </>,
     );
     expect(screen.getByText("Connected")).toHaveClass("bg-success-surface");
     expect(screen.getByRole("status")).toHaveTextContent("Connection is slow");
-    expect(screen.getByRole("heading", { name: "No sessions yet" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "No sessions yet" }),
+    ).toBeVisible();
   });
 });

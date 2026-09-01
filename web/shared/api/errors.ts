@@ -1,4 +1,9 @@
-export type AppErrorScope = "turn" | "session" | "runtime" | "settings" | "network";
+export type AppErrorScope =
+  | "turn"
+  | "session"
+  | "runtime"
+  | "settings"
+  | "network";
 
 export interface AppError {
   code: string;

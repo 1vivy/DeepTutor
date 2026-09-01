@@ -294,7 +294,9 @@ function TextField({
         className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 text-[13px] text-[var(--foreground)] outline-none transition-colors focus:border-[var(--foreground)]/25"
       />
       {hint && (
-        <span className="text-[11px] text-[var(--muted-foreground)]">{hint}</span>
+        <span className="text-[11px] text-[var(--muted-foreground)]">
+          {hint}
+        </span>
       )}
     </label>
   );
@@ -1048,8 +1050,9 @@ export function LightRagForm({
   onError: (message: string) => void;
 }) {
   const { t } = useTranslation();
-  const [modelOptions, setModelOptions] =
-    useState<ModelOptionsByKind | null>(null);
+  const [modelOptions, setModelOptions] = useState<ModelOptionsByKind | null>(
+    null,
+  );
   const { form, setLoaded, setForm, saving, setSaving, dirty, patch } =
     useEngineForm<LightRagConfig>(
       () => getLightRagConfig({ force: true }),
@@ -1060,7 +1063,13 @@ export function LightRagForm({
     let cancelled = false;
     getEngineModelOptions(["llm"])
       .then((data) => !cancelled && setModelOptions(data))
-      .catch(() => !cancelled && setModelOptions({ llm: { active: { profile_id: null, model_id: null }, options: [] } }));
+      .catch(
+        () =>
+          !cancelled &&
+          setModelOptions({
+            llm: { active: { profile_id: null, model_id: null }, options: [] },
+          }),
+      );
     return () => {
       cancelled = true;
     };

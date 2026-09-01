@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { format } from "prettier";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(scriptDirectory, "..");
@@ -59,8 +60,11 @@ try {
       process.exit(result.status ?? 1);
     }
 
-    const generated = readFileSync(path.join(temporaryRoot, output.name), "utf8");
     const target = path.join(generatedRoot, output.name);
+    const generated = await format(
+      readFileSync(path.join(temporaryRoot, output.name), "utf8"),
+      { filepath: target },
+    );
     let current = null;
     try {
       current = readFileSync(target, "utf8");

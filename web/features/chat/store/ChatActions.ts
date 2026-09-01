@@ -1,4 +1,8 @@
-import type { StartTurnCommand, StreamEvent, TurnStatus } from "@/contracts/generated/turn-protocol";
+import type {
+  StartTurnCommand,
+  StreamEvent,
+  TurnStatus,
+} from "@/contracts/generated/turn-protocol";
 import {
   buildCancelTurn,
   buildRegenerate,
@@ -10,7 +14,11 @@ import type { StartTurnInput } from "../model/start-turn";
 import { buildStartTurnInput } from "../controllers/buildStartTurnInput";
 import type { TurnRuntimeClient } from "../transport/TurnRuntimeClient";
 import type { ChatStore } from "./createChatStore";
-import { sessionClient, type SessionClient, type SessionWireDetail } from "../api/session-client";
+import {
+  sessionClient,
+  type SessionClient,
+  type SessionWireDetail,
+} from "../api/session-client";
 
 export type TurnRuntimeFactory = (sessionKey: string) => TurnRuntimeClient;
 
@@ -63,8 +71,14 @@ export class ChatActions {
     private readonly sessions: SessionClient = sessionClient,
   ) {}
 
-  async loadSession(sessionId: string, signal?: AbortSignal): Promise<ChatSession> {
-    const session = toSession(await this.sessions.get(sessionId, signal), sessionId);
+  async loadSession(
+    sessionId: string,
+    signal?: AbortSignal,
+  ): Promise<ChatSession> {
+    const session = toSession(
+      await this.sessions.get(sessionId, signal),
+      sessionId,
+    );
     this.store.dispatch({ type: "load_session", session });
     return session;
   }
@@ -125,9 +139,12 @@ export class ChatActions {
     text?: string;
     answers?: Array<{ questionId: string; text: string }>;
   }): void {
-    const turnId = this.store.getState().sessions[input.sessionKey]?.activeTurnId;
+    const turnId =
+      this.store.getState().sessions[input.sessionKey]?.activeTurnId;
     if (!turnId) return;
-    this.runtime(input.sessionKey).send(buildSubmitUserReply({ turnId, ...input }));
+    this.runtime(input.sessionKey).send(
+      buildSubmitUserReply({ turnId, ...input }),
+    );
   }
 
   regenerate(sessionId: string, overrides?: Record<string, unknown>): void {
@@ -136,14 +153,28 @@ export class ChatActions {
     runtime.send(buildRegenerate({ sessionId, overrides }));
   }
 
-  async selectBranch(sessionId: string, parentKey: string, childId: number): Promise<void> {
-    const current = this.store.getState().sessions[sessionId]?.selectedBranches ?? {};
+  async selectBranch(
+    sessionId: string,
+    parentKey: string,
+    childId: number,
+  ): Promise<void> {
+    const current =
+      this.store.getState().sessions[sessionId]?.selectedBranches ?? {};
     const next = { ...current, [parentKey]: childId };
-    this.store.dispatch({ type: "set_branch", key: sessionId, parentKey, childId });
+    this.store.dispatch({
+      type: "set_branch",
+      key: sessionId,
+      parentKey,
+      childId,
+    });
     await this.sessions.selectBranch(sessionId, next);
   }
 
-  async deleteMessages(sessionId: string, messageId: number, pairedId?: number): Promise<void> {
+  async deleteMessages(
+    sessionId: string,
+    messageId: number,
+    pairedId?: number,
+  ): Promise<void> {
     await this.sessions.removeMessage(sessionId, messageId);
     this.store.dispatch({
       type: "delete_messages",

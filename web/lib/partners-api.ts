@@ -148,9 +148,7 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 export async function listPartners(): Promise<PartnerInfo[]> {
-  return json(
-    await apiFetch(apiUrl("/api/partners"), { cache: "no-store" }),
-  );
+  return json(await apiFetch(apiUrl("/api/partners"), { cache: "no-store" }));
 }
 
 export async function getPartner(
@@ -200,14 +198,11 @@ export async function updatePartner(
   },
 ): Promise<PartnerInfo> {
   return json(
-    await apiFetch(
-      apiUrl(`/api/partners/${encodeURIComponent(partnerId)}`),
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      },
-    ),
+    await apiFetch(apiUrl(`/api/partners/${encodeURIComponent(partnerId)}`), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
   );
 }
 
@@ -231,12 +226,9 @@ export async function stopPartner(partnerId: string): Promise<void> {
 
 export async function destroyPartner(partnerId: string): Promise<void> {
   await json(
-    await apiFetch(
-      apiUrl(`/api/partners/${encodeURIComponent(partnerId)}`),
-      {
-        method: "DELETE",
-      },
-    ),
+    await apiFetch(apiUrl(`/api/partners/${encodeURIComponent(partnerId)}`), {
+      method: "DELETE",
+    }),
   );
 }
 
@@ -379,9 +371,7 @@ export async function getPartnerChannelRuntime(
 ): Promise<PartnerChannelRuntimeResponse> {
   return json(
     await apiFetch(
-      apiUrl(
-        `/api/partners/${encodeURIComponent(partnerId)}/channels/status`,
-      ),
+      apiUrl(`/api/partners/${encodeURIComponent(partnerId)}/channels/status`),
       { cache: "no-store" },
     ),
   );
@@ -511,9 +501,7 @@ export async function getPartnerHistory(
   const query = params.toString() ? `?${params.toString()}` : "";
   return json(
     await apiFetch(
-      apiUrl(
-        `/api/partners/${encodeURIComponent(partnerId)}/history${query}`,
-      ),
+      apiUrl(`/api/partners/${encodeURIComponent(partnerId)}/history${query}`),
     ),
   );
 }
@@ -534,15 +522,17 @@ async function postSessionAction(
   action: "archive" | "resume" | "delete",
   sessionKey: string,
 ): Promise<void> {
-  await apiFetch(
-    apiUrl(
-      `/api/partners/${encodeURIComponent(partnerId)}/sessions/${action}`,
+  await json(
+    await apiFetch(
+      apiUrl(
+        `/api/partners/${encodeURIComponent(partnerId)}/sessions/${action}`,
+      ),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_key: sessionKey }),
+      },
     ),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_key: sessionKey }),
-    },
   );
 }
 
@@ -565,9 +555,7 @@ export async function branchPartnerSession(
 ): Promise<{ session: PartnerSessionInfo }> {
   return json(
     await apiFetch(
-      apiUrl(
-        `/api/partners/${encodeURIComponent(partnerId)}/sessions/branch`,
-      ),
+      apiUrl(`/api/partners/${encodeURIComponent(partnerId)}/sessions/branch`),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

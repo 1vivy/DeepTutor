@@ -43,7 +43,11 @@ export interface TraceMetadata {
   subagent_merge_id?: string;
 }
 
-export type ResearchStageId = "understand" | "decompose" | "evidence" | "result";
+export type ResearchStageId =
+  | "understand"
+  | "decompose"
+  | "evidence"
+  | "result";
 
 export interface ResearchStageCard {
   id: ResearchStageId;

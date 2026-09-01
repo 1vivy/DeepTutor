@@ -41,7 +41,10 @@ function summary(session: ChatSession): SidebarSessionSummary {
   };
 }
 
-function updateSidebar(state: ChatStoreState, session: ChatSession): ChatStoreState["sidebar"] {
+function updateSidebar(
+  state: ChatStoreState,
+  session: ChatSession,
+): ChatStoreState["sidebar"] {
   const sessions = [
     summary(session),
     ...state.sidebar.sessions.filter((item) => item.key !== session.key),
@@ -74,7 +77,10 @@ function appendEvent(session: ChatSession, event: StreamEvent): ChatSession {
   if (!current || current.role !== "assistant") return session;
   messages[index] = {
     ...current,
-    content: event.type === "content" ? current.content + (event.content ?? "") : current.content,
+    content:
+      event.type === "content"
+        ? current.content + (event.content ?? "")
+        : current.content,
     events: [...(current.events ?? []), event],
   };
   return {
@@ -90,16 +96,25 @@ function evictSessions(state: ChatStoreState): ChatStoreState {
   const entries = Object.values(state.sessions);
   if (entries.length <= MAX_CACHED_CHAT_SESSIONS) return state;
   const removable = entries
-    .filter((session) => session.key !== state.activeKey && session.status !== "running")
+    .filter(
+      (session) =>
+        session.key !== state.activeKey && session.status !== "running",
+    )
     .sort((left, right) => left.updatedAt - right.updatedAt);
   const sessions = { ...state.sessions };
-  for (const session of removable.slice(0, entries.length - MAX_CACHED_CHAT_SESSIONS)) {
+  for (const session of removable.slice(
+    0,
+    entries.length - MAX_CACHED_CHAT_SESSIONS,
+  )) {
     delete sessions[session.key];
   }
   return { ...state, sessions };
 }
 
-export function chatReducer(state: ChatStoreState, action: ChatStoreAction): ChatStoreState {
+export function chatReducer(
+  state: ChatStoreState,
+  action: ChatStoreAction,
+): ChatStoreState {
   switch (action.type) {
     case "ensure_session": {
       if (state.sessions[action.key]) return state;
@@ -125,7 +140,9 @@ export function chatReducer(state: ChatStoreState, action: ChatStoreAction): Cha
         sessions,
         sidebar: {
           revision: state.sidebar.revision + 1,
-          sessions: state.sidebar.sessions.filter((item) => item.key !== action.key),
+          sessions: state.sidebar.sessions.filter(
+            (item) => item.key !== action.key,
+          ),
         },
       };
     }
@@ -148,7 +165,9 @@ export function chatReducer(state: ChatStoreState, action: ChatStoreAction): Cha
         updatedAt: Date.now(),
       }));
     case "stream_event":
-      return withSession(state, action.key, (session) => appendEvent(session, action.event));
+      return withSession(state, action.key, (session) =>
+        appendEvent(session, action.event),
+      );
     case "turn_status":
       return withSession(
         state,
@@ -177,13 +196,20 @@ export function chatReducer(state: ChatStoreState, action: ChatStoreAction): Cha
       return withSession(
         state,
         action.key,
-        (session) => ({ ...session, title: action.title, updatedAt: Date.now() }),
+        (session) => ({
+          ...session,
+          title: action.title,
+          updatedAt: Date.now(),
+        }),
         true,
       );
     case "set_branch":
       return withSession(state, action.key, (session) => ({
         ...session,
-        selectedBranches: { ...session.selectedBranches, [action.parentKey]: action.childId },
+        selectedBranches: {
+          ...session.selectedBranches,
+          [action.parentKey]: action.childId,
+        },
       }));
     case "delete_messages": {
       const ids = new Set(action.ids);
@@ -201,7 +227,10 @@ export function chatReducer(state: ChatStoreState, action: ChatStoreAction): Cha
     case "regenerate_rollback":
       return withSession(state, action.key, (session) => ({
         ...session,
-        messages: [...session.messages.filter((message) => message.content), action.assistant],
+        messages: [
+          ...session.messages.filter((message) => message.content),
+          action.assistant,
+        ],
         status: "idle",
         queryState: "idle",
       }));

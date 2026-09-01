@@ -13,10 +13,7 @@ import { ChevronDown, Loader2, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import { formatTurnDuration, getTurnDurationSeconds } from "@/lib/trace-timing";
-import {
-  describeProviderTool,
-  type ToolProvider,
-} from "@/lib/trace-tools";
+import { describeProviderTool, type ToolProvider } from "@/lib/trace-tools";
 import type { StreamEvent } from "@/features/chat/model/protocol";
 import {
   getLatestToolProgress as selectLatestToolProgress,
@@ -2281,8 +2278,12 @@ export function StreamingStatus({
   if (mode === "tool_using") modeLabel = t("Tool Calling…");
   else if (mode === "planning") modeLabel = t("{{name}} Planning…", { name });
   else if (mode === "drafting") modeLabel = t("{{name}} Drafting…", { name });
+  // ``responding`` remains a useful transport/trace distinction, but it is
+  // not a second user-facing phase. Keep the one continuous activity surface
+  // the conversation already established instead of adding a competing
+  // "Responding…" label beside the composer.
   else if (mode === "responding")
-    modeLabel = t("{{name}} Responding…", { name });
+    modeLabel = t("{{name}} Exploring…", { name });
   else if (mode === "exploring") modeLabel = t("{{name}} Exploring…", { name });
   else if (mode === "quizzing") modeLabel = t("{{name}} Quizzing…", { name });
   else if (mode === "reflecting")
@@ -2318,7 +2319,7 @@ export function StreamingStatus({
   const Mark =
     mode === "tool_using"
       ? ToolMark
-      : mode === "responding" || mode === "drafting"
+      : mode === "drafting"
         ? RespondingMark
         : mode === "responded"
           ? RespondedMark

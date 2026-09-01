@@ -294,7 +294,8 @@ async def message_connection(name: str, payload: SubagentMessageRequest):
                     break
         finally:
             if not task.done():
-                await task
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
     return StreamingResponse(event_stream(), media_type="application/x-ndjson")
 

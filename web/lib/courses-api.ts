@@ -298,14 +298,11 @@ export async function setCourseSyllabus(
   courseId: string,
   units: { id?: string; title: string; topics?: string[]; covered?: boolean }[],
 ): Promise<StudyCourse> {
-  const response = await apiFetch(
-    apiUrl(`/api/courses/${courseId}/syllabus`),
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ units }),
-    },
-  );
+  const response = await apiFetch(apiUrl(`/api/courses/${courseId}/syllabus`), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ units }),
+  });
   const course = (await expectJson<{ course: Partial<StudyCourse> }>(response))
     .course;
   invalidateClientCache("courses:");

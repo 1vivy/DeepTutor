@@ -5,7 +5,15 @@ import { execFileSync } from "node:child_process";
 import test from "node:test";
 
 const root = process.cwd();
-const sourceRoots = ["app", "components", "context", "features", "hooks", "lib", "shared"];
+const sourceRoots = [
+  "app",
+  "components",
+  "context",
+  "features",
+  "hooks",
+  "lib",
+  "shared",
+];
 
 function sourceFiles(relativeRoot: string): string[] {
   const start = path.join(root, relativeRoot);
@@ -50,7 +58,9 @@ test("raw fetch is limited to the shared API client and media preview", () => {
 
 test("source modules cannot import Next route pages", () => {
   const violations = allSources
-    .filter((file) => /from\s+["'][^"']*\/page["']/.test(fs.readFileSync(file, "utf8")))
+    .filter((file) =>
+      /from\s+["'][^"']*\/page["']/.test(fs.readFileSync(file, "utf8")),
+    )
     .map((file) => path.relative(root, file));
   assert.deepEqual(violations, []);
 });
@@ -62,8 +72,9 @@ test("tracked source contains no editor backups or generated trash", () => {
   })
     .split("\n")
     .filter(Boolean)
-    .filter((file) =>
-      /(?:~|\.bak|\.orig|\.rej)$/.test(file) || file.endsWith("/.DS_Store"),
+    .filter(
+      (file) =>
+        /(?:~|\.bak|\.orig|\.rej)$/.test(file) || file.endsWith("/.DS_Store"),
     );
   assert.deepEqual(suspicious, []);
 });

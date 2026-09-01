@@ -1210,8 +1210,8 @@ class PartnerManager:
     ) -> dict[str, Any] | None:
         return self.session_store(partner_id).branch(source_key, new_key)
 
-    def archive_session(self, partner_id: str, session_key: str) -> None:
-        self.session_store(partner_id).set_archived(session_key, True)
+    def archive_session(self, partner_id: str, session_key: str) -> bool:
+        return self.session_store(partner_id).set_archived(session_key, True)
 
     # ── Boot / shutdown ───────────────────────────────────────────
 

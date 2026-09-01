@@ -27,10 +27,13 @@ export function ProtocolMismatchNotice({
         ) : null
       }
     >
-      {t("This page uses protocol {{clientVersion}}, but the server reports {{serverVersion}}.", {
-        clientVersion,
-        serverVersion: serverVersion || t("an incompatible version"),
-      })}
+      {t(
+        "This page uses protocol {{clientVersion}}, but the server reports {{serverVersion}}.",
+        {
+          clientVersion,
+          serverVersion: serverVersion || t("an incompatible version"),
+        },
+      )}
     </InlineAlert>
   );
 }

@@ -310,7 +310,11 @@ function SessionViewerPanelInner(
       document.body.style.cursor = "";
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
-      browserStorage.writeRaw("local", VIEWER_WIDTH_KEY, String(widthRef.current));
+      browserStorage.writeRaw(
+        "local",
+        VIEWER_WIDTH_KEY,
+        String(widthRef.current),
+      );
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);

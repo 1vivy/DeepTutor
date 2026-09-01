@@ -372,19 +372,30 @@ class TurnLifecycle:
                 # still close out its streaming state cleanly.
                 if not done_yielded:
                     if turn is not None and str(turn.get("status") or "") == "failed":
-                        error_event = self._synthesize_error_event(turn_id, turn)
+                        error_event = self._synthesize_error_event(
+                            turn_id,
+                            turn,
+                            seq=last_seq + 1,
+                        )
                         if error_event is not None:
                             yield error_event
-                    yield self._synthesize_done_event(turn_id, turn)
+                            last_seq += 1
+                    yield self._synthesize_done_event(
+                        turn_id,
+                        turn,
+                        seq=last_seq + 1,
+                    )
                 return
             # A running turn may be owned by another worker. Subscription is a
             # read-only operation; distributed coordinators attach a live event
             # source above this local-runtime fallback.
             return
+        queue_drained = False
         try:
             while True:
                 item = await queue.get()
                 if item is None:
+                    queue_drained = True
                     break
                 seq = int(item.get("seq") or 0)
                 if seq <= last_seq:
@@ -407,14 +418,27 @@ class TurnLifecycle:
             # on ``ask_user`` or may have had this subscription replaced; in
             # that case a synthetic DONE would falsely mark the turn
             # completed while the backend is still awaiting input.
-            if not done_yielded:
+            # Only a producer sentinel proves that this live stream drained.
+            # Cancelling this generator is how the WS router replaces a
+            # subscription during resume; synthesising from that cancellation
+            # races the replacement and emits a second terminal event.
+            if queue_drained and not done_yielded:
                 final_turn = await self.store.get_turn(turn_id)
                 final_status = str((final_turn or {}).get("status") or "").strip()
                 if final_turn is None or final_status in {"failed", "cancelled", "completed"}:
-                    yield self._synthesize_done_event(turn_id, final_turn)
+                    yield self._synthesize_done_event(
+                        turn_id,
+                        final_turn,
+                        seq=last_seq + 1,
+                    )
 
     @staticmethod
-    def _synthesize_done_event(turn_id: str, turn: dict[str, Any] | None) -> dict[str, Any]:
+    def _synthesize_done_event(
+        turn_id: str,
+        turn: dict[str, Any] | None,
+        *,
+        seq: int,
+    ) -> dict[str, Any]:
         """Build a DONE event payload from the persisted turn status.
 
         Used as a recovery path when ``subscribe_turn`` finishes without
@@ -441,13 +465,19 @@ class TurnLifecycle:
             "stage": "",
             "content": "",
             "metadata": metadata,
-            "session_id": "",
+            "session_id": str((turn or {}).get("session_id") or ""),
             "turn_id": turn_id,
-            "seq": 0,
+            "seq": max(1, int(seq)),
+            "timestamp": time.time(),
         }
 
     @staticmethod
-    def _synthesize_error_event(turn_id: str, turn: dict[str, Any] | None) -> dict[str, Any] | None:
+    def _synthesize_error_event(
+        turn_id: str,
+        turn: dict[str, Any] | None,
+        *,
+        seq: int,
+    ) -> dict[str, Any] | None:
         """Build a terminal ERROR event from a failed persisted turn."""
         error = str((turn or {}).get("error") or "").strip()
         if not error:
@@ -457,10 +487,15 @@ class TurnLifecycle:
             "source": "turn_runtime",
             "stage": "",
             "content": error,
-            "metadata": {"status": "failed", "synthesized": True},
+            "metadata": {
+                "status": "failed",
+                "synthesized": True,
+                "turn_terminal": True,
+            },
             "session_id": str((turn or {}).get("session_id") or ""),
             "turn_id": turn_id,
-            "seq": 0,
+            "seq": max(1, int(seq)),
+            "timestamp": time.time(),
         }
 
     async def subscribe_session(

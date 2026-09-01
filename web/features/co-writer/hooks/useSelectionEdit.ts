@@ -23,5 +23,9 @@ export function useSelectionEdit() {
 
   useEffect(() => cancelSelectionRequest, [cancelSelectionRequest]);
 
-  return { cancelSelectionRequest, finishSelectionRequest, startSelectionRequest };
+  return {
+    cancelSelectionRequest,
+    finishSelectionRequest,
+    startSelectionRequest,
+  };
 }

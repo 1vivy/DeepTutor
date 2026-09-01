@@ -167,8 +167,7 @@ test("YouTube learning survives reload and switches to Invidious without silent 
       return json(material(provider));
     }
     if (
-      path ===
-      `/api/video-learning/materials/${MATERIAL_ID}/transcript/refresh`
+      path === `/api/video-learning/materials/${MATERIAL_ID}/transcript/refresh`
     ) {
       transcriptRefreshCount += 1;
       transcriptReady = true;

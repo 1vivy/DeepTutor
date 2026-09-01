@@ -14,12 +14,16 @@ describe("co-writer workspace boundaries", () => {
   });
 
   it("delegates storage, selection cancellation, split panes, and scroll lifecycle", () => {
-    const workspace = source("features/co-writer/components/CoWriterWorkspace.tsx");
+    const workspace = source(
+      "features/co-writer/components/CoWriterWorkspace.tsx",
+    );
     expect(workspace).toMatch(/useSelectionEdit\(\)/);
     expect(workspace).toMatch(/useDocumentLifecycle\(\)/);
     expect(workspace).toMatch(/useSplitPane\(splitContainerRef\)/);
     expect(workspace).toMatch(/useSynchronizedScroll\(\)/);
     expect(workspace).toMatch(/saveDraft/);
-    expect(workspace).not.toMatch(/\.localStorage\.(?:getItem|setItem|removeItem)/);
+    expect(workspace).not.toMatch(
+      /\.localStorage\.(?:getItem|setItem|removeItem)/,
+    );
   });
 });

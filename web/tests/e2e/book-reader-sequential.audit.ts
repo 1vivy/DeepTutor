@@ -128,7 +128,7 @@ test("book arrows read the current chapter before turning chapters", async ({
     return route.fulfill(json({}));
   });
 
-  await page.goto(`${BASE_URL}/books?book=sequential-fixture&page=page-2`, {
+  await page.goto(`${BASE_URL}/books/sequential-fixture/pages/page-2`, {
     waitUntil: "domcontentloaded",
   });
   // A hidden reader (for example when the mobile chapter sidebar is expanded)

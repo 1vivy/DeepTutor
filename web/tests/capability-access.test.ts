@@ -18,7 +18,10 @@ test("capabilityForPath matches nested routes by prefix", () => {
   assert.equal(capabilityForPath("/chat/abc-123"), "llm");
   assert.equal(capabilityForPath("/partners/partner-1"), "llm");
   assert.equal(capabilityForPath("/mastery/book-1"), "llm");
-  assert.equal(capabilityForPath("/reading/workspace-1/sessions/session-1"), "llm");
+  assert.equal(
+    capabilityForPath("/reading/workspace-1/sessions/session-1"),
+    "llm",
+  );
 });
 
 test("capabilityForPath matches on a segment boundary, not a bare prefix", () => {

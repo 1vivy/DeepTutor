@@ -7,9 +7,19 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from deeptutor.learning.storage import MasteryPathLease
+    from deeptutor.services.session.protocol import SessionStoreProtocol
+
+    from .._turn_runtime_shared import _TurnExecution
 
 
 class LearningTurnAdapter:
+    if TYPE_CHECKING:
+        store: SessionStoreProtocol
+        _lock: asyncio.Lock
+        _executions: dict[str, _TurnExecution]
+
+        async def cancel_turn(self, turn_id: str) -> bool: ...
+
     async def _is_awaiting_user_reply(self, turn_id: str) -> bool:
         async with self._lock:
             execution = self._executions.get(turn_id)

@@ -4,8 +4,10 @@ import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { Tooltip } from "./Tooltip";
 import { cn } from "./styles";
 
-export interface IconButtonProps
-  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
+export interface IconButtonProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "children"
+> {
   label: string;
   icon: ReactNode;
   size?: "sm" | "md" | "lg";

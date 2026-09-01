@@ -1,4 +1,8 @@
-import type { ClientCommand, ServerEvent, StreamEvent } from "@/contracts/generated/turn-protocol";
+import type {
+  ClientCommand,
+  ServerEvent,
+  StreamEvent,
+} from "@/contracts/generated/turn-protocol";
 import { buildPing, buildResumeTurn } from "@/contracts/parse/turn-command";
 import { parseTurnEvent } from "@/contracts/parse/turn-event";
 
@@ -11,7 +15,12 @@ import {
 } from "./socket";
 import { reconnectDelay, shouldReconnect } from "./reconnect-policy";
 
-export type RuntimeConnectionState = "idle" | "connecting" | "connected" | "recovering" | "stopped";
+export type RuntimeConnectionState =
+  | "idle"
+  | "connecting"
+  | "connected"
+  | "recovering"
+  | "stopped";
 
 export interface RuntimeScheduler {
   setTimeout(callback: () => void, delay: number): unknown;
@@ -24,6 +33,7 @@ export interface TurnRuntimeClientOptions {
   scheduler?: RuntimeScheduler;
   random?: () => number;
   maxBufferedGap?: number;
+  replayProbeDelayMs?: number;
   onEvent: (event: ServerEvent) => void;
   onStateChange?: (state: RuntimeConnectionState) => void;
   onDiagnostic?: (diagnostic: string) => void;
@@ -50,10 +60,12 @@ function prepareCommand(command: ClientCommand): {
   requiresAck: boolean;
 } {
   const requiresAck =
-    typeof command.type === "string" && ACKNOWLEDGED_COMMAND_TYPES.has(command.type);
+    typeof command.type === "string" &&
+    ACKNOWLEDGED_COMMAND_TYPES.has(command.type);
   if (!requiresAck) return { command, commandId: null, requiresAck: false };
   const record = command as unknown as Record<string, unknown>;
-  const existing = typeof record.command_id === "string" ? record.command_id.trim() : "";
+  const existing =
+    typeof record.command_id === "string" ? record.command_id.trim() : "";
   const commandId = existing || globalThis.crypto.randomUUID();
   return {
     command: { ...command, command_id: commandId } as ClientCommand,
@@ -64,19 +76,34 @@ function prepareCommand(command: ClientCommand): {
 
 const defaultScheduler: RuntimeScheduler = {
   setTimeout: (callback, delay) => globalThis.setTimeout(callback, delay),
-  clearTimeout: (handle) => globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>),
+  clearTimeout: (handle) =>
+    globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>),
 };
 
 export class TurnRuntimeClient {
   private readonly options: Required<
-    Pick<TurnRuntimeClientOptions, "url" | "socketFactory" | "scheduler" | "random" | "maxBufferedGap">
+    Pick<
+      TurnRuntimeClientOptions,
+      | "url"
+      | "socketFactory"
+      | "scheduler"
+      | "random"
+      | "maxBufferedGap"
+      | "replayProbeDelayMs"
+    >
   > &
     Omit<
       TurnRuntimeClientOptions,
-      "url" | "socketFactory" | "scheduler" | "random" | "maxBufferedGap"
+      | "url"
+      | "socketFactory"
+      | "scheduler"
+      | "random"
+      | "maxBufferedGap"
+      | "replayProbeDelayMs"
     >;
   private socket: TurnSocket | null = null;
   private reconnectHandle: unknown = null;
+  private replayProbeHandle: unknown = null;
   private reconnectAttempt = 0;
   private generation = 0;
   private stopped = false;
@@ -86,6 +113,7 @@ export class TurnRuntimeClient {
   private buffered = new Map<number, StreamEvent>();
   private pending: PendingCommand[] = [];
   private connectionState: RuntimeConnectionState = "idle";
+  private terminalObserved = false;
 
   constructor(options: TurnRuntimeClientOptions) {
     this.options = {
@@ -94,6 +122,7 @@ export class TurnRuntimeClient {
       scheduler: defaultScheduler,
       random: Math.random,
       maxBufferedGap: 32,
+      replayProbeDelayMs: 5_000,
       ...options,
     };
   }
@@ -115,18 +144,36 @@ export class TurnRuntimeClient {
     this.socket = socket;
 
     socket.addEventListener("open", () => this.handleOpen(socket));
-    socket.addEventListener("message", (event) => this.handleMessage(socket, event.data));
+    socket.addEventListener("message", (event) =>
+      this.handleMessage(socket, event.data),
+    );
     socket.addEventListener("close", () => this.handleClose(socket));
     socket.addEventListener("error", () => {
-      if (socket === this.socket) this.options.onDiagnostic?.("turn socket error; awaiting close");
+      if (socket === this.socket)
+        this.options.onDiagnostic?.("turn socket error; awaiting close");
     });
   }
 
   setResumeCursor(turnId: string | null, afterSeq: number): void {
-    if (!Number.isInteger(afterSeq) || afterSeq < 0) throw new TypeError("afterSeq is invalid");
-    this.turnId = turnId?.trim() || null;
+    if (!Number.isInteger(afterSeq) || afterSeq < 0)
+      throw new TypeError("afterSeq is invalid");
+    const nextTurnId = turnId?.trim() || null;
+    if (nextTurnId !== this.turnId) {
+      this.clearReplayProbe();
+      this.turnId = nextTurnId;
+      this.lastSeq = afterSeq;
+      this.buffered.clear();
+      this.terminalObserved = false;
+      return;
+    }
+    // React state can trail the socket by one render. Never rewind a live
+    // transport cursor from that stale snapshot or already-consumed events
+    // (including DONE) can be replayed into a new UI state.
+    if (afterSeq <= this.lastSeq) return;
     this.lastSeq = afterSeq;
-    this.buffered.clear();
+    for (const seq of this.buffered.keys()) {
+      if (seq <= afterSeq) this.buffered.delete(seq);
+    }
   }
 
   setPageVisible(visible: boolean): void {
@@ -170,6 +217,7 @@ export class TurnRuntimeClient {
   stop(): void {
     this.stopped = true;
     this.clearReconnect();
+    this.clearReplayProbe();
     const socket = this.socket;
     this.socket = null;
     socket?.close(1000, "client stopped");
@@ -184,7 +232,9 @@ export class TurnRuntimeClient {
     this.reconnectAttempt = 0;
     this.setState("connected");
     if (this.turnId) {
-      this.sendNow(buildResumeTurn({ turnId: this.turnId, afterSeq: this.lastSeq }));
+      this.sendNow(
+        buildResumeTurn({ turnId: this.turnId, afterSeq: this.lastSeq }),
+      );
     }
     this.flushPending();
   }
@@ -193,12 +243,15 @@ export class TurnRuntimeClient {
     if (socket !== this.socket || this.stopped) return;
     const parsed = parseTurnEvent(raw);
     if (!parsed.ok) {
-      if (parsed.reason !== "heartbeat") this.options.onDiagnostic?.(parsed.diagnostic);
+      if (parsed.reason !== "heartbeat")
+        this.options.onDiagnostic?.(parsed.diagnostic);
       return;
     }
     const event = parsed.value;
     if (event.type === "command_ack") {
-      this.pending = this.pending.filter((item) => item.commandId !== event.command_id);
+      this.pending = this.pending.filter(
+        (item) => item.commandId !== event.command_id,
+      );
       if (!event.accepted) {
         this.options.onDiagnostic?.(
           `turn command rejected; type=${event.command_type}; code=${event.error_code || "rejected"}`,
@@ -224,16 +277,32 @@ export class TurnRuntimeClient {
   }
 
   private acceptStreamEvent(event: StreamEvent): void {
+    const eventTurnId = event.turn_id?.trim() || null;
+    if (eventTurnId && eventTurnId !== this.turnId) {
+      this.clearReplayProbe();
+      this.turnId = eventTurnId;
+      this.lastSeq = 0;
+      this.buffered.clear();
+      this.terminalObserved = false;
+    }
     const seq = event.seq ?? 0;
-    if (event.turn_id) this.turnId = event.turn_id;
     if (seq <= this.lastSeq) return;
     const gap = seq - this.lastSeq;
     if (gap > 1) {
       if (gap <= this.options.maxBufferedGap) {
         this.buffered.set(seq, event);
+        // WebSockets preserve frame order, so a bounded gap is normally a
+        // dropped/rejected frame rather than harmless reordering. Give an
+        // in-flight predecessor one tick to arrive, then replay the durable
+        // suffix instead of buffering DONE forever.
+        this.scheduleReplayProbe(
+          Math.min(250, this.options.replayProbeDelayMs),
+        );
       } else if (this.turnId) {
-        this.options.onDiagnostic?.(`turn event gap exceeded buffer; after_seq=${this.lastSeq}`);
-        this.options.onReconcile?.({ turnId: this.turnId, afterSeq: this.lastSeq });
+        this.options.onDiagnostic?.(
+          `turn event gap exceeded buffer; after_seq=${this.lastSeq}`,
+        );
+        this.requestReplay();
       }
       return;
     }
@@ -252,12 +321,19 @@ export class TurnRuntimeClient {
     this.pending = this.pending.filter(
       (item) => item.requiresAck || this.lastSeq <= item.acknowledgedAfter,
     );
+    if (event.type === "done") {
+      this.terminalObserved = true;
+      this.clearReplayProbe();
+    }
     this.options.onEvent(event);
+    if (event.type === "done") return;
+    if (!this.terminalObserved) this.scheduleReplayProbe();
   }
 
   private handleClose(socket: TurnSocket): void {
     if (socket !== this.socket) return;
     this.socket = null;
+    this.clearReplayProbe();
     if (this.stopped) return;
     this.setState(this.turnId ? "recovering" : "connecting");
     this.scheduleReconnect();
@@ -300,6 +376,28 @@ export class TurnRuntimeClient {
     if (this.reconnectHandle === null) return;
     this.options.scheduler.clearTimeout(this.reconnectHandle);
     this.reconnectHandle = null;
+  }
+
+  private scheduleReplayProbe(delay = this.options.replayProbeDelayMs): void {
+    if (!this.turnId || this.terminalObserved || this.stopped) return;
+    this.clearReplayProbe();
+    this.replayProbeHandle = this.options.scheduler.setTimeout(() => {
+      this.replayProbeHandle = null;
+      this.requestReplay();
+    }, delay);
+  }
+
+  private requestReplay(): void {
+    if (!this.turnId || this.terminalObserved || this.stopped) return;
+    const cursor = { turnId: this.turnId, afterSeq: this.lastSeq };
+    this.options.onReconcile?.(cursor);
+    this.sendNow(buildResumeTurn(cursor));
+  }
+
+  private clearReplayProbe(): void {
+    if (this.replayProbeHandle === null) return;
+    this.options.scheduler.clearTimeout(this.replayProbeHandle);
+    this.replayProbeHandle = null;
   }
 
   private setState(state: RuntimeConnectionState): void {

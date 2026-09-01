@@ -6,7 +6,11 @@ import type { AppError } from "@/shared/api/errors";
 
 import { normalizeTurnFailure, type TurnFailure } from "./errors";
 
-export type TurnTransportState = "connected" | "connecting" | "recovering" | "offline";
+export type TurnTransportState =
+  | "connected"
+  | "connecting"
+  | "recovering"
+  | "offline";
 
 export type TurnViewState =
   | { kind: "idle" }
@@ -72,7 +76,9 @@ function queryStateOf(value: unknown): TurnQueryState | undefined {
 
 export function turnViewState(input: TurnStateInput): TurnViewState {
   const queryState = queryStateOf(input.queryState);
-  const status = statusOf(input.status) ?? (queryState === "recovering" ? undefined : queryState);
+  const status =
+    statusOf(input.status) ??
+    (queryState === "recovering" ? undefined : queryState);
 
   if (status === "completed") return { kind: "completed" };
   if (status === "cancelled") return { kind: "cancelled" };
@@ -88,9 +94,12 @@ export function turnViewState(input: TurnStateInput): TurnViewState {
     input.transport === "recovering" ||
     input.transport === "offline"
   ) {
-    return status || queryState === "recovering" ? { kind: "recovering" } : { kind: "idle" };
+    return status || queryState === "recovering"
+      ? { kind: "recovering" }
+      : { kind: "idle" };
   }
-  if (input.transport === "connecting" && !status) return { kind: "connecting" };
+  if (input.transport === "connecting" && !status)
+    return { kind: "connecting" };
   if (status === "queued") return { kind: "queued" };
   if (status === "running") return { kind: "running" };
   if (status === "waiting_input") return { kind: "waiting_input" };

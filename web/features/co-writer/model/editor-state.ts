@@ -38,7 +38,9 @@ export function applyEditorEdit(
   return { content, undoStack, redoStack: [], activeGroup: group };
 }
 
-export function closeEditorEditGroup(state: EditorHistoryState): EditorHistoryState {
+export function closeEditorEditGroup(
+  state: EditorHistoryState,
+): EditorHistoryState {
   return state.activeGroup === null ? state : { ...state, activeGroup: null };
 }
 
@@ -70,18 +72,18 @@ export function replaceSelectedText(
   replacement: string,
 ): string | null {
   if (range.snapshot !== content) return null;
-  if (range.start < 0 || range.end < range.start || range.end > content.length) {
+  if (
+    range.start < 0 ||
+    range.end < range.start ||
+    range.end > content.length
+  ) {
     return null;
   }
   if (content.slice(range.start, range.end) !== range.text) return null;
   return `${content.slice(0, range.start)}${replacement}${content.slice(range.end)}`;
 }
 
-export function clampPanelRatio(
-  ratio: number,
-  min = 0.18,
-  max = 0.82,
-): number {
+export function clampPanelRatio(ratio: number, min = 0.18, max = 0.82): number {
   if (!Number.isFinite(ratio)) return 0.5;
   const lower = Math.min(min, max);
   const upper = Math.max(min, max);

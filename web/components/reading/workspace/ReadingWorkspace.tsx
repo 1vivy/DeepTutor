@@ -86,9 +86,9 @@ interface ReaderAskDetail {
 }
 
 export function ReadingWorkspacePage() {
-  const params = useParams<{ workspaceId: string; sessionId?: string[] }>();
+  const params = useParams<{ workspaceId: string; sessionId?: string }>();
   const workspaceId = params.workspaceId;
-  const sessionIdParam = params.sessionId?.[0] ?? null;
+  const sessionIdParam = params.sessionId?.trim() || null;
   const courseId = useSearchParams().get("course")?.trim() ?? "";
   const router = useRouter();
   const { t } = useTranslation();

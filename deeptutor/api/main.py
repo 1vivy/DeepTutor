@@ -132,7 +132,8 @@ async def lifespan(app: FastAPI):
         broadcast=ProgressBroadcaster.get_instance().broadcast,
         emit_task_event=get_task_stream_manager().emit,
     )
-    legacy_reports = await application_container.migrate_all_legacy_chats()
+    migration_reports = await application_container.run_startup_data_migrations()
+    legacy_reports = migration_reports["legacy_chat"]
     migrated_reports = [report for report in legacy_reports if report.get("source_hash")]
     if migrated_reports:
         logger.info(
@@ -140,6 +141,15 @@ async def lifespan(app: FastAPI):
             sum(int(report.get("imported") or 0) for report in migrated_reports),
             sum(int(report.get("skipped") or 0) for report in migrated_reports),
             [report.get("archived_to", "") for report in migrated_reports],
+        )
+    workspace_migrated = sum(
+        int(report.get("migrated") or 0) for report in migration_reports["workspace_preferences"]
+    )
+    if workspace_migrated:
+        logger.info(
+            "Workspace session migration complete: migrated=%s scopes=%s",
+            workspace_migrated,
+            len(migration_reports["workspace_preferences"]),
         )
 
     # Initialize LLM client early so OPENAI_* env vars are available before
@@ -543,6 +553,16 @@ app.include_router(
     tags=["mastery-path"],
     dependencies=_auth,
 )
+# WebSocket handlers authenticate inside the connection before ``accept``.
+# Keep them off HTTP router dependencies: ``require_learning_surface`` takes a
+# Request, which FastAPI cannot construct for a WebSocket scope.
+app.include_router(question.ws_router, prefix="/ws/questions", tags=["question"])
+app.include_router(knowledge.ws_router, prefix="/ws", tags=["knowledge-bases"])
+app.include_router(
+    mastery_path.ws_router,
+    prefix="/ws",
+    tags=["mastery-path"],
+)
 app.include_router(co_writer.router, prefix="/api", tags=["documents"], dependencies=_auth)
 app.include_router(notebook.router, prefix="/api", tags=["notebooks"], dependencies=_auth)
 app.include_router(book.router, prefix="/api", tags=["books"], dependencies=_auth)
@@ -651,6 +671,12 @@ app.include_router(
     prefix="/api/partner-groups",
     tags=["partner-groups"],
     dependencies=_auth,
+)
+app.include_router(partners.ws_router, prefix="/ws/partners", tags=["partners"])
+app.include_router(
+    partner_groups.ws_router,
+    prefix="/ws/partner-groups",
+    tags=["partner-groups"],
 )
 app.include_router(
     attachments.router,

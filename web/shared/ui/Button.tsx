@@ -31,40 +31,46 @@ const sizes: Record<ButtonSize, string> = {
   lg: "min-h-12 rounded-xl px-5 text-base",
 };
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  {
-    variant = "primary",
-    size = "md",
-    loading = false,
-    icon,
-    children,
-    className,
-    disabled,
-    type = "button",
-    ...props
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  function Button(
+    {
+      variant = "primary",
+      size = "md",
+      loading = false,
+      icon,
+      children,
+      className,
+      disabled,
+      type = "button",
+      ...props
+    },
+    ref,
+  ) {
+    return (
+      <button
+        ref={ref}
+        type={type}
+        className={cn(
+          "inline-flex items-center justify-center gap-2 font-medium transition-[background-color,color,box-shadow,filter] duration-[var(--motion-fast)]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+          "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+          variants[variant],
+          sizes[size],
+          className,
+        )}
+        disabled={disabled || loading}
+        aria-busy={loading || undefined}
+        {...props}
+      >
+        {loading ? (
+          <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+        ) : (
+          icon
+        )}
+        {children}
+      </button>
+    );
   },
-  ref,
-) {
-  return (
-    <button
-      ref={ref}
-      type={type}
-      className={cn(
-        "inline-flex items-center justify-center gap-2 font-medium transition-[background-color,color,box-shadow,filter] duration-[var(--motion-fast)]",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
-        variants[variant],
-        sizes[size],
-        className,
-      )}
-      disabled={disabled || loading}
-      aria-busy={loading || undefined}
-      {...props}
-    >
-      {loading ? <Loader2 aria-hidden className="h-4 w-4 animate-spin" /> : icon}
-      {children}
-    </button>
-  );
-});
+);
 
 export default Button;

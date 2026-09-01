@@ -71,7 +71,8 @@ export function useWorkspaceChatActions() {
       const selected = workspaceCapabilities.find(
         (capability) => capability.value === value,
       );
-      const next = selected ?? workspaceCapabilities[0] ?? getChatCapability("");
+      const next =
+        selected ?? workspaceCapabilities[0] ?? getChatCapability("");
       setCapability(next.value || null);
       if (enabledOptionalTools !== null) {
         const allowed = new Set<string>(next.allowedTools);

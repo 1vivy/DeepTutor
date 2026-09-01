@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import { renderConceptGraphMermaid } from "@/lib/concept-graph";
 import type { Block, ConceptGraph } from "@/lib/book-types";
+import { bookRoute } from "@/lib/resource-routes";
 
 export interface ConceptGraphBlockProps {
   block: Block;
@@ -132,7 +133,7 @@ export default function ConceptGraphBlock({
               return (
                 <li key={chapter.id}>
                   <Link
-                    href={`/books?book=${encodeURIComponent(bookId)}&page=${encodeURIComponent(chapter.page_id)}`}
+                    href={bookRoute(bookId, chapter.page_id)}
                     title={chapter.title}
                     className="block rounded-md px-2 py-1.5 hover:bg-[var(--background)]"
                   >

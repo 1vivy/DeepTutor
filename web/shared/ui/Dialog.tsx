@@ -113,11 +113,7 @@ export function Dialog({
   };
 
   const handleBackdrop = (event: MouseEvent<HTMLDivElement>) => {
-    if (
-      event.target === event.currentTarget &&
-      closeOnBackdrop &&
-      !busy
-    ) {
+    if (event.target === event.currentTarget && closeOnBackdrop && !busy) {
       onClose();
     }
   };
@@ -164,7 +160,9 @@ export function Dialog({
             onClick={onClose}
           />
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {children}
+        </div>
         {footer ? (
           <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-5 py-4">
             {footer}

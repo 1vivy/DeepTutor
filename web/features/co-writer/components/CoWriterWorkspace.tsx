@@ -309,12 +309,7 @@ export default function CoWriterWorkspace({ docId }: CoWriterWorkspaceProps) {
   useEffect(() => {
     if (!hasLoadedDraft || !docId) return;
     draftRevisionRef.current += 1;
-    saveDraft(
-      window.localStorage,
-      docId,
-      markdown,
-      draftRevisionRef.current,
-    );
+    saveDraft(window.localStorage, docId, markdown, draftRevisionRef.current);
   }, [docId, hasLoadedDraft, isUnmountedRef, markdown]);
 
   // Debounced autosave to the server.
@@ -810,7 +805,9 @@ export default function CoWriterWorkspace({ docId }: CoWriterWorkspaceProps) {
       URL.revokeObjectURL(url);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : t("Failed to export Word document."),
+        err instanceof Error
+          ? err.message
+          : t("Failed to export Word document."),
       );
     } finally {
       setIsExportingDocx(false);
@@ -1136,11 +1133,14 @@ export default function CoWriterWorkspace({ docId }: CoWriterWorkspaceProps) {
     setError("");
     setStatus("");
     try {
-      const response = await apiFetch(apiUrl("/api/documents/actions/automark"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: snapshot }),
-      });
+      const response = await apiFetch(
+        apiUrl("/api/documents/actions/automark"),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: snapshot }),
+        },
+      );
       const data = await response.json();
       if (!response.ok)
         throw new Error(data?.detail || t("Failed to auto-mark document."));

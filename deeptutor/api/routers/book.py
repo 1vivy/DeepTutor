@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from deeptutor.api.utils.http_headers import content_disposition
 from deeptutor.book import (
     BlockType,
+    BookPausedError,
     BookProposal,
     Spine,
     get_book_engine,
@@ -44,6 +45,13 @@ from deeptutor.runtime.stream_bus import StreamBus
 router = APIRouter()
 ws_router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _book_paused_http(exc: BookPausedError) -> HTTPException:
+    return HTTPException(
+        status_code=409,
+        detail={"code": "book_paused", "message": str(exc)},
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -197,6 +205,11 @@ class RebuildBookRequest(BaseModel):
 
 
 class ResumeBookRequest(BaseModel):
+    book_id: str
+    expected_revision: int | None = Field(default=None, ge=1)
+
+
+class PauseBookRequest(BaseModel):
     book_id: str
     expected_revision: int | None = Field(default=None, ge=1)
 
@@ -789,6 +802,8 @@ async def compile_page(req: CompilePageRequest) -> dict[str, Any]:
     )
     try:
         page = await engine.compile_page(book_id=req.book_id, page_id=req.page_id, force=req.force)
+    except BookPausedError as exc:
+        raise _book_paused_http(exc)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -815,6 +830,8 @@ async def regenerate_block(req: RegenerateBlockRequest) -> dict[str, Any]:
             block_id=req.block_id,
             params_override=req.params_override,
         )
+    except BookPausedError as exc:
+        raise _book_paused_http(exc)
     except Exception as exc:  # noqa: BLE001
         logger.error(f"regenerate_block failed: {exc}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc))
@@ -858,6 +875,8 @@ async def insert_block(req: InsertBlockRequest) -> dict[str, Any]:
             position=req.position,
             compile_now=req.compile_now,
         )
+    except BookPausedError as exc:
+        raise _book_paused_http(exc)
     except Exception as exc:  # noqa: BLE001
         logger.error(f"insert_block failed: {exc}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc))
@@ -925,6 +944,8 @@ async def change_block_type(req: ChangeBlockTypeRequest) -> dict[str, Any]:
             new_type=new_type,
             params_override=req.params_override,
         )
+    except BookPausedError as exc:
+        raise _book_paused_http(exc)
     except Exception as exc:  # noqa: BLE001
         logger.error(f"change_block_type failed: {exc}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc))
@@ -953,6 +974,8 @@ async def deep_dive(req: DeepDiveRequest) -> dict[str, Any]:
             block_id=req.block_id,
             content_type=content_type,
         )
+    except BookPausedError as exc:
+        raise _book_paused_http(exc)
     except Exception as exc:  # noqa: BLE001
         logger.error(f"deep_dive failed: {exc}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc))
@@ -1184,6 +1207,8 @@ async def supplement(req: SupplementRequest) -> dict[str, Any]:
             page_id=req.page_id,
             topic=req.topic,
         )
+    except BookPausedError as exc:
+        raise _book_paused_http(exc)
     except Exception as exc:  # noqa: BLE001
         logger.error(f"supplement failed: {exc}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc))
@@ -1237,6 +1262,27 @@ async def resume_book(req: ResumeBookRequest) -> dict[str, Any]:
     return {"pages": [p.model_dump(mode="json") for p in pages], "book_revision": revision}
 
 
+@router.post("/books/pause")
+async def pause_book(req: PauseBookRequest) -> dict[str, Any]:
+    """Persist a manual pause, cancel in-flight work, and keep completed output."""
+    resolved = _resolve_book_or_404(req.book_id, edit=True)
+    engine = resolved.engine
+    revision = _claim_content_mutation(
+        resolved,
+        req.book_id,
+        req.expected_revision,
+        "pause",
+    )
+    try:
+        pages = await engine.pause_book(book_id=req.book_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"pause_book failed: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+    return {"pages": [p.model_dump(mode="json") for p in pages], "book_revision": revision}
+
+
 @router.post("/books/rebuild")
 async def rebuild_book(req: RebuildBookRequest) -> dict[str, Any]:
     resolved = _resolve_book_or_404(req.book_id, edit=True)
@@ -1269,6 +1315,8 @@ def _serialize_event(event) -> dict[str, Any]:
         "stage": event.stage,
         "content": event.content,
         "metadata": event.metadata or {},
+        "seq": event.seq,
+        "timestamp": event.timestamp,
     }
 
 
@@ -1288,15 +1336,15 @@ class _SocketFanout:
         self._send = send
         self._tasks: dict[int, asyncio.Task[None]] = {}
 
-    def attach(self, bus: StreamBus) -> None:
+    def attach(self, bus: StreamBus, *, after_seq: int = 0) -> None:
         key = id(bus)
         existing = self._tasks.get(key)
         if existing is not None and not existing.done():
             return
-        self._tasks[key] = asyncio.create_task(self._forward(bus))
+        self._tasks[key] = asyncio.create_task(self._forward(bus, after_seq=after_seq))
 
-    async def _forward(self, bus: StreamBus) -> None:
-        async for event in bus.subscribe():
+    async def _forward(self, bus: StreamBus, *, after_seq: int) -> None:
+        async for event in bus.subscribe(after_seq=after_seq):
             if event.source != BOOK_SOURCE:
                 continue
             await self._send(_serialize_event(event))
@@ -1386,14 +1434,30 @@ async def book_websocket(ws: WebSocket) -> None:
                 except HTTPException:
                     await send({"type": "error", "content": f"Book not found: {book_id}"})
                     continue
-                fanout.attach(get_book_bus(book_id))
 
             try:
                 if msg_type == "subscribe":
                     if not book_id:
                         await send({"type": "error", "content": "subscribe requires book_id"})
                     else:
-                        await send({"type": "subscribed", "book_id": book_id})
+                        bus = get_book_bus(book_id)
+                        try:
+                            requested_cursor = max(0, int(data.get("after_seq") or 0))
+                        except (TypeError, ValueError):
+                            requested_cursor = 0
+                        reset_cursor = requested_cursor > bus.latest_seq
+                        effective_cursor = 0 if reset_cursor else requested_cursor
+                        # Acknowledge the effective cursor before replay starts,
+                        # so the client can reset stale local state first.
+                        await send(
+                            {
+                                "type": "subscribed",
+                                "book_id": book_id,
+                                "latest_seq": bus.latest_seq,
+                                "reset": reset_cursor,
+                            }
+                        )
+                        fanout.attach(bus, after_seq=effective_cursor)
 
                 elif msg_type == "create":
                     if not can_create_book():
@@ -1416,7 +1480,8 @@ async def book_websocket(ws: WebSocket) -> None:
                         stream=creation_bus,
                     )
                     # From here on this book has a stream of its own.
-                    fanout.attach(get_book_bus(book.id))
+                    created_bus = get_book_bus(book.id)
+                    fanout.attach(created_bus, after_seq=created_bus.latest_seq)
                     await send(
                         {
                             "type": "create_result",
@@ -1429,6 +1494,8 @@ async def book_websocket(ws: WebSocket) -> None:
                     if resolved is None or not resolved.can_edit:
                         raise ValueError("Book not found")
                     engine = resolved.engine
+                    action_bus = get_book_bus(book_id)
+                    fanout.attach(action_bus, after_seq=action_bus.latest_seq)
                     revision = _claim_content_mutation(
                         resolved,
                         book_id,
@@ -1455,6 +1522,8 @@ async def book_websocket(ws: WebSocket) -> None:
                     if resolved is None or not resolved.can_edit:
                         raise ValueError("Book not found")
                     engine = resolved.engine
+                    action_bus = get_book_bus(book_id)
+                    fanout.attach(action_bus, after_seq=action_bus.latest_seq)
                     revision = _claim_content_mutation(
                         resolved,
                         book_id,
@@ -1481,6 +1550,8 @@ async def book_websocket(ws: WebSocket) -> None:
                     if resolved is None or not resolved.can_edit:
                         raise ValueError("Book not found")
                     engine = resolved.engine
+                    action_bus = get_book_bus(book_id)
+                    fanout.attach(action_bus, after_seq=action_bus.latest_seq)
                     revision = _claim_content_mutation(
                         resolved,
                         book_id,
@@ -1505,6 +1576,8 @@ async def book_websocket(ws: WebSocket) -> None:
                     if resolved is None or not resolved.can_edit:
                         raise ValueError("Book not found")
                     engine = resolved.engine
+                    action_bus = get_book_bus(book_id)
+                    fanout.attach(action_bus, after_seq=action_bus.latest_seq)
                     revision = _claim_content_mutation(
                         resolved,
                         book_id,
@@ -1532,6 +1605,15 @@ async def book_websocket(ws: WebSocket) -> None:
                 else:
                     await send({"type": "error", "content": f"Unknown message type: {msg_type}"})
 
+            except BookPausedError as exc:
+                await send(
+                    {
+                        "type": "error",
+                        "content": str(exc),
+                        "status": 409,
+                        "code": "book_paused",
+                    }
+                )
             except HTTPException as exc:
                 detail = exc.detail
                 payload: dict[str, Any] = {

@@ -21,8 +21,14 @@ export interface StorageEventLike {
 }
 
 export interface StorageEventTargetLike {
-  addEventListener(type: "storage", listener: (event: StorageEventLike) => void): void;
-  removeEventListener(type: "storage", listener: (event: StorageEventLike) => void): void;
+  addEventListener(
+    type: "storage",
+    listener: (event: StorageEventLike) => void,
+  ): void;
+  removeEventListener(
+    type: "storage",
+    listener: (event: StorageEventLike) => void,
+  ): void;
 }
 
 export class StorageStore {

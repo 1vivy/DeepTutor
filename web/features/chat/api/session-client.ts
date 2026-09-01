@@ -24,7 +24,10 @@ export interface SessionClient {
   get(sessionId: string, signal?: AbortSignal): Promise<SessionWireDetail>;
   rename(sessionId: string, title: string): Promise<SessionWireDetail>;
   remove(sessionId: string): Promise<void>;
-  selectBranch(sessionId: string, selectedBranches: Record<string, number>): Promise<void>;
+  selectBranch(
+    sessionId: string,
+    selectedBranches: Record<string, number>,
+  ): Promise<void>;
   removeMessage(sessionId: string, messageId: number): Promise<void>;
 }
 
@@ -41,15 +44,14 @@ export const sessionClient: SessionClient = {
     });
   },
   async rename(sessionId, title) {
-    const result = await requestJson<SessionWireDetail | { session: SessionWireDetail }>(
-      `/api/sessions/${id(sessionId)}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
-        scope: "session",
-      },
-    );
+    const result = await requestJson<
+      SessionWireDetail | { session: SessionWireDetail }
+    >(`/api/sessions/${id(sessionId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+      scope: "session",
+    });
     return "session" in result ? result.session : result;
   },
   remove(sessionId) {

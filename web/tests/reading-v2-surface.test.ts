@@ -79,7 +79,10 @@ test("the workspace shell stays a view, with its network work in one hook", () =
 });
 
 test("reading is reachable only through its own workspace", () => {
-  const chat = source("app/(workspace)/chat/[[...sessionId]]/page.tsx");
+  const chat = [
+    source("app/(workspace)/chat/page.tsx"),
+    source("app/(workspace)/chat/[sessionId]/page.tsx"),
+  ].join("\n");
   const css = source("app/globals.css");
 
   // The composer must not offer reading as a chat capability, and the chat

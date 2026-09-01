@@ -96,6 +96,7 @@ log_dir = config.get("paths", {}).get("user_log_dir") or config.get("logging", {
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+ws_router = APIRouter()
 
 # Constants for byte conversions
 BYTES_PER_GB = 1024**3
@@ -3309,7 +3310,7 @@ async def clear_progress(kb_name: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.websocket("/knowledge-bases/{kb_name}/progress/ws")
+@ws_router.websocket("/knowledge-bases/{kb_name}/progress")
 async def websocket_progress(websocket: WebSocket, kb_name: str):
     """WebSocket endpoint for real-time progress updates"""
     from deeptutor.api.routers.auth import ws_auth_failed, ws_require_auth
@@ -3330,12 +3331,98 @@ async def websocket_progress(websocket: WebSocket, kb_name: str):
         progress_tracker = ProgressTracker(kb_name, base_dir)
         initial_progress = progress_tracker.get_progress()
         expected_task_id = websocket.query_params.get("task_id")
+        task_manager = TaskIDManager.get_instance()
 
         try:
             kb_info = KnowledgeBaseManager(base_dir=str(base_dir)).get_info(kb_name)
             kb_is_ready = bool(kb_info.get("statistics", {}).get("rag_initialized"))
         except Exception:
             kb_is_ready = False
+
+        if expected_task_id:
+            progress_task_id = initial_progress.get("task_id") if initial_progress else None
+            stage = initial_progress.get("stage") if initial_progress else None
+            task_metadata = task_manager.get_task_metadata(expected_task_id)
+
+            # A terminal snapshot is durable and authoritative. Always replay
+            # it, including completed snapshots for already-ready KBs.
+            if progress_task_id == expected_task_id and stage in {"completed", "error"}:
+                await websocket.send_json({"type": "progress", "data": initial_progress})
+                return
+
+            if not task_metadata:
+                # Task IDs and background asyncio tasks are process-local. If
+                # the browser reconnects with an expected id that this process
+                # does not know, the server was restarted (or the task was
+                # evicted) and it cannot ever produce another event. Convert
+                # that orphan into a durable, retryable terminal state so both
+                # SSE and WebSocket consumers settle immediately.
+                error_message = (
+                    "Knowledge-base processing was interrupted by a server restart. "
+                    "Retry the operation to continue."
+                )
+                if progress_task_id == expected_task_id and stage not in {
+                    "completed",
+                    "error",
+                }:
+                    progress_tracker.task_id = expected_task_id
+                    progress_tracker.update(
+                        ProgressStage.ERROR,
+                        message=error_message,
+                        error=error_message,
+                        error_code="knowledge_task_interrupted",
+                        retryable=True,
+                    )
+                    initial_progress = progress_tracker.get_progress()
+                else:
+                    initial_progress = {
+                        "kb_name": kb_name,
+                        "task_id": expected_task_id,
+                        "stage": "error",
+                        "message": error_message,
+                        "error": error_message,
+                        "error_code": "knowledge_task_interrupted",
+                        "retryable": True,
+                        "progress_percent": 0,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                get_task_stream_manager().emit_failed(
+                    expected_task_id,
+                    error_message,
+                    error_code="knowledge_task_interrupted",
+                    retryable=True,
+                )
+                await websocket.send_json({"type": "progress", "data": initial_progress})
+                return
+
+            task_status = str(task_metadata.get("status") or "")
+            if task_status in {"completed", "error", "cancelled"}:
+                is_completed = task_status == "completed"
+                message = (
+                    "Knowledge-base processing completed."
+                    if is_completed
+                    else str(task_metadata.get("error") or "Knowledge-base processing failed.")
+                )
+                terminal_progress = {
+                    "kb_name": kb_name,
+                    "task_id": expected_task_id,
+                    "stage": "completed" if is_completed else "error",
+                    "message": message,
+                    "progress_percent": 100 if is_completed else 0,
+                    "timestamp": str(
+                        task_metadata.get("finished_at") or datetime.now().isoformat()
+                    ),
+                }
+                if not is_completed:
+                    terminal_progress.update(
+                        {
+                            "error": message,
+                            "error_code": "knowledge_task_failed",
+                            "retryable": True,
+                        }
+                    )
+                await websocket.send_json({"type": "progress", "data": terminal_progress})
+                return
 
         # Fast path: no active task — send current state and close immediately
         # This prevents infinite polling loops for ready or legacy KBs.
@@ -3386,6 +3473,8 @@ async def websocket_progress(websocket: WebSocket, kb_name: str):
             should_send = False
             if expected_task_id and progress_task_id and progress_task_id != expected_task_id:
                 should_send = False
+            elif expected_task_id and progress_task_id == expected_task_id:
+                should_send = True
             elif stage == "error" or not kb_is_ready:
                 should_send = True
             elif stage != "completed" and timestamp:
@@ -3429,6 +3518,41 @@ async def websocket_progress(websocket: WebSocket, kb_name: str):
                             if current_progress.get("stage") in ["completed", "error"]:
                                 await asyncio.sleep(3)
                                 break
+                    if expected_task_id:
+                        task_metadata = task_manager.get_task_metadata(expected_task_id)
+                        task_status = str((task_metadata or {}).get("status") or "")
+                        if task_status in {"completed", "error", "cancelled"}:
+                            is_completed = task_status == "completed"
+                            message = (
+                                "Knowledge-base processing completed."
+                                if is_completed
+                                else str(
+                                    (task_metadata or {}).get("error")
+                                    or "Knowledge-base processing failed."
+                                )
+                            )
+                            await websocket.send_json(
+                                {
+                                    "type": "progress",
+                                    "data": {
+                                        "kb_name": kb_name,
+                                        "task_id": expected_task_id,
+                                        "stage": "completed" if is_completed else "error",
+                                        "message": message,
+                                        "error": None if is_completed else message,
+                                        "error_code": (
+                                            None if is_completed else "knowledge_task_failed"
+                                        ),
+                                        "retryable": False if is_completed else True,
+                                        "progress_percent": 100 if is_completed else 0,
+                                        "timestamp": str(
+                                            (task_metadata or {}).get("finished_at")
+                                            or datetime.now().isoformat()
+                                        ),
+                                    },
+                                }
+                            )
+                            break
                     continue
 
             except WebSocketDisconnect:

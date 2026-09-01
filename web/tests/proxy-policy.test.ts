@@ -17,6 +17,7 @@ import {
   isAuthExempt,
   isBackendPath,
   isCodexCallbackPath,
+  isRetiredPagePath,
 } from "../lib/proxy-policy";
 
 function makeToken(payload: Record<string, unknown>): string {
@@ -67,6 +68,13 @@ test("isCodexCallbackPath matches only the exact public callback path", () => {
   assert.equal(isCodexCallbackPath("/auth/callback/extra"), false);
   assert.equal(isCodexCallbackPath("/auth/callback-near"), false);
   assert.equal(isCodexCallbackPath("/Auth/callback"), false);
+});
+
+test("retired pages cannot fall through to colliding dynamic routes", () => {
+  assert.equal(isRetiredPagePath("/partners/groups"), true);
+  assert.equal(isRetiredPagePath("/partners/groups/new"), false);
+  assert.equal(isRetiredPagePath("/partners/groups/group-1"), false);
+  assert.equal(isRetiredPagePath("/partners/group-1"), false);
 });
 
 test("proxy rewrites the exact callback before backend routing and auth gating", () => {

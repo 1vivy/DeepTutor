@@ -2,9 +2,15 @@ import { act, render, screen } from "@testing-library/react";
 import { useEffect } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { ChatStoreProvider, useChatSelector } from "@/features/chat/store/ChatStoreProvider";
+import {
+  ChatStoreProvider,
+  useChatSelector,
+} from "@/features/chat/store/ChatStoreProvider";
 import { createChatStore } from "@/features/chat/store/createChatStore";
-import { selectActiveMessages, selectSidebarSnapshot } from "@/features/chat/store/selectors";
+import {
+  selectActiveMessages,
+  selectSidebarSnapshot,
+} from "@/features/chat/store/selectors";
 
 function MessageConsumer({ onRender }: { onRender: () => void }) {
   const messages = useChatSelector(selectActiveMessages);
@@ -28,7 +34,12 @@ describe("chat selector isolation", () => {
       type: "add_optimistic_turn",
       key: "draft",
       user: { id: -2, role: "user", content: "q", parentMessageId: null },
-      assistant: { id: -1, role: "assistant", content: "", parentMessageId: -2 },
+      assistant: {
+        id: -1,
+        role: "assistant",
+        content: "",
+        parentMessageId: -2,
+      },
     });
     render(
       <ChatStoreProvider store={store}>

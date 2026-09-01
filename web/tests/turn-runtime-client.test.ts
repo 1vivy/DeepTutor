@@ -1,16 +1,32 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildCancelTurn, buildSubmitUserReply } from "../contracts/parse/turn-command";
-import { TurnRuntimeClient, type RuntimeScheduler } from "../features/chat/transport/TurnRuntimeClient";
-import { SOCKET_CONNECTING, SOCKET_OPEN, type TurnSocket } from "../features/chat/transport/socket";
+import {
+  buildCancelTurn,
+  buildSubmitUserReply,
+} from "../contracts/parse/turn-command";
+import {
+  TurnRuntimeClient,
+  type RuntimeScheduler,
+} from "../features/chat/transport/TurnRuntimeClient";
+import {
+  SOCKET_CONNECTING,
+  SOCKET_OPEN,
+  type TurnSocket,
+} from "../features/chat/transport/socket";
 
 class FakeSocket implements TurnSocket {
   readyState = SOCKET_CONNECTING;
   sent: Record<string, unknown>[] = [];
-  private listeners = new Map<string, Array<(event: { data: unknown }) => void>>();
+  private listeners = new Map<
+    string,
+    Array<(event: { data: unknown }) => void>
+  >();
 
-  addEventListener(type: string, listener: (event: { data: unknown }) => void): void {
+  addEventListener(
+    type: string,
+    listener: (event: { data: unknown }) => void,
+  ): void {
     const rows = this.listeners.get(type) ?? [];
     rows.push(listener);
     this.listeners.set(type, rows);
@@ -31,10 +47,15 @@ class FakeSocket implements TurnSocket {
   }
 
   message(value: unknown): void {
-    this.emit("message", { data: typeof value === "string" ? value : JSON.stringify(value) });
+    this.emit("message", {
+      data: typeof value === "string" ? value : JSON.stringify(value),
+    });
   }
 
-  private emit(type: string, event: { data: unknown } = { data: undefined }): void {
+  private emit(
+    type: string,
+    event: { data: unknown } = { data: undefined },
+  ): void {
     for (const listener of this.listeners.get(type) ?? []) listener(event);
   }
 }
@@ -82,12 +103,21 @@ function harness() {
     scheduler,
     random: () => 0.5,
     maxBufferedGap: 3,
+    replayProbeDelayMs: 5_000,
     onEvent: (event) => events.push(event),
     onStateChange: (state) => states.push(state),
     onDiagnostic: (value) => diagnostics.push(value),
     onReconcile: (cursor) => reconciliations.push(cursor),
   });
-  return { client, diagnostics, events, reconciliations, scheduler, sockets, states };
+  return {
+    client,
+    diagnostics,
+    events,
+    reconciliations,
+    scheduler,
+    sockets,
+    states,
+  };
 }
 
 test("reconnect resumes from the persisted cursor through a different worker", () => {
@@ -106,13 +136,17 @@ test("reconnect resumes from the persisted cursor through a different worker", (
 });
 
 test("duplicates are dropped and bounded out-of-order events are restored", () => {
-  const { client, events, sockets } = harness();
+  const { client, events, scheduler, sockets } = harness();
   client.connect();
   sockets[0].open();
   sockets[0].message(stream(2));
   sockets[0].message(stream(1));
   sockets[0].message(stream(1));
-  assert.deepEqual(events.map((event) => event.seq), [1, 2]);
+  assert.deepEqual(
+    events.map((event) => event.seq),
+    [1, 2],
+  );
+  assert.equal(scheduler.tasks.length, 1);
 });
 
 test("large sequence gaps request reconciliation instead of emitting", () => {
@@ -123,6 +157,66 @@ test("large sequence gaps request reconciliation instead of emitting", () => {
   sockets[0].message(stream(8));
   assert.equal(events.length, 0);
   assert.deepEqual(reconciliations, [{ turnId: "turn-1", afterSeq: 1 }]);
+  assert.deepEqual(sockets[0].sent.at(-1), {
+    type: "resume_from",
+    turn_id: "turn-1",
+    seq: 1,
+    protocol_version: "2.0",
+  });
+});
+
+test("a bounded missing frame triggers durable replay and releases buffered done", () => {
+  const { client, events, reconciliations, scheduler, sockets } = harness();
+  client.connect();
+  sockets[0].open();
+  sockets[0].message(stream(1));
+  sockets[0].message(stream(3, "done"));
+
+  assert.deepEqual(
+    events.map((event) => event.seq),
+    [1],
+  );
+  scheduler.runNext();
+  assert.deepEqual(reconciliations, [{ turnId: "turn-1", afterSeq: 1 }]);
+  assert.equal(sockets[0].sent.at(-1)?.type, "resume_from");
+  assert.equal(sockets[0].sent.at(-1)?.seq, 1);
+
+  sockets[0].message(stream(2, "stage_end"));
+  assert.deepEqual(
+    events.map((event) => event.seq),
+    [1, 2, 3],
+  );
+  assert.equal(events.at(-1)?.type, "done");
+  assert.equal(scheduler.tasks.length, 0);
+});
+
+test("an idle non-terminal stream probes durable replay for a missed done", () => {
+  const { client, events, reconciliations, scheduler, sockets } = harness();
+  client.connect();
+  sockets[0].open();
+  sockets[0].message(stream(1));
+
+  assert.equal(scheduler.tasks.length, 1);
+  scheduler.runNext();
+  assert.deepEqual(reconciliations, [{ turnId: "turn-1", afterSeq: 1 }]);
+  assert.equal(sockets[0].sent.at(-1)?.type, "resume_from");
+
+  sockets[0].message(stream(2, "done"));
+  assert.deepEqual(
+    events.map((event) => event.type),
+    ["content", "done"],
+  );
+  assert.equal(scheduler.tasks.length, 0);
+});
+
+test("a stale React resume cursor cannot rewind the live transport", () => {
+  const { client } = harness();
+  client.setResumeCursor("turn-1", 8);
+  client.setResumeCursor("turn-1", 3);
+  assert.deepEqual(client.cursor, { turnId: "turn-1", afterSeq: 8 });
+
+  client.setResumeCursor("turn-2", 0);
+  assert.deepEqual(client.cursor, { turnId: "turn-2", afterSeq: 0 });
 });
 
 test("heartbeats and invalid or future frames never become chat events", () => {
@@ -155,13 +249,19 @@ test("mutations survive unrelated events and reconnects until their matching ack
   sockets[0].close();
   scheduler.runNext();
   sockets[1].open();
-  assert.equal(sockets[1].sent.filter((item) => item.type === "submit_user_reply").length, 1);
+  assert.equal(
+    sockets[1].sent.filter((item) => item.type === "submit_user_reply").length,
+    1,
+  );
   sockets[1].message(stream(3));
 
   sockets[1].close();
   scheduler.runNext();
   sockets[2].open();
-  assert.equal(sockets[2].sent.filter((item) => item.type === "submit_user_reply").length, 1);
+  assert.equal(
+    sockets[2].sent.filter((item) => item.type === "submit_user_reply").length,
+    1,
+  );
   sockets[2].message({
     type: "command_ack",
     command_id: "reply-1",
@@ -176,8 +276,14 @@ test("mutations survive unrelated events and reconnects until their matching ack
   sockets[2].close();
   scheduler.runNext();
   sockets[3].open();
-  assert.equal(sockets[3].sent.filter((item) => item.type === "submit_user_reply").length, 0);
-  assert.equal(sockets[3].sent.filter((item) => item.type === "cancel_turn").length, 1);
+  assert.equal(
+    sockets[3].sent.filter((item) => item.type === "submit_user_reply").length,
+    0,
+  );
+  assert.equal(
+    sockets[3].sent.filter((item) => item.type === "cancel_turn").length,
+    1,
+  );
   sockets[3].message({
     type: "command_ack",
     command_id: "cancel-1",
@@ -192,7 +298,10 @@ test("mutations survive unrelated events and reconnects until their matching ack
   sockets[3].close();
   scheduler.runNext();
   sockets[4].open();
-  assert.equal(sockets[4].sent.filter((item) => item.type === "cancel_turn").length, 0);
+  assert.equal(
+    sockets[4].sent.filter((item) => item.type === "cancel_turn").length,
+    0,
+  );
 });
 
 test("stopping cancels retries and idle hidden sessions do not reconnect", () => {

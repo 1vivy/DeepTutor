@@ -62,12 +62,12 @@
 DeepTutor एक agent-native learning workspace है जो tutoring, problem solving, quiz generation, research, visualization, और mastery practice को एक extensible system में जोड़ता है।
 
 - **हर मोड के लिए एक रनटाइम** — Chat, Ask Questions, Quiz, Research, Visualize, Solve, Course Study, Mastery Path, Immersive Reading और Immersive Watching एक ही capability runtime और session context share करते हैं, जबकि हर उद्देश्य के लिए बने loops और pipelines बनाए रखते हैं।
-- **जुड़ा हुआ लर्निंग कॉन्टेक्स्ट** — Knowledge bases, books, Co-Writer drafts, notebooks, question banks, personas, और Memory सभी workflows में उपलब्ध रहते हैं, isolated tools में बंद रहने की बजाय।
+- **जुड़ा हुआ लर्निंग कॉन्टेक्स्ट** — Knowledge bases, books, Co-Writer drafts, notebooks, question banks, personas, और Memory को उन workflows में reuse किया जा सकता है जो उन्हें support करते हैं, account grants और learning policies के अधीन।
 - **इमर्सिव वीडियो लर्निंग** — privacy-enhanced native playback, synchronized captions, timestamp-grounded tutoring और resumable progress के लिए एक YouTube link paste करें; administrators materials को rebuild किए बिना playback को self-hosted Invidious instance पर switch कर सकते हैं।
-- **सब-एजेंट और Partners** — किसी भी turn से एक live agent harness (Claude Code, Codex, Antigravity, Kimi, opencode, MiMo, Hermes, OpenClaw, या DeepSeek) या एक Partner से सलाह लें (या पिछली conversations import करें), और same brain पर persistent IM companions चलाएं।
+- **सब-एजेंट और Partners** — Chat से एक live agent harness (Claude Code, Codex, Antigravity, Kimi, opencode, MiMo, Hermes, OpenClaw, या DeepSeek) या एक Partner से सलाह लें, पिछली conversations import करें, और same brain पर persistent IM companions चलाएं।
 - **मल्टी-इंजन नॉलेज** — LlamaIndex, PageIndex, GraphRAG, LightRAG, एक remote LightRAG Server, एक self-hosted WeKnora knowledge base, एक Tencent IMA या MarginNote 4 library, या एक linked Obsidian vault के साथ versioned RAG libraries, pluggable document parsing के साथ।
 - **एक्सटेंसिबल टूल्स और स्किल्स** — built-in tools, MCP servers, CLI apps, image / video / voice generation models, और EduHub से installable community skills।
-- **इंस्पेक्टेबल मेमोरी** — L1 traces, L2 surface summaries, और L3 synthesis personalization को visible और editable बनाते हैं, एक Memory Graph के साथ जो हर दावे को उसके साक्ष्य तक trace करता है।
+- **इंस्पेक्टेबल मेमोरी** — L1 traces, L2 surface summaries, और L3 synthesis personalization को visible और editable बनाते हैं; Memory Graph L2 facts को L1 evidence से और L3 synthesis को contributing surfaces से link करता है।
 
 ---
 
@@ -136,7 +136,7 @@ pip install -e ".[rag-lightrag]"    # Built-in LightRAG engine (exact supported 
 pip install -e ".[graphrag]"        # Microsoft GraphRAG engine (Python 3.11–3.13)
 pip install -e ".[dev]"             # tests/lint tools
 pip install -e ".[partners]"        # Partner IM channel SDKs
-pip install -e ".[video-learning]"  # optional YouTube public-caption adapter
+pip install -e ".[video-learning]"  # compatibility extra; captions ship in the full/CLI installs
 pip install -e ".[matrix]"          # Matrix channel without E2EE/libolm
 pip install -e ".[matrix-e2e]"      # Matrix E2EE; requires libolm
 pip install -e ".[math-animator]"   # Manim addon; requires LaTeX/ffmpeg/system libs
@@ -165,8 +165,8 @@ deeptutor start --dev
 
 पूरे Web app के लिए एक container। GitHub Container Registry पर images:
 
-- `ghcr.io/hkuds/deeptutor:latest` — stable release
-- `ghcr.io/hkuds/deeptutor:pre` — pre-release, जब उपलब्ध हो
+- `ghcr.io/hkuds/deeptutor:latest` — latest stable release
+- `ghcr.io/hkuds/deeptutor:<version>` — शुरू के `v` के बिना exact release (उदाहरण `:1.6.3`); pre-releases को केवल उनका version tag मिलता है
 
 > podman/rootless/read-only-rootfs deployments और पूरे per-installation guide के लिए [CONTAINERIZATION.md](../../CONTAINERIZATION.md) देखें।
 
@@ -248,7 +248,7 @@ deeptutor init --cli
 deeptutor chat
 ```
 
-`deeptutor init --cli` पूरे app के समान `data/user/settings/` layout share करता है लेकिन backend/frontend port prompts skip करता है और embeddings को **off** default करता है (अगर आप `deeptutor kb …` या RAG tools उपयोग करने की योजना रखते हैं तो `Yes` चुनें)। यह फिर भी मुख्य runtime files (`system.json`, `auth.json`, `integrations.json`, `interface.json`, `model_catalog.json`, `main.yaml`, `agents.yaml`) लिखता है और active LLM provider और model के लिए prompt करता है।
+`deeptutor init --cli` पूरे app के समान `data/user/settings/` layout share करता है लेकिन backend/frontend port prompts skip करता है। यह फिर भी Embedding और Search selectors offer करता है (जरूरत न हो तो **Skip** चुनें), मुख्य runtime files (`system.json`, `auth.json`, `integrations.json`, `interface.json`, `model_catalog.json`, `main.yaml`, `agents.yaml`) लिखता है, और active LLM provider और model के लिए prompt करता है।
 
 <details>
 <summary><b>सामान्य commands</b></summary>
@@ -272,12 +272,13 @@ Local `deeptutor-cli` install में कोई Web assets या server depen
 <details>
 <summary><b>Code Execution Sandbox (office skills)</b> · docx / pdf / pptx / xlsx के लिए model-generated code run करना</summary>
 
-Built-in office skills — **docx / pdf / pptx / xlsx** — model द्वारा एक short Python script (`python-docx`, `reportlab`, `openpyxl`, …) लिखकर, इसे `exec` / `code_execution` tools के जरिए run करके, और download URL वापस करके काम करती हैं। वे tools तब mount होते हैं जब एक sandbox backend active होता है, जो **default रूप से** हर deployment shape में होता है:
+Built-in office skills — **docx / pdf / pptx / xlsx** — model द्वारा एक short Python script (`python-docx`, `reportlab`, `openpyxl`, …) लिखकर, इसे `exec` / `code_execution` tools के जरिए run करके, और download URL वापस करके काम करती हैं। वे tools तब mount होते हैं जब एक sandbox backend active होता है। DeepTutor इस क्रम में सबसे मजबूत configured backend चुनता है:
 
-- **Local (Option 1 / 2) और Docker (Option 3, single container):** एक restricted subprocess sandbox model का code run करता है (locally host पर, या Docker के नीचे container के अंदर — container itself एक isolation boundary है)।
-- **docker-compose:** इसके बजाय `DEEPTUTOR_SANDBOX_RUNNER_URL` के जरिए एक hardened, least-privileged **runner sidecar** (`Dockerfile.runner`) पर route किया जाता है — सबसे मजबूत posture, और automatically preferred जब present हो।
+- **Runner sidecar:** `DEEPTUTOR_SANDBOX_RUNNER_URL` execution को `Dockerfile.runner` की hardened, least-privileged service पर route करता है।
+- **Linux bubblewrap:** उपलब्ध होने पर `bwrap` process और files को isolate करता है।
+- **Restricted subprocess fallback:** local और single-container installs इसे केवल अनुमति होने पर उपयोग करते हैं; Docker में container एक अतिरिक्त isolation boundary बना रहता है।
 
-Subprocess sandbox `data/user/settings/system.json` में `sandbox_allow_subprocess` setting द्वारा controlled होता है (default `true`)। अपने host पर model-generated code run करना एक real trust decision है — host-side execution को disable करने के लिए इसे `false` set करें (या `DEEPTUTOR_SANDBOX_ALLOW_SUBPROCESS=0` export करें), office skills की files produce करने की क्षमता खोने की कीमत पर।
+`data/user/settings/system.json` में `sandbox_allow_subprocess` setting (default `true`) केवल अंतिम fallback को control करती है। कोई runner या `bwrap` backend उपलब्ध न होने पर subprocess execution को refuse करने के लिए इसे `false` set करें (या `DEEPTUTOR_SANDBOX_ALLOW_SUBPROCESS=0` export करें); यह उन मजबूत backends को disable नहीं करता।
 
 </details>
 
@@ -288,7 +289,7 @@ Subprocess sandbox `data/user/settings/system.json` में `sandbox_allow_sub
 
 | File | उद्देश्य |
 |:---|:---|
-| `model_catalog.json` | LLM, embedding, और search provider profiles; API keys; active models |
+| `model_catalog.json` | Provider connections और LLM, task, embedding, search, TTS, STT, image व video profiles, credentials, और active selections |
 | `system.json` | Backend/frontend ports, public API base, CORS, SSL verification, attachment directory और upload/extraction limits |
 | `auth.json` | Optional auth toggle, username, password hash, token/cookie settings |
 | `integrations.json` | Optional PocketBase और sidecar integration settings |
@@ -383,7 +384,7 @@ Loop जानबूझकर simple है: model rounds में सोचत
 
 User-toggleable tools हैं `brainstorm`, `web_search`, `paper_search`, `reason`, और `geogebra_analysis` — साथ ही `imagegen` और `videogen` जब आप matching generation model configure करें। Contextual tools जैसे `rag`, `kb_files`, `read_source`, `read_memory`, `write_memory`, `read_skill`, `load_tools`, `exec`, `web_fetch`, `ask_user`, `list_notebook`, `write_note`, `question_bank`, `github`, और `consult_subagent` तब automatically mount होते हैं जब turn के पास सही context हो।
 
-Context दो प्रकार की होती है: **sticky session context** (subagent, knowledge bases, persona, model, voice) composer toolbar पर रहती है और turns के पार persist करती है; **एक-बार references** (files, chat history, books, reading sections, notebooks, question bank, imported agents) एक single turn के लिए `+` menu से आते हैं।
+Context दो प्रकार की होती है: **sticky session context** (capability, workspace या course, tools, knowledge bases, persona, model, और Reading / Mastery state) turns के पार persist करती है; **एक-बार references** (files, chat history, books, reading sections, notebooks, question bank, imported agents) एक single turn के लिए `+` menu से आते हैं। Voice button केवल current message को transcribe करता है।
 
 Home **Chat**, **Ask Questions**, **Quiz**, **Visualize**, और **Immersive Watching** को एक क्लिक की दूरी पर रखता है; cited reports के लिए **Research** और worked reasoning के लिए **Solve** *More Capabilities* के नीचे रहते हैं। **Mastery Path** और **Immersive Reading** dedicated sidebar workspaces हैं; Reading verified clickable citations, saved citations और notes, source-grounded read-aloud / study guidance / vocabulary / quiz / translation actions, और notebook capture जोड़ता है, जबकि Course Study अपना course-bound context बनाए रखता है।
 
@@ -402,7 +403,7 @@ Partners अपनी soul, model policy, library, memory, और channels व�
 <img src="../../assets/figs/system/partners-architecture.png" alt="DeepTutor Partners आर्किटेक्चर" width="900">
 </div>
 
-हर partner के पास एक `SOUL.md`, model selection, channels, tool policy, और assigned library है। Knowledge bases, skills, और notebooks `data/partners/<id>/workspace/` में copy होते हैं, इसलिए same RAG, skill, notebook, और memory tools special cases के बिना काम करते हैं। एक partner अपने owner की memory पढ़ता है लेकिन केवल अपनी memory में लिखता है।
+हर partner के पास एक `SOUL.md`, model selection, channels, tool policy, और assigned library है। Knowledge bases, skills, और notebooks `data/partners/<id>/workspace/` में copy होते हैं, इसलिए same RAG, skill, notebook, और memory tools special cases के बिना काम करते हैं। Authenticated non-admin users private Partner sessions और relationship memory रखते हैं, जबकि Partner उनकी personal memory को read-only पढ़ता है; admin, group, और unbound traffic shared Partner scope उपयोग करते हैं।
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/partners/02-IM%20config%20for%20each%20partner.png" alt="प्रत्येक partner के लिए per-partner IM channel configuration" width="900">
@@ -421,13 +422,13 @@ Channel layer schema-driven है और installed extras और configured cre
 <img src="../../assets/figs/web-1.4.6+/myagents/00-overview.png" alt="DeepTutor My Agents workspace" width="900">
 </div>
 
-My Agents दूसरे agents को DeepTutor के लिए context बनाता है, और दो अलग काम करता है। **लाइव एजेंट connect करें** — आपकी machine पर Claude Code, Codex, Antigravity, Kimi, opencode, MiMo Code, Hermes Agent, OpenClaw, या DeepSeek Harness, या आपके Partners में से एक — और इसे chat turn के अंदर से consult करें: DeepTutor actually दूसरे agent को *run* करता है और इसके काम को `consult_subagent` tool के जरिए Activity panel में stream करता है। इसे Agent chip से select करें (या `@` type करें), और set करें कि consult कितने rounds ले सकता है।
+My Agents दूसरे agents को DeepTutor के लिए context बनाता है, और दो अलग काम करता है। **लाइव एजेंट connect करें** — आपकी machine पर Claude Code, Codex, Antigravity, Kimi, opencode, MiMo Code, Hermes Agent, OpenClaw, या DeepSeek Harness, या आपके Partners में से एक — और इसे chat turn के अंदर से consult करें: DeepTutor actually दूसरे agent को *run* करता है और इसके काम को `consult_subagent` tool के जरिए Activity panel में stream करता है। Agent chip से इसे और इसकी round limit select करें, या `@` से connected agents की उसी list को filter करें; यह selection session से जुड़ा रहता है।
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/home/08-subagent%20demo%20with%20claude%20code.png" alt="Claude Code subagent को live consult करना" width="900">
 </div>
 
-**पिछली conversations import करें** — अपनी existing Claude Code और Codex history को named, searchable, resumable agents के रूप में bring in करें। Import करने के लिए कौन से days लेने हैं चुनें; refreshing उन्हें re-sync करता है। किसी भी chat turn से imported conversation को `+` → My Agents के जरिए reference करें, और DeepTutor इसे एक third-party transcript के रूप में पढ़ता है — यह उनकी conversation रहती है, DeepTutor की अपनी आवाज नहीं।
+**पिछली conversations import करें** — अपनी existing Claude Code और Codex history को named, searchable, resumable agents के रूप में bring in करें। Claude history को project / working directory और Codex history को calendar date के अनुसार चुनें; refresh उस scope को re-sync करता है और नई conversations खींचता है। Chat turn से किसी एक को `+` → My Agents के जरिए reference करें, और DeepTutor इसे एक third-party transcript के रूप में पढ़ता है — यह उनकी conversation रहती है, DeepTutor की अपनी आवाज नहीं।
 
 </details>
 
@@ -444,7 +445,7 @@ Co-Writer reports, tutorials, notes, और long-form learning artifacts के 
 <img src="../../assets/figs/web-1.4.6+/co-writer/01-edit%20panel.png" alt="live preview वाला Co-Writer editor" width="900">
 </div>
 
-इसका defining idea **surgical editing** है: एक span select करें और DeepTutor से rewrite, expand, या shorten करने के लिए कहें। Edit agent change को एक knowledge base या web evidence में ground कर सकता है, अपने tool calls का trace रखता है, और हर change को accept/reject diff के रूप में दिखाता है — इसलिए कुछ भी land नहीं होता जब तक आप approve नहीं करते।
+इसका defining idea **surgical editing** है: एक span select करें और DeepTutor से rewrite, expand, या shorten करने के लिए कहें। Edit agent change को एक knowledge base या web evidence में ground कर सकता है और अपने tool calls का trace रखता है। अगर उसके काम के दौरान draft नहीं बदला है, तो result selected text को directly replace करता है और **Undo** से reversible रहता है।
 
 </details>
 
@@ -497,7 +498,7 @@ Built-in LightRAG engine `pip install 'deeptutor[rag-lightrag]'` से install 
 <img src="../../assets/figs/web-1.4.6+/learning-space/00-overview.png" alt="DeepTutor Learning Space केंद्र" width="900">
 </div>
 
-Learning Space library, organization, और personalization layer है। **My courses** हर subject की conversations को group करता है और tutor threads को उनके parent के नीचे nested रखता है; Chat History course या thread type के अनुसार filter करता है और sessions को pin, archive, या move करने देता है। **Conversations & Materials** में notebooks भी हैं — उनके records notebooks के बीच move या copy होते हैं और Markdown में export किए जा सकते हैं — और एक question bank है जो आपका जवाब, reference answer, और explanation रखता है। **Personalization** में personas, skills (`SKILL.md` playbooks), one-click **MCP Services**, और [CLI-Anything](https://github.com/HKUDS/CLI-Anything) catalog के **CLI Apps** हैं, जिनकी usage guide on-demand load होती है। यहां सब कुछ Chat, Partners, Co-Writer, और Book से reuse किया जा सकता है।
+Learning Space library, organization, और personalization layer है। **Conversations & Materials** में Chat History, notebooks — जिनके records notebooks के बीच move या copy होते हैं और Markdown में export किए जा सकते हैं — और एक question bank है जो आपका जवाब, reference answer, और explanation रखता है। **Personalization** में personas, skills (`SKILL.md` playbooks), one-click **MCP Services**, और [CLI-Anything](https://github.com/HKUDS/CLI-Anything) catalog के **CLI Apps** हैं, जिनकी usage guide on-demand load होती है। अलग **My Courses** workspace subject conversations और tutor threads को group करता है; हर asset केवल उन workflows में उपलब्ध होता है जो उसे support करते हैं।
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/learning-space/07-%20download%20skills%20from%20eduhub.png" alt="EduHub से skills import करें" width="900">
@@ -514,13 +515,13 @@ Learning Space library, organization, और personalization layer है। **M
 <img src="../../assets/figs/web-1.4.6+/memory/00-overview.png" alt="DeepTutor memory अवलोकन" width="900">
 </div>
 
-Memory एक file-backed, three-layer system है जिसे आप पढ़, curate, और audit कर सकते हैं — जानबूझकर एक hidden vector store नहीं। **L1** workspace mirror plus एक append-only event trace (`trace/<surface>/<date>.jsonl`) है; **L2** per-surface curated facts (`L2/<surface>.md`) है; **L3** cross-surface synthesis (`L3/<profile|recent|scope|preferences>.md`) है। क्योंकि L2 L1 cite करता है और L3 L2 cite करता है, आपके profile में कुछ भी unaccountable नहीं है।
+Memory एक file-backed, three-layer system है जिसे आप पढ़, curate, और audit कर सकते हैं — जानबूझकर एक hidden vector store नहीं। **L1** workspace mirror plus एक append-only event trace (`trace/<surface>/<date>.jsonl`) है; **L2** per-surface curated facts (`L2/<surface>.md`) है, जिसमें L1 entities के references होते हैं; **L3** cross-surface synthesis (`L3/<profile|recent|scope|preferences>.md`) है, जो अपनी contributing L2 surfaces record करता है।
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/memory/01-3%20layer%20memory%20graph.png" alt="DeepTutor memory graph" width="900">
 </div>
 
-Memory Graph पूरा pyramid दिखाता है — L3 synthesis centre में, L2 middle ring में, L1 traces outside में — इसलिए आप किसी भी synthesized claim को उसके पीछे exact raw event तक trace कर सकते हैं। Memory `chat`, `notebook`, `quiz`, `kb`, `book`, partner, और `cowriter` surfaces पर track किया जाता है; consolidator के Update / Audit / Dedup budgets **Settings → Memory** में tune किए जाते हैं।
+Memory Graph पूरा pyramid दिखाता है — L3 synthesis centre में, L2 middle ring में, L1 traces outside में — exact L2 → L1 evidence edges और L3 → contributing-surface links के साथ। Memory `chat`, `notebook`, `quiz`, `kb`, `book`, partner, और `cowriter` surfaces पर track किया जाता है; consolidator के Update / Audit / Dedup budgets **Settings → Memory** में tune किए जाते हैं।
 
 </details>
 
@@ -594,7 +595,7 @@ data/
 <details>
 <summary><b>खुद drive करें</b></summary>
 
-`deeptutor chat` एक interactive REPL खोलता है; `deeptutor run <capability> "<message>"` एक single turn fire करके exit करता है। दोनों same `--capability`, `--tool`, `--kb`, और `--config` flags बोलते हैं।
+`deeptutor chat` एक interactive REPL खोलता है और `--capability` से mode चुनता है; `deeptutor run <capability> "<message>"` उस capability को अपना पहला positional argument लेता है और एक turn के बाद exit करता है। दोनों `--tool`, `--kb`, और `--config` accept करते हैं।
 
 ```bash
 deeptutor chat                                              # interactive REPL
@@ -702,11 +703,11 @@ EduHub एक standalone, ClawHub-compatible registry भी है, इसल�
 Source चाहे जो भी हो, हर import आपके workspace को touch करने से पहले **same safety gate** से गुजरता है:
 
 - registry का **security verdict** पहले check होता है — flagged packages refuse किए जाते हैं जब तक आप `--allow-unverified` pass नहीं करते;
-- archives defensively extract होते हैं (zip-slip / zip-bomb guards) text/script **suffix whitelist** के पीछे, इसलिए binaries workspace में कभी नहीं आते;
+- archives path-traversal, entry-count, size, compression-ratio, suffix, और symlink checks के साथ defensively extract होते हैं; executable bits strip हो जाते हैं, जबकि extensionless files allowed रहती हैं;
 - frontmatter DeepTutor के schema में normalize होता है और `always:` **stripped** होता है, इसलिए एक downloaded skill खुद को हर system prompt में force नहीं कर सकती;
 - provenance — hub, version, verdict, और install time — audits और updates के लिए `.hub-lock.json` में लिखा जाता है।
 
-Multi-user deployments में, imports caller की अपनी skill library में आते हैं; admin-assigned skills grant-scoped और read-only रहती हैं।
+Multi-user deployments में, browser imports authenticated caller की skill layer में आते हैं, जबकि CLI और admin-console installs owner/admin workspace को target करते हैं; admin skills grant होने तक सामान्य users से hidden और read-only रहती हैं।
 
 </details>
 

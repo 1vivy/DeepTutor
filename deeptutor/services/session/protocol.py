@@ -12,6 +12,8 @@ from typing import Any, Protocol, runtime_checkable
 
 @runtime_checkable
 class SessionRepository(Protocol):
+    async def migrate_workspace_preferences(self) -> int: ...
+
     async def create_session(
         self,
         title: str | None = None,
@@ -101,6 +103,8 @@ class MessageRepository(Protocol):
 
 @runtime_checkable
 class SessionStoreProtocol(SessionRepository, TurnRepository, MessageRepository, Protocol):
+    async def migrate_workspace_preferences(self) -> int: ...
+
     async def create_session(
         self,
         title: str | None = None,

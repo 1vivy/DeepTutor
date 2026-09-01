@@ -3,7 +3,10 @@ import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const css = fs.readFileSync(path.resolve(process.cwd(), "app/globals.css"), "utf8");
+const css = fs.readFileSync(
+  path.resolve(process.cwd(), "app/globals.css"),
+  "utf8",
+);
 const selectors = [":root", ".dark", ".theme-snow", ".theme-glass"];
 const requiredTokens = [
   "--background",
@@ -25,10 +28,15 @@ const requiredTokens = [
 test("every visual theme publishes the complete semantic token contract", () => {
   for (const selector of selectors) {
     const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const block = css.match(new RegExp(`${escaped}\\s*\\{([^}]+)\\}`))?.[1] ?? "";
+    const block =
+      css.match(new RegExp(`${escaped}\\s*\\{([^}]+)\\}`))?.[1] ?? "";
     assert.ok(block, `missing theme block ${selector}`);
     for (const token of requiredTokens) {
-      assert.match(block, new RegExp(`${token}\\s*:`), `${selector} is missing ${token}`);
+      assert.match(
+        block,
+        new RegExp(`${token}\\s*:`),
+        `${selector} is missing ${token}`,
+      );
     }
   }
 });

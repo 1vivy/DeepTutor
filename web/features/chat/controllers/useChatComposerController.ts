@@ -4,8 +4,13 @@ import { useCallback, useMemo, useState } from "react";
 
 import type { StartTurnInput } from "../model/start-turn";
 
-export function pruneKnowledgeBases(selected: string[], available: ReadonlySet<string>): string[] {
-  return selected.filter((name, index) => available.has(name) && selected.indexOf(name) === index);
+export function pruneKnowledgeBases(
+  selected: string[],
+  available: ReadonlySet<string>,
+): string[] {
+  return selected.filter(
+    (name, index) => available.has(name) && selected.indexOf(name) === index,
+  );
 }
 
 export function capabilityLaunchIntent(input: {

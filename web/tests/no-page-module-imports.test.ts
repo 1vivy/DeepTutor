@@ -32,10 +32,19 @@ test("frontend modules never import a Next route page", () => {
 });
 
 test("the retired Settings Context path cannot return", () => {
-  assert.equal(fs.existsSync(path.resolve(process.cwd(), "components/settings/SettingsContext.tsx")), false);
+  assert.equal(
+    fs.existsSync(
+      path.resolve(process.cwd(), "components/settings/SettingsContext.tsx"),
+    ),
+    false,
+  );
   const violations = roots
     .flatMap(sourceFiles)
-    .filter((file) => fs.readFileSync(file, "utf8").includes("components/settings/SettingsContext"))
+    .filter((file) =>
+      fs
+        .readFileSync(file, "utf8")
+        .includes("components/settings/SettingsContext"),
+    )
     .map((file) => path.relative(process.cwd(), file));
   assert.deepEqual(violations, []);
 });

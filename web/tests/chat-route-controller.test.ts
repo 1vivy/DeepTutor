@@ -8,13 +8,13 @@ import {
 } from "../features/chat/controllers/useChatComposerController";
 import { boundedReferences } from "../features/chat/controllers/useChatReferences";
 import {
-  firstRouteSessionId,
+  routeSessionId,
   shouldRevalidateCachedSession,
 } from "../features/chat/controllers/useChatRouteSession";
 
 test("route/session selection and cached revalidation stay deterministic", () => {
-  assert.equal(firstRouteSessionId(["session-1", "ignored"]), "session-1");
-  assert.equal(firstRouteSessionId(" "), null);
+  assert.equal(routeSessionId("session-1"), "session-1");
+  assert.equal(routeSessionId(" "), null);
   assert.equal(
     shouldRevalidateCachedSession({
       routeSessionId: "session-1",
@@ -37,15 +37,18 @@ test("route/session selection and cached revalidation stay deterministic", () =>
 
 test("course launch intent and KB pruning do not mutate source values", () => {
   const selected = ["math", "missing", "math", "physics"];
-  assert.deepEqual(pruneKnowledgeBases(selected, new Set(["math", "physics"])), [
-    "math",
-    "physics",
-  ]);
-  assert.deepEqual(capabilityLaunchIntent({ capability: null, courseId: " course " }), {
-    capability: "chat",
-    tools: [],
-    courseId: "course",
-  });
+  assert.deepEqual(
+    pruneKnowledgeBases(selected, new Set(["math", "physics"])),
+    ["math", "physics"],
+  );
+  assert.deepEqual(
+    capabilityLaunchIntent({ capability: null, courseId: " course " }),
+    {
+      capability: "chat",
+      tools: [],
+      courseId: "course",
+    },
+  );
   assert.equal(selected.length, 4);
 });
 

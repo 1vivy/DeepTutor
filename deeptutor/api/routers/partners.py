@@ -66,6 +66,7 @@ from deeptutor.services.partners.workspace import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+ws_router = APIRouter()
 
 
 # ── Access guards ──────────────────────────────────────────────
@@ -1304,7 +1305,8 @@ async def get_partner_sessions(partner_id: str):
 async def archive_partner_session(partner_id: str, payload: SessionKeyBody):
     """Soft-archive a session (web /new) — it stays resumable, file untouched."""
     mgr = get_partner_manager()
-    mgr.archive_session(partner_id, payload.session_key)
+    if not mgr.archive_session(partner_id, payload.session_key):
+        raise HTTPException(status_code=404, detail="Session not found")
     return {"partner_id": partner_id, "archived": True, "session_key": payload.session_key}
 
 
@@ -1439,7 +1441,10 @@ async def partner_chat_http(partner_id: str, payload: ChatMessageRequest) -> dic
     content = payload.content.strip()
     if not content and not payload.attachments:
         raise HTTPException(status_code=400, detail=t("api.content_required"))
-    await _ensure_running_partner(partner_id)
+    # Web chat is a first-class entry point. Start the partner runtime on
+    # demand even when external channel listeners are not configured for boot;
+    # ``auto_start`` controls restart persistence, not chat access.
+    await _ensure_running_partner(partner_id, allow_stopped=True)
     media_paths = _materialize_partner_attachments(partner_id, payload.attachments)
     if not content and media_paths:
         content = _default_attachment_prompt(payload.attachments)
@@ -1529,7 +1534,7 @@ async def partner_chat_http_stream(partner_id: str, payload: ChatMessageRequest)
     """Stream one HTTP message to a partner as server-sent events."""
     if not payload.content.strip() and not payload.attachments:
         raise HTTPException(status_code=400, detail=t("api.content_required"))
-    await _ensure_running_partner(partner_id)
+    await _ensure_running_partner(partner_id, allow_stopped=True)
     return StreamingResponse(
         _partner_chat_stream(partner_id, payload),
         media_type="text/event-stream",
@@ -1537,7 +1542,7 @@ async def partner_chat_http_stream(partner_id: str, payload: ChatMessageRequest)
     )
 
 
-@router.websocket("/{partner_id}/ws")
+@ws_router.websocket("/{partner_id}")
 async def partner_chat_ws(ws: WebSocket, partner_id: str):
     """Web chat socket.
 
@@ -1549,6 +1554,7 @@ async def partner_chat_ws(ws: WebSocket, partner_id: str):
       StreamEvent (content/thinking/tool_call/progress/sources/result),
       letting the UI render the same live trace as product chat;
     * ``{"type": "content", "content": str}`` — the final reply;
+    * ``{"type": "ready"}`` — the runtime is ready to accept a web turn;
     * ``{"type": "done"}`` / ``{"type": "error"}`` / ``{"type": "proactive"}``.
     """
     from deeptutor.api.routers.auth import ws_auth_failed, ws_require_auth
@@ -1583,12 +1589,15 @@ async def partner_chat_ws(ws: WebSocket, partner_id: str):
 
     await ws.accept()
     try:
-        instance = await _ensure_running_partner(partner_id)
+        instance = await _ensure_running_partner(partner_id, allow_stopped=True)
     except HTTPException as exc:
         message = str(exc.detail)
         await _safe_send({"type": "error", "content": message})
         code = 4004 if exc.status_code == 404 else 4003
         await ws.close(code=code, reason=message[:120])
+        return
+
+    if not await _safe_send({"type": "ready"}):
         return
 
     logger.info("WebSocket connected for partner '%s'", partner_id)

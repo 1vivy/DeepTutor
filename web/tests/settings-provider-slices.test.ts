@@ -3,11 +3,16 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-const read = (relative: string) => fs.readFileSync(path.resolve(process.cwd(), relative), "utf8");
+const read = (relative: string) =>
+  fs.readFileSync(path.resolve(process.cwd(), relative), "utf8");
 
 test("settings layout installs independently memoized provider slices", () => {
   const layout = read("app/(utility)/settings/layout.tsx");
-  for (const provider of ["UiSettingsProvider", "ModelCatalogProvider", "SettingsDraftProvider"]) {
+  for (const provider of [
+    "UiSettingsProvider",
+    "ModelCatalogProvider",
+    "SettingsDraftProvider",
+  ]) {
     assert.match(layout, new RegExp(`<${provider}>`));
   }
 
@@ -21,7 +26,9 @@ test("settings layout installs independently memoized provider slices", () => {
 });
 
 test("appearance consumes only the UI preference slice", () => {
-  const appearance = read("features/settings/sections/AppearanceSettingsSection.tsx");
+  const appearance = read(
+    "features/settings/sections/AppearanceSettingsSection.tsx",
+  );
   assert.match(appearance, /useUiSettings\(\)/);
   assert.doesNotMatch(appearance, /useSettings\(\)/);
 });

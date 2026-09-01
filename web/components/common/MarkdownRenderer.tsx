@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { hasMarkdownMath } from "@/lib/latex";
 import SimpleMarkdownRenderer from "./SimpleMarkdownRenderer";
 import type { MarkdownRendererProps } from "./markdown-renderer-types";
 
@@ -9,26 +10,6 @@ export type { MarkdownRendererProps } from "./markdown-renderer-types";
 const RichMarkdownRenderer = dynamic(() => import("./RichMarkdownRenderer"), {
   ssr: false,
 });
-
-// Detection during streaming has a subtle correctness requirement: it must
-// be monotonic. Once `true`, it should stay `true` as more tokens arrive so
-// the renderer never downgrades from Rich back to Simple (which would cause
-// a full subtree remount and a visible flash). The patterns below match
-// *opening* tokens — `$$`, `\(`, `\[`, ` ``` ` — rather than requiring a
-// matched close. A partial fence still gets the rich treatment, then the
-// closer arriving later is just more append-only content with no swap.
-function detectMathContent(content: string): boolean {
-  if (/(^|[^\\])\$\$/.test(content)) return true;
-  if (/\\\(|\\\[/.test(content)) return true;
-  // Single-dollar inline math containing LaTeX commands (\cmd) or math operators ({}_^)
-  if (
-    /(?:^|[^$\\])\$(?!\$|\s)(?:[^$\n]*(?:\\[a-zA-Z]+|[{}_^]))[^$\n]*\$(?!\$)/m.test(
-      content,
-    )
-  )
-    return true;
-  return false;
-}
 
 function detectCodeContent(content: string): boolean {
   // Match any opening triple-backtick, even before the language identifier
@@ -59,7 +40,7 @@ export default function MarkdownRenderer({
   allowHtml,
   trackSourceLines,
 }: MarkdownRendererProps) {
-  const resolvedEnableMath = enableMath ?? detectMathContent(content);
+  const resolvedEnableMath = enableMath ?? hasMarkdownMath(content);
   const resolvedEnableCode = enableCode ?? detectCodeContent(content);
   const resolvedEnableMermaid = enableMermaid ?? detectMermaidContent(content);
   const resolvedAllowHtml = allowHtml ?? detectHtmlContent(content);

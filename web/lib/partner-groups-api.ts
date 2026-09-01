@@ -174,9 +174,7 @@ export async function getPartnerGroupWhiteboard(
 ): Promise<WhiteboardEntry[]> {
   return json(
     await apiFetch(
-      apiUrl(
-        `/api/partner-groups/${encodeURIComponent(groupId)}/whiteboard`,
-      ),
+      apiUrl(`/api/partner-groups/${encodeURIComponent(groupId)}/whiteboard`),
       { cache: "no-store" },
     ),
   );

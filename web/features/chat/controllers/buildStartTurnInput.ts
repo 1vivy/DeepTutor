@@ -2,7 +2,10 @@ import type { StartTurnCommand } from "@/contracts/generated/turn-protocol";
 import { buildStartTurn } from "@/contracts/parse/turn-command";
 import { ApiError } from "@/shared/api/errors";
 
-import type { LegacySendMessageArguments, StartTurnInput } from "../model/start-turn";
+import type {
+  LegacySendMessageArguments,
+  StartTurnInput,
+} from "../model/start-turn";
 
 const RUNTIME_ONLY_CONFIG_KEYS = new Set([
   "_course_id",
@@ -35,7 +38,9 @@ function capabilityConfig(input: StartTurnInput): Record<string, unknown> {
       invalid(`Runtime field ${key} must use its typed turn property`);
     }
     if (allowed && !allowed.has(key)) {
-      invalid(`Unsupported ${input.capability ?? "chat"} configuration field: ${key}`);
+      invalid(
+        `Unsupported ${input.capability ?? "chat"} configuration field: ${key}`,
+      );
     }
   }
   return { ...config };
@@ -46,7 +51,10 @@ export function buildStartTurnInput(input: StartTurnInput): StartTurnCommand {
   if (input.subagentConsultBudget != null && input.subagentConsultBudget < 0) {
     invalid("Subagent consult budget must be non-negative");
   }
-  if (input.readingMaterialRevision != null && input.readingMaterialRevision < 1) {
+  if (
+    input.readingMaterialRevision != null &&
+    input.readingMaterialRevision < 1
+  ) {
     invalid("Reading material revision must be positive");
   }
   if (
@@ -101,7 +109,10 @@ export function buildStartTurnInput(input: StartTurnInput): StartTurnCommand {
 /** Temporary positional adapter for callers migrated in Task 14. */
 export function legacySendMessageInput(
   legacy: LegacySendMessageArguments,
-  defaults: Omit<StartTurnInput, keyof LegacySendMessageArguments | "capabilityConfig">,
+  defaults: Omit<
+    StartTurnInput,
+    keyof LegacySendMessageArguments | "capabilityConfig"
+  >,
 ): StartTurnInput {
   return {
     ...defaults,

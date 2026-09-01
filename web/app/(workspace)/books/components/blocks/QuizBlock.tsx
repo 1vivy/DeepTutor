@@ -209,6 +209,7 @@ function QuizQuestionCard({
               content={String(question.question || t("(missing)"))}
               variant="compact"
               className="font-sans text-sm font-medium text-[var(--foreground)] [&_ol]:my-2 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_p]:my-1.5 [&_pre]:my-2 [&_ul]:my-2"
+              enableMath
             />
           </div>
         </div>
@@ -244,9 +245,14 @@ function QuizQuestionCard({
                 <span className="font-mono text-xs uppercase text-[var(--muted-foreground)]">
                   {upperKey}.
                 </span>
-                <span className="flex-1 whitespace-pre-wrap break-words">
-                  {label}
-                </span>
+                <div className="min-w-0 flex-1 break-words">
+                  <MarkdownRenderer
+                    content={label}
+                    variant="compact"
+                    className="font-sans text-sm [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_p]:my-0"
+                    enableMath
+                  />
+                </div>
                 {isCorrect && <CheckCircle2 className="mt-0.5 h-4 w-4" />}
                 {isWrongPick && <XCircle className="mt-0.5 h-4 w-4" />}
               </button>
@@ -292,6 +298,7 @@ function QuizQuestionCard({
             content={correct}
             variant="compact"
             className="font-sans text-sm text-[var(--foreground)] [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_p]:my-1.5 [&_pre]:my-2"
+            enableMath
           />
         </div>
       )}
@@ -325,6 +332,7 @@ function QuizQuestionCard({
           <MarkdownRenderer
             content={String(question.explanation)}
             variant="compact"
+            enableMath
           />
         </div>
       )}

@@ -152,7 +152,11 @@ export function TextUnitView({
       setSerif(merged.serif);
       setReaderTheme(merged.readerTheme);
       try {
-        browserStorage.writeRaw("local", READER_PREFS_KEY, JSON.stringify(merged));
+        browserStorage.writeRaw(
+          "local",
+          READER_PREFS_KEY,
+          JSON.stringify(merged),
+        );
       } catch {
         // Preferences still apply for the current session.
       }

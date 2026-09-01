@@ -144,7 +144,9 @@ export function MasteryStudy({
   useEffect(() => {
     try {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setOutlineOpen(browserStorage.readRaw("local", OUTLINE_STORAGE_KEY) !== "0");
+      setOutlineOpen(
+        browserStorage.readRaw("local", OUTLINE_STORAGE_KEY) !== "0",
+      );
     } catch {
       // Private mode / blocked storage: the default (open) stands.
     }

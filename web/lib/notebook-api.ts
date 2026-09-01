@@ -555,14 +555,11 @@ export async function listCategories(
 }
 
 export async function createCategory(name: string): Promise<NotebookCategory> {
-  const response = await apiFetch(
-    apiUrl("/api/question-notebook/categories"),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    },
-  );
+  const response = await apiFetch(apiUrl("/api/question-notebook/categories"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
   return expectJson<NotebookCategory>(response);
 }
 

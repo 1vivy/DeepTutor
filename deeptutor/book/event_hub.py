@@ -50,7 +50,7 @@ def get_book_bus(book_id: str) -> StreamBus:
     """
     bus = _buses.get(book_id)
     if bus is None:
-        bus = StreamBus(max_history=BOOK_EVENT_HISTORY_LIMIT)
+        bus = StreamBus(max_history=BOOK_EVENT_HISTORY_LIMIT, assign_seq=True)
         _buses[book_id] = bus
     return bus
 

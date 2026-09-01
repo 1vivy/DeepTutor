@@ -1,7 +1,17 @@
-import type { ClientCommand, ServerEvent } from "@/contracts/generated/turn-protocol";
+import type {
+  ClientCommand,
+  ServerEvent,
+} from "@/contracts/generated/turn-protocol";
 
-import type { ChatMessage, StreamEvent, StreamEventType } from "../model/protocol";
-import { TurnRuntimeClient, type RuntimeConnectionState } from "./TurnRuntimeClient";
+import type {
+  ChatMessage,
+  StreamEvent,
+  StreamEventType,
+} from "../model/protocol";
+import {
+  TurnRuntimeClient,
+  type RuntimeConnectionState,
+} from "./TurnRuntimeClient";
 
 const STREAM_TYPES = new Set<StreamEventType>([
   "stage_start",
@@ -22,13 +32,16 @@ const STREAM_TYPES = new Set<StreamEventType>([
 ]);
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function toStreamEvent(event: ServerEvent): StreamEvent | null {
   const raw = event as unknown as Record<string, unknown>;
   const type = raw.type;
-  if (typeof type !== "string" || !STREAM_TYPES.has(type as StreamEventType)) return null;
+  if (typeof type !== "string" || !STREAM_TYPES.has(type as StreamEventType))
+    return null;
   return {
     type: type as StreamEventType,
     source: typeof raw.source === "string" ? raw.source : "",
@@ -38,7 +51,8 @@ function toStreamEvent(event: ServerEvent): StreamEvent | null {
     session_id: typeof raw.session_id === "string" ? raw.session_id : undefined,
     turn_id: typeof raw.turn_id === "string" ? raw.turn_id : undefined,
     seq: typeof raw.seq === "number" ? raw.seq : undefined,
-    timestamp: typeof raw.timestamp === "number" ? raw.timestamp : Date.now() / 1000,
+    timestamp:
+      typeof raw.timestamp === "number" ? raw.timestamp : Date.now() / 1000,
   };
 }
 

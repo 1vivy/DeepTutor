@@ -189,14 +189,10 @@ test.beforeEach(async ({ page }) => {
     if (path === "/api/reading/materials") {
       return json([materialB, materialA]);
     }
-    if (path === `/api/reading/materials/${MATERIAL_A}`)
-      return json(materialA);
-    if (path === `/api/reading/materials/${MATERIAL_B}`)
-      return json(materialB);
+    if (path === `/api/reading/materials/${MATERIAL_A}`) return json(materialA);
+    if (path === `/api/reading/materials/${MATERIAL_B}`) return json(materialB);
     if (path.endsWith("/annotations")) return json([]);
-    const unit = /\/api\/reading\/materials\/([^/]+)\/units\/(\d+)/.exec(
-      path,
-    );
+    const unit = /\/api\/reading\/materials\/([^/]+)\/units\/(\d+)/.exec(path);
     if (unit) {
       const [, materialId, locator] = unit;
       return json({

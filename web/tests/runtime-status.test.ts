@@ -25,7 +25,10 @@ const healthyPayload = {
 };
 
 test("runtime status parses only the public operational contract", () => {
-  const status = parseRuntimeStatus({ runtime_status: healthyPayload, harmless_extra: true });
+  const status = parseRuntimeStatus({
+    runtime_status: healthyPayload,
+    harmless_extra: true,
+  });
   assert.deepEqual(status, {
     workerId: "worker-a",
     workerCount: 4,
@@ -62,7 +65,10 @@ test("health prioritizes recovery, then coordination failures", () => {
   const healthy = parseRuntimeStatus(healthyPayload);
   assert.equal(runtimeHealth(healthy), "healthy");
   assert.equal(runtimeHealth({ ...healthy, recoveryBacklog: 2 }), "recovering");
-  assert.equal(runtimeHealth({ ...healthy, redisStatus: "unavailable" }), "degraded");
+  assert.equal(
+    runtimeHealth({ ...healthy, redisStatus: "unavailable" }),
+    "degraded",
+  );
   assert.equal(runtimeHealth({ ...healthy, leaderHealthy: false }), "degraded");
   assert.equal(runtimeHealth(null), "unavailable");
 });

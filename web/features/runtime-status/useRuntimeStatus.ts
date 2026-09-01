@@ -24,7 +24,9 @@ function emit(next: RuntimeStatusSnapshot) {
 }
 
 function visible(): boolean {
-  return typeof document === "undefined" || document.visibilityState === "visible";
+  return (
+    typeof document === "undefined" || document.visibilityState === "visible"
+  );
 }
 
 function clearTimer() {
@@ -35,7 +37,9 @@ function clearTimer() {
 function schedule() {
   clearTimer();
   if (!listeners.size || !visible()) return;
-  const delay = failures ? Math.min(120_000, 5_000 * 2 ** Math.min(failures - 1, 5)) : 30_000;
+  const delay = failures
+    ? Math.min(120_000, 5_000 * 2 ** Math.min(failures - 1, 5))
+    : 30_000;
   timer = setTimeout(() => void refreshRuntimeStatus(), delay);
 }
 
@@ -46,7 +50,13 @@ export function refreshRuntimeStatus(): Promise<void> {
   request = fetchRuntimeStatus(controller.signal)
     .then((data) => {
       failures = 0;
-      emit({ data, health: runtimeHealth(data), error: null, loading: false, lastUpdated: Date.now() });
+      emit({
+        data,
+        health: runtimeHealth(data),
+        error: null,
+        loading: false,
+        lastUpdated: Date.now(),
+      });
     })
     .catch((error: unknown) => {
       if (controller?.signal.aborted) return;
@@ -54,7 +64,10 @@ export function refreshRuntimeStatus(): Promise<void> {
       emit({
         ...snapshot,
         health: snapshot.data ? runtimeHealth(snapshot.data) : "unavailable",
-        error: error instanceof Error ? error.message : "Runtime status is unavailable",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Runtime status is unavailable",
         loading: false,
       });
     })
@@ -92,7 +105,13 @@ function subscribe(listener: () => void) {
   };
 }
 
-export function useRuntimeStatus(): RuntimeStatusSnapshot & { refresh: () => Promise<void> } {
-  const current = useSyncExternalStore(subscribe, () => snapshot, () => INITIAL);
+export function useRuntimeStatus(): RuntimeStatusSnapshot & {
+  refresh: () => Promise<void>;
+} {
+  const current = useSyncExternalStore(
+    subscribe,
+    () => snapshot,
+    () => INITIAL,
+  );
   return { ...current, refresh: refreshRuntimeStatus };
 }

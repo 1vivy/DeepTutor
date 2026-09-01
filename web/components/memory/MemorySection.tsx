@@ -26,6 +26,11 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { apiFetch, apiUrl } from "@/lib/api";
+import {
+  bookRoute,
+  knowledgeBaseRoute,
+  notebookRoute,
+} from "@/lib/resource-routes";
 import SpaceSectionHeader from "@/components/space/SpaceSectionHeader";
 
 const MarkdownRenderer = dynamic(
@@ -227,12 +232,10 @@ function entityDeepLinkUrl(surface: Surface, ent: Entity): string | null {
       return `/co-writer/${encodeURIComponent(ent.id)}`;
     case "notebook": {
       const nbId = asString(m.notebook_id);
-      return nbId
-        ? `/notebooks?notebook=${encodeURIComponent(nbId)}`
-        : "/notebooks";
+      return notebookRoute(nbId);
     }
     case "book":
-      return `/books?book=${encodeURIComponent(ent.id)}`;
+      return bookRoute(ent.id);
     case "partner": {
       // Partner entity.id is `partnerId:sessionKey`. Deep-link to the partner.
       const partnerId = asString(m.partner_id) || ent.id.split(":")[0];
@@ -248,7 +251,7 @@ function entityDeepLinkUrl(surface: Surface, ent: Entity): string | null {
         : "/space/questions";
     }
     case "kb":
-      return `/knowledge-bases?kb=${encodeURIComponent(ent.id)}`;
+      return knowledgeBaseRoute(ent.id);
   }
   return null;
 }
@@ -295,7 +298,11 @@ export default function MemorySection({
   const dismissArchivedBanner = useCallback(() => {
     if (!latestBackup) return;
     if (typeof window !== "undefined") {
-      browserStorage.writeRaw("local", "dt:memory:banner-dismissed", latestBackup);
+      browserStorage.writeRaw(
+        "local",
+        "dt:memory:banner-dismissed",
+        latestBackup,
+      );
     }
     setDismissedBackup(latestBackup);
   }, [latestBackup]);

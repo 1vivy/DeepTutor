@@ -155,9 +155,10 @@ test.beforeEach(async ({ page }) => {
     if (path === `/api/reading/workspaces/${WORKSPACE_ID}/sessions`) {
       return json({ sessions: [] });
     }
-    const activate = /\/api\/reading\/workspaces\/[^/]+\/materials\/([^/]+)\/active$/.exec(
-      path,
-    );
+    const activate =
+      /\/api\/reading\/workspaces\/[^/]+\/materials\/([^/]+)\/active$/.exec(
+        path,
+      );
     // The workspace API activates an existing tab with PUT.
     if (activate && route.request().method() === "PUT") {
       activeMaterialId = activate[1] || MATERIAL_A;
@@ -176,9 +177,7 @@ test.beforeEach(async ({ page }) => {
       return json({ detail: "Material is no longer available" }, 404);
     }
     if (path.endsWith("/annotations")) return json([]);
-    const unit = /\/api\/reading\/materials\/([^/]+)\/units\/(\d+)/.exec(
-      path,
-    );
+    const unit = /\/api\/reading\/materials\/([^/]+)\/units\/(\d+)/.exec(path);
     if (unit) {
       const [, materialId, locator] = unit;
       const title = materialId === MATERIAL_A ? "A" : "B";

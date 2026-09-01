@@ -1,4 +1,8 @@
-import type { StreamEvent, TurnQueryState, TurnStatus } from "@/contracts/generated/turn-protocol";
+import type {
+  StreamEvent,
+  TurnQueryState,
+  TurnStatus,
+} from "@/contracts/generated/turn-protocol";
 
 export interface ChatAttachment {
   id?: string;

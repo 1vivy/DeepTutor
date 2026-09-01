@@ -28,7 +28,10 @@ function legacyDraftKey(docId: string): string {
   return `${LEGACY_DRAFT_STORAGE_PREFIX}${docId}`;
 }
 
-function parseStoredDraft(value: string | null, docId: string): StoredDraft | null {
+function parseStoredDraft(
+  value: string | null,
+  docId: string,
+): StoredDraft | null {
   if (!value) return null;
   try {
     const parsed = JSON.parse(value) as Partial<StoredDraft>;
@@ -47,7 +50,10 @@ function parseStoredDraft(value: string | null, docId: string): StoredDraft | nu
   }
 }
 
-export function loadDraft(storage: KeyValueStorage, docId: string): StoredDraft | null {
+export function loadDraft(
+  storage: KeyValueStorage,
+  docId: string,
+): StoredDraft | null {
   try {
     const current = parseStoredDraft(storage.getItem(draftKey(docId)), docId);
     if (current) return current;
@@ -97,13 +103,18 @@ export function clearDraft(storage: KeyValueStorage, docId: string): boolean {
 
 export function loadSplitRatio(storage: KeyValueStorage): number {
   try {
-    return clampPanelRatio(Number.parseFloat(storage.getItem(SPLIT_RATIO_KEY) ?? ""));
+    return clampPanelRatio(
+      Number.parseFloat(storage.getItem(SPLIT_RATIO_KEY) ?? ""),
+    );
   } catch {
     return 0.5;
   }
 }
 
-export function saveSplitRatio(storage: KeyValueStorage, ratio: number): boolean {
+export function saveSplitRatio(
+  storage: KeyValueStorage,
+  ratio: number,
+): boolean {
   try {
     storage.setItem(SPLIT_RATIO_KEY, String(clampPanelRatio(ratio)));
     return true;

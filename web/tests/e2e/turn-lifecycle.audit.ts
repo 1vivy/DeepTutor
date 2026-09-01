@@ -11,7 +11,9 @@ test.describe("v2 turn lifecycle", () => {
     "Requires the deterministic backend turn fixture added with the multi-worker acceptance phase.",
   );
 
-  test("keeps server-authoritative lifecycle states visible", async ({ page }) => {
+  test("keeps server-authoritative lifecycle states visible", async ({
+    page,
+  }) => {
     await page.goto("/");
 
     await sendPrompt(page, "Explain replay-safe turns");

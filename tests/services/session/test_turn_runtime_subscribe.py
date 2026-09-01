@@ -157,6 +157,42 @@ async def test_subscribe_turn_does_not_synthesize_done_for_running_turn(tmp_path
 
 
 @pytest.mark.asyncio
+async def test_replacing_subscription_does_not_synthesize_duplicate_done(tmp_path) -> None:
+    """Cancelling an old replay subscription must leave termination to its replacement."""
+
+    store = SQLiteSessionStore(tmp_path / "chat_history.db")
+    runtime = TurnRuntimeManager(store)
+    session = await store.ensure_session(None)
+    turn = await store.create_turn(session["id"], capability="chat")
+    execution = _TurnExecution(
+        turn_id=turn["id"],
+        session_id=session["id"],
+        capability="chat",
+        payload={},
+    )
+    runtime._executions[turn["id"]] = execution
+    events: list[dict] = []
+
+    async def _collect() -> None:
+        async for event in runtime.subscribe_turn(turn["id"], after_seq=0):
+            events.append(event)
+
+    task = asyncio.create_task(_collect())
+    for _ in range(200):
+        if execution.subscribers:
+            break
+        await asyncio.sleep(0.01)
+
+    assert execution.subscribers
+    assert await store.update_turn_status(turn["id"], "completed") is True
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert events == []
+
+
+@pytest.mark.asyncio
 async def test_subscribe_turn_does_not_mutate_remote_running_turn(tmp_path) -> None:
     """A subscriber may be on a different worker from the turn owner."""
 
@@ -174,6 +210,44 @@ async def test_subscribe_turn_does_not_mutate_remote_running_turn(tmp_path) -> N
     assert persisted["status"] == "running"
     assert persisted["error"] == ""
     assert events == []
+
+
+@pytest.mark.asyncio
+async def test_subscribe_terminal_turn_synthesizes_protocol_valid_done(tmp_path) -> None:
+    """A recovered terminal turn must emit a consumable monotonic DONE."""
+
+    store = SQLiteSessionStore(tmp_path / "chat_history.db")
+    runtime = TurnRuntimeManager(store)
+    session = await store.ensure_session(None)
+    turn = await store.create_turn(session["id"], capability="chat")
+    assert await store.update_turn_status(turn["id"], "completed") is True
+
+    events = [event async for event in runtime.subscribe_turn(turn["id"], after_seq=0)]
+
+    assert len(events) == 1
+    done = events[0]
+    assert done["type"] == "done"
+    assert done["turn_id"] == turn["id"]
+    assert done["session_id"] == session["id"]
+    assert done["seq"] == 1
+    assert isinstance(done["timestamp"], float)
+    assert done["metadata"] == {"status": "completed", "synthesized": True}
+
+
+@pytest.mark.asyncio
+async def test_subscribe_failed_turn_synthesizes_ordered_error_and_done(tmp_path) -> None:
+    store = SQLiteSessionStore(tmp_path / "chat_history.db")
+    runtime = TurnRuntimeManager(store)
+    session = await store.ensure_session(None)
+    turn = await store.create_turn(session["id"], capability="chat")
+    assert await store.update_turn_status(turn["id"], "failed", "provider failed") is True
+
+    events = [event async for event in runtime.subscribe_turn(turn["id"], after_seq=0)]
+
+    assert [event["type"] for event in events] == ["error", "done"]
+    assert [event["seq"] for event in events] == [1, 2]
+    assert events[0]["metadata"]["turn_terminal"] is True
+    assert events[1]["metadata"]["status"] == "failed"
 
 
 @pytest.mark.asyncio

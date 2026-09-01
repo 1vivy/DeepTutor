@@ -60,6 +60,7 @@ def client(tmp_path: Path, monkeypatch) -> TestClient:
     app.state.partner_groups = groups
     app.state.partners = partners
     app.include_router(router_module.router, prefix="/api/partner-groups")
+    app.include_router(router_module.ws_router, prefix="/ws/partner-groups")
     try:
         yield TestClient(app)
     finally:
@@ -534,7 +535,7 @@ def test_round_summary_websocket_uses_standard_stream_frames(
         return "Bob's round summary"
 
     monkeypatch.setattr(partners, "send_group_message", streamed_summary)
-    with client.websocket_connect(f"/api/partner-groups/{group_id}/ws") as ws:
+    with client.websocket_connect(f"/ws/partner-groups/{group_id}") as ws:
         ws.send_json(
             {
                 "action": "summarize_round",
@@ -588,7 +589,7 @@ def test_websocket_receives_commands_while_turn_is_streaming(
     monkeypatch.setattr(groups, "send_message", hanging_send)
     monkeypatch.setattr(groups, "reject_invocation", lambda *args, **kwargs: rejected)
 
-    with client.websocket_connect(f"/api/partner-groups/{group_id}/ws") as ws:
+    with client.websocket_connect(f"/ws/partner-groups/{group_id}") as ws:
         ws.send_json({"content": "first", "session_key": "live"})
         assert ws.receive_json()["type"] == "user_message"
 
@@ -618,7 +619,7 @@ def test_websocket_create_invocation_emits_immediate_update(client: TestClient) 
         json={"name": "Socket panel", "member_ids": ["ada", "bob"]},
     ).json()["group_id"]
 
-    with client.websocket_connect(f"/api/partner-groups/{group_id}/ws") as ws:
+    with client.websocket_connect(f"/ws/partner-groups/{group_id}") as ws:
         ws.send_json(
             {
                 "action": "create_invocation",

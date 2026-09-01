@@ -77,7 +77,9 @@ test.describe("four-worker v2 turn acceptance", () => {
       command_worker: "worker-d",
     });
     await sendPrompt(page, scenario.prompt);
-    await expect(lifecycleStatus(page)).toContainText(/Waiting for your answer/i);
+    await expect(lifecycleStatus(page)).toContainText(
+      /Waiting for your answer/i,
+    );
 
     const answer = page.getByRole("textbox", { name: /answer/i });
     await answer.fill("Continue on the same turn");
@@ -118,7 +120,9 @@ test.describe("four-worker v2 turn acceptance", () => {
     await expect(lifecycleStatus(page)).toContainText(/Working|Completed/i);
     await runtimeFixture.expectEvidence(
       scenario.scenario_id,
-      (value) => value.terminal_status === "completed" && value.recovery_worker === "worker-b",
+      (value) =>
+        value.terminal_status === "completed" &&
+        value.recovery_worker === "worker-b",
       "regeneration did not move to the recovery worker",
     );
   });
@@ -135,7 +139,9 @@ test.describe("four-worker v2 turn acceptance", () => {
     await expect(lifecycleStatus(page)).toContainText(/Working/i);
     await runtimeFixture.act(scenario.scenario_id, "pause_after_checkpoint");
     await page.reload();
-    await expect(lifecycleStatus(page)).toContainText(/Reconnecting|Working|Completed/i);
+    await expect(lifecycleStatus(page)).toContainText(
+      /Reconnecting|Working|Completed/i,
+    );
 
     const evidence = await runtimeFixture.expectEvidence(
       scenario.scenario_id,
@@ -157,7 +163,9 @@ test.describe("four-worker v2 turn acceptance", () => {
     });
     await sendPrompt(page, scenario.prompt);
     await runtimeFixture.act(scenario.scenario_id, "query_from_observer");
-    await expect(lifecycleStatus(page)).not.toContainText(/Turn failed|Response interrupted/i);
+    await expect(lifecycleStatus(page)).not.toContainText(
+      /Turn failed|Response interrupted/i,
+    );
 
     const evidence = await runtimeFixture.expectEvidence(
       scenario.scenario_id,

@@ -25,18 +25,23 @@ export function normalizeTurnFailure(input: {
 }): TurnFailure {
   const candidate = input.error?.code ?? input.errorCode;
   const code =
-    typeof candidate === "string" && FAILURE_CODES.has(candidate as TurnFailureCode)
+    typeof candidate === "string" &&
+    FAILURE_CODES.has(candidate as TurnFailureCode)
       ? (candidate as TurnFailureCode)
       : "unknown";
   return {
     code,
     message:
       input.error?.message ??
-      (typeof input.errorMessage === "string" ? input.errorMessage : "Turn failed"),
+      (typeof input.errorMessage === "string"
+        ? input.errorMessage
+        : "Turn failed"),
     retryable:
       input.error?.retryable ??
       (typeof input.retryable === "boolean"
         ? input.retryable
-        : code === "worker_lost" || code === "lease_lost" || code === "server_shutdown"),
+        : code === "worker_lost" ||
+          code === "lease_lost" ||
+          code === "server_shutdown"),
   };
 }

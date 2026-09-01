@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import type { StreamEvent } from "@/contracts/generated/turn-protocol";
 
 import { ChatStateAdapterProvider } from "./ChatStateAdapter";
@@ -20,36 +26,47 @@ const ChatRuntimeContext = createContext<ChatRuntimeValue | null>(null);
 export function ChatRuntimeProvider({ children }: { children: ReactNode }) {
   const parent = useContext(ChatRuntimeContext);
   if (parent && process.env.NODE_ENV !== "production") {
-    throw new Error("ChatRuntimeProvider cannot be nested; scope one runtime per route subtree");
+    throw new Error(
+      "ChatRuntimeProvider cannot be nested; scope one runtime per route subtree",
+    );
   }
 
   const [value] = useState<ChatRuntimeValue>(() => {
     const store = createChatStore();
-    const actions = new ChatActions(store, (sessionKey) =>
-      new TurnRuntimeClient({
-        onEvent(event) {
-          if (event.type === "active_turn_info" || event.type === "pong") return;
-          store.dispatch({
-            type: "stream_event",
-            key: sessionKey,
-            event: event as StreamEvent,
-          });
-          if (event.type === "wait_for_input") {
+    const actions = new ChatActions(
+      store,
+      (sessionKey) =>
+        new TurnRuntimeClient({
+          onEvent(event) {
+            if (event.type === "active_turn_info" || event.type === "pong")
+              return;
             store.dispatch({
-              type: "turn_status",
+              type: "stream_event",
               key: sessionKey,
-              status: "waiting_input",
-              turnId: event.turn_id,
+              event: event as StreamEvent,
             });
-          }
-          if (event.type === "done") {
-            const candidate = event.metadata?.status;
-            const terminal =
-              candidate === "failed" || candidate === "cancelled" ? candidate : "completed";
-            store.dispatch({ type: "turn_status", key: sessionKey, status: terminal });
-          }
-        },
-      }),
+            if (event.type === "wait_for_input") {
+              store.dispatch({
+                type: "turn_status",
+                key: sessionKey,
+                status: "waiting_input",
+                turnId: event.turn_id,
+              });
+            }
+            if (event.type === "done") {
+              const candidate = event.metadata?.status;
+              const terminal =
+                candidate === "failed" || candidate === "cancelled"
+                  ? candidate
+                  : "completed";
+              store.dispatch({
+                type: "turn_status",
+                key: sessionKey,
+                status: terminal,
+              });
+            }
+          },
+        }),
     );
     return { actions, store };
   });
@@ -67,6 +84,7 @@ export function ChatRuntimeProvider({ children }: { children: ReactNode }) {
 
 export function useChatActions(): ChatActions {
   const runtime = useContext(ChatRuntimeContext);
-  if (!runtime) throw new Error("useChatActions must be used inside ChatRuntimeProvider");
+  if (!runtime)
+    throw new Error("useChatActions must be used inside ChatRuntimeProvider");
   return runtime.actions;
 }

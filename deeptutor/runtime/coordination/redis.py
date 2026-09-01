@@ -203,7 +203,7 @@ class RedisCoordinator:
         self.stream_retention_seconds = max(60, int(stream_retention_seconds))
         self._owns_client = client is None
         if client is None:
-            from redis.asyncio import Redis
+            from redis.asyncio import Redis  # type: ignore[import-untyped]
 
             client = Redis.from_url(redis_url, decode_responses=False)
         self.client = client

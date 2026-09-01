@@ -49,7 +49,8 @@ function descriptorFrom(value: unknown): CapabilityDescriptor | null {
   if (typeof rawId !== "string" || !rawId.trim()) return null;
   return {
     id: rawId.trim(),
-    kind: typeof value.kind === "string" && value.kind ? value.kind : "capability",
+    kind:
+      typeof value.kind === "string" && value.kind ? value.kind : "capability",
     available: value.available !== false,
     manifest: isRecord(value.manifest) ? value.manifest : null,
     configSchema: isRecord(value.config_schema)
@@ -60,7 +61,9 @@ function descriptorFrom(value: unknown): CapabilityDescriptor | null {
   };
 }
 
-export function parseCapabilityCatalogPayload(payload: unknown): CapabilityDescriptor[] {
+export function parseCapabilityCatalogPayload(
+  payload: unknown,
+): CapabilityDescriptor[] {
   if (!isRecord(payload)) return [];
   const raw = payload.capabilities;
   if (!Array.isArray(raw)) return [];
@@ -84,7 +87,10 @@ function validatePrimitive(
   schema: CapabilityFieldSchema,
   value: unknown,
 ): string | null {
-  if (schema.enum && !schema.enum.some((candidate) => Object.is(candidate, value))) {
+  if (
+    schema.enum &&
+    !schema.enum.some((candidate) => Object.is(candidate, value))
+  ) {
     return `${name} is not an allowed value`;
   }
   if (schema.type === "boolean") {
@@ -115,8 +121,16 @@ export function sanitizeCapabilityConfig(
   schema: CapabilityConfigSchema | null,
   input: unknown,
 ): CapabilityConfigResult {
-  if (!schema || schema.type !== "object" || !schema.properties || !isRecord(input)) {
-    return { ok: false, errors: ["Capability configuration schema is unsupported"] };
+  if (
+    !schema ||
+    schema.type !== "object" ||
+    !schema.properties ||
+    !isRecord(input)
+  ) {
+    return {
+      ok: false,
+      errors: ["Capability configuration schema is unsupported"],
+    };
   }
   const errors: string[] = [];
   const output: Record<string, string | number | boolean> = {};

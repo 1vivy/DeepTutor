@@ -119,7 +119,10 @@ test("protocol diagnostics never echo content, metadata, or credentials", () => 
   });
   assert.equal(parsed.ok, false);
   if (parsed.ok) return;
-  assert.doesNotMatch(parsed.diagnostic, /private prompt|secret-token|hunter2|content|metadata|password/);
+  assert.doesNotMatch(
+    parsed.diagnostic,
+    /private prompt|secret-token|hunter2|content|metadata|password/,
+  );
 });
 
 test("command builders enforce IDs, sequence bounds, replies, and v2 versioning", () => {
@@ -140,7 +143,13 @@ test("command builders enforce IDs, sequence bounds, replies, and v2 versioning"
     "reply-1",
   );
 
-  assert.throws(() => buildSubscribeTurn({ turnId: " ", afterSeq: 0 }), /turn_id/);
-  assert.throws(() => buildSubscribeTurn({ turnId: "turn-1", afterSeq: 1.5 }), /after_seq/);
+  assert.throws(
+    () => buildSubscribeTurn({ turnId: " ", afterSeq: 0 }),
+    /turn_id/,
+  );
+  assert.throws(
+    () => buildSubscribeTurn({ turnId: "turn-1", afterSeq: 1.5 }),
+    /after_seq/,
+  );
   assert.throws(() => buildSubmitUserReply({ turnId: "turn-1" }), /requires/);
 });

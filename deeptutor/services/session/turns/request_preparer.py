@@ -5,16 +5,18 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 import uuid
 
 from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.core.turn_request import TurnRequest
 from deeptutor.runtime.capability_routing import route_explicit_quiz_request
-
-from .._turn_runtime_shared import (
+from deeptutor.services.session.workspace_preferences import (
     WORKSPACE_MODE_MASTERY,
     WORKSPACE_MODE_READING,
+)
+
+from .._turn_runtime_shared import (
     _apply_course_defaults,
     _coerce_bool,
     _course_conventions_block,
@@ -33,8 +35,51 @@ from .._turn_runtime_shared import (
     _workspace_mode,
 )
 
+if TYPE_CHECKING:
+    from deeptutor.runtime.coordination import RuntimeCoordinator
+    from deeptutor.services.session.protocol import SessionStoreProtocol
+
 
 class TurnRequestPreparer:
+    if TYPE_CHECKING:
+        store: SessionStoreProtocol
+        coordinator: RuntimeCoordinator | None
+        owner_id: str
+        _coordination_scope: str
+        _lock: asyncio.Lock
+        _executions: dict[str, _TurnExecution]
+
+        async def _ensure_accepting_turns(self) -> None: ...
+
+        def _turns_blocked_for_update_locked(self) -> bool: ...
+
+        async def _validate_mastery_session_topic(
+            self,
+            *,
+            session_id: str,
+            requested_path_id: str,
+            remembered_path_id: str,
+        ) -> None: ...
+
+        async def _acquire_mastery_path_lease(
+            self,
+            *,
+            path_id: str,
+            session_id: str,
+            turn_id: str,
+            owns_path: bool,
+        ) -> None: ...
+
+        async def _publish_live_event(
+            self,
+            execution: _TurnExecution,
+            event: StreamEvent,
+        ) -> dict[str, Any]: ...
+
+        async def _run_turn(self, execution: _TurnExecution) -> None: ...
+
+        async def _coordinate_execution(self, execution: _TurnExecution) -> None: ...
+
     async def start_turn(self, payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
         await self._ensure_accepting_turns()
         # ``TurnRuntimeManager`` remains a one-version compatibility facade;

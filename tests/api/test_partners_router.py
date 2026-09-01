@@ -628,6 +628,16 @@ class TestHistory:
         live = {s["session_key"]: s for s in client.get("/api/partners/ada/sessions").json()}
         assert live["web-a"]["archived"] is False
 
+    def test_archiving_missing_session_is_not_silently_successful(self, client):
+        _create(client)
+
+        response = client.post(
+            "/api/partners/ada/sessions/archive",
+            json={"session_key": "missing"},
+        )
+
+        assert response.status_code == 404
+
     def test_branch_copies_and_archives(self, client, isolated_root):
         _create(client)
         self._seed_session(isolated_root, "web-a", "carry me")
@@ -656,21 +666,54 @@ class TestHistory:
 
 
 class TestChatAttachments:
-    def test_chat_does_not_auto_start_stopped_partner(self, client):
-        # ``start=True`` spawns a real PartnerRunner task; drive every request
-        # through one shared event loop (context-managed TestClient) so the
-        # runner started by create can be cancelled by stop — otherwise each
-        # request runs on its own loop and the cancel raises a cross-loop error.
+    def test_web_chat_lazily_starts_partner_without_enabling_boot_start(
+        self, client, monkeypatch, isolated_root
+    ):
+        from deeptutor.api.routers import partners as router_mod
+
         with client:
-            assert _create(client, start=True).status_code == 200
-            assert client.post("/api/partners/ada/stop").status_code == 200
+            assert _create(client, start=False).status_code == 200
+            manager = router_mod.get_partner_manager()
+
+            async def reply(*args, **kwargs):
+                return "hello back"
+
+            monkeypatch.setattr(manager, "send_message", reply)
 
             res = client.post("/api/partners/ada/chat", json={"content": "hello"})
 
-        assert res.status_code == 409
-        from deeptutor.services.i18n import t
+        assert res.status_code == 200
+        assert res.json()["content"] == "hello back"
+        assert manager.get_partner("ada") is not None
+        data = yaml.safe_load(
+            (isolated_root / "partners" / "ada" / "config.yaml").read_text(encoding="utf-8")
+        )
+        assert data["auto_start"] is False
 
-        assert res.json()["detail"] == t("api.partner_stopped_start_required")
+    def test_code_redeem_list_and_unlink_roundtrip(self, client):
+        from deeptutor.services.partners.links import redeem_link_code
+
+        assert _create(client).status_code == 200
+        issued = client.post("/api/partners/ada/links/code")
+
+        assert issued.status_code == 200
+        payload = issued.json()
+        assert payload["command"] == f"/link {payload['code']}"
+        assert (
+            redeem_link_code(
+                "ada",
+                payload["code"],
+                channel="qq",
+                sender_id="90210",
+            )
+            == "test-admin"
+        )
+
+        listed = client.get("/api/partners/ada/links").json()["links"]
+        assert [(item["channel"], item["sender_id"]) for item in listed] == [("qq", "90210")]
+
+        assert client.delete("/api/partners/ada/links/qq%3A90210").status_code == 200
+        assert client.get("/api/partners/ada/links").json()["links"] == []
 
     def test_create_start_false_disables_auto_start(self, client, isolated_root):
         assert _create(client, start=False).status_code == 200

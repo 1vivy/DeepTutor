@@ -54,9 +54,15 @@ test("a new edit invalidates redo history", () => {
 
 test("selected text replacement rejects stale or malformed ranges", () => {
   const range = { start: 6, end: 11, text: "world", snapshot: "hello world" };
-  assert.equal(replaceSelectedText("hello world", range, "reader"), "hello reader");
+  assert.equal(
+    replaceSelectedText("hello world", range, "reader"),
+    "hello reader",
+  );
   assert.equal(replaceSelectedText("hello world!", range, "reader"), null);
-  assert.equal(replaceSelectedText("hello world", { ...range, text: "other" }, "reader"), null);
+  assert.equal(
+    replaceSelectedText("hello world", { ...range, text: "other" }, "reader"),
+    null,
+  );
 });
 
 test("panel ratios clamp and scroll markers interpolate", () => {

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import TYPE_CHECKING, Any
 
 from deeptutor.core.stream import StreamEvent, StreamEventType
 
@@ -16,8 +17,20 @@ from .._turn_runtime_shared import (
 
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from deeptutor.services.session.protocol import SessionStoreProtocol
+
 
 class SessionTitleService:
+    if TYPE_CHECKING:
+        store: SessionStoreProtocol
+
+        async def _publish_live_event(
+            self,
+            execution: _TurnExecution,
+            event: StreamEvent,
+        ) -> dict[str, Any]: ...
+
     async def _maybe_generate_session_title(
         self,
         *,

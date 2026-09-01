@@ -18,7 +18,11 @@ import {
   readStoredResponseLanguage,
   writeStoredActiveSessionId,
 } from "@/context/app-shell-storage";
-import type { StreamEvent, ChatMessage, LLMSelection } from "@/features/chat/model/protocol";
+import type {
+  StreamEvent,
+  ChatMessage,
+  LLMSelection,
+} from "@/features/chat/model/protocol";
 import { UnifiedTurnClient } from "@/features/chat/transport/UnifiedTurnClient";
 import {
   getSession,
@@ -1916,7 +1920,8 @@ export function ChatStateAdapterProvider({
         ...finalTurnConfig
       } = effectiveConfig ?? {};
       const persistUserMessage =
-        options?.persistUserMessage === false || legacyPersistUserMessage === false
+        options?.persistUserMessage === false ||
+        legacyPersistUserMessage === false
           ? false
           : undefined;
       sendThroughRunner(key, {
@@ -1927,9 +1932,14 @@ export function ChatStateAdapterProvider({
         workspace_mode: effectiveWorkspaceMode ?? "",
         knowledge_bases: effectiveKnowledgeBases,
         session_id: session.sessionId,
-        ...(session.courseId.trim() ? { course_id: session.courseId.trim() } : {}),
-        ...(persistUserMessage === false ? { persist_user_message: false } : {}),
-        ...(followupQuestionContext && typeof followupQuestionContext === "object"
+        ...(session.courseId.trim()
+          ? { course_id: session.courseId.trim() }
+          : {}),
+        ...(persistUserMessage === false
+          ? { persist_user_message: false }
+          : {}),
+        ...(followupQuestionContext &&
+        typeof followupQuestionContext === "object"
           ? {
               followup_question_context: followupQuestionContext as Record<
                 string,
@@ -2061,10 +2071,11 @@ export function ChatStateAdapterProvider({
       if (!session || !turnId || (!session.isStreaming && !pendingAskUser)) {
         return;
       }
-      const message: import("@/features/chat/model/protocol").SubmitUserReplyMessage = {
-        type: "submit_user_reply",
-        turn_id: turnId,
-      };
+      const message: import("@/features/chat/model/protocol").SubmitUserReplyMessage =
+        {
+          type: "submit_user_reply",
+          turn_id: turnId,
+        };
       if (typeof reply === "string") {
         message.text = reply;
       } else {
@@ -2390,6 +2401,8 @@ export function ChatStateAdapterProvider({
 export function useChatStateAdapter() {
   const ctx = useContext(ChatCtx);
   if (!ctx)
-    throw new Error("useChatStateAdapter must be inside ChatStateAdapterProvider");
+    throw new Error(
+      "useChatStateAdapter must be inside ChatStateAdapterProvider",
+    );
   return ctx;
 }

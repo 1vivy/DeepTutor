@@ -1,4 +1,5 @@
 import { ApiError, type AppError, type AppErrorScope } from "./errors";
+import { browserReturnPath, loginHref } from "../auth/return-url";
 
 export interface RequestOptions extends RequestInit {
   scope?: AppErrorScope;
@@ -36,8 +37,7 @@ export async function apiFetch(
     !skipAuthRedirect &&
     typeof window !== "undefined"
   ) {
-    const next = encodeURIComponent(window.location.pathname);
-    window.location.href = `/login?next=${next}`;
+    window.location.href = loginHref(browserReturnPath(window.location));
     return new Promise(() => {});
   }
 
@@ -55,11 +55,14 @@ function correlationId(response: Response): string | undefined {
 function messageFromBody(body: unknown, fallback: string): string {
   if (!body || typeof body !== "object") return fallback;
   const value = body as Record<string, unknown>;
-  if (typeof value.message === "string" && value.message.trim()) return value.message;
-  if (typeof value.detail === "string" && value.detail.trim()) return value.detail;
+  if (typeof value.message === "string" && value.message.trim())
+    return value.message;
+  if (typeof value.detail === "string" && value.detail.trim())
+    return value.detail;
   if (value.detail && typeof value.detail === "object") {
     const detail = value.detail as Record<string, unknown>;
-    if (typeof detail.message === "string" && detail.message.trim()) return detail.message;
+    if (typeof detail.message === "string" && detail.message.trim())
+      return detail.message;
   }
   return fallback;
 }
@@ -69,7 +72,8 @@ function normalizedHttpError(
   body: unknown,
   scope: AppErrorScope,
 ): AppError {
-  const value = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const value =
+    body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const detail =
     value.detail && typeof value.detail === "object"
       ? (value.detail as Record<string, unknown>)
@@ -112,15 +116,19 @@ async function performRequest(
   try {
     const response = await apiFetch(input, init);
     const body = await responseBody(response);
-    if (!response.ok) throw new ApiError(normalizedHttpError(response, body, scope));
+    if (!response.ok)
+      throw new ApiError(normalizedHttpError(response, body, scope));
     return { response, body };
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    const aborted = error instanceof DOMException && error.name === "AbortError";
+    const aborted =
+      error instanceof DOMException && error.name === "AbortError";
     throw new ApiError(
       {
         code: aborted ? "request_aborted" : "network_error",
-        message: aborted ? "Request was cancelled" : "Unable to reach the server",
+        message: aborted
+          ? "Request was cancelled"
+          : "Unable to reach the server",
         retryable: !aborted,
         scope,
       },
@@ -168,11 +176,14 @@ export async function requestBlob(
     return await response.blob();
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    const aborted = error instanceof DOMException && error.name === "AbortError";
+    const aborted =
+      error instanceof DOMException && error.name === "AbortError";
     throw new ApiError(
       {
         code: aborted ? "request_aborted" : "network_error",
-        message: aborted ? "Request was cancelled" : "Unable to reach the server",
+        message: aborted
+          ? "Request was cancelled"
+          : "Unable to reach the server",
         retryable: !aborted,
         scope,
       },

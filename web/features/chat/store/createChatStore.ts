@@ -7,7 +7,9 @@ export interface ChatStore {
   subscribe(listener: () => void): () => void;
 }
 
-export function createChatStore(initialState: ChatStoreState = initialChatState): ChatStore {
+export function createChatStore(
+  initialState: ChatStoreState = initialChatState,
+): ChatStore {
   let state = initialState;
   const listeners = new Set<() => void>();
   return {

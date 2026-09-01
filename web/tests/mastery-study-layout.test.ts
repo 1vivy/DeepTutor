@@ -14,9 +14,7 @@ function source(file: string): string {
  * render, before the bare `/sessions` route can initialise its new session.
  */
 test("the mastery study route provides every shared chat viewer context", () => {
-  const layout = source(
-    "app/(utility)/mastery/[pathId]/sessions/layout.tsx",
-  );
+  const layout = source("app/(utility)/mastery/[pathId]/sessions/layout.tsx");
   const response = source("components/common/AssistantResponse.tsx");
 
   assert.match(response, /useReading\(\)/);

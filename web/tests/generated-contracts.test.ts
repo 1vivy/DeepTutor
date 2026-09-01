@@ -6,7 +6,10 @@ import test from "node:test";
 const generatedRoot = path.resolve(process.cwd(), "contracts", "generated");
 
 test("generated turn protocol covers the complete v2 lifecycle", () => {
-  const source = fs.readFileSync(path.join(generatedRoot, "turn-protocol.ts"), "utf8");
+  const source = fs.readFileSync(
+    path.join(generatedRoot, "turn-protocol.ts"),
+    "utf8",
+  );
 
   for (const value of [
     "queued",
@@ -28,7 +31,12 @@ test("generated turn protocol covers the complete v2 lifecycle", () => {
 test("generated OpenAPI types expose backend-owned browser models", () => {
   const source = fs.readFileSync(path.join(generatedRoot, "api.ts"), "utf8");
 
-  for (const value of ["TurnRequest", "RuntimeStatus", "SessionSummary", "ErrorEnvelope"]) {
+  for (const value of [
+    "TurnRequest",
+    "RuntimeStatus",
+    "SessionSummary",
+    "ErrorEnvelope",
+  ]) {
     assert.match(source, new RegExp(value));
   }
 });

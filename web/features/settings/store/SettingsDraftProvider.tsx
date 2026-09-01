@@ -22,36 +22,46 @@ const SettingsDraftContext = createContext<SettingsDraftSlice | null>(null);
 
 export function SettingsDraftProvider({ children }: { children: ReactNode }) {
   const source = useSettings();
-  const value = useMemo<SettingsDraftSlice>(() => ({
-    hasUnsavedChanges: source.hasUnsavedChanges,
-    saving: source.saving,
-    applying: source.applying,
-    saveDraft: source.saveDraft,
-    applyCatalog: source.applyCatalog,
-    discardDraft: source.discardDraft,
-    storedDraft: source.storedDraft,
-    draftState: source.draftState,
-    draftRevision: source.draftRevision,
-    pendingExtensionPayload: source.pendingExtensionPayload,
-    registerExtension: source.registerExtension,
-  }), [
-    source.hasUnsavedChanges,
-    source.saving,
-    source.applying,
-    source.saveDraft,
-    source.applyCatalog,
-    source.discardDraft,
-    source.storedDraft,
-    source.draftState,
-    source.draftRevision,
-    source.pendingExtensionPayload,
-    source.registerExtension,
-  ]);
-  return <SettingsDraftContext.Provider value={value}>{children}</SettingsDraftContext.Provider>;
+  const value = useMemo<SettingsDraftSlice>(
+    () => ({
+      hasUnsavedChanges: source.hasUnsavedChanges,
+      saving: source.saving,
+      applying: source.applying,
+      saveDraft: source.saveDraft,
+      applyCatalog: source.applyCatalog,
+      discardDraft: source.discardDraft,
+      storedDraft: source.storedDraft,
+      draftState: source.draftState,
+      draftRevision: source.draftRevision,
+      pendingExtensionPayload: source.pendingExtensionPayload,
+      registerExtension: source.registerExtension,
+    }),
+    [
+      source.hasUnsavedChanges,
+      source.saving,
+      source.applying,
+      source.saveDraft,
+      source.applyCatalog,
+      source.discardDraft,
+      source.storedDraft,
+      source.draftState,
+      source.draftRevision,
+      source.pendingExtensionPayload,
+      source.registerExtension,
+    ],
+  );
+  return (
+    <SettingsDraftContext.Provider value={value}>
+      {children}
+    </SettingsDraftContext.Provider>
+  );
 }
 
 export function useSettingsDraft(): SettingsDraftSlice {
   const value = useContext(SettingsDraftContext);
-  if (!value) throw new Error("useSettingsDraft must be used inside SettingsDraftProvider");
+  if (!value)
+    throw new Error(
+      "useSettingsDraft must be used inside SettingsDraftProvider",
+    );
   return value;
 }

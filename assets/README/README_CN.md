@@ -62,12 +62,12 @@
 DeepTutor 是一个智能体原生的学习工作区，将辅导、解题、测验生成、研究、可视化和掌握度练习整合在一个可扩展的系统中。
 
 - **统一的运行时** — Chat、Ask Questions、Quiz、Research、Visualize、Solve、Course Study、Mastery Path、Immersive Reading 和 Immersive Watching 共享同一套能力运行时与会话上下文，同时保留各自为特定用途设计的循环和流水线。
-- **互联的学习上下文** — 知识库、书籍、Co-Writer 草稿、笔记本、题库、人格预设和 Memory，在每个工作流中始终可用，而不是各自孤立。
+- **互联的学习上下文** — 知识库、书籍、Co-Writer 草稿、笔记本、题库、人格预设和 Memory 可在支持它们的工作流中复用，并受账号授权与学习策略约束。
 - **沉浸式视频学习** — 粘贴 YouTube 链接，即可使用隐私增强的原生播放、同步字幕、基于时间戳的辅导和可续接的学习进度；管理员可以将播放切换到自托管的 Invidious 实例，无需重新构建素材。
-- **子智能体与 Partners** — 在任意对话轮次中咨询实时智能体运行框架（Claude Code、Codex、Antigravity、Kimi、opencode、MiMo、Hermes Agent、OpenClaw 或 DeepSeek Harness）或 Partner（或导入历史对话），并在同一大脑上运行持久化的 IM 伴侣。
+- **子智能体与 Partners** — 在 Chat 中调用实时智能体运行框架（Claude Code、Codex、Antigravity、Kimi、opencode、MiMo、Hermes Agent、OpenClaw 或 DeepSeek Harness）或 Partner、导入历史对话，并让持久化 IM 伴侣运行在同一套大脑之上。
 - **多引擎知识库** — 跨 LlamaIndex、PageIndex、GraphRAG、LightRAG、远程 LightRAG Server、自托管的 WeKnora 知识库、Tencent IMA 或 MarginNote 4 知识库，或链接的 Obsidian vault 的版本化 RAG 知识库，支持可插拔的文档解析。
 - **可扩展工具与技能** — 内置工具、MCP 服务器、CLI 应用、图像 / 视频 / 语音生成模型，以及从 EduHub 安装的社区技能。
-- **可审计的记忆** — L1 追踪、L2 表面摘要和 L3 综合让个性化透明可编辑，Memory Graph 将每一条结论追溯到其原始证据。
+- **可审计的记忆** — L1 追踪、L2 表面摘要和 L3 综合让个性化透明可编辑；Memory Graph 将 L2 事实关联至 L1 证据，并将 L3 综合关联至参与的表面层。
 
 ---
 
@@ -136,7 +136,7 @@ pip install -e ".[rag-lightrag]"    # Built-in LightRAG engine (exact supported 
 pip install -e ".[graphrag]"        # Microsoft GraphRAG engine (Python 3.11–3.13)
 pip install -e ".[dev]"             # tests/lint tools
 pip install -e ".[partners]"        # Partner IM channel SDKs
-pip install -e ".[video-learning]"  # optional YouTube public-caption adapter
+pip install -e ".[video-learning]"  # compatibility extra; captions ship in the full/CLI installs
 pip install -e ".[matrix]"          # Matrix channel without E2EE/libolm
 pip install -e ".[matrix-e2e]"      # Matrix E2EE; requires libolm
 pip install -e ".[math-animator]"   # Manim addon; requires LaTeX/ffmpeg/system libs
@@ -165,8 +165,8 @@ deeptutor start --dev
 
 单容器运行完整 Web 应用。镜像托管在 GitHub Container Registry：
 
-- `ghcr.io/hkuds/deeptutor:latest` — 稳定版本
-- `ghcr.io/hkuds/deeptutor:pre` — 预发布版本（如有）
+- `ghcr.io/hkuds/deeptutor:latest` — 最新稳定版本
+- `ghcr.io/hkuds/deeptutor:<version>` — 不含前导 `v` 的精确版本（例如 `:1.6.3`）；预发布版本只会获得对应的版本标签
 
 > 有关 podman / 无根容器 / 只读根文件系统部署及完整的每种安装指南，请参阅 [CONTAINERIZATION.md](../../CONTAINERIZATION.md)。
 
@@ -248,7 +248,7 @@ deeptutor init --cli
 deeptutor chat
 ```
 
-`deeptutor init --cli` 与完整应用共享同一 `data/user/settings/` 布局，但跳过后端/前端端口提示，并默认将嵌入设为**关闭**（如计划使用 `deeptutor kb …` 或 RAG 工具，选择 `Yes`）。它仍会写入关键运行时文件（`system.json`、`auth.json`、`integrations.json`、`interface.json`、`model_catalog.json`、`main.yaml`、`agents.yaml`），并提示选择活跃的 LLM 提供商和模型。
+`deeptutor init --cli` 与完整应用共享同一 `data/user/settings/` 布局，但跳过后端/前端端口提示。它仍会提供 Embedding 和 Search 选择器（不需要时选择 **Skip**），写入关键运行时文件（`system.json`、`auth.json`、`integrations.json`、`interface.json`、`model_catalog.json`、`main.yaml`、`agents.yaml`），并提示选择活跃的 LLM 提供商和模型。
 
 <details>
 <summary><b>常用命令</b></summary>
@@ -272,12 +272,13 @@ deeptutor config show
 <details>
 <summary><b>代码执行沙箱（Office 技能）</b> · 运行 docx / pdf / pptx / xlsx 的模型生成代码</summary>
 
-内置的 Office 技能 — **docx / pdf / pptx / xlsx** — 通过让模型编写短 Python 脚本（`python-docx`、`reportlab`、`openpyxl` 等），经 `exec` / `code_execution` 工具运行，并返回下载 URL 来工作。这些工具在沙箱后端激活时自动挂载，在每种部署形式下**默认**均已激活：
+内置的 Office 技能 — **docx / pdf / pptx / xlsx** — 通过让模型编写短 Python 脚本（`python-docx`、`reportlab`、`openpyxl` 等），经 `exec` / `code_execution` 工具运行，并返回下载 URL 来工作。这些工具会在有可用沙箱后端时挂载。DeepTutor 按以下顺序选择已配置的最强后端：
 
-- **本地（方式一 / 二）和 Docker（方式三，单容器）：** 受限子进程沙箱运行模型代码（本地在宿主机上，Docker 在容器内部 — 容器本身即隔离边界）。
-- **docker-compose：** 通过 `DEEPTUTOR_SANDBOX_RUNNER_URL` 路由至加固的最小权限**运行器 sidecar**（`Dockerfile.runner`） — 安全性最强，有 sidecar 时自动优先使用。
+- **Runner sidecar：** `DEEPTUTOR_SANDBOX_RUNNER_URL` 将执行路由至 `Dockerfile.runner` 提供的加固最小权限服务。
+- **Linux bubblewrap：** `bwrap` 可用时，由它隔离进程和文件。
+- **受限子进程回退：** 本地和单容器安装仅在允许时使用此方案；在 Docker 下，容器仍构成另一层边界。
 
-子进程沙箱由 `data/user/settings/system.json` 中的 `sandbox_allow_subprocess` 设置控制（默认 `true`）。在宿主机上运行模型生成的代码是一个真实的信任决策 — 将其设为 `false`（或导出 `DEEPTUTOR_SANDBOX_ALLOW_SUBPROCESS=0`）可禁用宿主机侧执行，代价是 Office 技能将无法生成文件。
+`data/user/settings/system.json` 中的 `sandbox_allow_subprocess` 设置（默认 `true`）只控制最后一种回退方案。将其设为 `false`（或导出 `DEEPTUTOR_SANDBOX_ALLOW_SUBPROCESS=0`），可在没有 runner 或 `bwrap` 后端时拒绝子进程执行；它不会禁用这些更强的后端。
 
 </details>
 
@@ -288,7 +289,7 @@ deeptutor config show
 
 | 文件 | 用途 |
 |:---|:---|
-| `model_catalog.json` | LLM、嵌入和搜索提供商配置；API Key；活跃模型 |
+| `model_catalog.json` | 提供商连接，以及 LLM、任务、嵌入、搜索、TTS、STT、图像和视频配置、凭证与活跃选择 |
 | `system.json` | 后端/前端端口、公开 API 基础地址、CORS、SSL 校验、附件目录及上传/提取限制 |
 | `auth.json` | 可选认证开关、用户名、密码哈希、token/cookie 设置 |
 | `integrations.json` | 可选的 PocketBase 和 sidecar 集成设置 |
@@ -383,7 +384,7 @@ Chat 是默认能力，也是大多数工作的起点。单个对话线程可以
 
 用户可切换的工具有 `brainstorm`、`web_search`、`paper_search`、`reason` 和 `geogebra_analysis` — 配置了对应生成模型后还有 `imagegen` 和 `videogen`。上下文工具如 `rag`、`kb_files`、`read_source`、`read_memory`、`write_memory`、`read_skill`、`load_tools`、`exec`、`web_fetch`、`ask_user`、`list_notebook`、`write_note`、`question_bank`、`github` 和 `consult_subagent` 会在当前轮次具备相应上下文时自动挂载。
 
-上下文分为两类：**粘性会话上下文**（子智能体、知识库、人格预设、模型、语音）存在于编辑器工具栏，在各轮次间持续保留；**一次性引用**（文件、聊天历史、书籍、阅读章节、笔记本、题库、导入的智能体）通过 `+` 菜单添加，仅用于单次对话轮次。
+上下文分为两类：**粘性会话上下文**（能力、工作区或课程、工具、知识库、人格预设、模型，以及 Reading / Mastery 状态）会在各轮次间持续保留；**一次性引用**（文件、聊天历史、书籍、阅读章节、笔记本、题库、导入的智能体）通过 `+` 菜单添加，仅用于单次对话轮次。语音按钮只会转录当前消息。
 
 主页让 **Chat**、**Ask Questions**、**Quiz**、**Visualize** 和 **Immersive Watching** 一键可达；用于生成引用报告的 **Research** 和用于展示完整推理过程的 **Solve** 位于 *更多能力* 之下。**Mastery Path** 和 **Immersive Reading** 是侧边栏中的专用工作区；Reading 还提供经过验证的可点击引用、已保存的引用与笔记、基于来源的朗读 / 学习指导 / 词汇 / 测验 / 翻译操作，以及笔记本摘录，而 Course Study 则保留其自身与课程绑定的上下文。
 
@@ -402,7 +403,7 @@ Partners 是拥有独立灵魂、模型策略、知识库、记忆和渠道的�
 <img src="../../assets/figs/system/partners-architecture.png" alt="DeepTutor Partners 架构" width="900">
 </div>
 
-每个 Partner 拥有 `SOUL.md`、模型选择、渠道、工具策略和分配的知识库。知识库、技能和笔记本会被复制到 `data/partners/<id>/workspace/`，因此相同的 RAG、技能、笔记本和记忆工具无需特殊处理即可正常工作。Partner 可以读取其拥有者的记忆，但只能写入自己的记忆。
+每个 Partner 拥有 `SOUL.md`、模型选择、渠道、工具策略和分配的知识库。知识库、技能和笔记本会被复制到 `data/partners/<id>/workspace/`，因此相同的 RAG、技能、笔记本和记忆工具无需特殊处理即可正常工作。经过认证的非管理员用户拥有私有的 Partner 会话和关系记忆，而 Partner 只读访问其个人记忆；管理员、群组和未绑定流量则使用共享的 Partner 作用域。
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/partners/02-IM%20config%20for%20each%20partner.png" alt="每个 Partner 的 IM 渠道配置" width="900">
@@ -421,13 +422,13 @@ Partners 是拥有独立灵魂、模型策略、知识库、记忆和渠道的�
 <img src="../../assets/figs/web-1.4.6+/myagents/00-overview.png" alt="DeepTutor 我的智能体工作区" width="900">
 </div>
 
-"我的智能体"将其他智能体转化为 DeepTutor 的上下文，具备两种不同的功能。**连接实时智能体** — 连接你机器上的 Claude Code、Codex、Antigravity、Kimi、opencode、MiMo Code、Hermes Agent、OpenClaw 或 DeepSeek Harness，或你的某个 Partner，在聊天轮次中调用它：DeepTutor 实际上会*运行*另一个智能体，并通过 `consult_subagent` 工具将其工作流式传输到 Activity 面板。通过智能体选项（或输入 `@`）选择它，并设置调用可进行的最大轮数。
+"我的智能体"将其他智能体转化为 DeepTutor 的上下文，具备两种不同的功能。**连接实时智能体** — 连接你机器上的 Claude Code、Codex、Antigravity、Kimi、opencode、MiMo Code、Hermes Agent、OpenClaw 或 DeepSeek Harness，或你的某个 Partner，在聊天轮次中调用它：DeepTutor 实际上会*运行*另一个智能体，并通过 `consult_subagent` 工具将其工作流式传输到 Activity 面板。使用 Agent 芯片选择智能体及其轮数上限，或通过 `@` 筛选同一份已连接智能体列表；所选配置会随会话保留。
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/home/08-subagent%20demo%20with%20claude%20code.png" alt="实时调用 Claude Code 子智能体" width="900">
 </div>
 
-**导入历史对话** — 将已有的 Claude Code 和 Codex 历史记录作为命名的、可搜索的、可续聊的智能体导入。选择要导入的日期范围；刷新时自动重新同步。通过 `+` → 我的智能体在任意聊天轮次中引用已导入的对话，DeepTutor 会将其作为第三方对话记录读取 — 它始终是*对方的*对话，不会被 DeepTutor 以自己的口吻解读。
+**导入历史对话** — 将已有的 Claude Code 和 Codex 历史记录作为命名的、可搜索的、可续聊的智能体导入。Claude 历史按项目 / 工作目录选择，Codex 历史按日历日期选择；刷新会重新同步该范围并拉取新对话。在 Chat 轮次中通过 `+` → 我的智能体引用其中一段对话，DeepTutor 会将其作为第三方对话记录读取 — 它始终是*对方的*对话，而不是 DeepTutor 自己的口吻。
 
 </details>
 
@@ -444,7 +445,7 @@ Co-Writer 是一个分屏 Markdown 工作区，适用于报告、教程、笔记
 <img src="../../assets/figs/web-1.4.6+/co-writer/01-edit%20panel.png" alt="Co-Writer 编辑器与实时预览" width="900">
 </div>
 
-其核心理念是**精准编辑**：选中一段文字，让 DeepTutor 对其进行改写、扩展或缩短。编辑智能体可以基于知识库或网络证据进行修改，保留工具调用追踪，并以接受/拒绝差异对比的形式展示每处变更 — 直到你批准后才会生效。
+其核心理念是**精准编辑**：选中一段文字，让 DeepTutor 对其进行改写、扩展或缩短。编辑智能体可以基于知识库或网络证据进行修改，并保留工具调用追踪。如果智能体工作期间草稿未发生变化，结果会直接替换所选文本，并且仍可通过 **Undo** 撤销。
 
 </details>
 
@@ -497,7 +498,7 @@ Book 将选定的来源转化为交互式**活书** — 不是静态 PDF，而�
 <img src="../../assets/figs/web-1.4.6+/learning-space/00-overview.png" alt="DeepTutor 学习空间中心" width="900">
 </div>
 
-学习空间是内容库、组织与个性化层。**我的课程**按学科归拢对话，并将导师线程嵌套在所属父线程下；聊天历史可按课程或线程类型筛选，并支持固定、归档或移动会话。**对话与素材**还包含笔记本 — 记录可在笔记本之间移动或复制，并支持导出为 Markdown — 以及保存你的答案、参考答案和解析的题库。**个性化**包含人格预设、技能（`SKILL.md` 剧本）、一键安装的 **MCP 服务**，以及来自 [CLI-Anything](https://github.com/HKUDS/CLI-Anything) 目录的 **CLI 应用**，每个应用的使用指南按需加载。这里的所有内容均可在 Chat、Partners、Co-Writer 和 Book 中复用。
+学习空间是内容库、组织与个性化层。**对话与素材**包含聊天历史、笔记本 — 记录可在笔记本之间移动或复制，并支持导出为 Markdown — 以及保存你的答案、参考答案和解析的题库。**个性化**包含人格预设、技能（`SKILL.md` 剧本）、一键安装的 **MCP 服务**，以及来自 [CLI-Anything](https://github.com/HKUDS/CLI-Anything) 目录的 **CLI 应用**，每个应用的使用指南按需加载。独立的**我的课程**工作区按学科归拢对话与导师线程；每项素材只会出现在支持它的工作流中。
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/learning-space/07-%20download%20skills%20from%20eduhub.png" alt="从 EduHub 导入技能" width="900">
@@ -514,13 +515,13 @@ Book 将选定的来源转化为交互式**活书** — 不是静态 PDF，而�
 <img src="../../assets/figs/web-1.4.6+/memory/00-overview.png" alt="DeepTutor 记忆概览" width="900">
 </div>
 
-Memory 是一个基于文件、三层结构的系统，你可以读取、整理和审计它 — 刻意设计为*非*隐藏的向量库。**L1** 是工作区镜像加仅追加的事件追踪（`trace/<surface>/<date>.jsonl`）；**L2** 是按表面整理的事实（`L2/<surface>.md`）；**L3** 是跨表面的综合（`L3/<profile|recent|scope|preferences>.md`）。由于 L2 引用 L1，L3 引用 L2，你的档案中没有任何不可追溯的内容。
+Memory 是一个基于文件、三层结构的系统，你可以读取、整理和审计它 — 刻意设计为*非*隐藏的向量库。**L1** 是工作区镜像加仅追加的事件追踪（`trace/<surface>/<date>.jsonl`）；**L2** 是按表面整理的事实（`L2/<surface>.md`），包含对 L1 实体的引用；**L3** 是跨表面的综合（`L3/<profile|recent|scope|preferences>.md`），记录参与综合的 L2 表面层。
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/memory/01-3%20layer%20memory%20graph.png" alt="DeepTutor 记忆图谱" width="900">
 </div>
 
-Memory Graph 展示整个金字塔 — L3 综合位于中心，L2 在中间圆环，L1 追踪在外圈 — 你可以将任何综合结论追溯到其背后的精确原始事件。Memory 在 `chat`、`notebook`、`quiz`、`kb`、`book`、partner 和 `cowriter` 表面进行追踪；整合器的更新 / 审计 / 去重预算可在 **Settings → Memory** 中调整。
+Memory Graph 展示整个金字塔 — L3 综合位于中心，L2 在中间圆环，L1 追踪在外圈 — 并显示精确的 L2 → L1 证据边和 L3 → 参与表面层链接。Memory 在 `chat`、`notebook`、`quiz`、`kb`、`book`、partner 和 `cowriter` 表面进行追踪；整合器的更新 / 审计 / 去重预算可在 **Settings → Memory** 中调整。
 
 </details>
 
@@ -594,7 +595,7 @@ data/
 <details>
 <summary><b>自己驱动</b></summary>
 
-`deeptutor chat` 打开交互式 REPL；`deeptutor run <capability> "<message>"` 执行单次对话并退出。两者共享相同的 `--capability`、`--tool`、`--kb` 和 `--config` 标志。
+`deeptutor chat` 打开交互式 REPL，并通过 `--capability` 选择模式；`deeptutor run <capability> "<message>"` 将能力作为第一个位置参数，并在执行一个轮次后退出。两者均接受 `--tool`、`--kb` 和 `--config`。
 
 ```bash
 deeptutor chat                                              # interactive REPL
@@ -702,11 +703,11 @@ EduHub 也是一个独立的、ClawHub 兼容的注册表，因此非 DeepTutor 
 无论来源如何，每次导入在触及你的工作区之前都会经过**相同的安全门**：
 
 - 首先检查注册表的**安全验证结果** — 被标记的包将被拒绝，除非你传入 `--allow-unverified`；
-- 压缩包被防御性解压（防 zip-slip / zip-bomb）并经过文本/脚本**后缀白名单**过滤，因此二进制文件永远不会落入工作区；
+- 压缩包会经过路径穿越、条目数量、大小、压缩比、后缀和符号链接检查后进行防御性解压；可执行权限位会被移除，但仍允许无扩展名文件；
 - frontmatter 被规范化并**去除** `always:`，因此下载的技能永远无法强制将自己注入每个系统提示；
 - 来源信息 — Hub、版本、验证结果和安装时间 — 被写入 `.hub-lock.json` 以供审计和更新。
 
-在多用户部署中，导入的技能会进入调用者自己的技能库；管理员分配的技能仍受授权范围约束，且为只读。
+在多用户部署中，浏览器导入会进入经过认证的调用者技能层，而 CLI 和管理控制台安装则以所有者/管理员工作区为目标；在获得授权之前，管理员技能对普通用户保持隐藏且只读。
 
 </details>
 

@@ -178,9 +178,7 @@ export async function getVideoMaterial(
 ): Promise<TimedMediaMaterial> {
   return unwrap(
     await apiFetch(
-      apiUrl(
-        `/api/video-learning/materials/${encodeURIComponent(materialId)}`,
-      ),
+      apiUrl(`/api/video-learning/materials/${encodeURIComponent(materialId)}`),
       {
         cache: "no-store",
       },

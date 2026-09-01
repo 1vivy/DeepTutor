@@ -14,6 +14,10 @@ from typing import TYPE_CHECKING, Any, Literal
 from deeptutor.core.stream import StreamEvent, StreamEventType
 from deeptutor.services.llm.utils import clean_thinking_tags
 from deeptutor.services.session.protocol import SessionStoreProtocol
+from deeptutor.services.session.workspace_preferences import (
+    WORKSPACE_MODE_MASTERY,
+    WORKSPACE_MODES,
+)
 
 if TYPE_CHECKING:
     from deeptutor.runtime.coordination import TurnLease
@@ -256,9 +260,6 @@ def _mastery_path_id(value: Any) -> str:
     return str(value or "").strip()
 
 
-WORKSPACE_MODE_READING = "immersive_reading"
-WORKSPACE_MODE_MASTERY = "mastery_path"
-_WORKSPACE_MODES = {WORKSPACE_MODE_READING, WORKSPACE_MODE_MASTERY}
 _MASTERY_AGENTIC_ACTIONS = {
     "chat",
     "ask_questions",
@@ -273,14 +274,15 @@ _MASTERY_AGENTIC_ACTIONS = {
 def _workspace_mode(value: Any, *, capability: str = "") -> str:
     """Normalize the stable workspace independently of the per-turn action.
 
-    Older clients sent Reading/Mastery as the capability itself, so those two
-    values remain a fallback while stored sessions migrate naturally.
+    Direct capability callers (including the CLI) can invoke Reading/Mastery
+    without a separate web workspace field, so those two values are also valid
+    request-boundary signals. Persisted sessions are upgraded by their store.
     """
     candidate = str(value or "").strip()
-    if candidate in _WORKSPACE_MODES:
+    if candidate in WORKSPACE_MODES:
         return candidate
     legacy = str(capability or "").strip()
-    return legacy if legacy in _WORKSPACE_MODES else ""
+    return legacy if legacy in WORKSPACE_MODES else ""
 
 
 def _mastery_loop_managed(workspace_mode: str, capability: str) -> bool:

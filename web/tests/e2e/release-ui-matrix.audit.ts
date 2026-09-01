@@ -42,11 +42,15 @@ for (const theme of themes) {
 
         for (const [surface, path] of surfaces) {
           await test.step(surface, async () => {
-            await page.goto(`${BASE_URL}${path}`, { waitUntil: "domcontentloaded" });
+            await page.goto(`${BASE_URL}${path}`, {
+              waitUntil: "domcontentloaded",
+            });
             await expect(page.locator("body")).toBeVisible();
             await page.waitForTimeout(250);
 
-            const rootClasses = await page.locator("html").getAttribute("class");
+            const rootClasses = await page
+              .locator("html")
+              .getAttribute("class");
             if (theme === "snow") expect(rootClasses).toContain("theme-snow");
             if (theme === "dark") expect(rootClasses).toContain("dark");
             if (theme === "glass") {
@@ -54,14 +58,18 @@ for (const theme of themes) {
               expect(rootClasses).toContain("theme-glass");
             }
             if (theme === "light") {
-              expect(rootClasses || "").not.toMatch(/\bdark\b|\btheme-snow\b|\btheme-glass\b/);
+              expect(rootClasses || "").not.toMatch(
+                /\bdark\b|\btheme-snow\b|\btheme-glass\b/,
+              );
             }
 
             const layout = await page.evaluate(() => ({
               viewport: window.innerWidth,
               documentWidth: document.documentElement.scrollWidth,
               populatedPasswords: Array.from(
-                document.querySelectorAll<HTMLInputElement>('input[type="password"]'),
+                document.querySelectorAll<HTMLInputElement>(
+                  'input[type="password"]',
+                ),
               ).filter((input) => input.value.length > 0).length,
               text: document.body.innerText,
             }));
@@ -70,14 +78,18 @@ for (const theme of themes) {
               `${surface} overflows at ${theme}/${language}/${viewportName}`,
             ).toBeLessThanOrEqual(layout.viewport + 1);
             expect(layout.populatedPasswords).toBe(0);
-            expect(layout.text).not.toMatch(/\bsk-[A-Za-z0-9_-]{20,}\b|\bBearer\s+[A-Za-z0-9._-]{20,}/);
+            expect(layout.text).not.toMatch(
+              /\bsk-[A-Za-z0-9_-]{20,}\b|\bBearer\s+[A-Za-z0-9._-]{20,}/,
+            );
 
             const focusables = page.locator(
               'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
             );
             if ((await focusables.count()) > 0) {
               await page.keyboard.press("Tab");
-              const focusedTag = await page.evaluate(() => document.activeElement?.tagName);
+              const focusedTag = await page.evaluate(
+                () => document.activeElement?.tagName,
+              );
               expect(focusedTag).not.toBe("BODY");
             }
           });
