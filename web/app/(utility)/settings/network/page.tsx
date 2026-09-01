@@ -19,6 +19,11 @@ import {
   writeStoredChatResponseTimeout,
 } from "@/context/app-shell-storage";
 import { apiFetch, apiUrl } from "@/lib/api";
+import {
+  RuntimeHealthCard,
+  TurnCoordinationSettings,
+  useRuntimeStatus,
+} from "@/features/runtime-status";
 
 type NetworkSettings = {
   backend_port: number;
@@ -210,6 +215,7 @@ function ChatResponseTimeoutSection() {
 
 export default function NetworkSettingsPage() {
   const { t } = useTranslation();
+  const runtime = useRuntimeStatus();
   const { registerExtension, pendingExtensionPayload, draftRevision } =
     useSettings();
   const apiBasePlaceholder = "https://api.example.com";
@@ -327,6 +333,26 @@ export default function NetworkSettingsPage() {
       <p className="mb-7 text-[12px] text-[var(--muted-foreground)]">
         {t("Network changes take effect after restart.")}
       </p>
+
+      <div className="mb-7">
+        <RuntimeHealthCard
+          snapshot={runtime}
+          onRefresh={runtime.refresh}
+          showDetails
+        />
+        {runtime.data ? (
+          <TurnCoordinationSettings
+            value={{
+              backendWorkers: runtime.data.workerCount,
+              coordinationMode: runtime.data.coordinationMode,
+              developmentReload: false,
+              leaseTtlSeconds: runtime.data.leaseTtlSeconds,
+              recoveryIntervalSeconds: runtime.data.recoveryIntervalSeconds,
+            }}
+            redisConfigured={runtime.data.redisConfigured}
+          />
+        ) : null}
+      </div>
 
       <ChatResponseTimeoutSection />
 
