@@ -30,7 +30,7 @@ import {
   extractMessageSegments,
   leadingTraceEvents,
 } from "@/components/chat/home/AskUserOptions";
-import { StreamingStatus, TraceFlow } from "@/components/chat/home/TracePanels";
+import { StreamingStatus, TraceFlow } from "@/features/chat/trace";
 import { useSmoothStreamText } from "@/hooks/useSmoothStreamText";
 import {
   type QuizFollowupTabContext,

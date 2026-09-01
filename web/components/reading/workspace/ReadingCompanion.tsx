@@ -37,7 +37,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ChatMessageList } from "@/components/chat/home/ChatMessages";
+import { ChatMessageList } from "@/features/chat/messages";
 import { buildSessionActivity } from "@/components/chat/home/SessionActivityPanel";
 import SessionViewerPanel, {
   type SessionViewerPanelHandle,

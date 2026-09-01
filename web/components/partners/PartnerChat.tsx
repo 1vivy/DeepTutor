@@ -37,7 +37,7 @@ import {
   shouldAppendEventContent,
 } from "@/lib/stream";
 import { useChatAutoScroll } from "@/hooks/useChatAutoScroll";
-import { AssistantActivity } from "@/components/chat/home/TracePanels";
+import { AssistantActivity } from "@/features/chat/trace";
 import {
   PartnerComposer,
   type PartnerPendingAttachment,
