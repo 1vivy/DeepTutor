@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { lifecycleStatus, sendPrompt } from "./fixtures/runtime";
+
 const integrationFixtureAvailable =
   process.env.DEEPTUTOR_TURN_E2E_FIXTURE === "1";
 
@@ -12,12 +14,9 @@ test.describe("v2 turn lifecycle", () => {
   test("keeps server-authoritative lifecycle states visible", async ({ page }) => {
     await page.goto("/");
 
-    const composer = page.getByRole("textbox").last();
-    await expect(composer).toBeVisible();
-    await composer.fill("Explain replay-safe turns");
-    await composer.press("Enter");
+    await sendPrompt(page, "Explain replay-safe turns");
 
-    const status = page.getByTestId("turn-status");
+    const status = lifecycleStatus(page);
     await expect(status).toContainText(/queued|connecting/i);
     await expect(status).toContainText(/streaming|responding/i);
     await expect(status).toContainText(/waiting for input/i);
@@ -30,12 +29,11 @@ test.describe("v2 turn lifecycle", () => {
 
   test("recovers without inventing a terminal failure", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("textbox").last().fill("Start a long turn");
-    await page.getByRole("textbox").last().press("Enter");
+    await sendPrompt(page, "Start a long turn");
 
-    const status = page.getByTestId("turn-status");
+    const status = lifecycleStatus(page);
     await expect(status).toContainText(/streaming|responding/i);
-    await page.getByTestId("fixture-drop-socket").click();
+    await page.getByRole("button", { name: /drop connection/i }).click();
     await expect(status).toContainText(/recovering|reconnecting/i);
     await expect(status).not.toContainText(/failed/i);
     await expect(status).toContainText(/streaming|completed/i);
@@ -43,11 +41,10 @@ test.describe("v2 turn lifecycle", () => {
 
   test("waits for cancellation acknowledgement", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("textbox").last().fill("Start a cancellable turn");
-    await page.getByRole("textbox").last().press("Enter");
+    await sendPrompt(page, "Start a cancellable turn");
     await page.getByRole("button", { name: /stop|cancel/i }).click();
 
-    const status = page.getByTestId("turn-status");
+    const status = lifecycleStatus(page);
     await expect(status).toContainText(/cancelling/i);
     await expect(status).toContainText(/cancelled/i);
   });
