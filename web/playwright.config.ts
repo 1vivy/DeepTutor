@@ -21,7 +21,15 @@ export default defineConfig({
     {
       name: "ui-audit",
       testMatch: "**/*.audit.ts",
-      testIgnore: "**/epub-reader.audit.ts",
+      testIgnore: [
+        "**/epub-reader.audit.ts",
+        "**/e2e/turn-lifecycle.audit.ts",
+      ],
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "critical-turns",
+      testMatch: "**/e2e/turn-lifecycle.audit.ts",
       use: { ...devices["Desktop Chrome"] },
     },
     {

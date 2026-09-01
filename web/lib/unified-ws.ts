@@ -32,6 +32,7 @@ export type StreamEventType =
   | "error"
   | "session"
   | "session_meta"
+  | "wait_for_input"
   | "done";
 
 export interface StreamEvent {
