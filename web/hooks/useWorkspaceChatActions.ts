@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { useUnifiedChat } from "@/features/chat/compat/UnifiedChatFacade";
+import { useChatStateAdapter } from "@/features/chat/ChatStateAdapter";
 import { getChatCapability } from "@/features/capabilities/presentation";
 import { useCapabilityCatalog } from "@/features/capabilities/useCapabilityCatalog";
 import { getEnabledOptionalTools } from "@/lib/tools-settings";
 
 /** Keep Reading/Mastery action selection on the same tool policy as Home. */
 export function useWorkspaceChatActions() {
-  const { state, setCapability, setTools } = useUnifiedChat();
+  const { state, setCapability, setTools } = useChatStateAdapter();
   const { capabilities: catalogCapabilities } = useCapabilityCatalog();
   const workspaceCapabilities = useMemo(
     () =>

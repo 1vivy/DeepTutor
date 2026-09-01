@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { StreamEvent } from "@/lib/unified-ws";
+import type { StreamEvent } from "@/features/chat/model/protocol";
 import { getTraceMeta } from "@/features/chat/trace";
 
 /**

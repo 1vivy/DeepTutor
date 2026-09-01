@@ -22,7 +22,7 @@ import { buildSessionActivity } from "@/components/chat/home/SessionActivityPane
 import SessionViewerPanel, {
   type SessionViewerPanelHandle,
 } from "@/components/chat/home/SessionViewerPanel";
-import { useUnifiedChat } from "@/features/chat/compat/UnifiedChatFacade";
+import { useChatStateAdapter } from "@/features/chat/ChatStateAdapter";
 import { TurnStatusBar } from "@/features/chat/components/turn";
 import { turnViewState } from "@/features/chat/model/turn-state";
 import { useChatAutoScroll } from "@/hooks/useChatAutoScroll";
@@ -91,7 +91,7 @@ export function MasteryStudy({
     deleteTurn,
     editMessage,
     switchBranch,
-  } = useUnifiedChat();
+  } = useChatStateAdapter();
   const confirmResearchOutline = useResearchOutlineContinuation();
   const { topic, topicError, knowledgeBases, sessionError, sessionLoading } =
     useMasteryStudySession(pathId, routeSessionId, courseId);

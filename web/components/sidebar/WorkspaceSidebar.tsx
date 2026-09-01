@@ -7,7 +7,7 @@ import { SidebarShell } from "@/components/sidebar/SidebarShell";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { AdminLink } from "@/components/auth/AdminLink";
 import { ProfileLink } from "@/components/auth/ProfileLink";
-import { useUnifiedChat } from "@/features/chat/compat/UnifiedChatFacade";
+import { useChatStateAdapter } from "@/features/chat/ChatStateAdapter";
 import {
   deleteSession,
   listSessions,
@@ -36,7 +36,7 @@ export default function WorkspaceSidebar() {
     selectedSessionId,
     sessionStatuses,
     sidebarRefreshToken,
-  } = useUnifiedChat();
+  } = useChatStateAdapter();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [courses, setCourses] = useState<StudyCourse[]>([]);
   const [masteryTopics, setMasteryTopics] = useState<MasteryTopicLabel[]>([]);

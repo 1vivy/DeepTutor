@@ -11,7 +11,7 @@ import {
 } from "@/context/app-shell-storage";
 import { setTheme, type Theme } from "@/lib/theme";
 import { collectAppliedSettingIds } from "@/lib/setup-signals";
-import type { StreamEvent } from "@/lib/unified-ws";
+import type { StreamEvent } from "@/features/chat/model/protocol";
 
 const THEMES: readonly Theme[] = ["light", "dark", "glass", "snow"];
 

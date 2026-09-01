@@ -45,7 +45,7 @@ import { listLLMOptions, type LLMOption } from "@/lib/llm-options";
 import type { SelectedRecord } from "@/lib/notebook-selection-types";
 import type { SpaceMemoryFile } from "@/lib/space-items";
 import { getSubagentSettings } from "@/lib/subagents-api";
-import type { LLMSelection } from "@/lib/unified-ws";
+import type { LLMSelection } from "@/features/chat/model/protocol";
 import {
   DEFAULT_QUIZ_CONFIG,
   buildQuizWSConfig,

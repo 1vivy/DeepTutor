@@ -7,7 +7,7 @@ import { ArrowUp, Loader2 } from "lucide-react";
 import SubagentRunTranscript from "@/components/chat/home/SubagentRunTranscript";
 import { getTraceMeta } from "@/features/chat/trace";
 import { streamSubagentMessage } from "@/lib/subagents-api";
-import type { StreamEvent } from "@/lib/unified-ws";
+import type { StreamEvent } from "@/features/chat/model/protocol";
 
 /**
  * A connected subagent's run tab: the streamed transcript plus an input box to

@@ -38,7 +38,7 @@ import Tooltip from "@/components/common/Tooltip";
 import type {
   MessageAttachment,
   MessageRequestSnapshot,
-} from "@/features/chat/compat/UnifiedChatFacade";
+} from "@/features/chat/ChatStateAdapter";
 import { apiFetch, apiUrl } from "@/lib/api";
 import { docIconFor } from "@/lib/doc-attachments";
 import { useVoiceAutoplay } from "@/hooks/useVoiceAutoplay";
@@ -49,7 +49,7 @@ import {
   extractStreamingQuizQuestions,
 } from "@/lib/quiz-types";
 import { extractVisualizeResult } from "@/lib/visualize-types";
-import type { StreamEvent } from "@/lib/unified-ws";
+import type { StreamEvent } from "@/features/chat/model/protocol";
 import { hasVisibleMarkdownContent } from "@/lib/markdown-display";
 import type { SelectedBookReference } from "@/lib/book-references";
 import { buildVisiblePath, type SiblingInfo } from "@/lib/message-branches";

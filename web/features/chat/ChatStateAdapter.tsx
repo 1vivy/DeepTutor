@@ -18,8 +18,8 @@ import {
   readStoredResponseLanguage,
   writeStoredActiveSessionId,
 } from "@/context/app-shell-storage";
-import type { StreamEvent, ChatMessage, LLMSelection } from "@/lib/unified-ws";
-import { UnifiedWSClient } from "@/lib/unified-ws";
+import type { StreamEvent, ChatMessage, LLMSelection } from "@/features/chat/model/protocol";
+import { UnifiedTurnClient } from "@/features/chat/transport/UnifiedTurnClient";
 import {
   getSession,
   deleteMessage,
@@ -1198,7 +1198,7 @@ function hydrateRequestSnapshot(
   return snapshot;
 }
 
-export function UnifiedChatProvider({
+export function ChatStateAdapterProvider({
   children,
 }: {
   children: React.ReactNode;
@@ -1210,7 +1210,7 @@ export function UnifiedChatProvider({
       string,
       {
         key: string;
-        client: UnifiedWSClient;
+        client: UnifiedTurnClient;
       }
     >
   >(new Map());
@@ -1464,7 +1464,7 @@ export function UnifiedChatProvider({
       }
       const record = {
         key,
-        client: new UnifiedWSClient(
+        client: new UnifiedTurnClient(
           (event) => handleRunnerEvent(record.key, event),
           () => {
             const session = stateRef.current.sessions[record.key];
@@ -2029,7 +2029,7 @@ export function UnifiedChatProvider({
       if (!session || !turnId || (!session.isStreaming && !pendingAskUser)) {
         return;
       }
-      const message: import("@/lib/unified-ws").SubmitUserReplyMessage = {
+      const message: import("@/features/chat/model/protocol").SubmitUserReplyMessage = {
         type: "submit_user_reply",
         turn_id: turnId,
       };
@@ -2293,7 +2293,7 @@ export function UnifiedChatProvider({
   // Memoize the context value so consumers don't re-render on every render of
   // this provider. Without this wrap, every stream-event-driven reducer
   // dispatch produced a fresh object identity, cascading a re-render through
-  // every `useUnifiedChat()` consumer (chat page, composer, sidebar) on each
+  // every adapter consumer (chat page, composer, sidebar) on each
   // token. The callbacks below are already stable via useCallback; the only
   // things that should change identity are derivedState, sessionStatuses,
   // and sidebarRefreshToken.
@@ -2354,10 +2354,10 @@ export function UnifiedChatProvider({
   return <ChatCtx.Provider value={value}>{children}</ChatCtx.Provider>;
 }
 
-/** @deprecated Compatibility-only hook while leaf surfaces move to narrow selectors/actions. */
-export function useUnifiedChat() {
+/** Transitional state adapter for surfaces that have not moved to store selectors yet. */
+export function useChatStateAdapter() {
   const ctx = useContext(ChatCtx);
   if (!ctx)
-    throw new Error("useUnifiedChat must be inside UnifiedChatProvider");
+    throw new Error("useChatStateAdapter must be inside ChatStateAdapterProvider");
   return ctx;
 }

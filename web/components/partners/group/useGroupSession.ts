@@ -28,7 +28,7 @@ import {
   recomputeAnswerContent,
   shouldAppendEventContent,
 } from "@/lib/stream";
-import type { StreamEvent } from "@/lib/unified-ws";
+import type { StreamEvent } from "@/features/chat/model/protocol";
 
 export type SeatStatus = "waiting" | "working" | "done" | "error";
 

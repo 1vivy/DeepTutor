@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { docIconFor, formatBytes, isSvgFilename } from "@/lib/doc-attachments";
-import type { MessageAttachment } from "@/features/chat/compat/UnifiedChatFacade";
+import type { MessageAttachment } from "@/features/chat/ChatStateAdapter";
 import { listSessions, type SessionSummary } from "@/lib/session-api";
 import { listNotebooks, type NotebookSummary } from "@/lib/notebook-api";
 import { bookApi } from "@/lib/book-api";

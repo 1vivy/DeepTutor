@@ -12,8 +12,8 @@ import type {
   MessageAttachment,
   MessageItem,
   MessageRequestSnapshot,
-} from "@/features/chat/compat/UnifiedChatFacade";
-import type { StreamEvent } from "@/lib/unified-ws";
+} from "@/features/chat/ChatStateAdapter";
+import type { StreamEvent } from "@/features/chat/model/protocol";
 
 /** Artifact URLs are `/api/outputs/<path under the data root>`. */
 const OUTPUTS_URL_PREFIX = "/api/outputs/";

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import i18n from "i18next";
 
 import { apiFetch, apiUrl } from "@/lib/api";
-import type { LLMSelection } from "@/lib/unified-ws";
+import type { LLMSelection } from "@/features/chat/model/protocol";
 
 export type RunMode = "update" | "audit" | "dedup";
 export type RunStatus = "queued" | "running" | "cancelled" | "done" | "error";

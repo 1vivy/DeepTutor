@@ -44,7 +44,7 @@ import SessionViewerPanel, {
 } from "@/components/chat/home/SessionViewerPanel";
 import { ChatViewerBridges } from "@/components/chat/home/ChatViewerBridges";
 import Tooltip from "@/components/common/Tooltip";
-import { useUnifiedChat } from "@/features/chat/compat/UnifiedChatFacade";
+import { useChatStateAdapter } from "@/features/chat/ChatStateAdapter";
 import { TurnStatusBar } from "@/features/chat/components/turn";
 import { turnViewState } from "@/features/chat/model/turn-state";
 import { useChatAutoScroll } from "@/hooks/useChatAutoScroll";
@@ -121,7 +121,7 @@ export function ReadingCompanion({
     deleteTurn,
     editMessage,
     switchBranch,
-  } = useUnifiedChat();
+  } = useChatStateAdapter();
   const confirmResearchOutline = useResearchOutlineContinuation();
 
   const [showSessions, setShowSessions] = useState(false);

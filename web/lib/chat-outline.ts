@@ -12,7 +12,7 @@
  * agree on a stable ``data-turn-key`` per bubble.
  */
 
-import type { MessageItem } from "@/features/chat/compat/UnifiedChatFacade";
+import type { MessageItem } from "@/features/chat/ChatStateAdapter";
 import { buildVisiblePath } from "@/lib/message-branches";
 
 /**

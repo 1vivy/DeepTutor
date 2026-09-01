@@ -1,6 +1,6 @@
 import { apiFetch, apiUrl } from "@/lib/api";
 import { invalidateClientCache, withClientCache } from "@/lib/client-cache";
-import type { LLMSelection, StreamEvent } from "@/lib/unified-ws";
+import type { LLMSelection, StreamEvent } from "@/features/chat/model/protocol";
 
 export interface SessionMessage {
   id: number;

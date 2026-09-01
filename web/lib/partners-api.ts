@@ -1,7 +1,7 @@
 /** Typed client for the /api/v1/partners backend. */
 
 import { apiFetch, apiUrl } from "@/lib/api";
-import type { LLMSelection } from "@/lib/unified-ws";
+import type { LLMSelection } from "@/features/chat/model/protocol";
 
 export interface PartnerInfo {
   partner_id: string;

@@ -1,6 +1,6 @@
 import { apiFetch, apiUrl } from "@/lib/api";
 import { invalidateClientCache, withClientCache } from "@/lib/client-cache";
-import type { LLMSelection } from "@/lib/unified-ws";
+import type { LLMSelection } from "@/features/chat/model/protocol";
 
 const LLM_OPTIONS_CACHE_KEY = "llm-options:list";
 const DEFAULT_LLM_OPTIONS_TIMEOUT_MS = 30_000;

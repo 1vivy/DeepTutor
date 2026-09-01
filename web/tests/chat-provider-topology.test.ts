@@ -9,7 +9,7 @@ test("workspace owns one runtime and Reading does not nest another", () => {
   assert.match(source("app/(workspace)/layout.tsx"), /ChatRuntimeProvider/);
   assert.doesNotMatch(
     source("app/(workspace)/reading/layout.tsx"),
-    /ChatRuntimeProvider|UnifiedChatProvider/,
+    /ChatRuntimeProvider|ChatStateAdapterProvider/,
   );
 });
 

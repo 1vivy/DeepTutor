@@ -3,7 +3,7 @@
 import { apiFetch, apiUrl } from "@/lib/api";
 import { browserStorage } from "@/shared/storage";
 import type { PartnerInfo } from "@/lib/partners-api";
-import type { StreamEvent } from "@/lib/unified-ws";
+import type { StreamEvent } from "@/features/chat/model/protocol";
 
 export interface PartnerGroupMember extends Pick<
   PartnerInfo,

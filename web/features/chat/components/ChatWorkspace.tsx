@@ -52,10 +52,10 @@ import {
 } from "@/context/GeogebraTabContext";
 import { BookmarkPlus, Download, PanelRight } from "lucide-react";
 import {
-  useUnifiedChat,
+  useChatStateAdapter,
   type MessageAttachment,
   type MessageRequestSnapshot,
-} from "@/features/chat/compat/UnifiedChatFacade";
+} from "@/features/chat/ChatStateAdapter";
 import { useAppShell } from "@/context/AppShellContext";
 
 import {
@@ -63,7 +63,7 @@ import {
   WatchingPane,
 } from "@/components/watching/WatchingPane";
 import type { FilePreviewSource } from "@/components/chat/preview/previewerFor";
-import type { LLMSelection, StreamEvent } from "@/lib/unified-ws";
+import type { LLMSelection, StreamEvent } from "@/features/chat/model/protocol";
 import {
   extractBase64FromDataUrl,
   readFileAsDataUrl,
@@ -291,7 +291,7 @@ export default function ChatWorkspace() {
     showCachedSession,
     renameSessionTitle,
     setCourseId,
-  } = useUnifiedChat();
+  } = useChatStateAdapter();
 
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [knowledgeBasesLoaded, setKnowledgeBasesLoaded] = useState(false);

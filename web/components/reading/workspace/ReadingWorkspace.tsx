@@ -28,7 +28,7 @@ import { useTranslation } from "react-i18next";
 
 import type { JumpRequest } from "@/components/reading/PdfDocumentView";
 import { READER_ASK_EVENT, ReaderPane } from "@/components/reading/ReaderPane";
-import { useUnifiedChat } from "@/features/chat/compat/UnifiedChatFacade";
+import { useChatStateAdapter } from "@/features/chat/ChatStateAdapter";
 import type { ReaderHeading } from "@/lib/reading-outline";
 import { setReadingViewport } from "@/lib/reading-turn-state";
 import { listNotebooks, type NotebookSummary } from "@/lib/notebook-api";
@@ -95,7 +95,7 @@ export function ReadingWorkspacePage() {
   // The shell only needs to *send* (guided one-click prompts). Rendering the
   // transcript, editing, branching and cancelling all belong to the companion,
   // which reads them off the same context.
-  const { state, sendMessage } = useUnifiedChat();
+  const { state, sendMessage } = useChatStateAdapter();
 
   const {
     workspace,

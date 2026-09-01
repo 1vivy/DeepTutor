@@ -5,9 +5,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  useUnifiedChat,
+  useChatStateAdapter,
   type SessionConfiguration,
-} from "@/features/chat/compat/UnifiedChatFacade";
+} from "@/features/chat/ChatStateAdapter";
 import { useMasteryPathActivity } from "@/hooks/useMasteryPathActivity";
 import {
   fetchMasteryTopic,
@@ -43,7 +43,7 @@ export function useMasteryStudySession(
     configureSession,
     loadSession,
     showCachedSession,
-  } = useUnifiedChat();
+  } = useChatStateAdapter();
 
   const [topic, setTopic] = useState<MasteryTopic | null>(null);
   const [topicError, setTopicError] = useState<string | null>(null);

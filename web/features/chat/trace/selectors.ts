@@ -1,4 +1,4 @@
-import type { StreamEvent } from "@/lib/unified-ws";
+import type { StreamEvent } from "@/features/chat/model/protocol";
 import { formatProgressLabel, type ToolProvider } from "@/lib/trace-tools";
 import type {
   StreamingMode,

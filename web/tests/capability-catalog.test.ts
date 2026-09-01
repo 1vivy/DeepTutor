@@ -98,10 +98,9 @@ test("component-owned capability types cannot return", () => {
     path.resolve(process.cwd(), "components/chat/home/ChatComposer.tsx"),
     "utf8",
   );
-  const legacy = fs.readFileSync(
-    path.resolve(process.cwd(), "lib/chat-capabilities.ts"),
-    "utf8",
-  );
   assert.doesNotMatch(composer, /export interface CapabilityDef/);
-  assert.doesNotMatch(legacy, /components\/chat\/home\/ChatComposer/);
+  assert.equal(
+    fs.existsSync(path.resolve(process.cwd(), "lib/chat-capabilities.ts")),
+    false,
+  );
 });

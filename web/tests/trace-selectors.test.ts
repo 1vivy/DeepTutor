@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { StreamEvent } from "../lib/unified-ws";
+import type { StreamEvent } from "../features/chat/model/protocol";
 import {
   detectStreamingMode,
   groupTraceEvents,

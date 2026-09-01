@@ -34,12 +34,12 @@ import {
 import { shouldSubmitOnEnter } from "@/lib/composer-keyboard";
 import { useImeComposing } from "@/lib/use-ime-composing";
 import { shouldAppendEventContent } from "@/lib/stream";
-import {
-  UnifiedWSClient,
-  type StartTurnMessage,
-  type StreamEvent,
-} from "@/lib/unified-ws";
-import type { MessageAttachment } from "@/features/chat/compat/UnifiedChatFacade";
+import type {
+  StartTurnMessage,
+  StreamEvent,
+} from "@/features/chat/model/protocol";
+import { UnifiedTurnClient } from "@/features/chat/transport/UnifiedTurnClient";
+import type { MessageAttachment } from "@/features/chat/ChatStateAdapter";
 import type { Page, Book } from "@/lib/book-types";
 
 interface ChatMessage {
@@ -113,7 +113,7 @@ export default function BookChatPanel({
   const attachmentLimits = useAttachmentLimits();
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const sessionIdRef = useRef<string | null>(null);
-  const clientRef = useRef<UnifiedWSClient | null>(null);
+  const clientRef = useRef<UnifiedTurnClient | null>(null);
   const retryTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -262,16 +262,16 @@ export default function BookChatPanel({
     });
   }
 
-  function ensureClient(): UnifiedWSClient {
+  function ensureClient(): UnifiedTurnClient {
     if (clientRef.current) return clientRef.current;
-    const client = new UnifiedWSClient(handleEvent, () => setBusy(false));
+    const client = new UnifiedTurnClient(handleEvent, () => setBusy(false));
     clientRef.current = client;
     client.connect();
     return client;
   }
 
   function sendWithRetry(
-    client: UnifiedWSClient,
+    client: UnifiedTurnClient,
     payload: StartTurnMessage,
     attempt = 0,
   ) {

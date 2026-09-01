@@ -17,7 +17,7 @@ import {
   describeProviderTool,
   type ToolProvider,
 } from "@/lib/trace-tools";
-import type { StreamEvent } from "@/lib/unified-ws";
+import type { StreamEvent } from "@/features/chat/model/protocol";
 import {
   getLatestToolProgress as selectLatestToolProgress,
   getToolProvider as selectToolProvider,

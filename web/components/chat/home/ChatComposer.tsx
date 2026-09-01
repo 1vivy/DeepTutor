@@ -43,7 +43,7 @@ import type { StudyCourse } from "@/lib/courses-api";
 import type { SelectedHistorySession } from "@/components/chat/HistorySessionPicker";
 import type { SelectedQuestionEntry } from "@/components/chat/QuestionBankPicker";
 import type { SelectedRecord } from "@/lib/notebook-selection-types";
-import type { LLMSelection } from "@/lib/unified-ws";
+import type { LLMSelection } from "@/features/chat/model/protocol";
 import type { LLMOption } from "@/lib/llm-options";
 import ChatSpaceMenu from "@/components/chat/space/ChatSpaceMenu";
 import type { SpaceMemoryFile } from "@/lib/space-items";

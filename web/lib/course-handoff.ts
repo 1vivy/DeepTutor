@@ -1,4 +1,4 @@
-import type { StreamEvent } from "@/lib/unified-ws";
+import type { StreamEvent } from "@/features/chat/model/protocol";
 
 /**
  * Reading the `course_study` capability's hand-off signals off a turn's stream.

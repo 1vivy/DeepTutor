@@ -5,7 +5,7 @@ import type {
   ChatMessage,
   StreamEvent,
   StreamEventType,
-} from "../lib/unified-ws";
+} from "../features/chat/model/protocol";
 
 const waitForInputKind: StreamEventType = "wait_for_input";
 

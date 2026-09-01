@@ -33,8 +33,8 @@ import {
   type ChatMessage,
   type LLMSelection,
   type StreamEvent,
-  UnifiedWSClient,
-} from "@/lib/unified-ws";
+} from "@/features/chat/model/protocol";
+import { UnifiedTurnClient } from "@/features/chat/transport/UnifiedTurnClient";
 import type { QuizQuestion } from "@/lib/quiz-types";
 import type { SelectionTutorContext } from "@/lib/selection-tutor";
 
@@ -221,7 +221,7 @@ export function QuizFollowupProvider({ children }: ProviderProps) {
   );
   const threadsRef = useRef<Record<string, FollowupThreadState>>({});
   const runnersRef = useRef<
-    Map<string, { questionKey: string; client: UnifiedWSClient }>
+    Map<string, { questionKey: string; client: UnifiedTurnClient }>
   >(new Map());
   // Notebook entry ids per question — captured from sendMessage so the
   // ``session`` event handler can persist ``followup_session_id`` on the
@@ -356,7 +356,7 @@ export function QuizFollowupProvider({ children }: ProviderProps) {
       }
       const record = {
         questionKey: key,
-        client: new UnifiedWSClient(
+        client: new UnifiedTurnClient(
           (event) => handleThreadEvent(key, event),
           () => {
             const current = threadsRef.current[key];
@@ -466,7 +466,7 @@ export function QuizFollowupProvider({ children }: ProviderProps) {
       );
       if (!current.isStreaming && !pendingAskUser) return;
 
-      const message: import("@/lib/unified-ws").SubmitUserReplyMessage = {
+      const message: import("@/features/chat/model/protocol").SubmitUserReplyMessage = {
         type: "submit_user_reply",
         turn_id: turnId,
       };

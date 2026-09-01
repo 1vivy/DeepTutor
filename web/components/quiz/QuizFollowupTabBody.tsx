@@ -326,7 +326,7 @@ function AssistantThreadMessage({
   message: {
     role: "user" | "assistant" | "system";
     content: string;
-    events?: import("@/lib/unified-ws").StreamEvent[];
+    events?: import("@/features/chat/model/protocol").StreamEvent[];
   };
   isStreaming: boolean;
   onSubmitUserReply: (reply: {

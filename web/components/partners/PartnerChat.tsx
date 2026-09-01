@@ -29,7 +29,7 @@ import { displaySessionTitle } from "@/lib/session-title";
 import { createPartnerDraftPublisher } from "@/lib/partner-chat-draft";
 import { ReconnectingWebSocket } from "@/lib/reconnecting-websocket";
 import type { ExportableMessage } from "@/lib/chat-export";
-import type { StreamEvent } from "@/lib/unified-ws";
+import type { StreamEvent } from "@/features/chat/model/protocol";
 import { docIconFor, formatBytes, isSvgFilename } from "@/lib/doc-attachments";
 import {
   isNarrationMarker,
