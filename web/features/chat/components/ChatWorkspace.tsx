@@ -53,7 +53,7 @@ import {
   useUnifiedChat,
   type MessageAttachment,
   type MessageRequestSnapshot,
-} from "@/context/UnifiedChatContext";
+} from "@/features/chat/compat/UnifiedChatFacade";
 import { useAppShell } from "@/context/AppShellContext";
 
 import {
