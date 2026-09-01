@@ -22,9 +22,8 @@ import dynamic from "next/dynamic";
 import { MessageSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import ChatComposer, {
-  type CapabilityDef,
-} from "@/components/chat/home/ChatComposer";
+import ChatComposer from "@/components/chat/home/ChatComposer";
+import type { CapabilityDef } from "@/features/capabilities/presentation";
 import type { SelectedHistorySession } from "@/components/chat/HistorySessionPicker";
 import type { SelectedQuestionEntry } from "@/components/chat/QuestionBankPicker";
 import { useAttachmentLimits } from "@/lib/attachment-limits";

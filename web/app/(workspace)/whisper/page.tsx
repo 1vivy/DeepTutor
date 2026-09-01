@@ -6,7 +6,7 @@ import { Ear, Loader2 } from "lucide-react";
 import WhisperComposer from "@/components/whisper/WhisperComposer";
 import WhisperMessageList from "@/components/whisper/WhisperMessageList";
 import WhisperRoomChip from "@/components/whisper/WhisperRoomChip";
-import { useCapabilityFilter } from "@/lib/capabilities-api";
+import { useCapabilityFilter } from "@/features/capabilities/useCapabilityCatalog";
 import {
   UnifiedWSClient,
   type StartTurnMessage,

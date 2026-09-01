@@ -29,7 +29,6 @@ import {
   Square,
   UserRound,
   X,
-  type LucideIcon,
 } from "lucide-react";
 import {
   ATTACHMENT_ACCEPT,
@@ -73,6 +72,7 @@ import ContextReferenceTree, {
 } from "./ContextReferenceTree";
 import { ComposerInput, type ComposerInputHandle } from "./ComposerInput";
 import { useVoiceRecorder } from "@/hooks/useVoiceRecorder";
+import type { CapabilityDef } from "@/features/capabilities/presentation";
 
 interface PendingAttachment {
   type: string;
@@ -85,24 +85,6 @@ interface PendingAttachment {
 
 interface KnowledgeBase {
   name: string;
-}
-
-/**
- * The picker's view of a capability. The authoritative list — including
- * `defaultTools` and the prose — lives with the capabilities themselves in
- * `app/(workspace)/home/[[...sessionId]]/page.tsx`; this is the subset the
- * composer renders, so the two must stay in step.
- */
-export interface CapabilityDef {
-  value: string;
-  label: string;
-  description: string;
-  icon: LucideIcon;
-  allowedTools: string[];
-  /** Collapse into the "More" flyout instead of listing directly. */
-  secondary?: boolean;
-  /** Still resolvable for existing sessions, but never offered as a new one. */
-  legacy?: boolean;
 }
 
 /** One row in the capability picker — shared by the built-in list and the

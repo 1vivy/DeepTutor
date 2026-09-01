@@ -3,27 +3,40 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useUnifiedChat } from "@/features/chat/compat/UnifiedChatFacade";
-import {
-  WORKSPACE_CHAT_CAPABILITIES,
-  getChatCapability,
-} from "@/lib/chat-capabilities";
+import { getChatCapability } from "@/features/capabilities/presentation";
+import { useCapabilityCatalog } from "@/features/capabilities/useCapabilityCatalog";
 import { getEnabledOptionalTools } from "@/lib/tools-settings";
 
 /** Keep Reading/Mastery action selection on the same tool policy as Home. */
 export function useWorkspaceChatActions() {
   const { state, setCapability, setTools } = useUnifiedChat();
+  const { capabilities: catalogCapabilities } = useCapabilityCatalog();
+  const workspaceCapabilities = useMemo(
+    () =>
+      catalogCapabilities.filter(
+        (capability) =>
+          capability.value !== "course_study" &&
+          capability.value !== "mastery_path" &&
+          capability.value !== "immersive_watching" &&
+          !capability.legacy,
+      ),
+    [catalogCapabilities],
+  );
   const [enabledOptionalTools, setEnabledOptionalTools] = useState<
     string[] | null
   >(null);
 
-  const activeValue = WORKSPACE_CHAT_CAPABILITIES.some(
+  const activeValue = workspaceCapabilities.some(
     (capability) => capability.value === (state.activeCapability || ""),
   )
     ? state.activeCapability || ""
     : "";
   const activeCapability = useMemo(
-    () => getChatCapability(activeValue),
-    [activeValue],
+    () =>
+      workspaceCapabilities.find(
+        (capability) => capability.value === activeValue,
+      ) ?? getChatCapability(activeValue),
+    [activeValue, workspaceCapabilities],
   );
 
   useEffect(() => {
@@ -57,21 +70,21 @@ export function useWorkspaceChatActions() {
 
   const selectCapability = useCallback(
     (value: string) => {
-      const selected = WORKSPACE_CHAT_CAPABILITIES.find(
+      const selected = workspaceCapabilities.find(
         (capability) => capability.value === value,
       );
-      const next = selected ?? WORKSPACE_CHAT_CAPABILITIES[0];
+      const next = selected ?? workspaceCapabilities[0] ?? getChatCapability("");
       setCapability(next.value || null);
       if (enabledOptionalTools !== null) {
         const allowed = new Set<string>(next.allowedTools);
         setTools(enabledOptionalTools.filter((tool) => allowed.has(tool)));
       }
     },
-    [enabledOptionalTools, setCapability, setTools],
+    [enabledOptionalTools, setCapability, setTools, workspaceCapabilities],
   );
 
   return {
-    capabilities: WORKSPACE_CHAT_CAPABILITIES,
+    capabilities: workspaceCapabilities,
     activeCapabilityValue: activeValue,
     selectCapability,
   };

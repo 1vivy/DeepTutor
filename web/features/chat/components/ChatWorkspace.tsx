@@ -107,11 +107,10 @@ import {
 } from "@/lib/tools-settings";
 import {
   ALL_TOOLS,
-  CHAT_CAPABILITIES,
-  VISIBLE_CHAT_CAPABILITIES,
   getChatCapability,
   type ToolName,
-} from "@/lib/chat-capabilities";
+} from "@/features/capabilities/presentation";
+import { useCapabilityCatalog } from "@/features/capabilities/useCapabilityCatalog";
 import { downloadChatMarkdown } from "@/lib/chat-export";
 import { buildChatOutline } from "@/lib/chat-outline";
 import { isPlaceholderSessionTitle } from "@/lib/session-title";
@@ -269,6 +268,7 @@ function readContextBudget(
 export default function ChatWorkspace() {
   const { router, sessionId: sessionIdParam } = useChatRouteSession();
   const { t } = useTranslation();
+  const { capabilities, visibleCapabilities } = useCapabilityCatalog();
   const { setActiveSessionId, language: appLanguage } = useAppShell();
 
   const {
@@ -609,8 +609,11 @@ export default function ChatWorkspace() {
   }, [handlePrefillComposer, t]);
 
   const activeCap = useMemo(
-    () => getChatCapability(state.activeCapability),
-    [state.activeCapability],
+    () =>
+      capabilities.find(
+        (capability) => capability.value === (state.activeCapability || ""),
+      ) ?? getChatCapability(state.activeCapability),
+    [capabilities, state.activeCapability],
   );
   const isQuizMode = activeCap.value === "deep_question";
   const isVisualizeMode = activeCap.value === "visualize";
@@ -1408,8 +1411,9 @@ export default function ChatWorkspace() {
   const handleSelectCapability = useCallback(
     (value: string) => {
       const cap =
-        CHAT_CAPABILITIES.find((c) => c.value === value) ??
-        CHAT_CAPABILITIES[0];
+        capabilities.find((capability) => capability.value === value) ??
+        capabilities[0] ??
+        getChatCapability("");
       setCapability(cap.value || null);
       // Per-capability tool selection now derives from the user's saved
       // settings (/settings/tools) intersected with the capability's
@@ -1425,7 +1429,7 @@ export default function ChatWorkspace() {
       setCapabilityConfigConfirmed(false);
       setCapMenuOpen(false);
     },
-    [setCapability, setTools, userEnabledTools],
+    [capabilities, setCapability, setTools, userEnabledTools],
   );
 
   const fileToAttachment = useCallback(
@@ -2567,7 +2571,7 @@ export default function ChatWorkspace() {
                 capabilityNeedsConfig={capabilityNeedsConfig}
                 capabilityConfigConfirmed={capabilityConfigConfirmed}
                 onRequestConfigConfirm={ensureActivityPanelOpen}
-                capabilities={VISIBLE_CHAT_CAPABILITIES}
+                capabilities={visibleCapabilities}
                 onSetCapMenuOpen={setCapMenuOpen}
                 onSetSpaceMenuOpen={setSpaceMenuOpen}
                 onToggleKB={handleToggleKB}
