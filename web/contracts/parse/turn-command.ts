@@ -58,7 +58,15 @@ export function buildSubscribeSession(input: {
   };
 }
 
-export function buildResumeTurn(input: { turnId: string; afterSeq?: number }): ResumeTurnCommand {
+export function buildResumeTurn(input: {
+  turnId: string;
+  afterSeq?: number;
+}): ResumeTurnCommand & {
+  type: "resume_from";
+  turn_id: string;
+  seq: number;
+  protocol_version: "2.0";
+} {
   return {
     type: "resume_from",
     turn_id: id(input.turnId, "turn_id"),

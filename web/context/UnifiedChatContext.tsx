@@ -1718,7 +1718,7 @@ export function UnifiedChatProvider({
         });
         if (decision.kind === "none") continue;
 
-        if (decision.kind === "resume") {
+        if (decision.kind === "resubscribe") {
           // Avoid retrying on every watchdog tick while the re-subscription is
           // opening. The next event will replace this timestamp naturally.
           dispatch({ type: "STREAM_TOUCH", key });
@@ -1726,25 +1726,10 @@ export function UnifiedChatProvider({
           continue;
         }
 
-        dispatch({
-          type: "STREAM_EVENT",
-          key,
-          event: {
-            type: "error",
-            source: "client",
-            stage: "",
-            content: `Connection timed out — no response received for ${timeoutSeconds} seconds.`,
-            metadata: { turn_terminal: true, status: "failed" },
-            timestamp: Date.now() / 1000,
-          },
-        });
-        dispatch({ type: "STREAM_END", key, status: "failed" });
-
-        const runner = runnersRef.current.get(key);
-        if (runner) {
-          runner.client.disconnect();
-          runnersRef.current.delete(key);
-        }
+        // A local timeout cannot invent a terminal state. Mark the session as
+        // observed so the runtime/session reconciliation path can query the
+        // authoritative turn once the server supplies its id.
+        dispatch({ type: "STREAM_TOUCH", key });
       }
     }, CHECK_INTERVAL_MS);
 
