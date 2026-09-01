@@ -5,7 +5,7 @@ import { useCallback } from "react";
 import {
   type MessageRequestSnapshot,
   useUnifiedChat,
-} from "@/context/UnifiedChatContext";
+} from "@/features/chat/compat/UnifiedChatFacade";
 import type { OutlineItem } from "@/lib/research-types";
 
 /** Resume Deep Research after its editable outline, on any chat surface. */

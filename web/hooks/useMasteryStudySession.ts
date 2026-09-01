@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import {
   useUnifiedChat,
   type SessionConfiguration,
-} from "@/context/UnifiedChatContext";
+} from "@/features/chat/compat/UnifiedChatFacade";
 import { useMasteryPathActivity } from "@/hooks/useMasteryPathActivity";
 import {
   fetchMasteryTopic,

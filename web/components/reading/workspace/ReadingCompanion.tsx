@@ -44,7 +44,7 @@ import SessionViewerPanel, {
 } from "@/components/chat/home/SessionViewerPanel";
 import { ChatViewerBridges } from "@/components/chat/home/ChatViewerBridges";
 import Tooltip from "@/components/common/Tooltip";
-import { useUnifiedChat } from "@/context/UnifiedChatContext";
+import { useUnifiedChat } from "@/features/chat/compat/UnifiedChatFacade";
 import { useChatAutoScroll } from "@/hooks/useChatAutoScroll";
 import { useMeasuredHeight } from "@/hooks/useMeasuredHeight";
 import { useResearchOutlineContinuation } from "@/hooks/useResearchOutlineContinuation";

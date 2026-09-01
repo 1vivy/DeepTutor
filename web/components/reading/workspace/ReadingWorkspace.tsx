@@ -26,7 +26,7 @@ import { useTranslation } from "react-i18next";
 
 import type { JumpRequest } from "@/components/reading/PdfDocumentView";
 import { READER_ASK_EVENT, ReaderPane } from "@/components/reading/ReaderPane";
-import { useUnifiedChat } from "@/context/UnifiedChatContext";
+import { useUnifiedChat } from "@/features/chat/compat/UnifiedChatFacade";
 import type { ReaderHeading } from "@/lib/reading-outline";
 import { setReadingViewport } from "@/lib/reading-turn-state";
 import { listNotebooks, type NotebookSummary } from "@/lib/notebook-api";

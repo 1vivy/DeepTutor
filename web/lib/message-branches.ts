@@ -14,7 +14,7 @@
  * persisted positive id).
  */
 
-import type { MessageItem } from "@/context/UnifiedChatContext";
+import type { MessageItem } from "@/features/chat/compat/UnifiedChatFacade";
 
 const ROOT_KEY = "null";
 

@@ -37,7 +37,7 @@ import {
   type StartTurnMessage,
   type StreamEvent,
 } from "@/lib/unified-ws";
-import type { MessageAttachment } from "@/context/UnifiedChatContext";
+import type { MessageAttachment } from "@/features/chat/compat/UnifiedChatFacade";
 import type { Page, Book } from "@/lib/book-types";
 
 interface ChatMessage {

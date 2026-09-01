@@ -38,7 +38,7 @@ import Tooltip from "@/components/common/Tooltip";
 import type {
   MessageAttachment,
   MessageRequestSnapshot,
-} from "@/context/UnifiedChatContext";
+} from "@/features/chat/compat/UnifiedChatFacade";
 import { apiFetch, apiUrl } from "@/lib/api";
 import { docIconFor } from "@/lib/doc-attachments";
 import { useVoiceAutoplay } from "@/hooks/useVoiceAutoplay";

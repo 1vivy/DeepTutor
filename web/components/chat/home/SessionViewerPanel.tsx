@@ -56,7 +56,7 @@ import SubagentTabBody from "@/components/chat/home/SubagentTabBody";
 import type { QuizFollowupTabContext } from "@/context/QuizFollowupContext";
 import type { GeogebraTabPayload } from "@/context/GeogebraTabContext";
 import { apiUrl } from "@/lib/api";
-import type { MessageAttachment } from "@/context/UnifiedChatContext";
+import type { MessageAttachment } from "@/features/chat/compat/UnifiedChatFacade";
 import type { StreamEvent } from "@/lib/unified-ws";
 import {
   normalizeSelectedText,

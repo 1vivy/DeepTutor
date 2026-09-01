@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useReading } from "@/context/ReadingContext";
-import { useUnifiedChat } from "@/context/UnifiedChatContext";
+import { useUnifiedChat } from "@/features/chat/compat/UnifiedChatFacade";
 import { courseSessionConfiguration } from "@/lib/course-session-scope";
 import { getMaterial, getUnitText } from "@/lib/reading-api";
 import {

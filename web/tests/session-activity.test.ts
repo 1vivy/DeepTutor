@@ -7,7 +7,7 @@ import {
 import type {
   MessageItem,
   MessageRequestSnapshot,
-} from "../context/UnifiedChatContext";
+} from "../features/chat/compat/UnifiedChatFacade";
 import type { StreamEvent } from "../lib/unified-ws";
 
 /** A StreamEvent with only the fields the fold reads set explicitly. */

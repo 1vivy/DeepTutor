@@ -12,7 +12,7 @@ import type {
   MessageAttachment,
   MessageItem,
   MessageRequestSnapshot,
-} from "@/context/UnifiedChatContext";
+} from "@/features/chat/compat/UnifiedChatFacade";
 import type { StreamEvent } from "@/lib/unified-ws";
 
 /** Artifact URLs are `/api/outputs/<path under the data root>`. */

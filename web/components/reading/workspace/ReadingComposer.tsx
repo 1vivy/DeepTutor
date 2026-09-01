@@ -17,7 +17,7 @@ import { useCallback } from "react";
 import StandaloneComposer, {
   type StandaloneComposerSubmission,
 } from "@/components/chat/home/StandaloneComposer";
-import { useUnifiedChat } from "@/context/UnifiedChatContext";
+import { useUnifiedChat } from "@/features/chat/compat/UnifiedChatFacade";
 import { useWorkspaceChatActions } from "@/hooks/useWorkspaceChatActions";
 import { hasPendingAskUser } from "@/lib/ask-user-state";
 import { setReadingViewport } from "@/lib/reading-turn-state";

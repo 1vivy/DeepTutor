@@ -7,7 +7,7 @@ import { SidebarShell } from "@/components/sidebar/SidebarShell";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { AdminLink } from "@/components/auth/AdminLink";
 import { ProfileLink } from "@/components/auth/ProfileLink";
-import { useUnifiedChat } from "@/context/UnifiedChatContext";
+import { useUnifiedChat } from "@/features/chat/compat/UnifiedChatFacade";
 import {
   deleteSession,
   listSessions,

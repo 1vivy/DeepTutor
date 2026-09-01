@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { StreamEvent } from "@/contracts/generated/turn-protocol";
 
-import { UnifiedChatProvider } from "@/context/UnifiedChatContext";
+import { UnifiedChatProvider } from "./compat/UnifiedChatFacade";
 
 import { ChatActions } from "./store/ChatActions";
 import { ChatStoreProvider } from "./store/ChatStoreProvider";
