@@ -71,6 +71,16 @@ export interface StartTurnMessage {
   }[];
   language?: string;
   config?: Record<string, unknown>;
+  /** Runtime options are top-level fields; config is capability-owned only. */
+  course_id?: string;
+  persist_user_message?: boolean;
+  regenerate?: boolean;
+  regenerated_from_message_id?: number;
+  superseded_turn_id?: string;
+  followup_question_context?: Record<string, unknown>;
+  selection_tutor_context?: Record<string, unknown>;
+  subagent_consult_budget?: number;
+  auto_route?: boolean;
   notebook_references?: {
     notebook_id: string;
     record_ids: string[];

@@ -12,7 +12,9 @@ export interface LearnerProfile {
 export async function getOwnLearnerProfile(): Promise<LearnerProfile | null> {
   const res = await apiFetch(apiUrl("/api/v1/auth/profile/learner-profile"));
   if (!res.ok) throw new Error("Failed to fetch learner profile");
-  const data = (await res.json()) as { learner_profile?: LearnerProfile | null };
+  const data = (await res.json()) as {
+    learner_profile?: LearnerProfile | null;
+  };
   return data.learner_profile ?? null;
 }
 
@@ -25,7 +27,9 @@ export async function setOwnLearnerProfile(
     body: JSON.stringify(profile),
   });
   if (!res.ok) throw new Error("Failed to save learner profile");
-  const data = (await res.json()) as { learner_profile?: LearnerProfile | null };
+  const data = (await res.json()) as {
+    learner_profile?: LearnerProfile | null;
+  };
   return data.learner_profile ?? null;
 }
 

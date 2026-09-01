@@ -1238,12 +1238,14 @@ def start(
         get_ws_max_size,
         load_auth_settings,
         load_launch_settings,
+        load_system_settings,
     )
     from deeptutor.services.setup import init_user_directories
 
     init_user_directories(runtime_home)
     ensure_runtime_settings_files()
     settings = load_launch_settings(runtime_home)
+    backend_workers = max(1, int(load_system_settings().get("backend_workers") or 1))
     runtime_env = export_runtime_settings_to_env(overwrite=True)
     auth_enabled = bool(load_auth_settings()["enabled"])
 
@@ -1379,6 +1381,8 @@ def start(
         # ECONNRESET ("Failed to proxy ... socket hang up" -> 500).
         "--timeout-keep-alive",
         str(HTTP_KEEP_ALIVE_TIMEOUT),
+        "--workers",
+        str(backend_workers),
     ]
 
     processes: list[ManagedProcess] = []

@@ -472,21 +472,5 @@ export const bookApi = {
     ),
 };
 
-export interface LegacyChatSession {
-  session_id: string;
-  messages?: Array<{ role: string; content: string }>;
-}
-
-export async function getLegacyChatSession(
-  session_id: string,
-): Promise<LegacyChatSession | null> {
-  const res = await apiFetch(
-    apiUrl(`/api/v1/chat/sessions/${encodeURIComponent(session_id)}`),
-  );
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`chat session ${session_id} → ${res.status}`);
-  return (await res.json()) as LegacyChatSession;
-}
-
 // Re-exported so callers can keep importing the event type from book-api.
 export type { BookWsEvent } from "@/lib/book-ws-operation";

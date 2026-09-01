@@ -6,6 +6,7 @@ import pytest
 
 from deeptutor.api.routers import settings as settings_router
 from deeptutor.api.routers import tools as tools_router
+from deeptutor.services.settings import interface_settings
 from deeptutor.tools.builtin import (
     BUILTIN_TOOL_NAMES,
     COMING_SOON_TOOL_NAMES,
@@ -90,6 +91,7 @@ async def test_list_builtin_tools_reflects_user_toggle(
 ) -> None:
     settings_file = tmp_path / "interface.json"
     monkeypatch.setattr(settings_router, "_settings_file", lambda: settings_file)
+    monkeypatch.setattr(interface_settings, "_interface_settings_file", lambda: settings_file)
 
     # User disables a subset of toggleable tools.
     await settings_router.update_enabled_tools(

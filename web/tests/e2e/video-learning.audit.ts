@@ -175,7 +175,10 @@ test("YouTube learning survives reload and switches to Invidious without silent 
       return json(notes);
     }
     if (path.endsWith("/notes") && request.method() === "POST") {
-      const body = request.postDataJSON() as { body: string; time_seconds: number };
+      const body = request.postDataJSON() as {
+        body: string;
+        time_seconds: number;
+      };
       const note = {
         notebook_id: "video-notes",
         note_id: `note-${nextNoteId++}`,
@@ -197,7 +200,11 @@ test("YouTube learning survives reload and switches to Invidious without silent 
       if (index === -1) return json({ detail: "Note not found" }, 404);
       if (request.method() === "PUT") {
         const body = request.postDataJSON() as { body: string };
-        notes[index] = { ...notes[index], body: body.body, updated_at: Date.now() / 1000 };
+        notes[index] = {
+          ...notes[index],
+          body: body.body,
+          updated_at: Date.now() / 1000,
+        };
         return json(notes[index]);
       }
       if (request.method() === "DELETE") {
@@ -249,9 +256,7 @@ test("YouTube learning survives reload and switches to Invidious without silent 
 
   await page.getByRole("tab", { name: "Video notes" }).click();
   await expect(page.getByText("No notes yet.")).toBeVisible();
-  await page
-    .getByPlaceholder("Note at 0:08")
-    .fill("First timestamped note");
+  await page.getByPlaceholder("Note at 0:08").fill("First timestamped note");
   await page.getByRole("button", { name: "Add video note" }).click();
   await expect(page.getByText("First timestamped note")).toBeVisible();
   await expect(page.getByText("The first grounded concept.")).toBeVisible();
@@ -277,7 +282,9 @@ test("YouTube learning survives reload and switches to Invidious without silent 
     .poll(() =>
       page.evaluate(() => {
         const player = (
-          window as typeof window & { __fakePlayers: Array<{ current: number }> }
+          window as typeof window & {
+            __fakePlayers: Array<{ current: number }>;
+          }
         ).__fakePlayers.at(-1);
         return player?.current || 0;
       }),
@@ -355,14 +362,18 @@ test("YouTube learning survives reload and switches to Invidious without silent 
   await page.getByRole("button", { name: "Refresh provider" }).click();
   await expect(page.locator("video")).toBeVisible();
   await expect(page.getByText("Invidious", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Retry captions" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Retry captions" }),
+  ).toBeVisible();
   const player = page.locator("video");
   await player.evaluate((video) =>
     video.setAttribute("data-transcript-retry-probe", "before"),
   );
   await page.getByRole("button", { name: "Retry captions" }).click();
   await expect.poll(() => transcriptRefreshCount).toBe(1);
-  await expect(page.getByRole("button", { name: "Explain here" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Explain here" }),
+  ).toBeVisible();
   await expect(player).toHaveAttribute("data-transcript-retry-probe", "before");
 
   const beforeFailure = nativeResolveCount;

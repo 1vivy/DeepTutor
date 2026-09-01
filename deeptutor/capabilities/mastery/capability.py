@@ -25,10 +25,10 @@ import uuid
 
 from deeptutor.agents.chat.agentic_pipeline import AgenticChatPipeline
 from deeptutor.capabilities.mastery.tools import MASTERY_TOOL_NAMES
-from deeptutor.core.capability_protocol import BaseCapability, CapabilityManifest
+from deeptutor.core.capability_protocol import CapabilityManifest, TurnCapability
 from deeptutor.core.context import UnifiedContext
-from deeptutor.core.stream_bus import StreamBus
 from deeptutor.learning.identity import resolve_mastery_path_binding
+from deeptutor.runtime.stream_bus import StreamBus
 
 
 def resolve_mastery_path_id(context: UnifiedContext) -> str:
@@ -46,7 +46,7 @@ def resolve_mastery_path_id(context: UnifiedContext) -> str:
     return binding.path_id
 
 
-class MasteryPathCapability(BaseCapability):
+class MasteryPathCapability(TurnCapability):
     manifest = CapabilityManifest(
         name="mastery_path",
         description=(

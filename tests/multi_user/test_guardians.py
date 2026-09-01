@@ -13,11 +13,11 @@ def _auth(token: str) -> dict[str, str]:
 
 def _client(mu_isolated_root, monkeypatch) -> tuple[TestClient, dict]:
     from deeptutor.api.routers import auth as auth_router
+    from deeptutor.api.routers import multi_user as multi_user_router
     from deeptutor.book import engine as engine_module
     from deeptutor.book import storage as storage_module
     from deeptutor.book.models import Book
     from deeptutor.book.storage import BookStorage
-    from deeptutor.multi_user import router as multi_user_router
     from deeptutor.multi_user.identity import save_user
     from deeptutor.multi_user.paths import get_admin_path_service
     from deeptutor.services.auth import TokenPayload, hash_password
@@ -353,7 +353,7 @@ def test_guardian_can_reset_local_credentials_without_returning_or_auditing_secr
     )
     assert created.status_code == 201
 
-    from deeptutor.multi_user import router as multi_user_router
+    from deeptutor.api.routers import multi_user as multi_user_router
     from deeptutor.multi_user.device_credentials import (
         begin_device_session,
         issue_device_credential,

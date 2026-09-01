@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from deeptutor.agents.chat.agentic_pipeline import AgenticChatPipeline
-from deeptutor.core.capability_protocol import BaseCapability, CapabilityManifest
+from deeptutor.core.capability_protocol import CapabilityManifest, TurnCapability
 from deeptutor.core.context import UnifiedContext
-from deeptutor.core.stream_bus import StreamBus
+from deeptutor.runtime.stream_bus import StreamBus
 
 from .capability import MATERIAL_ID_KEY, MODE_KEY, resolve_material_id
 
 
-class ImmersiveWatchingCapability(BaseCapability):
+class ImmersiveWatchingCapability(TurnCapability):
     manifest = CapabilityManifest(
         name="immersive_watching",
         description="Learn alongside a YouTube video with timestamp-grounded tutoring.",

@@ -3,7 +3,7 @@ BookEngine
 ==========
 
 Top-level orchestrator for the Book Engine. Sits **parallel** to
-``ChatOrchestrator`` (i.e. it is **not** a ``BaseCapability``) and is the
+``ChatOrchestrator`` (i.e. it is **not** a ``TurnCapability``) and is the
 single public entry point used by the API router, CLI, and SDK.
 
 Lifecycle
@@ -47,7 +47,7 @@ import logging
 import time
 from typing import Any
 
-from deeptutor.core.stream_bus import StreamBus
+from deeptutor.runtime.stream_bus import StreamBus
 
 from . import progress as progress_ops
 from .agents.ideation_agent import IdeationAgent

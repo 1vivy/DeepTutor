@@ -28,12 +28,12 @@ from deeptutor.capabilities.reading.capability import (
     resolve_material_id,
 )
 from deeptutor.capabilities.reading.tools import READING_TOOL_NAMES
-from deeptutor.core.capability_protocol import BaseCapability, CapabilityManifest
+from deeptutor.core.capability_protocol import CapabilityManifest, TurnCapability
 from deeptutor.core.context import UnifiedContext
-from deeptutor.core.stream_bus import StreamBus
+from deeptutor.runtime.stream_bus import StreamBus
 
 
-class ImmersiveReadingCapability(BaseCapability):
+class ImmersiveReadingCapability(TurnCapability):
     manifest = CapabilityManifest(
         name="immersive_reading",
         description=(

@@ -833,7 +833,9 @@ export default function CoWriterPage() {
       URL.revokeObjectURL(url);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : t("Failed to export Word document."),
+        err instanceof Error
+          ? err.message
+          : t("Failed to export Word document."),
       );
     } finally {
       setIsExportingDocx(false);

@@ -30,7 +30,7 @@ compiled via REST still streams to anyone watching over WebSocket.
 
 from __future__ import annotations
 
-from deeptutor.core.stream_bus import StreamBus
+from deeptutor.runtime.stream_bus import StreamBus
 
 from .streaming import BookStream
 

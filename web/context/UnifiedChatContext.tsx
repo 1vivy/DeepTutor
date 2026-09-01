@@ -57,7 +57,6 @@ import {
   normalizeBookReferences,
   type BookReferencePayload,
 } from "@/lib/book-references";
-import { courseTurnConfiguration } from "@/lib/course-session-scope";
 import {
   normalizeWorkspaceMode,
   type WorkspaceMode,
@@ -68,7 +67,12 @@ import {
 } from "@/lib/reading-references";
 
 type SessionRuntimeStatus =
-  "idle" | "running" | "completed" | "failed" | "cancelled" | "rejected";
+  | "idle"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "rejected";
 
 interface OutgoingAttachment {
   type: string;
@@ -1323,7 +1327,8 @@ export function UnifiedChatProvider({
         // so applying it here only catches the open client up to what a
         // reload would already show.
         const meta = event.metadata as
-          { title?: string; mastery_path_id?: string } | undefined;
+          | { title?: string; mastery_path_id?: string }
+          | undefined;
         // The tutor can move a conversation between mastery paths mid-turn;
         // without this the composer would keep naming the path it started on.
         if (typeof meta?.mastery_path_id === "string") {
@@ -1916,14 +1921,19 @@ export function UnifiedChatProvider({
         });
       }
       dispatch({ type: "STREAM_START", key });
-      const effectiveTurnConfig = courseTurnConfiguration(
-        effectiveConfig,
-        session.courseId,
-      );
-      const finalTurnConfig =
-        options?.persistUserMessage === false
-          ? { ...effectiveTurnConfig, _persist_user_message: false }
-          : effectiveTurnConfig;
+      const {
+        _persist_user_message: legacyPersistUserMessage,
+        _course_id: _legacyCourseId,
+        followup_question_context: followupQuestionContext,
+        selection_tutor_context: selectionTutorContext,
+        subagent_consult_budget: subagentConsultBudget,
+        auto_route: autoRoute,
+        ...finalTurnConfig
+      } = effectiveConfig ?? {};
+      const persistUserMessage =
+        options?.persistUserMessage === false || legacyPersistUserMessage === false
+          ? false
+          : undefined;
       sendThroughRunner(key, {
         type: "start_turn",
         content,
@@ -1932,6 +1942,28 @@ export function UnifiedChatProvider({
         workspace_mode: effectiveWorkspaceMode ?? "",
         knowledge_bases: effectiveKnowledgeBases,
         session_id: session.sessionId,
+        ...(session.courseId.trim() ? { course_id: session.courseId.trim() } : {}),
+        ...(persistUserMessage === false ? { persist_user_message: false } : {}),
+        ...(followupQuestionContext && typeof followupQuestionContext === "object"
+          ? {
+              followup_question_context: followupQuestionContext as Record<
+                string,
+                unknown
+              >,
+            }
+          : {}),
+        ...(selectionTutorContext && typeof selectionTutorContext === "object"
+          ? {
+              selection_tutor_context: selectionTutorContext as Record<
+                string,
+                unknown
+              >,
+            }
+          : {}),
+        ...(typeof subagentConsultBudget === "number"
+          ? { subagent_consult_budget: subagentConsultBudget }
+          : {}),
+        ...(typeof autoRoute === "boolean" ? { auto_route: autoRoute } : {}),
         attachments: effectiveAttachments,
         language: effectiveLanguage,
         ...(effectiveNotebookReferences?.length

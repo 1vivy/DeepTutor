@@ -685,9 +685,10 @@ export default function PartnerChat({
               .slice(0, 30)
               .map(
                 (s) =>
-                  `- \`${s.session_key}\`${s.archived ? ` (${t("Archived")})` : ""} — ${
-                    displaySessionTitle(s.title, t("New conversation"))
-                  } · ${s.message_count}`,
+                  `- \`${s.session_key}\`${s.archived ? ` (${t("Archived")})` : ""} — ${displaySessionTitle(
+                    s.title,
+                    t("New conversation"),
+                  )} · ${s.message_count}`,
               )
               .join("\n");
             setMessages((msgs) => [

@@ -193,6 +193,7 @@ class SupportedFileTypesInfo(BaseModel):
     extensions: list[str]
     accept: str
     max_file_size_bytes: int
+    allow_any_extension: bool = False
 
 
 IMAGE_ACCEPT_MIME_TYPES = {
@@ -1659,16 +1660,23 @@ async def set_rag_active_model(payload: ActiveModelUpdate):
 @router.get("/supported-file-types", response_model=SupportedFileTypesInfo)
 async def get_supported_file_types():
     """Return the current upload policy so the web client stays in sync."""
-    extensions = sorted(FileTypeRouter.get_supported_extensions())
-    accept_items = extensions + [
-        mime
-        for extension, mime in sorted(IMAGE_ACCEPT_MIME_TYPES.items())
-        if extension in FileTypeRouter.IMAGE_EXTENSIONS
-    ]
+    allow_any_extension = FileTypeRouter.active_parser_accepts_any_format()
+    extensions = [] if allow_any_extension else sorted(FileTypeRouter.get_supported_extensions())
+    accept_items = (
+        []
+        if allow_any_extension
+        else extensions
+        + [
+            mime
+            for extension, mime in sorted(IMAGE_ACCEPT_MIME_TYPES.items())
+            if extension in FileTypeRouter.IMAGE_EXTENSIONS
+        ]
+    )
     return SupportedFileTypesInfo(
         extensions=extensions,
         accept=",".join(dict.fromkeys(accept_items)),
         max_file_size_bytes=DocumentValidator.MAX_FILE_SIZE,
+        allow_any_extension=allow_any_extension,
     )
 
 
@@ -2769,11 +2777,15 @@ async def upload_files(
             )
         _assert_provider_ready(kb_provider)
         _enforce_provider_formats(kb_provider, files)
-        allowed_extensions = FileTypeRouter.get_supported_extensions()
+        allowed_extensions = (
+            set()
+            if FileTypeRouter.active_parser_accepts_any_format()
+            else FileTypeRouter.get_supported_extensions()
+        )
         # ``.zip`` is accepted as an upload container; its members are
         # validated against ``allowed_extensions`` during extraction and the
         # archive itself is never indexed (``safe_extract_zip`` skips ``.zip``).
-        upload_extensions = allowed_extensions | {".zip"}
+        upload_extensions = allowed_extensions | {".zip"} if allowed_extensions else set()
         _validate_upload_batch(files, allowed_extensions=upload_extensions, rel_paths=rel_paths)
         uploaded_files, uploaded_file_paths = await _save_uploaded_files_off_loop(
             files,
@@ -2870,7 +2882,11 @@ async def create_knowledge_base(
                     ),
                 )
         _enforce_provider_formats(rag_provider, files)
-        allowed_extensions = FileTypeRouter.get_supported_extensions()
+        allowed_extensions = (
+            set()
+            if FileTypeRouter.active_parser_accepts_any_format()
+            else FileTypeRouter.get_supported_extensions()
+        )
         _validate_upload_batch(files, allowed_extensions=allowed_extensions, rel_paths=rel_paths)
 
         logger.info(f"Creating KB: {name} (provider={rag_provider})")

@@ -10,10 +10,7 @@ const source = readFileSync(
 
 test("partner chat loads the merged web and channel activity timeline", () => {
   assert.match(source, /getPartnerHistory\(partnerId, \{ limit: 60 \}\)/);
-  assert.doesNotMatch(
-    source,
-    /getPartnerHistory\(partnerId, \{\s*sessionKey,/,
-  );
+  assert.doesNotMatch(source, /getPartnerHistory\(partnerId, \{\s*sessionKey,/);
 });
 
 test("partner chat renders external user echoes and live trace events", () => {
@@ -21,7 +18,10 @@ test("partner chat renders external user echoes and live trace events", () => {
   assert.match(source, /data\.type === "user_echo"/);
   assert.match(source, /data\.type === "stream_event" && data\.event/);
   assert.match(source, /externalDrafts\.map/);
-  assert.match(source, /<AssistantActivity[\s\S]*events=\{externalDraft\.events\}/);
+  assert.match(
+    source,
+    /<AssistantActivity[\s\S]*events=\{externalDraft\.events\}/,
+  );
 });
 
 test("history activity ids prevent replayed channel turns from duplicating", () => {

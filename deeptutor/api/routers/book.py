@@ -30,7 +30,6 @@ from deeptutor.book.export import export_filename, render_book_markdown
 from deeptutor.book.models import ContentType, LearningCapture, LearningCaptureStatus
 from deeptutor.book.storage import get_book_storage
 from deeptutor.book.streaming import SOURCE as BOOK_SOURCE
-from deeptutor.core.stream_bus import StreamBus
 from deeptutor.multi_user.audit import log_admin_action, log_usage
 from deeptutor.multi_user.book_access import (
     ResolvedBook,
@@ -40,6 +39,7 @@ from deeptutor.multi_user.book_access import (
 )
 from deeptutor.multi_user.context import get_current_user
 from deeptutor.multi_user.identity import remove_book_permission_overrides
+from deeptutor.runtime.stream_bus import StreamBus
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

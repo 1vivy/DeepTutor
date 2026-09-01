@@ -36,20 +36,22 @@ test("settings page: stacks every first-level section from overview to about", (
   let previousIndex = -1;
   for (const key of keys) {
     const index = page.indexOf(`key: "${key}"`);
-    assert.ok(index > previousIndex, `${key} should follow the previous section`);
+    assert.ok(
+      index > previousIndex,
+      `${key} should follow the previous section`,
+    );
     previousIndex = index;
   }
 });
 
 test("settings scroll: the outer document tracks nested section anchors", () => {
-  const source = readWebFile(
-    "components",
-    "settings",
-    "CategoryScroll.tsx",
-  );
+  const source = readWebFile("components", "settings", "CategoryScroll.tsx");
 
   assert.match(source, /data-settings-section-list/);
-  assert.match(source, /querySelectorAll<HTMLElement>\("\[data-settings-section\]"\)/);
+  assert.match(
+    source,
+    /querySelectorAll<HTMLElement>\("\[data-settings-section\]"\)/,
+  );
   assert.match(source, /scrollIntoView/);
   assert.match(source, /setActiveSection\(current\)/);
 });

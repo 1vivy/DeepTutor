@@ -59,7 +59,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
-export async function listGuardianRelationships(): Promise<GuardianRelationship[]> {
+export async function listGuardianRelationships(): Promise<
+  GuardianRelationship[]
+> {
   const data = await request<{ relationships: GuardianRelationship[] }>(
     "/api/v1/multi-user/me/guardianships",
   );

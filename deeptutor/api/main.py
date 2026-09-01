@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 import logging
 import sys
@@ -108,9 +109,38 @@ async def lifespan(app: FastAPI):
     """
     # Execute on startup
     logger.info("Application startup")
+    app.state.ready = False
 
     # Validate configuration consistency
     validate_tool_consistency()
+
+    # Build one process-level dependency graph.  Every adapter resolves turns
+    # through this container, so a WebSocket cannot accidentally construct a
+    # second store/runtime for the same authenticated scope.
+    from deeptutor.app.container import get_application_container
+
+    application_container = getattr(app.state, "application_container", None)
+    if application_container is None:
+        application_container = get_application_container()
+        app.state.application_container = application_container
+    await application_container.start()
+    from deeptutor.api.utils.progress_broadcaster import ProgressBroadcaster
+    from deeptutor.api.utils.task_log_stream import get_task_stream_manager
+    from deeptutor.knowledge.progress_events import install_progress_ports
+
+    install_progress_ports(
+        broadcast=ProgressBroadcaster.get_instance().broadcast,
+        emit_task_event=get_task_stream_manager().emit,
+    )
+    legacy_reports = await application_container.migrate_all_legacy_chats()
+    migrated_reports = [report for report in legacy_reports if report.get("source_hash")]
+    if migrated_reports:
+        logger.info(
+            "Legacy chat migration complete: imported=%s skipped=%s archived=%s",
+            sum(int(report.get("imported") or 0) for report in migrated_reports),
+            sum(int(report.get("skipped") or 0) for report in migrated_reports),
+            [report.get("archived_to", "") for report in migrated_reports],
+        )
 
     # Initialize LLM client early so OPENAI_* env vars are available before
     # any downstream provider integrations start.
@@ -131,26 +161,112 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to start EventBus: {e}")
 
-    try:
+    async def _start_partners() -> None:
         from deeptutor.services.partners import get_partner_manager
 
-        await get_partner_manager().auto_start_partners()
-    except Exception as e:
-        logger.warning(f"Failed to auto-start partners: {e}")
+        manager = get_partner_manager()
+        manager.configure_runtime_owner(application_container.worker_id)
+        await manager.auto_start_partners()
 
-    try:
+    async def _stop_partners() -> None:
+        from deeptutor.services.partners import get_partner_manager
+
+        await get_partner_manager().stop_all(preserve_auto_start=True)
+
+    async def _start_cron() -> None:
         from deeptutor.services.cron import get_cron_service
 
         await get_cron_service().start()
-    except Exception as e:
-        logger.warning(f"Failed to start cron service: {e}")
 
-    try:
+    async def _stop_cron() -> None:
+        from deeptutor.services.cron import get_cron_service
+
+        await get_cron_service().stop()
+
+    async def _start_github_sync() -> None:
         from deeptutor.services.github_source.sync_service import get_sync_service
 
         await get_sync_service().start()
-    except Exception as e:
-        logger.warning(f"Failed to start GitHub source sync: {e}")
+
+    async def _stop_github_sync() -> None:
+        from deeptutor.services.github_source.sync_service import get_sync_service
+
+        await get_sync_service().stop()
+
+    from deeptutor.runtime.coordination import BackgroundCommandKind
+
+    async def _handle_background_command(command) -> None:
+        kind = str(command.kind)
+        if kind == BackgroundCommandKind.CRON_RELOAD:
+            from deeptutor.services.cron import get_cron_service
+
+            get_cron_service().reload()
+            return
+
+        from deeptutor.services.partners import get_partner_manager
+
+        manager = get_partner_manager()
+        manager.configure_runtime_owner(application_container.worker_id)
+        partner_id = str(command.payload.get("partner_id") or "").strip()
+        if not partner_id:
+            raise ValueError(f"Background command {kind!r} needs partner_id")
+        if kind == BackgroundCommandKind.PARTNER_START:
+            instance = await manager.start_partner(partner_id)
+            if bool(command.payload.get("persist_auto_start", True)):
+                manager.save_config(partner_id, instance.config, auto_start=True)
+            return
+        if kind == BackgroundCommandKind.PARTNER_STOP:
+            await manager.stop_partner(
+                partner_id,
+                preserve_auto_start=bool(command.payload.get("preserve_auto_start", False)),
+            )
+            return
+        if kind == BackgroundCommandKind.PARTNER_RELOAD:
+            instance = manager.get_partner(partner_id)
+            if instance is None or not instance.running:
+                return
+            config = manager.load_config(partner_id)
+            if config is not None:
+                instance.config = config
+            await manager.reload_channels(partner_id)
+            return
+        raise ValueError(f"Unknown background command kind: {kind}")
+
+    cron_service = None
+    try:
+        from deeptutor.services.cron import get_cron_service
+
+        cron_service = get_cron_service()
+        loop = asyncio.get_running_loop()
+
+        def _notify_cron_change() -> None:
+            task = loop.create_task(
+                application_container.coordinator.submit_background_command(
+                    BackgroundCommandKind.CRON_RELOAD
+                )
+            )
+            task.add_done_callback(
+                lambda completed: completed.exception() if not completed.cancelled() else None
+            )
+
+        cron_service.change_notifier = _notify_cron_change
+    except Exception:
+        logger.exception("Failed to configure cron change notifications")
+
+    from deeptutor.runtime.background_leader import BackgroundLeaderSupervisor
+
+    background_supervisor = BackgroundLeaderSupervisor(
+        application_container.coordinator,
+        application_container.worker_id,
+        start_callbacks=[_start_partners, _start_cron, _start_github_sync],
+        stop_callbacks=[_stop_partners, _stop_cron, _stop_github_sync],
+        recovery_callback=application_container.recover_once,
+        control_callback=_handle_background_command,
+        renew_interval_seconds=application_container.settings.renew_interval_seconds,
+        recovery_interval_seconds=application_container.settings.recovery_interval_seconds,
+    )
+    app.state.background_supervisor = background_supervisor
+    await background_supervisor.start()
 
     # Ping PocketBase if configured — logs a warning (not an error) if unreachable
     try:
@@ -177,34 +293,26 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"v1 memory migration failed: {e}")
 
+    app.state.ready = True
     yield
 
     # Execute on shutdown
+    app.state.ready = False
     logger.info("Application shutdown")
 
-    # Stop cron scheduler
-    try:
-        from deeptutor.services.cron import get_cron_service
-
-        await get_cron_service().stop()
-    except Exception as e:
-        logger.warning(f"Failed to stop cron service: {e}")
+    install_progress_ports(broadcast=None, emit_task_event=None)
 
     try:
-        from deeptutor.services.github_source.sync_service import get_sync_service
-
-        await get_sync_service().stop()
+        await background_supervisor.close()
+        logger.info("Leader-owned background services stopped")
     except Exception as e:
-        logger.warning(f"Failed to stop GitHub source sync: {e}")
+        logger.warning(f"Failed to stop background leader: {e}")
 
-    # Stop partners
     try:
-        from deeptutor.services.partners import get_partner_manager
-
-        await get_partner_manager().stop_all(preserve_auto_start=True)
-        logger.info("Partners stopped")
+        await application_container.close()
+        logger.info("Application container closed")
     except Exception as e:
-        logger.warning(f"Failed to stop partners: {e}")
+        logger.warning(f"Failed to close application container: {e}")
 
     # Close MCP server connections. Each one owns an AsyncExitStack inside its
     # own task, so they must be torn down here rather than left to interpreter
@@ -228,7 +336,7 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Failed to close LLM provider pool: {e}")
 
     try:
-        from deeptutor.core.agentic.client import close_agentic_client_pool
+        from deeptutor.runtime.agentic.client import close_agentic_client_pool
 
         await close_agentic_client_pool()
         logger.info("Agentic LLM client pool closed")
@@ -363,7 +471,6 @@ from deeptutor.api.routers import (
     book,
     capabilities,
     capabilities_settings,
-    chat,
     co_writer,
     courses,
     dashboard,
@@ -398,7 +505,7 @@ from deeptutor.api.routers import (
 from deeptutor.api.routers import (
     tools as tools_router,
 )
-from deeptutor.multi_user.router import router as multi_user_router  # noqa: E402
+from deeptutor.api.routers.multi_user import router as multi_user_router  # noqa: E402
 
 # Auth router is public — login/logout/register/status require no token
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
@@ -424,7 +531,6 @@ app.include_router(
     dependencies=_auth,
 )
 
-app.include_router(chat.router, prefix="/api/v1", tags=["chat"], dependencies=_auth)
 app.include_router(
     question.router, prefix="/api/v1/question", tags=["question"], dependencies=_auth
 )
@@ -588,6 +694,24 @@ app.include_router(quiz_judge.router, prefix="/api/v1", tags=["quiz-judge"])
 @app.get("/")
 async def root():
     return {"message": "Welcome to DeepTutor API"}
+
+
+@app.get("/health/live")
+async def health_live():
+    return {"status": "alive"}
+
+
+@app.get("/health/ready")
+async def health_ready(request: Request):
+    if not bool(getattr(request.app.state, "ready", False)):
+        return JSONResponse(status_code=503, content={"status": "not_ready"})
+    container = getattr(request.app.state, "application_container", None)
+    if container is None or not await container.coordinator.health():
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "reason": "coordination_unavailable"},
+        )
+    return {"status": "ready"}
 
 
 if __name__ == "__main__":

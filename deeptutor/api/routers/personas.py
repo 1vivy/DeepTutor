@@ -19,9 +19,9 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from deeptutor.core.i18n import t
 from deeptutor.multi_user.context import get_current_user
 from deeptutor.multi_user.paths import get_admin_path_service
+from deeptutor.services.i18n import t
 from deeptutor.services.persona import (
     InvalidPersonaNameError,
     PersonaExistsError,

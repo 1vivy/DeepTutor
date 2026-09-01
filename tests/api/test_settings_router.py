@@ -18,6 +18,7 @@ from deeptutor.services.embedding import client as embedding_client_module
 from deeptutor.services.embedding import config as embedding_config_module
 from deeptutor.services.llm import client as llm_client_module
 from deeptutor.services.llm import config as llm_config_module
+from deeptutor.services.settings import interface_settings
 
 
 def test_load_ui_settings_migrates_legacy_language_to_response_language(
@@ -469,12 +470,20 @@ async def test_mineru_test_connection_local_mode(monkeypatch: pytest.MonkeyPatch
         "local_cli_probe",
         lambda *a: {"found": True, "command": "mineru", "path": "/env/bin/mineru"},
     )
-    monkeypatch.setattr(mineru_backend, "local_cli_version", lambda cmd: "mineru, version 2.5.0")
+    monkeypatch.setattr(mineru_backend, "local_cli_version", lambda cmd: "mineru, version 3.4.5")
     result = await settings_router.test_mineru_connection(
         settings_router.MinerUSettingsUpdate(mode="local")
     )
     assert result["ok"] is True
-    assert "2.5.0" in result["message"]
+    assert "3.4.5" in result["message"]
+
+    # An old CLI is present but cannot provide the current format/API surface.
+    monkeypatch.setattr(mineru_backend, "local_cli_version", lambda cmd: "mineru, version 2.5.0")
+    result = await settings_router.test_mineru_connection(
+        settings_router.MinerUSettingsUpdate(mode="local")
+    )
+    assert result["ok"] is False
+    assert "3.4.5" in result["message"]
 
     # CLI absent → actionable failure message.
     monkeypatch.setattr(
@@ -980,6 +989,7 @@ async def test_incomplete_catalog_write_preserves_the_current_managed_codex_prof
 async def test_enabled_tools_roundtrip(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     settings_file = tmp_path / "interface.json"
     monkeypatch.setattr(settings_router, "_settings_file", lambda: settings_file)
+    monkeypatch.setattr(interface_settings, "_interface_settings_file", lambda: settings_file)
 
     # Default state — no file yet, so the loader emits the full toggleable set.
     assert set(settings_router.get_enabled_optional_tools()) == set(

@@ -374,9 +374,7 @@ function SessionViewerPanelInner(
 
   const openMarkdownNoteTab = useCallback(() => {
     setTabs((prev) => {
-      const existingIdx = prev.findIndex(
-        (tab) => tab.id === markdownNoteTabId,
-      );
+      const existingIdx = prev.findIndex((tab) => tab.id === markdownNoteTabId);
       if (existingIdx >= 0) {
         setActiveTabId(markdownNoteTabId);
         return prev;
@@ -777,12 +775,12 @@ function TabBar({
               : tab.kind === "markdown-note"
                 ? NotebookPen
                 : tab.kind === "selection-tutor"
-                ? GraduationCap
-                : tab.kind === "quiz-followup"
-                  ? MessageSquarePlus
-                  : tab.kind === "geogebra"
-                    ? Compass
-                    : Paperclip;
+                  ? GraduationCap
+                  : tab.kind === "quiz-followup"
+                    ? MessageSquarePlus
+                    : tab.kind === "geogebra"
+                      ? Compass
+                      : Paperclip;
           return (
             <div
               key={tab.id}

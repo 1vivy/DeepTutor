@@ -38,20 +38,20 @@ from dataclasses import dataclass, field
 import re
 from typing import Any
 
-from deeptutor.core.agentic.labels import (
+from deeptutor.core.trace import merge_trace_metadata
+from deeptutor.runtime.agentic.labels import (
     LABEL_PROBE_MAX_CHARS,
     LABEL_UNKNOWN,
     classify_label,
     strip_label_probe_prefix,
 )
-from deeptutor.core.agentic.tool_call_stream import ToolCallAccumulator
-from deeptutor.core.agentic.usage import (
+from deeptutor.runtime.agentic.tool_call_stream import ToolCallAccumulator
+from deeptutor.runtime.agentic.usage import (
     UsageTracker,
     message_content_chars,
     record_streamed_usage,
 )
-from deeptutor.core.stream_bus import StreamBus
-from deeptutor.core.trace import merge_trace_metadata
+from deeptutor.runtime.stream_bus import StreamBus
 from deeptutor.services.llm import clean_thinking_tags
 from deeptutor.services.llm.multimodal import should_degrade_to_text, strip_image_parts_inplace
 from deeptutor.services.llm.request_compat import (

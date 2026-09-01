@@ -440,7 +440,7 @@ export function MinerUEngineSettings() {
               localCli?.found
                 ? localCli.path
                 : t(
-                    'Install into any Python environment: uv pip install -U "mineru[core]" — then set the CLI path below, or install into the server environment for PATH auto-detection.',
+                    'Install into any Python environment: uv pip install -U "mineru[all]>=3.4.5" — then set the CLI path below, or install into the server environment for PATH auto-detection.',
                   )
             }
             control={renderTestControl(t("Check"))}

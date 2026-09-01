@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 import httpx
 import pytest
@@ -70,29 +70,30 @@ def _material(*, duration: int = 100) -> dict[str, object]:
 def test_main_mounts_settings_as_admin_only_and_learning_policy_scoped() -> None:
     from deeptutor.api.main import app
 
-    mounts: dict[str, set[object]] = {}
-    routes: list[object] = []
-    for route in app.routes:
-        effective_candidates = getattr(route, "effective_candidates", None)
-        if callable(effective_candidates):
-            routes.extend(effective_candidates())
-        else:
-            routes.append(route)
+    async def reject_admin() -> None:
+        raise HTTPException(status_code=418, detail="admin dependency called")
 
-    for route in routes:
-        path = str(getattr(route, "path", ""))
-        if path.startswith("/api/v1/settings/video-learning"):
-            key = "/api/v1/settings/video-learning"
-        elif path.startswith("/api/v1/video-learning"):
-            key = "/api/v1/video-learning"
-        else:
-            continue
-        dependencies = list(getattr(route, "dependencies", ()) or ())
-        if not dependencies and hasattr(route, "dependant"):
-            dependencies = route.dependant.dependencies
-        mounts.setdefault(key, set()).update(dependency.dependency for dependency in dependencies)
-    assert require_admin in mounts["/api/v1/settings/video-learning"]
-    assert require_learning_surface in mounts["/api/v1/video-learning"]
+    async def reject_learning_surface() -> None:
+        raise HTTPException(status_code=419, detail="learning policy dependency called")
+
+    original_overrides = app.dependency_overrides.copy()
+    app.dependency_overrides[require_admin] = reject_admin
+    app.dependency_overrides[require_learning_surface] = reject_learning_surface
+    try:
+        # Assert through HTTP instead of inspecting ``app.routes``. FastAPI
+        # 0.141 keeps included routers nested, but dependency overrides remain
+        # the public, representation-independent way to observe each gate.
+        with TestClient(app) as app_client:
+            settings_response = app_client.get("/api/v1/settings/video-learning")
+            learning_response = app_client.get("/api/v1/video-learning/materials/not-a-material")
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(original_overrides)
+
+    assert settings_response.status_code == 418
+    assert settings_response.json()["detail"] == "admin dependency called"
+    assert learning_response.status_code == 419
+    assert learning_response.json()["detail"] == "learning policy dependency called"
 
 
 def test_progress_clamps_to_duration_and_unknown_material_is_404(client: TestClient) -> None:

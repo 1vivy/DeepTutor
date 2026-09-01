@@ -419,6 +419,13 @@ export function QuizFollowupProvider({ children }: ProviderProps) {
         messages: [...prev.messages, { role: "user", content }],
       }));
 
+      const {
+        followup_question_context: followupQuestionContext,
+        selection_tutor_context: selectionTutorContext,
+        subagent_consult_budget: subagentConsultBudget,
+        auto_route: autoRoute,
+        ...capabilityConfig
+      } = input.config ?? {};
       sendThroughRunner(input.questionKey, {
         type: "start_turn",
         content,
@@ -428,7 +435,29 @@ export function QuizFollowupProvider({ children }: ProviderProps) {
         session_id: current.sessionId,
         attachments: input.attachments,
         language: input.language,
-        config: input.config,
+        ...(Object.keys(capabilityConfig).length
+          ? { config: capabilityConfig }
+          : {}),
+        ...(followupQuestionContext && typeof followupQuestionContext === "object"
+          ? {
+              followup_question_context: followupQuestionContext as Record<
+                string,
+                unknown
+              >,
+            }
+          : {}),
+        ...(selectionTutorContext && typeof selectionTutorContext === "object"
+          ? {
+              selection_tutor_context: selectionTutorContext as Record<
+                string,
+                unknown
+              >,
+            }
+          : {}),
+        ...(typeof subagentConsultBudget === "number"
+          ? { subagent_consult_budget: subagentConsultBudget }
+          : {}),
+        ...(typeof autoRoute === "boolean" ? { auto_route: autoRoute } : {}),
         notebook_references: input.notebookReferences,
         history_references: input.historyReferences,
         book_references: input.bookReferences,

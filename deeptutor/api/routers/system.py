@@ -9,7 +9,7 @@ import json
 import time
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from deeptutor.api.routers.auth import require_admin
@@ -66,9 +66,24 @@ def get_update_installation() -> Installation:
 
 
 def get_turn_activity():
-    from deeptutor.services.session import get_turn_runtime_manager
+    from deeptutor.app.container import get_application_container
 
-    return get_turn_runtime_manager()
+    return get_application_container().runtime_registry.get(
+        get_application_container().store_provider.get()
+    )
+
+
+@router.get("/runtime", dependencies=[Depends(require_admin)])
+async def get_runtime_status(request: Request) -> dict[str, Any]:
+    """Return credential-free coordination and worker diagnostics."""
+
+    from deeptutor.app.container import get_application_container
+
+    container = getattr(request.app.state, "application_container", None)
+    if container is None:
+        container = get_application_container()
+        await container.start()
+    return await container.runtime_report()
 
 
 def _job_payload(job: UpdateJob | None) -> dict[str, Any] | None:

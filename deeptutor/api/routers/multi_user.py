@@ -15,17 +15,15 @@ from pydantic import BaseModel, Field, StrictBool, field_validator
 
 from deeptutor.api.routers.auth import require_admin, require_auth
 from deeptutor.knowledge.manager import KnowledgeBaseManager
-from deeptutor.reading import ReadingStore
-from deeptutor.reading.extensions import get_reading_extension_registry
-from deeptutor.services.auth import POCKETBASE_ENABLED, hash_password
-from deeptutor.services.config.model_catalog import ModelCatalogService
-from deeptutor.services.skill.service import SkillService
-
-from .audit import log_admin_action, log_guardian_action
-from .book_permission import BookDefaultLevel, BookPermission, BookPermissionLevel
-from .context import get_current_user
-from .device_credentials import revoke_device_credentials_for_user
-from .grants import (
+from deeptutor.multi_user.audit import log_admin_action, log_guardian_action
+from deeptutor.multi_user.book_permission import (
+    BookDefaultLevel,
+    BookPermission,
+    BookPermissionLevel,
+)
+from deeptutor.multi_user.context import get_current_user
+from deeptutor.multi_user.device_credentials import revoke_device_credentials_for_user
+from deeptutor.multi_user.grants import (
     LEARNING_AGE_BANDS,
     LEARNING_SURFACES,
     learner_grant,
@@ -34,7 +32,7 @@ from .grants import (
     save_grant,
     validate_grant,
 )
-from .guardians import (
+from deeptutor.multi_user.guardians import (
     GUARDIAN_PERMISSIONS,
     authorize_guardian,
     guardian_can_access,
@@ -42,15 +40,24 @@ from .guardians import (
     relationship_by_id,
     revoke_guardian,
 )
-from .identity import (
+from deeptutor.multi_user.identity import (
     get_user_by_id,
     list_user_info,
     set_book_permission,
     set_password,
 )
-from .knowledge_access import admin_kb_base_dir
-from .model_access import is_owner_bound
-from .paths import get_admin_path_service, get_path_service_for_scope, scope_for_user
+from deeptutor.multi_user.knowledge_access import admin_kb_base_dir
+from deeptutor.multi_user.model_access import is_owner_bound
+from deeptutor.multi_user.paths import (
+    get_admin_path_service,
+    get_path_service_for_scope,
+    scope_for_user,
+)
+from deeptutor.reading import ReadingStore
+from deeptutor.reading.extensions import get_reading_extension_registry
+from deeptutor.services.auth import POCKETBASE_ENABLED, hash_password
+from deeptutor.services.config.model_catalog import ModelCatalogService
+from deeptutor.services.skill.service import SkillService
 
 router = APIRouter()
 
@@ -354,7 +361,7 @@ async def admin_resources(_: object = Depends(require_admin)) -> dict[str, Any]:
 
 @router.get("/admin/books")
 async def admin_books(_: object = Depends(require_admin)) -> dict[str, Any]:
-    from .book_access import admin_book_catalog
+    from deeptutor.multi_user.book_access import admin_book_catalog
 
     return {"books": admin_book_catalog()}
 
@@ -474,8 +481,11 @@ async def guardian_report(
     learner_username, learner_record, actor_user_id, is_admin = _require_guardian_access(
         current, learner_user_id, "view_reports"
     )
-    from .book_access import admin_book_catalog
-    from .book_permission import normalize_book_permission, public_permission_dict
+    from deeptutor.multi_user.book_access import admin_book_catalog
+    from deeptutor.multi_user.book_permission import (
+        normalize_book_permission,
+        public_permission_dict,
+    )
 
     permission = normalize_book_permission(learner_record.get("book_permission"))
     permission_dict = public_permission_dict(permission)
@@ -517,8 +527,8 @@ async def guardian_material_catalog(
     _learner_username, learner_record, actor_user_id, is_admin = _require_guardian_access(
         current, learner_user_id, "assign_materials"
     )
-    from .book_access import admin_book_catalog
-    from .book_permission import normalize_book_permission
+    from deeptutor.multi_user.book_access import admin_book_catalog
+    from deeptutor.multi_user.book_permission import normalize_book_permission
 
     permission = normalize_book_permission(learner_record.get("book_permission"))
     materials = [
@@ -548,8 +558,8 @@ async def assign_guardian_materials(
     learner_username, learner_record, actor_user_id, is_admin = _require_guardian_access(
         current, learner_user_id, "assign_materials"
     )
-    from .book_access import admin_book_catalog
-    from .book_permission import (
+    from deeptutor.multi_user.book_access import admin_book_catalog
+    from deeptutor.multi_user.book_permission import (
         BookPermission,
         normalize_book_permission,
         public_permission_dict,
@@ -761,7 +771,10 @@ async def get_user_book_permission(
     user_id: str,
     _: object = Depends(require_admin),
 ) -> dict[str, Any]:
-    from .book_permission import normalize_book_permission, public_permission_dict
+    from deeptutor.multi_user.book_permission import (
+        normalize_book_permission,
+        public_permission_dict,
+    )
 
     _, record = _require_assignable_user(user_id)
     return {
@@ -777,8 +790,8 @@ async def put_user_book_permission(
     payload: BookPermissionPayload,
     _: object = Depends(require_admin),
 ) -> dict[str, Any]:
-    from .book_access import shared_book_exists
-    from .book_permission import public_permission_dict
+    from deeptutor.multi_user.book_access import shared_book_exists
+    from deeptutor.multi_user.book_permission import public_permission_dict
 
     username, _record = _require_assignable_user(user_id)
     unknown = sorted(book_id for book_id in payload.books if not shared_book_exists(book_id))

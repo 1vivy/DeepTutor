@@ -63,8 +63,7 @@ const ENGINE_DESCRIPTION_KEYS: Record<string, string> = {
     "Lightweight, no model downloads or CUDA — runs on low-end / GPU-less machines. PDF/e-book → Markdown and can extract images. PDF and e-book formats only.",
   liteparse:
     "Fast, lightweight PDF parser with spatial text extraction. Markdown output, optional image extraction. No model downloads. Developed by LlamaIndex.",
-  tika:
-    "Remote Apache Tika server. Broad format support, no local install or model downloads. Point at an existing tika-server container.",
+  tika: "Remote Apache Tika server. Broad format support, no local install or model downloads. Point at an existing tika-server container.",
 };
 
 export default function DocumentParsingSettingsPage() {
@@ -208,7 +207,9 @@ export default function DocumentParsingSettingsPage() {
                         )}
                       </div>
                       <p className="mt-1 text-[12px] text-[var(--muted-foreground)]">
-                        {descriptionKey ? t(descriptionKey) : engine.description}
+                        {descriptionKey
+                          ? t(descriptionKey)
+                          : engine.description}
                       </p>
                     </div>
                   </button>
@@ -241,6 +242,7 @@ export default function DocumentParsingSettingsPage() {
           {data.engine === "markitdown" && (
             <MarkItDownPanel
               slice={data.engines.markitdown || {}}
+              readiness={data.readiness.markitdown}
               available={
                 data.available_engines.find((e) => e.id === "markitdown")
                   ?.available ?? false
@@ -256,6 +258,7 @@ export default function DocumentParsingSettingsPage() {
           {data.engine === "pymupdf4llm" && (
             <PyMuPDF4LLMPanel
               slice={data.engines.pymupdf4llm || {}}
+              readiness={data.readiness.pymupdf4llm}
               available={
                 data.available_engines.find((e) => e.id === "pymupdf4llm")
                   ?.available ?? false
@@ -271,6 +274,7 @@ export default function DocumentParsingSettingsPage() {
           {data.engine === "liteparse" && (
             <LiteParsePanel
               slice={data.engines.liteparse || {}}
+              readiness={data.readiness.liteparse}
               available={
                 data.available_engines.find((e) => e.id === "liteparse")
                   ?.available ?? false
@@ -479,7 +483,8 @@ function DoclingPanel({
     }
   }
 
-  const notInstalled = !available && !isRemote;
+  const updateRequired = readiness?.reason === "update_required";
+  const packageUnavailable = (!available || updateRequired) && !isRemote;
 
   return (
     <>
@@ -654,19 +659,25 @@ function DoclingPanel({
         </SettingSection>
       )}
 
-      {!isRemote && notInstalled && (
+      {packageUnavailable && (
         <NotInstalledSection
           engineId="docling"
           title={t("Docling (local)")}
+          description={
+            updateRequired
+              ? "The installed Docling version is too old for the current format set. Update it on the server to continue."
+              : undefined
+          }
+          actionLabel={updateRequired ? "Download & update" : undefined}
           onInstalled={onInstalled}
         />
       )}
 
-      {!isRemote && !notInstalled && (
+      {!isRemote && !packageUnavailable && (
         <SettingSection
           title={t("Docling (local)")}
           description={t(
-            "Structured conversion of PDF/Office/HTML/images. Downloads layout/table models on first run.",
+            "Supports Docling's complete current input-format set. Downloads layout/table models; legacy Office and video require LibreOffice/ffmpeg.",
           )}
         >
           <ReadinessNotice readiness={readiness} />
@@ -797,7 +808,7 @@ function TikaPanel({
     <SettingSection
       title={t("Tika")}
       description={t(
-        "Point at an Apache Tika server (e.g. the apache/tika docker image). No local install or models needed.",
+        "Point at an Apache Tika 4 server. The apache/tika:4.0.0-full image enables the broadest standard parser and OCR set; DeepTutor delegates format detection to that server.",
       )}
     >
       <ReadinessNotice readiness={readiness} />
@@ -870,12 +881,14 @@ function TikaPanel({
 
 function MarkItDownPanel({
   slice,
+  readiness,
   available,
   busy,
   onInstalled,
   onSave,
 }: {
   slice: Record<string, unknown>;
+  readiness?: Readiness;
   available: boolean;
   busy: boolean;
   onInstalled: () => void;
@@ -883,12 +896,19 @@ function MarkItDownPanel({
 }) {
   const { t } = useTranslation();
   const llmImages = Boolean(slice.enable_llm_image_description);
+  const updateRequired = readiness?.reason === "update_required";
 
-  if (!available) {
+  if (!available || updateRequired) {
     return (
       <NotInstalledSection
         engineId="markitdown"
         title={t("markitdown")}
+        description={
+          updateRequired
+            ? "The installed package is too old for the current format set. Update it on the server to continue."
+            : undefined
+        }
+        actionLabel={updateRequired ? "Download & update" : undefined}
         onInstalled={onInstalled}
       />
     );
@@ -898,7 +918,7 @@ function MarkItDownPanel({
     <SettingSection
       title={t("markitdown")}
       description={t(
-        "Lightweight Markdown conversion with broad format support. No model downloads.",
+        "Microsoft MarkItDown with all built-in format extras, including Office, e-books, mail, audio, images, notebooks, feeds, and ZIP. No local models.",
       )}
     >
       <SettingRow
@@ -922,12 +942,14 @@ const PYMUPDF4LLM_IMAGE_FORMATS = ["png", "jpg", "jpeg", "webp"];
 
 function PyMuPDF4LLMPanel({
   slice,
+  readiness,
   available,
   busy,
   onInstalled,
   onSave,
 }: {
   slice: Record<string, unknown>;
+  readiness?: Readiness;
   available: boolean;
   busy: boolean;
   onInstalled: () => void;
@@ -938,12 +960,19 @@ function PyMuPDF4LLMPanel({
   const imageFormat =
     typeof slice.image_format === "string" ? slice.image_format : "png";
   const imageDpi = typeof slice.image_dpi === "number" ? slice.image_dpi : 150;
+  const updateRequired = readiness?.reason === "update_required";
 
-  if (!available) {
+  if (!available || updateRequired) {
     return (
       <NotInstalledSection
         engineId="pymupdf4llm"
         title={t("PyMuPDF4LLM")}
+        description={
+          updateRequired
+            ? "The installed package is too old for the current format set. Update it on the server to continue."
+            : undefined
+        }
+        actionLabel={updateRequired ? "Download & update" : undefined}
         onInstalled={onInstalled}
       />
     );
@@ -953,7 +982,7 @@ function PyMuPDF4LLMPanel({
     <SettingSection
       title={t("PyMuPDF4LLM")}
       description={t(
-        "Lightweight PDF/e-book → Markdown built on PyMuPDF. No model downloads or CUDA, so it runs on low-end machines.",
+        "Current CPU-only PyMuPDF layout/OCR conversion for PDF, XPS, e-books, SVG, text, and images. No CUDA or first-run model download.",
       )}
     >
       <SettingRow
@@ -1015,12 +1044,14 @@ function PyMuPDF4LLMPanel({
 
 function LiteParsePanel({
   slice,
+  readiness,
   available,
   busy,
   onInstalled,
   onSave,
 }: {
   slice: Record<string, unknown>;
+  readiness?: Readiness;
   available: boolean;
   busy: boolean;
   onInstalled: () => void;
@@ -1032,12 +1063,19 @@ function LiteParsePanel({
   const extractLinks = slice.extract_links !== false;
   const extractImages = Boolean(slice.extract_images);
   const maxPages = typeof slice.max_pages === "number" ? slice.max_pages : 0;
+  const updateRequired = readiness?.reason === "update_required";
 
-  if (!available) {
+  if (!available || updateRequired) {
     return (
       <NotInstalledSection
         engineId="liteparse"
         title={t("LiteParse")}
+        description={
+          updateRequired
+            ? "The installed package is too old for the current format set. Update it on the server to continue."
+            : undefined
+        }
+        actionLabel={updateRequired ? "Download & update" : undefined}
         onInstalled={onInstalled}
       />
     );
@@ -1047,7 +1085,7 @@ function LiteParsePanel({
     <SettingSection
       title={t("LiteParse")}
       description={t(
-        "Fast Rust-backed PDF/Office/image parser from LlamaIndex. Markdown output, no model downloads.",
+        "Fast Rust-backed PDF, Office, OpenDocument, iWork, and image parser from LlamaIndex. Office-family inputs require LibreOffice.",
       )}
     >
       <SettingRow
@@ -1314,10 +1352,14 @@ function JobButton({
 function NotInstalledSection({
   engineId,
   title,
+  description,
+  actionLabel,
   onInstalled,
 }: {
   engineId: string;
   title: string;
+  description?: string;
+  actionLabel?: string;
   onInstalled: () => void;
 }) {
   const { t } = useTranslation();
@@ -1332,7 +1374,8 @@ function NotInstalledSection({
     <SettingSection
       title={title}
       description={t(
-        "Not installed yet. Install the package to use this engine — runs on the server, no terminal needed.",
+        description ||
+          "Not installed yet. Install the package to use this engine — runs on the server, no terminal needed.",
       )}
     >
       <SettingRow
@@ -1342,7 +1385,7 @@ function NotInstalledSection({
           <JobButton
             running={job?.state === "running"}
             starting={starting}
-            label={t("Download & install")}
+            label={t(actionLabel || "Download & install")}
             onStart={start}
             onCancel={cancel}
           />

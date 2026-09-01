@@ -13,7 +13,8 @@ export function isConfirmedResearchFollowup(
   if (
     events.some(
       (event) =>
-        event.type === "result" && eventMetadata(event).outline_preview === true,
+        event.type === "result" &&
+        eventMetadata(event).outline_preview === true,
     )
   ) {
     return false;

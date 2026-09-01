@@ -240,7 +240,9 @@ export function WatchingPane({ onClose }: { onClose(): void }) {
       if (activeMaterialIdRef.current !== requestedMaterialId) return;
       setNotes((current) =>
         sortNotes(
-          current.map((note) => (note.note_id === saved.note_id ? saved : note)),
+          current.map((note) =>
+            note.note_id === saved.note_id ? saved : note,
+          ),
         ),
       );
       setEditingNoteId(null);

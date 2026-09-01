@@ -31,8 +31,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field, ValidationError
 
-from deeptutor.core.i18n import t
 from deeptutor.multi_user.paths import current_owner_id
+from deeptutor.services.i18n import t
 from deeptutor.services.mcp import MCPServerConfig, get_mcp_manager, load_mcp_config, oauth
 from deeptutor.services.mcp.catalog import (
     build_server_config,

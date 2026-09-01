@@ -63,7 +63,12 @@ def test_plugin_capabilities_are_reported(client, monkeypatch) -> None:
         name = "whisper_visitor"
 
     registry = registry_module.get_capability_registry()
-    monkeypatch.setitem(registry._capabilities, "whisper_visitor", _StubCapability())
+    original = registry.list_capabilities
+    monkeypatch.setattr(
+        registry,
+        "list_capabilities",
+        lambda: [*original(), _StubCapability.name],
+    )
 
     names = client.get("/api/v1/capabilities/registered").json()["capabilities"]
 

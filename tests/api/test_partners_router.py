@@ -676,7 +676,7 @@ class TestChatAttachments:
             res = client.post("/api/v1/partners/ada/chat", json={"content": "hello"})
 
         assert res.status_code == 409
-        from deeptutor.core.i18n import t
+        from deeptutor.services.i18n import t
 
         assert res.json()["detail"] == t("api.partner_stopped_start_required")
 

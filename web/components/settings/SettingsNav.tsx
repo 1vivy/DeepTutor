@@ -144,9 +144,9 @@ function useSettingsVisibility(): {
         showLearnerOnly: authStatus.preset === "learner",
         showGuardianOnly: Boolean(
           authStatus.enabled &&
-            authStatus.authenticated &&
-            !authStatus.is_admin &&
-            (authStatus.preset === "standard" || authStatus.preset === "custom"),
+          authStatus.authenticated &&
+          !authStatus.is_admin &&
+          (authStatus.preset === "standard" || authStatus.preset === "custom"),
         ),
       });
     });

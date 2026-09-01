@@ -9,9 +9,9 @@ import pytest
 
 @pytest.fixture
 def preset_client(mu_isolated_root, monkeypatch, as_user):
+    from deeptutor.api.routers import multi_user as multi_user_router
     import deeptutor.api.routers.auth as auth_router
     from deeptutor.api.routers.auth import require_admin
-    from deeptutor.multi_user import router as multi_user_router
     from deeptutor.multi_user.identity import save_user
     from deeptutor.services.auth import TokenPayload
 

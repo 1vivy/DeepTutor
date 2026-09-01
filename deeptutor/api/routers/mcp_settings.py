@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, ValidationError
 
 from deeptutor.api.routers.auth import require_admin
-from deeptutor.core.i18n import t
+from deeptutor.services.i18n import t
 from deeptutor.services.mcp import (
     MCPConfig,
     MCPServerConfig,

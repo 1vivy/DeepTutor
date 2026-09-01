@@ -24,10 +24,10 @@ import re
 from deeptutor.agents.chat.agentic_pipeline import AgenticChatPipeline
 from deeptutor.capabilities.solve.session import DEFAULT_MAX_REPLANS
 from deeptutor.capabilities.solve.tools import SOLVE_TOOL_NAMES
-from deeptutor.core.capability_protocol import BaseCapability, CapabilityManifest
+from deeptutor.core.capability_protocol import CapabilityManifest, TurnCapability
 from deeptutor.core.context import UnifiedContext
-from deeptutor.core.stream_bus import StreamBus
 from deeptutor.runtime.request_contracts import get_capability_request_schema
+from deeptutor.runtime.stream_bus import StreamBus
 from deeptutor.services.config.capabilities_settings import get_solve_params
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ def resolve_solve_session_id(context: UnifiedContext) -> str:
     return _sanitize(raw)
 
 
-class DeepSolveCapability(BaseCapability):
+class DeepSolveCapability(TurnCapability):
     manifest = CapabilityManifest(
         name="deep_solve",
         description="Multi-step problem solving driven by the chat agent loop.",

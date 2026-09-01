@@ -11,9 +11,10 @@ from deeptutor.book.storage import BookStorage
 
 @pytest.fixture
 def permission_client(tmp_path, monkeypatch):
+    from deeptutor.api.routers import multi_user as router
     from deeptutor.book import engine as engine_module
     from deeptutor.book import storage as storage_module
-    from deeptutor.multi_user import audit, grants, identity, paths, router
+    from deeptutor.multi_user import audit, grants, identity, paths
     from deeptutor.multi_user.paths import get_admin_path_service
 
     admin_root = (tmp_path / "data").resolve()

@@ -41,11 +41,15 @@ export function toolAvailabilityCopy(
         }
       : {
           badge: "Credentials missing",
-          detail: "The selected search provider needs credentials. Check Search settings.",
+          detail:
+            "The selected search provider needs credentials. Check Search settings.",
           href: "/settings/search",
         };
   }
   return language === "zh"
     ? { badge: "暂不可用", detail: "该工具的运行服务当前不可用。" }
-    : { badge: "Unavailable", detail: "This tool's runtime service is unavailable." };
+    : {
+        badge: "Unavailable",
+        detail: "This tool's runtime service is unavailable.",
+      };
 }

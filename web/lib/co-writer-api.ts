@@ -94,7 +94,9 @@ export async function deleteCoWriterDocument(docId: string): Promise<boolean> {
   return Boolean(data?.deleted);
 }
 
-export async function importCoWriterDocx(file: File): Promise<CoWriterDocument> {
+export async function importCoWriterDocx(
+  file: File,
+): Promise<CoWriterDocument> {
   const body = new FormData();
   body.append("file", file);
   const res = await apiFetch(apiUrl(`${BASE}/documents/import/docx`), {

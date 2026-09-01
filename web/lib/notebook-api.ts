@@ -518,9 +518,7 @@ export async function getQuestionBankStats(
 
 export async function listQuestionBankMaterials(
   courseId = "",
-): Promise<
-  QuestionBankMaterial[]
-> {
+): Promise<QuestionBankMaterial[]> {
   const query = courseId ? `?course_id=${encodeURIComponent(courseId)}` : "";
   const response = await apiFetch(
     apiUrl(`/api/v1/question-notebook/materials${query}`),

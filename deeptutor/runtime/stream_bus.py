@@ -24,8 +24,8 @@ from contextlib import asynccontextmanager
 import json
 from typing import Any, AsyncIterator
 
-from .stream import StreamEvent, StreamEventType
-from .trace import merge_trace_metadata
+from deeptutor.core.stream import StreamEvent, StreamEventType
+from deeptutor.core.trace import merge_trace_metadata
 
 
 class StreamBus:

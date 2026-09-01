@@ -31,7 +31,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from deeptutor.api.routers.auth import require_admin
-from deeptutor.core.i18n import t
 from deeptutor.multi_user.paths import current_owner_id
 from deeptutor.multi_user.tool_access import allowed_cli_apps, exec_override
 from deeptutor.services.cli_apps import (
@@ -48,6 +47,7 @@ from deeptutor.services.cli_apps.state import (
     load_installed,
     set_app_enabled,
 )
+from deeptutor.services.i18n import t
 
 logger = logging.getLogger(__name__)
 

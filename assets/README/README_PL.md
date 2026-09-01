@@ -65,7 +65,7 @@ DeepTutor to natywne dla agentów środowisko nauki, które łączy korepetycje,
 - **Połączony kontekst uczenia się** — bazy wiedzy, książki, szkice Co-Writer, notatniki, banki pytań, persony i Memory są dostępne we wszystkich przepływach pracy zamiast żyć w izolowanych narzędziach.
 - **Immersyjne uczenie się z wideo** — wklej link do YouTube, aby korzystać z natywnego odtwarzania o podwyższonej ochronie prywatności, zsynchronizowanych napisów, korepetycji osadzonych w znacznikach czasu i wznawialnych postępów; administratorzy mogą przełączyć odtwarzanie na samodzielnie hostowaną instancję Invidious bez ponownego tworzenia materiałów.
 - **Subagenty i Partners** — konsultuj aktywnie działającego agenta (Claude Code, Codex, Antigravity, Kimi, opencode, MiMo, Hermes, OpenClaw lub DeepSeek) albo Partner z dowolnej tury (lub importuj poprzednie konwersacje) i uruchamiaj stałych towarzyszy IM na tym samym mózgu.
-- **Wielosilnikowa wiedza** — wersjonowane biblioteki RAG z LlamaIndex, PageIndex, GraphRAG, LightRAG, zdalnym LightRAG Server, biblioteką Tencent IMA lub MarginNote 4, lub podłączonym vault Obsidian, z podłączalnym parsowaniem dokumentów.
+- **Wielosilnikowa wiedza** — wersjonowane biblioteki RAG z LlamaIndex, PageIndex, GraphRAG, LightRAG, zdalnym LightRAG Server, samodzielnie hostowanym WeKnora, biblioteką Tencent IMA lub MarginNote 4, lub podłączonym vault Obsidian, z podłączalnym parsowaniem dokumentów.
 - **Rozszerzalne narzędzia i umiejętności** — wbudowane narzędzia, serwery MCP, aplikacje CLI, modele generowania obrazów / wideo / głosu oraz instalowalne umiejętności społecznościowe z EduHub.
 - **Inspektowalna pamięć** — ślady L1, podsumowania powierzchni L2 i synteza L3 sprawiają, że personalizacja jest widoczna i edytowalna, a Memory Graph śledzi każde twierdzenie z powrotem do jego dowodów.
 
@@ -78,7 +78,7 @@ DeepTutor oferuje cztery ścieżki instalacji. Wszystkie współdzielą jeden uk
 <details>
 <summary><b>Opcja 1 — Instalacja z PyPI</b> · pełna lokalna aplikacja Web + CLI, bez potrzeby klonowania</summary>
 
-Pełna lokalna aplikacja Web + CLI, bez potrzeby klonowania. Wymaga **Python 3.11–3.13** i środowiska uruchomieniowego **Node.js 20+** na PATH (spakowany serwer standalone Next.js jest uruchamiany przez `deeptutor start`).
+Pełna lokalna aplikacja Web + CLI, bez potrzeby klonowania. Wymaga **Python 3.11–3.14** i środowiska uruchomieniowego **Node.js 20+** na PATH (spakowany serwer standalone Next.js jest uruchamiany przez `deeptutor start`).
 
 ```bash
 mkdir -p my-deeptutor && cd my-deeptutor
@@ -96,7 +96,7 @@ Po `deeptutor start` otwórz adres URL frontendu wydrukowany w terminalu — dom
 <details>
 <summary><b>Opcja 2 — Instalacja ze źródeł</b> · programowanie przy użyciu kodu źródłowego</summary>
 
-Do programowania przy użyciu kodu źródłowego. Użyj **Python 3.11–3.13** i **Node.js 22 LTS**, aby dopasować do CI i Dockera.
+Do programowania przy użyciu kodu źródłowego. Użyj **Python 3.11–3.14** i **Node.js 22 LTS**, aby dopasować do CI i Dockera.
 
 ```bash
 git clone https://github.com/HKUDS/DeepTutor.git
@@ -133,7 +133,7 @@ python -m pip install --upgrade pip
 
 ```bash
 pip install -e ".[rag-lightrag]"    # Wbudowany silnik LightRAG (dokładnie obsługiwany SDK)
-pip install -e ".[graphrag]"        # Silnik Microsoft GraphRAG
+pip install -e ".[graphrag]"        # Silnik Microsoft GraphRAG (Python 3.11–3.13)
 pip install -e ".[dev]"             # narzędzia testów/lint
 pip install -e ".[partners]"        # SDK kanałów IM Partners
 pip install -e ".[video-learning]"  # optional YouTube public-caption adapter
@@ -297,7 +297,53 @@ Wszystko w `data/user/settings/` to zwykły JSON/YAML. Strona **Settings** w prz
 | `main.yaml` | Domyślne zachowanie środowiska uruchomieniowego i wstrzykiwanie ścieżek |
 | `agents.yaml` | Ustawienia temperatury i tokenów możliwości/narzędzi |
 
+Odwołania Web Search są domyślnie filtrowane: wyświetlane są wyłącznie publiczne adresy URL `http`/`https` bez osadzonych danych uwierzytelniających ani nietypowych portów. Wdrożenia mogą dodać politykę domen skoncentrowaną na edukacji w `data/user/settings/system.json`:
+
+```json
+{
+  "web_search_source_filtering": {
+    "enabled": true,
+    "blocked_domains": ["spam.example"],
+    "trusted_domains": ["edu.cn", "arxiv.org"]
+  }
+}
+```
+
+Gdy `trusted_domains` nie jest puste, odwołania są ograniczone do tych domen i ich subdomen; `blocked_domains` zawsze ma pierwszeństwo.
+
 Plik `.env` w katalogu głównym projektu **nie** jest czytany jako plik konfiguracyjny aplikacji. Dla minimalnej konfiguracji modelu otwórz **Settings → Models**, dodaj profil LLM (bazowy URL / klucz API / nazwa modelu) i zapisz. Dodaj profil osadzania tylko jeśli planujesz korzystać z funkcji Bazy wiedzy / RAG.
+
+Profile LLM zgodne z OpenAI udostępniają również ustawienie **protokołu API**. Pozostaw `Auto` dla normalnego wykrywania dostawcy i zgodnego mechanizmu awaryjnego, wybierz `Responses API` dla endpointów implementujących wyłącznie `/responses` albo `Chat Completions` dla endpointów wymagających `/chat/completions`. Wymuszony tryb Responses działa w sposób fail-closed: błędy endpointu są zwracane zamiast cichej ponownej próby przez Chat Completions. Odpowiadające pole profilu w `model_catalog.json` to `wire_api` (`auto`, `responses` lub `chat_completions`).
+
+</details>
+
+<details>
+<summary><b>Odinstalowanie i czyszczenie</b></summary>
+
+DeepTutor oddziela zainstalowany kod od obszaru roboczego środowiska uruchomieniowego. Domyślnie obszarem roboczym jest katalog, w którym uruchamiasz `deeptutor init` / `deeptutor start`; `--home PATH` lub `DEEPTUTOR_HOME` go zastępuje. Dane środowiska uruchomieniowego znajdują się w katalogu `data` wewnątrz tego obszaru roboczego, więc wiersz banera startowego zaczynający się od `Workspace:` wskazuje, co należy wyczyścić.
+
+1. Zatrzymaj aplikację. Naciśnij `Ctrl+C` w terminalu, w którym działa `deeptutor start`, albo uruchom `deeptutor stop [--home PATH]` dla launchera uruchomionego z `--detach`; przed usunięciem danych zatrzymaj wszystkie działające Partners i odłączone kontenery Docker.
+2. Usuń dane środowiska uruchomieniowego tylko wtedy, gdy chcesz również wymazać cały stan lokalny. Obejmuje to ustawienia i klucze API, historię czatu, sesje, Memory, Notebooks, Books, stan Reading, Skills, stan Partners, dzienniki, Knowledge Bases, pamięci podręczne parsowania, wygenerowane artefakty i pamięć podręczną środowiska uruchomieniowego spakowanego frontendu.
+
+   Najpierw skopiuj dokładną ścieżkę `Workspace:` z banera startowego i upewnij się, że jej element potomny `data` jest właściwym katalogiem danych DeepTutor. Jeśli cokolwiek może być potrzebne później, wykonaj kopię zapasową, a następnie przenieś dokładnie ten katalog do Kosza systemu operacyjnego. Nie uruchamiaj polecenia usuwania rekurencyjnego na ścieżce względnej ani nierozwiązanej zmiennej środowiskowej.
+
+3. Usuń zainstalowany pakiet. Użyj polecenia odpowiedniego dla dystrybucji:
+
+   ```bash
+   python -m pip uninstall deeptutor
+   python -m pip uninstall deeptutor-cli
+   ```
+
+   Jeśli środowisko wirtualne utworzono wyłącznie dla DeepTutor, usuń je za pomocą menedżera środowisk. W przypadku instalacji ze źródeł zdezaktywuj środowisko, opuść katalog źródłowy i uruchom `git status --short` wewnątrz dokładnie tego kodu źródłowego. Przenieś go do Kosza dopiero po potwierdzeniu, że nie zawiera niepowiązanej ani niezacommitowanej pracy.
+
+4. Dla ścieżki Docker sprawdź dokładny kontener i nazwany wolumin przed ich usunięciem. Usunięcie woluminu trwale wymazuje dane zarządzane przez Docker:
+
+   ```bash
+   docker ps -a --filter name=^/deeptutor$
+   docker volume inspect deeptutor-data
+   docker rm -f deeptutor
+   docker volume rm deeptutor-data
+   ```
 
 </details>
 
@@ -335,9 +381,9 @@ Pętla jest celowo prosta: model myśli w rundach, wywołuje narzędzia gdy są 
 
 Narzędzia przełączalne przez użytkownika to `brainstorm`, `web_search`, `paper_search`, `reason` i `geogebra_analysis` — plus `imagegen` i `videogen` po skonfigurowaniu odpowiedniego modelu generowania. Narzędzia kontekstowe takie jak `rag`, `kb_files`, `read_source`, `read_memory`, `write_memory`, `read_skill`, `load_tools`, `exec`, `web_fetch`, `ask_user`, `list_notebook`, `write_note`, `question_bank`, `github` i `consult_subagent` montują się automatycznie gdy tura ma odpowiedni kontekst.
 
-Kontekst dzieli się na dwa rodzaje: **trwały kontekst sesji** (subagent, bazy wiedzy, persona, model, głos) żyje na pasku narzędziowym kompozytora i jest zachowany przez tury; **jednorazowe odwołania** (pliki, historia czatu, książki, notatniki, bank pytań, zaimportowani agenci) pochodzą z menu `+` dla jednej tury.
+Kontekst dzieli się na dwa rodzaje: **trwały kontekst sesji** (subagent, bazy wiedzy, persona, model, głos) żyje na pasku narzędziowym kompozytora i jest zachowany przez tury; **jednorazowe odwołania** (pliki, historia czatu, książki, sekcje do czytania, notatniki, bank pytań, zaimportowani agenci) pochodzą z menu `+` dla jednej tury.
 
-Home daje dostęp jednym kliknięciem do **Chat**, **Ask Questions**, **Quiz**, **Visualize** i **Immersive Watching**; **Research** do raportów z cytowaniami oraz **Solve** do rozumowania krok po kroku znajdują się w sekcji *More Capabilities*. **Mastery Path** i **Immersive Reading** mają dedykowane obszary robocze na pasku bocznym, a Course Study zachowuje własny kontekst związany z kursem.
+Home daje dostęp jednym kliknięciem do **Chat**, **Ask Questions**, **Quiz**, **Visualize** i **Immersive Watching**; **Research** do raportów z cytowaniami oraz **Solve** do rozumowania krok po kroku znajdują się w sekcji *More Capabilities*. **Mastery Path** i **Immersive Reading** mają dedykowane obszary robocze na pasku bocznym; Reading dodaje zweryfikowane, klikalne cytowania, zapisane cytowania i notatki, oparte na źródłach działania czytania na głos / wskazówek do nauki / słownictwa / quizu / tłumaczenia oraz przechwytywanie do notatnika, a Course Study zachowuje własny kontekst związany z kursem.
 
 </details>
 
@@ -428,13 +474,13 @@ Każdy rozdział kompiluje się do edytowalnych, typowanych bloków — tekstu, 
 <img src="../../assets/figs/web-1.4.6+/knowledge/00-overview.png" alt="Knowledge Center DeepTutor" width="900">
 </div>
 
-Bazy wiedzy to kolekcje dokumentów za RAG — ugruntowują tury Chat, edycje Co-Writer, generowanie Book i konwersacje Partner. Wyróżnikiem jest **wybór silnika wyszukiwania**: **LlamaIndex** (domyślny, lokalny wektor + BM25), **PageIndex** (wyszukiwanie z rozumowaniem z cytowaniami na poziomie strony, hostowany lub samodzielnie hostowany open source), **GraphRAG** i **LightRAG** (wyszukiwanie oparte na grafach wiedzy), **LightRAG Server** (wyszukiwanie odciążone do zewnętrznej instancji LightRAG którą łączysz przez HTTP), **Tencent IMA** (biblioteka którą kurujesz w IMA — przeszukiwana, przeglądana i zapisywana z powrotem przez jego OpenAPI), **MarginNote 4** (Twoje dane MN4 — dokumenty, wyciągi, karty mapy myśli i połączenia między nimi — przesyłane przez Add-on aplikacji i przeglądane za pomocą dedykowanych narzędzi), lub podłączony vault **Obsidian** który tutor czyta i zapisuje w miejscu. Każda KB jest powiązana z jednym silnikiem.
+Bazy wiedzy to kolekcje dokumentów za RAG — ugruntowują tury Chat, edycje Co-Writer, generowanie Book i konwersacje Partner. Wyróżnikiem jest **wybór silnika wyszukiwania**: **LlamaIndex** (domyślny, hybrydowy wektor + BM25 z opcjonalnym ponownym rankingiem cross-encoder i indeksami FAISS exact-flat lub HNSW), **PageIndex** (wyszukiwanie z rozumowaniem z cytowaniami na poziomie strony, hostowany lub samodzielnie hostowany open source), **GraphRAG** i **LightRAG** (wyszukiwanie oparte na grafach wiedzy), **LightRAG Server** (wyszukiwanie odciążone do zewnętrznej instancji LightRAG którą łączysz przez HTTP), **WeKnora** (wyszukiwanie z bazy wiedzy w samodzielnie hostowanym wdrożeniu, bez lokalnego indeksu ani kopii dokumentów), **Tencent IMA** (biblioteka którą kurujesz w IMA — przeszukiwana, przeglądana i zapisywana z powrotem przez jego OpenAPI), **MarginNote 4** (Twoje dane MN4 — dokumenty, wyciągi, karty mapy myśli i połączenia między nimi — przesyłane przez Add-on aplikacji i przeglądane za pomocą dedykowanych narzędzi), lub podłączony vault **Obsidian** który tutor czyta i zapisuje w miejscu. Każda KB jest powiązana z jednym silnikiem.
 
 <div align="center">
 <img src="../../assets/figs/web-1.4.6+/knowledge/01-create%20knowledge%20base.png" alt="Tworzenie bazy wiedzy" width="900">
 </div>
 
-Tworząc KB, albo **tworzysz nową** (przesyłasz dokumenty i budujesz świeży indeks), albo **łączysz istniejącą** (ponownie używasz indeksu zbudowanego gdzie indziej, czytasz w miejscu bez ponownego indeksowania). Baza wiedzy może też śledzić **repozytoria GitHub** (repozytorium, gałąź i wzorzec glob) lub **adresy URL witryn dokumentacji** (z ograniczoną głębokością przeszukiwania i liczbą stron); synchronizacja na żądanie porównuje skróty treści, aby wykryć elementy dodane, zmienione i usunięte, dzięki czemu śledzona dokumentacja pozostaje aktualna bez ponownego przesyłania. Ponowne indeksowanie zapisuje nowy płaski katalog `version-N` i zachowuje poprzednie, więc działający indeks nigdy nie jest niszczony w trakcie przebudowy. Pojedynczy dokument można usunąć nawet z bazy w stanie **błędu** — usuwając plik, który nie sparsował się poprawnie, bez pełnego usuwania i przebudowy. Parsowanie dokumentów — Tylko tekst, MinerU, Docling, Tika, markitdown, PyMuPDF4LLM lub LiteParse — jest wybierane w **Settings → Knowledge Base**, z domyślnie wyłączonymi pobieraniami lokalnego modelu. Docling może też działać w trybie **zdalnym** względem serwera Docling Serve (bez lokalnej instalacji czy modeli), konfigurowanym przez **Settings → Document Parsing** (`mode=remote`, bazowy URL serwera i opcjonalny klucz API) lub zmienne środowiskowe `DOCLING_MODE` / `DOCLING_API_BASE_URL` / `DOCLING_API_TOKEN`. Tika jest wyłącznie zdalna i wskazuje na serwer Apache Tika (`TIKA_SERVER_URL`). CLI odzwierciedla cykl życia przez `list/info/create/add/search/set-default/delete`, polecenia dodawania/usuwania źródeł, `list-sources` i `sync`.
+Tworząc KB, albo **tworzysz nową** (przesyłasz dokumenty i budujesz świeży indeks), albo **łączysz istniejącą** (ponownie używasz indeksu zbudowanego gdzie indziej, czytasz w miejscu bez ponownego indeksowania). Baza wiedzy może też śledzić **repozytoria GitHub** (repozytorium, gałąź i wzorzec glob) lub **adresy URL witryn dokumentacji** (z ograniczoną głębokością przeszukiwania i liczbą stron); synchronizacja na żądanie porównuje skróty treści, aby wykryć elementy dodane, zmienione i usunięte, dzięki czemu śledzona dokumentacja pozostaje aktualna bez ponownego przesyłania. Ponowne indeksowanie zapisuje nowy płaski katalog `version-N` i zachowuje poprzednie, więc działający indeks nigdy nie jest niszczony w trakcie przebudowy. Pojedynczy dokument można usunąć nawet z bazy w stanie **błędu** — usuwając plik, który nie sparsował się poprawnie, bez pełnego usuwania i przebudowy. Parsowanie dokumentów — Tylko tekst, MinerU, Docling, Tika, markitdown, PyMuPDF4LLM lub LiteParse — jest wybierane w **Settings → Knowledge Base**, z domyślnie wyłączonymi pobieraniami lokalnego modelu. Docling może też działać w trybie **zdalnym** względem serwera Docling Serve (bez lokalnej instalacji czy modeli), konfigurowanym przez **Settings → Document Parsing** (`mode=remote`, bazowy URL serwera i opcjonalny klucz API) lub zmienne środowiskowe `DOCLING_MODE` / `DOCLING_API_BASE_URL` / `DOCLING_API_TOKEN`. Tika jest wyłącznie zdalna i wskazuje na serwer Apache Tika skonfigurowany na tej stronie. CLI odzwierciedla cykl życia przez `list/info/create/add/search/set-default/delete`, polecenia dodawania/usuwania źródeł, `list-sources` i `sync`.
 
 Wbudowany silnik LightRAG instaluje się poleceniem `pip install 'deeptutor[rag-lightrag]'`. Ten dodatek zawiera obsługiwany SDK LightRAG, ale nie instaluje MinerU. Wybierz MinerU niezależnie w Document Parsing i skonfiguruj jego tryb chmurowy albo zainstaluj jego aktualny lokalny CLI, gdy potrzebne jest strukturalne parsowanie. MinerU akceptuje pliki PDF, popularne obrazy rastrowe, DOCX, PPTX i XLSX; starsze polecenie `magic-pdf` nadal obsługuje wyłącznie pliki PDF. Tryb tylko tekstowy i pozostałe silniki parsowania nie wymagają MinerU.
 
@@ -481,7 +527,7 @@ Memory Graph pokazuje całą piramidę — synteza L3 w centrum, L2 w środkowym
 <img src="../../assets/figs/web-1.4.6+/settings/00-setting%20overview.png" alt="Centrum ustawień DeepTutor" width="900">
 </div>
 
-Settings to operacyjna płaszczyzna kontroli z paskiem statusu na żywo (stan backendu i pamięć rezydentna procesów na żywo w całym drzewie procesów) oraz trwałym, przeszukiwalnym nawigatorem, który pozwala dotrzeć do dowolnej strony jednym kliknięciem: **Appearance** (motyw, język interfejsu i język odpowiedzi modelu, stylizacja bloków kodu), **Network** (baza API, porty, CORS), **Models** (Połączenia, LLM, Modele zadań, Embedding, Search, Text-to-Speech, Speech-to-Text, Image Generation, Video Generation), **Knowledge Base** (silnik parsowania dokumentów), **Chat** (Video Learning, narzędzia, parametry per-możliwość, punkty startowe, limity załączników), **Partners & Agents** (dziewięć lokalnych środowisk uruchomieniowych agentów), **Memory** (budżety konsolidatora) i **About** (sprawdzanie wersji i bezpieczne aktualizacje). **Połączenie** przechowuje jedno poświadczenie dostawcy i odzwierciedla je w każdej usłudze, którą ten dostawca może obsłużyć, więc klucz wprowadza się raz zamiast wklejać go na pięciu stronach; **modele zadań** przypinają mały, szybki model do pracy, o którą nikt nie prosił — nadawanie nazwy rozmowie, pisanie punktów startowych w composerze — i domyślnie sięgają po aktywny model, gdy pozostawione są puste.
+Settings to operacyjna płaszczyzna kontroli z paskiem statusu na żywo (stan backendu i pamięć rezydentna procesów na żywo w całym drzewie procesów) oraz trwałym, przeszukiwalnym nawigatorem, który pozwala dotrzeć do dowolnej strony jednym kliknięciem: **Appearance** (motyw, język interfejsu i język odpowiedzi modelu, stylizacja bloków kodu), **Network** (baza API, porty, CORS), **Models** (Połączenia, LLM, Modele zadań, Embedding, Search, Text-to-Speech, Speech-to-Text, Image Generation, Video Generation), **Knowledge Base** (silnik parsowania dokumentów), **Chat** (Video Learning, przeszukiwalne narzędzia, parametry per-możliwość, punkty startowe, limity załączników), **Partners & Agents** (dziewięć lokalnych środowisk uruchomieniowych agentów), **Profil ucznia** (wiek, klasa, program nauczania, język, poziom czytania, styl wyjaśnień), **Guardian** (upoważnieni uczniowie, materiały, raporty, resetowanie poświadczeń), **Memory** (budżety konsolidatora) i **About** (sprawdzanie wersji i bezpieczne aktualizacje). **Połączenie** przechowuje jedno poświadczenie dostawcy i odzwierciedla je w każdej usłudze, którą ten dostawca może obsłużyć, więc klucz wprowadza się raz zamiast wklejać go na pięciu stronach; **modele zadań** przypinają mały, szybki model do pracy, o którą nikt nie prosił — nadawanie nazwy rozmowie, pisanie punktów startowych w composerze — i domyślnie sięgają po aktywny model, gdy pozostawione są puste.
 
 **Video Learning** w Settings → Chat domyślnie korzysta z oficjalnego odtwarzacza YouTube IFrame Player o podwyższonej ochronie prywatności. Aby odtwarzać lokalnie, ustaw zarządzane przez administratora źródło API Invidious (na przykład `http://127.0.0.1:3000`), przetestuj je, wybierz Invidious i zapisz. Nowe lub ponownie otwarte filmy natychmiast przejmują dostawcę, zachowując ten sam identyfikator materiału i postęp. Multimedia Invidious są strumieniowane przez proxy zakresów bajtów DeepTutor; nadrzędne adresy URL nie są ani ujawniane przeglądarce, ani zapisywane na dysku. Jeśli instancja ulegnie awarii, DeepTutor pozostaje odłączony od YouTube, dopóki uczeń nie wybierze jawnie natywnego trybu awaryjnego YouTube. Korepetycje oparte na publicznych napisach są opcjonalne: zainstaluj `.[video-learning]`; bez niego odtwarzanie nadal działa, natomiast funkcja **Explain here** oparta na transkrypcji jest wyłączona wraz z podaniem przyczyny.
 
@@ -529,7 +575,7 @@ data/
 └── system/                  # auth · grants · audit · user-secrets/<owner> (tokeny OAuth)
 ```
 
-**Pierwszy zarejestrowany użytkownik staje się administratorem** i jest właścicielem katalogów modeli, danych uwierzytelniających dostawców, współdzielonych baz wiedzy, umiejętności, kanonicznych współdzielonych książek i uprawnień per-użytkownik. Wszyscy pozostali otrzymują izolowany obszar roboczy i zredagowaną stronę Settings — przypisane modele, KB i umiejętności pojawiają się jako ograniczone, tylko do odczytu opcje, nigdy jako surowe klucze API. Uprawnienie do tworzenia książek oraz domyślny i indywidualny dla książki dostęp do odczytu lub wspólnej edycji są przypisywane osobno w **Book access**; współdzielone książki nadal może usuwać wyłącznie administrator.
+**Pierwszy zarejestrowany użytkownik staje się administratorem** i jest właścicielem katalogów modeli, danych uwierzytelniających dostawców, współdzielonych baz wiedzy, umiejętności, kanonicznych współdzielonych książek i uprawnień per-użytkownik. Lokalni użytkownicy utworzeni przez administratora wybierają Standard, Learner lub Custom. Learner blokuje możliwości edukacyjne i politykę materiałów, dodaje profil adaptacyjny oraz obsługuje odwoływalne poświadczenia urządzenia z datą wygaśnięcia i limitami dziennymi; upoważnieni guardians mogą przeglądać raporty, zatwierdzać materiały i resetować poświadczenia. Pozostali użytkownicy otrzymują izolowane obszary robocze oraz ograniczony dostęp do modeli, KB, umiejętności, Partners i współdzielonych książek bez otrzymywania surowych kluczy API. Jeśli `auth.json` zawiera już `username` + `password_hash`, to konto *jest* administratorem: `/register` pozostaje zamknięte, a konta utworzone z `/admin/users` mają zawsze `role=user`, dopóki ich nie awansujesz.
 
 **Włącz:** włącz uwierzytelnianie w `data/user/settings/auth.json`, uruchom ponownie `deeptutor start`, zarejestruj pierwszego administratora pod `/register`, następnie dodaj użytkowników z `/admin/users` i przypisz modele, KB, umiejętności, Partners, politykę narzędzi/MCP/aplikacji CLI i dostęp do wykonania kodu przez uprawnienia; skonfiguruj współdzielone książki w panelu **Book access** każdego użytkownika.
 
@@ -585,7 +631,8 @@ Repozytorium zawiera główny [`SKILL.md`](../../SKILL.md) — około 200-liniow
 |:---|:---|
 | `deeptutor init` | Utwórz lub zaktualizuj `data/user/settings` dla bieżącego obszaru roboczego |
 | `deeptutor doctor [--online]` | Sprawdź, czy obszar roboczy jest gotowy do rozpoczęcia sesji; `--online` sprawdza też skonfigurowanego dostawcę modelu, `--format json` wypisuje raport |
-| `deeptutor start [--home PATH] [--dev]` | Uruchom backend + frontend razem |
+| `deeptutor start [--home PATH] [--dev] [--detach] [--no-browser]` | Uruchom backend + frontend razem; opcjonalnie odłącz proces lub pomiń otwieranie przeglądarki |
+| `deeptutor stop [--home PATH]` | Zatrzymaj launcher uruchomiony z `--detach` |
 | `deeptutor serve [--port PORT]` | Uruchom tylko backend FastAPI |
 | `deeptutor run <capability> <message>` | Uruchom jedną turę możliwości (`chat`, `ask_questions`, `deep_solve`, `deep_question`, `deep_research`, `visualize`, `math_animator`, `mastery_path`, `immersive_reading`, `course_study`, `immersive_watching`); dodaj `--format json` dla wyjścia NDJSON |
 | `deeptutor chat` | Interaktywny REPL z kontrolkami możliwości, narzędzia, KB, notatnika i historii |

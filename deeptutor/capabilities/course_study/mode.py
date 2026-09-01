@@ -29,9 +29,9 @@ from deeptutor.capabilities.course_study.tools import (
     COURSE_STUDY_TOOL_NAMES,
     COURSE_STUDY_TOOL_TYPES,
 )
-from deeptutor.core.capability_protocol import BaseCapability, CapabilityManifest
+from deeptutor.core.capability_protocol import CapabilityManifest, TurnCapability
 from deeptutor.core.context import UnifiedContext
-from deeptutor.core.stream_bus import StreamBus
+from deeptutor.runtime.stream_bus import StreamBus
 
 
 def _register_course_tools() -> None:
@@ -45,7 +45,7 @@ def _register_course_tools() -> None:
             registry.register(tool)
 
 
-class CourseStudyCapability(BaseCapability):
+class CourseStudyCapability(TurnCapability):
     manifest = CapabilityManifest(
         name=COURSE_STUDY_NAME,
         description=(

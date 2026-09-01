@@ -31,7 +31,7 @@ from deeptutor.co_writer.storage import (
     CoWriterDocumentSummary,
     get_co_writer_storage,
 )
-from deeptutor.core.stream_bus import StreamBus
+from deeptutor.runtime.stream_bus import StreamBus
 from deeptutor.services.config import PROJECT_ROOT, load_config_with_main
 from deeptutor.services.llm import clean_thinking_tags
 from deeptutor.services.rag.pipelines.pageindex import is_pageindex_kb

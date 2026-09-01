@@ -150,6 +150,7 @@ export interface KnowledgeUploadPolicy {
   extensions: string[];
   accept: string;
   max_file_size_bytes: number;
+  allow_any_extension?: boolean;
 }
 
 export interface KnowledgeBaseFile {
@@ -184,10 +185,15 @@ const IMAGE_UPLOAD_MIME_TYPES = [
 
 function normalizeUploadPolicy(data: unknown): KnowledgeUploadPolicy {
   const payload = data as Partial<KnowledgeUploadPolicy> | null | undefined;
+  const allowAnyExtension = payload?.allow_any_extension === true;
   const extensions = Array.from(
     new Set([
-      ...(Array.isArray(payload?.extensions) ? payload.extensions : []),
-      ...IMAGE_UPLOAD_EXTENSIONS,
+      ...(allowAnyExtension
+        ? []
+        : Array.isArray(payload?.extensions)
+          ? payload.extensions
+          : []),
+      ...(allowAnyExtension ? [] : IMAGE_UPLOAD_EXTENSIONS),
     ]),
   ).sort();
   const serverAccept =
@@ -197,13 +203,16 @@ function normalizeUploadPolicy(data: unknown): KnowledgeUploadPolicy {
           .map((item) => item.trim())
           .filter(Boolean)
       : [];
-  const accept = Array.from(
-    new Set([...serverAccept, ...extensions, ...IMAGE_UPLOAD_MIME_TYPES]),
-  ).join(",");
+  const accept = allowAnyExtension
+    ? ""
+    : Array.from(
+        new Set([...serverAccept, ...extensions, ...IMAGE_UPLOAD_MIME_TYPES]),
+      ).join(",");
 
   return {
     extensions,
     accept,
+    allow_any_extension: allowAnyExtension,
     max_file_size_bytes:
       typeof payload?.max_file_size_bytes === "number"
         ? payload.max_file_size_bytes

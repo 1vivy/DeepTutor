@@ -402,12 +402,19 @@ export default function QuizViewer({
   const isConcept = q ? isConceptQuizQuestion(q.question_type) : false;
   const isFillBlank = q ? isFillInBlankQuizQuestion(q.question_type) : false;
   const isGradable = q ? isAutoGradable(q) : false;
+  // Fill-in-the-blank questions normally use exact text grading, but formulas
+  // can be much easier to submit as a photo. Keep the existing image path for
+  // open-ended questions and extend it to fill-in-the-blank questions only.
+  const canAttachImage = isFillBlank || !isGradable;
   const currentUserAnswer = q ? getUserAnswer(q, ans) : "";
+  const canShowCorrectness = isGradable && currentUserAnswer.length > 0;
 
   const isCorrect = useMemo(() => {
-    if (!q || !ans.submitted) return null;
+    // An image-only fill-in-the-blank answer needs the multimodal AI judge;
+    // exact string matching would otherwise label it incorrectly as wrong.
+    if (!q || !ans.submitted || !canShowCorrectness) return null;
     return isAnswerCorrect(q, ans);
-  }, [ans, q]);
+  }, [ans, canShowCorrectness, q]);
 
   const submittedResults = useMemo(
     () =>
@@ -797,8 +804,10 @@ export default function QuizViewer({
             // answer red just because it doesn't match the reference
             // string verbatim.
             const autoGradable = isAutoGradable(question);
+            const hasAutoGradableAnswer =
+              !!answer && getUserAnswer(question, answer).length > 0;
             const correctness: "correct" | "incorrect" | null =
-              done && answer && autoGradable
+              done && answer && autoGradable && hasAutoGradableAnswer
                 ? isAnswerCorrect(question, answer)
                   ? "correct"
                   : "incorrect"
@@ -1095,11 +1104,10 @@ export default function QuizViewer({
           </div>
         )}
 
-        {/* Image-as-answer attachment — only offered for question types
-            without an auto-gradable answer (short_answer / written /
-            coding). These are also the types that benefit most from a
-            multimodal AI judgment over handwritten work. */}
-        {!isGradable && (
+        {/* Image-as-answer attachment — offered for open-ended questions and
+            fill-in-the-blank questions, where formulas may be cumbersome to
+            type. Choice and concept questions keep their direct controls. */}
+        {canAttachImage && (
           <div className="mt-2 space-y-2">
             <input
               ref={fileInputRef}
@@ -1170,10 +1178,10 @@ export default function QuizViewer({
               onClick={handleSubmit}
               disabled={(() => {
                 if (isChoice || isConcept) return !ans.selected;
-                // For free-text / fill-blank, require a typed answer; for
-                // non-auto-gradable types, an image attachment also counts.
+                // For free-text / fill-blank, accept either a typed answer or
+                // an image when this question type supports image answers.
                 if (ans.typed.trim()) return false;
-                if (!isGradable && ans.images.length > 0) return false;
+                if (canAttachImage && ans.images.length > 0) return false;
                 return true;
               })()}
               className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-[12px] font-medium text-white transition-opacity disabled:opacity-30"

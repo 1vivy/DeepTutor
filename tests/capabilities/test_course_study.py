@@ -25,7 +25,7 @@ from deeptutor.capabilities.course_study.tools import (
     CourseOverviewTool,
 )
 from deeptutor.core.context import UnifiedContext
-from deeptutor.core.stream_bus import StreamBus
+from deeptutor.runtime.stream_bus import StreamBus
 
 
 def _context(*, mode: str = "course_study", course_id: str = "") -> UnifiedContext:
@@ -266,7 +266,7 @@ def test_is_active_requires_mode_and_course_binding() -> None:
     assert capability.is_active(
         UnifiedContext(
             active_capability="course_study",
-            config_overrides={"_course_id": "course-2"},
+            metadata={"course_id": "course-2"},
         )
     )
     assert not capability.is_active(_context())
@@ -1115,8 +1115,8 @@ async def test_handoff_keeps_a_ref_that_resolves(
     assert handoff["label"] == "Processes"
 
 
-def _course_context(**metadata: object) -> SimpleNamespace:
-    return SimpleNamespace(
+def _course_context(**metadata: object) -> UnifiedContext:
+    return UnifiedContext(
         active_capability="course_study",
         metadata={"course_id": "course-1", **metadata},
         config_overrides={},
@@ -1149,7 +1149,7 @@ def test_recommendation_written_beside_the_handoff_becomes_the_answer() -> None:
     # tool round, which the transcript files under the collapsed trace, not as
     # the reply. Setting it leaves the message body empty with the whole
     # recommendation hidden a click away.
-    assert "_capability_answer_published" not in context.metadata
+    assert context.capability_output.answer_published is False
 
 
 def test_a_bare_handoff_call_leaves_the_loop_alone() -> None:

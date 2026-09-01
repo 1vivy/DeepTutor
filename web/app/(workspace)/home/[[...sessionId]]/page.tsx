@@ -629,7 +629,10 @@ export default function ChatPage() {
     const latestAssistant = [...state.messages]
       .reverse()
       .find((message) => message.role === "assistant");
-    if (!latestAssistant || !shouldReturnToChatAfterResearch(latestAssistant.events)) {
+    if (
+      !latestAssistant ||
+      !shouldReturnToChatAfterResearch(latestAssistant.events)
+    ) {
       return;
     }
     const terminal = [...(latestAssistant.events ?? [])]
@@ -640,7 +643,12 @@ export default function ChatPage() {
     returnedResearchTurnRef.current = turnKey;
     setCapability(null);
     setCapabilityConfigConfirmed(false);
-  }, [setCapability, state.activeCapability, state.isStreaming, state.messages]);
+  }, [
+    setCapability,
+    state.activeCapability,
+    state.isStreaming,
+    state.messages,
+  ]);
 
   // Edit-invalidates-confirm wrappers — flipping any field after the user
   // hit *Confirm* should restore the gate so they re-confirm intentionally.
@@ -2362,9 +2370,7 @@ export default function ChatPage() {
                   title={t("Download chat history as Markdown")}
                 />
                 <HeaderActionButton
-                  onClick={() =>
-                    viewerPanelRef.current?.openMarkdownNoteTab()
-                  }
+                  onClick={() => viewerPanelRef.current?.openMarkdownNoteTab()}
                   icon={NotebookPen}
                   label={t("Markdown note")}
                   title={t("Write Markdown in chat")}

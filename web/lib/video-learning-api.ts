@@ -87,16 +87,12 @@ async function unwrap<T>(response: Response): Promise<T> {
             "string"
           ? (detail as { message: string }).message
           : null;
-    throw new Error(
-      message || `Request failed (${response.status})`,
-    );
+    throw new Error(message || `Request failed (${response.status})`);
   }
   return (await response.json()) as T;
 }
 
-export async function listVideoNotes(
-  materialId: string,
-): Promise<VideoNote[]> {
+export async function listVideoNotes(materialId: string): Promise<VideoNote[]> {
   return unwrap(
     await apiFetch(
       apiUrl(

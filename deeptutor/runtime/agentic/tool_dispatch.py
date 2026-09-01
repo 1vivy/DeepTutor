@@ -26,12 +26,7 @@ import json
 import logging
 from typing import Any
 
-from deeptutor.core.agentic.tool_arg_guard import (
-    missing_args_message,
-    unsatisfied_required_args,
-)
 from deeptutor.core.context import UnifiedContext
-from deeptutor.core.stream_bus import StreamBus
 from deeptutor.core.tool_protocol import ToolLookup, provider_identity
 from deeptutor.core.trace import (
     build_trace_metadata,
@@ -39,7 +34,12 @@ from deeptutor.core.trace import (
     merge_trace_metadata,
     new_call_id,
 )
+from deeptutor.runtime.agentic.tool_arg_guard import (
+    missing_args_message,
+    unsatisfied_required_args,
+)
 from deeptutor.runtime.registry.tool_registry import get_tool_registry
+from deeptutor.runtime.stream_bus import StreamBus
 from deeptutor.utils.json_parser import parse_json_response
 
 logger = logging.getLogger(__name__)
@@ -355,7 +355,7 @@ async def _reject_if_args_missing(
 
     Returns ``None`` when the call is well-formed (dispatch proceeds), or a
     synthetic failed result whose text tells the model which arguments to
-    fill in. See :mod:`deeptutor.core.agentic.tool_arg_guard` for why the
+    fill in. See :mod:`deeptutor.runtime.agentic.tool_arg_guard` for why the
     tool itself is the wrong place to catch this.
 
     Unknown tool names and definitions that fail to build are passed

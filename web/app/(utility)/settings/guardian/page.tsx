@@ -45,7 +45,9 @@ const permissionKeys: Record<string, string> = {
 
 export default function GuardianSettingsPage() {
   const { t } = useTranslation();
-  const [relationships, setRelationships] = useState<GuardianRelationship[]>([]);
+  const [relationships, setRelationships] = useState<GuardianRelationship[]>(
+    [],
+  );
   const [selectedRelationship, setSelectedRelationship] =
     useState<GuardianRelationship | null>(null);
   const [report, setReport] = useState<GuardianReport | null>(null);
@@ -258,7 +260,9 @@ export default function GuardianSettingsPage() {
               <strong>{relationship.learner_username}</strong>
               <span className="mt-1 block text-xs text-[var(--muted-foreground)]">
                 {relationship.permissions
-                  .map((permission) => t(permissionKeys[permission] ?? permission))
+                  .map((permission) =>
+                    t(permissionKeys[permission] ?? permission),
+                  )
                   .join(" · ")}
               </span>
             </button>

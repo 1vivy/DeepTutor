@@ -142,7 +142,7 @@ def _upload_payload() -> list[tuple[str, tuple[str, bytes, str]]]:
 
 
 def _invalid_upload_payload() -> list[tuple[str, tuple[str, bytes, str]]]:
-    return [("files", ("archive.zip", b"PK\x03\x04", "application/zip"))]
+    return [("files", ("archive.unsupported", b"binary", "application/octet-stream"))]
 
 
 def _uppercase_upload_payload() -> list[tuple[str, tuple[str, bytes, str]]]:
@@ -542,12 +542,40 @@ def test_supported_file_types_returns_upload_policy() -> None:
     assert ".pptx" in payload["extensions"]
     assert ".md" in payload["extensions"]
     assert ".png" in payload["extensions"]
+    assert ".pages" in payload["extensions"]
+    assert ".mp4" in payload["extensions"]
+    assert ".dclg.xml" in payload["extensions"]
+    assert ".tar.gz" in payload["extensions"]
+    assert ".ipynb" in payload["extensions"]
+    assert ".cbz" in payload["extensions"]
+    assert ".key" in payload["extensions"]
+    assert ".vsdx" in payload["extensions"]
+    assert ".sqlite3" in payload["extensions"]
     assert payload["max_file_size_bytes"] > 0
     assert "max_pdf_size_bytes" not in payload
     assert ".pdf" in payload["accept"]
     assert ".docx" in payload["accept"]
     assert ".png" in payload["accept"]
+    assert ".tar.gz" in payload["accept"]
     assert "image/png" in payload["accept"]
+    assert payload["allow_any_extension"] is False
+
+
+def test_supported_file_types_can_delegate_all_extensions(monkeypatch) -> None:
+    monkeypatch.setattr(
+        knowledge_router_module.FileTypeRouter,
+        "active_parser_accepts_any_format",
+        classmethod(lambda cls: True),
+    )
+
+    with TestClient(_build_app()) as client:
+        response = client.get("/api/v1/knowledge/supported-file-types")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["allow_any_extension"] is True
+    assert payload["extensions"] == []
+    assert payload["accept"] == ""
 
 
 def test_graphrag_model_compatibility_probes_candidate_without_switching(

@@ -21,7 +21,9 @@ const fields: Array<[keyof LearnerProfile, string]> = [
 export default function LearnerProfileSettingsPage() {
   const { t } = useTranslation();
   const [profile, setProfile] = useState<LearnerProfile>({});
-  const [status, setStatus] = useState<"idle" | "loading" | "saved" | "error">("loading");
+  const [status, setStatus] = useState<"idle" | "loading" | "saved" | "error">(
+    "loading",
+  );
 
   useEffect(() => {
     void getOwnLearnerProfile()
@@ -35,7 +37,12 @@ export default function LearnerProfileSettingsPage() {
   const update = (key: keyof LearnerProfile, value: string) => {
     setProfile((current) => ({
       ...current,
-      [key]: key === "age" ? (value ? Number(value) : undefined) : value || undefined,
+      [key]:
+        key === "age"
+          ? value
+            ? Number(value)
+            : undefined
+          : value || undefined,
     }));
   };
 
@@ -80,7 +87,11 @@ export default function LearnerProfileSettingsPage() {
           {t("Save profile")}
         </button>
         {status === "saved" && <span className="text-sm">{t("Saved")}</span>}
-        {status === "error" && <span className="text-sm text-red-600">{t("Unable to save profile")}</span>}
+        {status === "error" && (
+          <span className="text-sm text-red-600">
+            {t("Unable to save profile")}
+          </span>
+        )}
       </div>
     </main>
   );
