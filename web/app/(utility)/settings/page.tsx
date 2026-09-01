@@ -3,14 +3,14 @@
 import { CategoryScroll } from "@/components/settings/CategoryScroll";
 import SettingsOverview from "@/components/settings/SettingsOverview";
 
-import AboutSettingsPage from "./about/page";
-import AgentsSettingsPage from "./agents/page";
-import AppearanceSettingsPage from "./appearance/page";
-import ChatSettingsPage from "./chat/page";
-import DocumentParsingSettingsPage from "./document-parsing/page";
-import MemorySettingsPage from "./memory/page";
-import ModelsSettingsPage from "./models/page";
-import NetworkSettingsPage from "./network/page";
+import AboutSettingsPage from "@/features/settings/sections/AboutSettingsSection";
+import AgentsSettingsPage from "@/features/settings/sections/AgentsSettingsSection";
+import AppearanceSettingsPage from "@/features/settings/sections/AppearanceSettingsSection";
+import ChatSettingsPage from "@/features/settings/sections/ChatSettingsSection";
+import DocumentParsingSettingsPage from "@/features/settings/sections/DocumentParsingSettingsSection";
+import MemorySettingsPage from "@/features/settings/sections/MemorySettingsSection";
+import ModelsSettingsPage from "@/features/settings/sections/ModelsSettingsSection";
+import NetworkSettingsPage from "@/features/settings/sections/NetworkSettingsSection";
 
 /**
  * Settings is one document: users can read it from Overview to About with a

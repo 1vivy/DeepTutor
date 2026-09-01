@@ -42,7 +42,7 @@ import {
   getActiveModel,
   getActiveProfile,
   useSettings,
-} from "./SettingsContext";
+} from "@/features/settings/store/SettingsStore";
 import { DimensionField } from "./DimensionField";
 import {
   AddCard,

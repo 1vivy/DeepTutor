@@ -21,7 +21,7 @@ import {
   type Lang,
   type SettingsLeaf,
 } from "@/lib/settings-nav";
-import { serviceReadiness, useSettings } from "./SettingsContext";
+import { serviceReadiness, useSettings } from "@/features/settings/store/SettingsStore";
 
 /**
  * Same-page anchor vs. a real route change. A merged category's children

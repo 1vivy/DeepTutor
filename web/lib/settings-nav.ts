@@ -39,7 +39,7 @@ import {
   OpenClawGlyph,
   OpencodeGlyph,
 } from "@/components/agents/agent-icons";
-import type { ServiceName } from "@/components/settings/SettingsContext";
+import type { ServiceName } from "@/features/settings/store/SettingsStore";
 
 /**
  * Settings information architecture.

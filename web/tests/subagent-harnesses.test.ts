@@ -55,7 +55,7 @@ test('Gemini CLI is retired and agent glyphs use official local assets', () => {
 
 test('new harnesses have settings routes and category sections', () => {
   const editor = readWebFile('components', 'settings', 'SubagentSettingsEditor.tsx')
-  const category = readWebFile('app', '(utility)', 'settings', 'agents', 'page.tsx')
+  const category = readWebFile('features', 'settings', 'sections', 'AgentsSettingsSection.tsx')
   const nav = readWebFile('lib', 'settings-nav.ts')
 
   for (const harness of HARNESSES) {

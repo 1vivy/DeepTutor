@@ -523,7 +523,7 @@ export interface SettingsExtension {
   payload?: unknown;
 }
 
-type SettingsContextValue = {
+export type SettingsContextValue = {
   // State
   catalog: Catalog;
   draft: Catalog;

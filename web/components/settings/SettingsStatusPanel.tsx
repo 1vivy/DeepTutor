@@ -3,7 +3,7 @@
 import { useTranslation } from "react-i18next";
 
 import MemoryUsageItem from "@/components/settings/MemoryUsageItem";
-import { useSettings } from "@/components/settings/SettingsContext";
+import { useSettings } from "@/features/settings/store/SettingsStore";
 import { statusDotClass } from "@/components/settings/shared";
 import {
   RuntimeHealthCard,

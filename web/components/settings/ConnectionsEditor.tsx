@@ -23,7 +23,7 @@ import {
   type ConnectionTarget,
   type ServiceName,
   useSettings,
-} from "./SettingsContext";
+} from "@/features/settings/store/SettingsStore";
 import { inputClass, selectClass, selectOptionClass } from "./shared";
 
 /**

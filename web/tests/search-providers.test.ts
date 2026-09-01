@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { searchProviderFields } from "../components/settings/search-providers";
-import type { ProviderOption } from "../components/settings/SettingsContext";
+import type { ProviderOption } from "../features/settings/store/SettingsStore";
 
 // Options as `/api/v1/settings/provider-choices` serves them, derived from the
 // backend SEARCH_PROVIDERS spec table. The web app owns no provider table of its

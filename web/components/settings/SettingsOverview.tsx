@@ -21,7 +21,7 @@ import {
   serviceReadiness,
   useSettings,
   type ServiceReadiness,
-} from "./SettingsContext";
+} from "@/features/settings/store/SettingsStore";
 
 /**
  * The settings landing page.

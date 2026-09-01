@@ -11,7 +11,7 @@ import {
   getActiveModel,
   getActiveProfile,
   useSettings,
-} from "./SettingsContext";
+} from "@/features/settings/store/SettingsStore";
 import { selectClass, selectOptionClass } from "./shared";
 
 /**
