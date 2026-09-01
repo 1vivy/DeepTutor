@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { connectMarginNote4Library } from "../lib/knowledge-api";
+import { connectMarginNote4Library } from "../features/knowledge/api/catalog";
 import {
   getMarginNote4Status,
   listMarginNote4Devices,

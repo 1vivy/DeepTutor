@@ -1,5 +1,5 @@
 import { apiFetch, apiUrl } from "@/lib/api";
-import { readErrorDetail } from "@/lib/knowledge-api";
+import { readErrorDetail } from "@/features/knowledge/api/catalog";
 
 /**
  * Device bridge for a connected MarginNote 4 library.

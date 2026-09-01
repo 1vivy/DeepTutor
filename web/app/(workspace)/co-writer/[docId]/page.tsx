@@ -43,7 +43,7 @@ import {
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { apiFetch, apiUrl } from "@/lib/api";
-import { listKnowledgeBases } from "@/lib/knowledge-api";
+import { listKnowledgeBases } from "@/features/knowledge/api/catalog";
 import {
   exportCoWriterDocx,
   getCoWriterDocument,

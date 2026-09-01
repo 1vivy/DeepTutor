@@ -98,7 +98,7 @@ import {
   type DeepResearchFormConfig,
   type OutlineItem,
 } from "@/lib/research-types";
-import { listKnowledgeBases } from "@/lib/knowledge-api";
+import { listKnowledgeBases } from "@/features/knowledge/api/catalog";
 import { getSubagentSettings } from "@/lib/subagents-api";
 import { useLLMOptions } from "@/hooks/useLLMOptions";
 import {

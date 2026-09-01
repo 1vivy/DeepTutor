@@ -5,10 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { useKnowledgeBases } from "@/hooks/useKnowledgeBases";
-import { updateRagProviderMode } from "@/lib/knowledge-api";
+import { updateRagProviderMode } from "@/features/knowledge/api/engines";
 import KnowledgeBaseDetail from "./KnowledgeBaseDetail";
 import KnowledgeHome, { type KnowledgeHomeSection } from "./KnowledgeHome";
-import EngineDetail from "./EngineDetail";
+import EngineDetail from "@/features/knowledge/components/engines/EngineDetail";
 import CreateKbModal from "./CreateKbModal";
 
 export default function KnowledgePage() {

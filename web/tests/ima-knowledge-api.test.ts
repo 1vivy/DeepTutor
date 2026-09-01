@@ -6,7 +6,7 @@ import {
   connectImaKnowledgeBase,
   listImaKnowledgeBases,
   probeImaKnowledgeBase,
-} from "../lib/knowledge-api";
+} from "../features/knowledge/api/catalog";
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {

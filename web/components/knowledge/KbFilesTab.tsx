@@ -5,7 +5,7 @@ import {
   knowledgeBaseFilePath,
   knowledgeBaseFilePreviewTextPath,
   type KnowledgeBaseFile,
-} from "@/lib/knowledge-api";
+} from "@/features/knowledge/api/files";
 import type { KnowledgeBase } from "@/lib/knowledge-helpers";
 import type { TaskState } from "@/hooks/useKnowledgeProgress";
 import type { FilePreviewSource } from "@/components/chat/preview/previewerFor";

@@ -20,7 +20,7 @@ import type { Book, BookDepth, BookProposal } from "@/lib/book-types";
 import {
   listKnowledgeBases,
   type KnowledgeBaseSummary,
-} from "@/lib/knowledge-api";
+} from "@/features/knowledge/api/catalog";
 import { SUBAGENT_KB_TYPE } from "@/lib/knowledge-helpers";
 import {
   getNotebook,

@@ -41,7 +41,7 @@ import {
 import {
   listKnowledgeBases,
   type KnowledgeBaseSummary,
-} from "@/lib/knowledge-api";
+} from "@/features/knowledge/api/catalog";
 import { listLLMOptions, type LLMOption } from "@/lib/llm-options";
 import type { SelectedRecord } from "@/lib/notebook-selection-types";
 import type { SpaceMemoryFile } from "@/lib/space-items";
