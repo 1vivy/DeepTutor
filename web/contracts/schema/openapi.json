@@ -9771,7 +9771,7 @@
     "/api/outputs/{output_path}": {
       "get": {
         "description": "Serve one allowlisted artifact from the authenticated user's reach.",
-        "operationId": "read_output_api_outputs__output_path__get",
+        "operationId": "read_output_api_outputs__output_path__head_get",
         "parameters": [
           {
             "in": "path",
@@ -9842,7 +9842,7 @@
       },
       "head": {
         "description": "Serve one allowlisted artifact from the authenticated user's reach.",
-        "operationId": "read_output_api_outputs__output_path__get",
+        "operationId": "read_output_api_outputs__output_path__head",
         "parameters": [
           {
             "in": "path",
@@ -48466,7 +48466,7 @@
     },
     "/api/v1/video-learning/materials/{material_id}/stream/{format_id}": {
       "get": {
-        "operationId": "stream_video_api_v1_video_learning_materials__material_id__stream__format_id__get",
+        "operationId": "stream_video_api_v1_video_learning_materials__material_id__stream__format_id__head_get",
         "parameters": [
           {
             "in": "path",
@@ -48545,7 +48545,7 @@
         ]
       },
       "head": {
-        "operationId": "stream_video_api_v1_video_learning_materials__material_id__stream__format_id__get",
+        "operationId": "stream_video_api_v1_video_learning_materials__material_id__stream__format_id__head",
         "parameters": [
           {
             "in": "path",

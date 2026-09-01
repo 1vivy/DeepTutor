@@ -23,6 +23,7 @@ from .turn_protocol import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "web" / "contracts" / "schema"
+HTTP_METHODS = {"delete", "get", "head", "options", "patch", "post", "put", "trace"}
 
 
 def _json_text(payload: dict[str, Any]) -> str:
@@ -36,10 +37,34 @@ def _merge_model_schema(components: dict[str, Any], model: type[BaseModel]) -> N
     components[model.__name__] = schema
 
 
+def _deduplicate_operation_ids(openapi: dict[str, Any]) -> None:
+    """Make FastAPI GET/HEAD aliases safe for TypeScript code generation."""
+
+    seen: set[str] = set()
+    for path_item in openapi.get("paths", {}).values():
+        for method, operation in path_item.items():
+            if method not in HTTP_METHODS or not isinstance(operation, dict):
+                continue
+            operation_id = operation.get("operationId")
+            if not operation_id or operation_id not in seen:
+                if operation_id:
+                    seen.add(operation_id)
+                continue
+
+            candidate = f"{operation_id}_{method}"
+            suffix = 2
+            while candidate in seen:
+                candidate = f"{operation_id}_{method}_{suffix}"
+                suffix += 1
+            operation["operationId"] = candidate
+            seen.add(candidate)
+
+
 def render_contracts() -> dict[str, str]:
     from deeptutor.api.main import app
 
     openapi = deepcopy(app.openapi())
+    _deduplicate_operation_ids(openapi)
     schemas = openapi.setdefault("components", {}).setdefault("schemas", {})
     for model in (TurnRequest, RuntimeStatus, SessionSummary, SessionDetail, ErrorEnvelope):
         _merge_model_schema(schemas, model)
