@@ -545,6 +545,7 @@ export const AssistantMessage = memo(function AssistantMessage({
           {showResearchBody ? (
             <AssistantResponse
               content={msg.content}
+              language={language}
               isStreaming={isStreaming}
               readingMaterialId={readingMaterialId}
               readingMaterialRevision={readingMaterialRevision}
@@ -570,6 +571,7 @@ export const AssistantMessage = memo(function AssistantMessage({
           {msg.content ? (
             <AssistantResponse
               content={msg.content}
+              language={language}
               isStreaming={isStreaming}
               readingMaterialId={readingMaterialId}
               readingMaterialRevision={readingMaterialRevision}
@@ -593,6 +595,7 @@ export const AssistantMessage = memo(function AssistantMessage({
             <AssistantResponse
               key={seg.key}
               content={seg.text}
+              language={language}
               isStreaming={isStreaming}
               readingMaterialId={readingMaterialId}
               readingMaterialRevision={readingMaterialRevision}
@@ -620,6 +623,7 @@ export const AssistantMessage = memo(function AssistantMessage({
       ) : (
         <AssistantResponse
           content={body}
+          language={language}
           isStreaming={isStreaming}
           readingMaterialId={readingMaterialId}
           readingMaterialRevision={readingMaterialRevision}

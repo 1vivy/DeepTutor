@@ -33,7 +33,10 @@ import {
   updateSessionTitle,
   type SessionMessage,
 } from "@/lib/session-api";
-import { normalizeMarkdownForDisplay } from "@/lib/markdown-display";
+import {
+  normalizeMarkdownForDisplay,
+  repairChineseEmphasis,
+} from "@/lib/markdown-display";
 import { normalizeMessageContent } from "@/lib/message-content";
 import {
   buildVisiblePath,
@@ -205,6 +208,9 @@ export interface MessageItem {
   id?: number;
   role: "user" | "assistant" | "system";
   content: string;
+  /** Original model text accumulated during a live stream. Kept separate from
+   * `content`, which may be Markdown-normalized for display. */
+  rawContent?: string;
   capability?: string;
   events?: StreamEvent[];
   attachments?: MessageAttachment[];
@@ -605,6 +611,7 @@ function reducer(state: ProviderState, action: Action): ProviderState {
                 id: nextOptimisticId(),
                 role: "assistant",
                 content: "",
+                rawContent: "",
                 events: [],
                 capability: session.activeCapability || "",
                 parentMessageId: tip?.id ?? null,
@@ -641,6 +648,7 @@ function reducer(state: ProviderState, action: Action): ProviderState {
           id: nextOptimisticId(),
           role: "assistant",
           content: "",
+          rawContent: "",
           events: [],
           capability: session.activeCapability || "",
           parentMessageId: last?.id ?? null,
@@ -655,19 +663,22 @@ function reducer(state: ProviderState, action: Action): ProviderState {
         return state;
       }
       const events = [...(last?.events || []), action.event];
-      let content = last?.content || "";
+      const language = session.language;
+      let rawContent = last?.rawContent ?? last?.content ?? "";
       if (isNarrationMarker(action.event)) {
         // A round just resolved as narration (preamble before a tool call):
         // drop its already-streamed text from the answer — it stays in the
-        // trace. Recomputing is cheap here (only fires per narration round).
-        content = recomputeAnswerContent(events);
+        // trace. Recompute from immutable event content, never from display text.
+        rawContent = recomputeAnswerContent(events);
       } else if (shouldAppendEventContent(action.event)) {
-        content += action.event.content;
+        rawContent += action.event.content;
       }
+      const content = repairChineseEmphasis(rawContent, language);
       const capability = last?.capability || session.activeCapability || "";
       msgs[msgs.length - 1] = {
         ...(last || { role: "assistant", content: "" }),
         content,
+        rawContent,
         events,
         capability,
       };
