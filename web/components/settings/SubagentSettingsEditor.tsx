@@ -142,6 +142,15 @@ const KIND_FEATURES: Record<string, KindFeatures> = {
     thinking: false,
     forwardImages: true, // --image
   },
+  hermes_remote: {
+    effort: true,
+    systemPrompt: true,
+    permissionMode: false,
+    codexSandbox: false,
+    autoApprove: true,
+    thinking: false,
+    forwardImages: false,
+  },
   openclaw: {
     effort: true, // --thinking
     systemPrompt: true,
@@ -171,7 +180,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   opencode: "opencode",
   mimo: "MiMo Code",
   hermes: "Hermes Agent",
-  openclaw: "OpenClaw",
+  hermes_remote: "Hermes Agent (remote)",
   deepseek_harness: "DeepSeek Harness",
 };
 
@@ -197,6 +206,10 @@ const SYSTEM_PROMPT_HINT: Record<string, Lang> = {
   hermes: {
     zh: "Hermes 没有系统提示 flag——该指令会前缀在每个新会话的第一条消息上。",
     en: "Hermes has no system-prompt flag — the instruction is prefixed to each new session's first message.",
+  },
+  hermes_remote: {
+    zh: "通过 Hermes 网关 API 的 instructions 字段注入到每个新请求。",
+    en: "Sent through the Hermes gateway API's instructions field on each request.",
   },
   openclaw: {
     zh: "该指令会前缀在每个新 OpenClaw session key 的第一条消息上。",
@@ -330,6 +343,7 @@ export function SubagentSettingsEditor({ kind }: { kind: string }) {
   );
 
   const features = KIND_FEATURES[kind] ?? FALLBACK_FEATURES;
+  const isRemote = kind === "hermes_remote";
   const knownSlugs = useMemo(
     () => new Set((options?.models ?? []).map((m) => m.slug)),
     [options],
@@ -451,20 +465,99 @@ export function SubagentSettingsEditor({ kind }: { kind: string }) {
                     })
               }
               control={
-                <button
-                  type="button"
-                  disabled={syncing}
-                  onClick={() => void sync()}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--foreground)] transition-colors hover:border-[var(--foreground)]/40 disabled:opacity-60"
-                >
-                  <RefreshCw
-                    className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`}
-                  />
-                  {tr({ zh: "同步", en: "Sync" })}
-                </button>
+                isRemote ? (
+                  <span className="text-[12px] text-[var(--muted-foreground)]">
+                    {tr({ zh: "网关模型由服务端提供", en: "Gateway models are server-managed" })}
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={syncing}
+                    onClick={() => void sync()}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--foreground)] transition-colors hover:border-[var(--foreground)]/40 disabled:opacity-60"
+                  >
+                    <RefreshCw
+                      className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`}
+                    />
+                    {tr({ zh: "同步", en: "Sync" })}
+                  </button>
+                )
               }
             />
           </SettingSection>
+
+          {isRemote && (
+            <SettingSection
+              title={tr({ zh: "远程网关", en: "Remote gateway" })}
+              description={tr({
+                zh: "密钥只从环境变量读取；这里仅保存变量名，不保存密钥值。",
+                en: "The bearer is read only from the environment; this stores the variable name, never the secret.",
+              })}
+            >
+              <SettingRow
+                title={tr({ zh: "网关 URL", en: "Gateway URL" })}
+                control={
+                  <input
+                    className={`${inputClass} w-[260px]`}
+                    disabled={busy}
+                    value={config.base_url ?? ""}
+                    placeholder="http://hermes-uni:8642"
+                    onChange={(e) => setConfig((p) => ({ ...p, base_url: e.target.value }))}
+                    onBlur={(e) => void save({ base_url: e.target.value.trim() })}
+                  />
+                }
+              />
+              <SettingRow
+                title={tr({ zh: "密钥环境变量", en: "API key environment variable" })}
+                control={
+                  <input
+                    className={`${inputClass} w-[260px]`}
+                    disabled={busy}
+                    value={config.api_key_env ?? "DEEPTUTOR_HERMES_REMOTE_API_KEY"}
+                    onChange={(e) => setConfig((p) => ({ ...p, api_key_env: e.target.value }))}
+                    onBlur={(e) => void save({ api_key_env: e.target.value.trim() })}
+                  />
+                }
+              />
+              <SettingRow
+                title={tr({ zh: "配置 profile", en: "Profile label" })}
+                description={tr({
+                  zh: "仅作部署标识，不会把密钥写入设置。",
+                  en: "Informational deployment label; it never stores a key.",
+                })}
+                control={
+                  <input
+                    className={`${inputClass} w-[260px]`}
+                    disabled={busy}
+                    value={config.profile ?? ""}
+                    onChange={(e) => setConfig((p) => ({ ...p, profile: e.target.value }))}
+                    onBlur={(e) => void save({ profile: e.target.value.trim() })}
+                  />
+                }
+              />
+              <SettingRow
+                title={tr({ zh: "空闲超时（秒）", en: "Idle timeout (seconds)" })}
+                control={
+                  <input
+                    className={`${inputClass} w-[260px]`}
+                    disabled={busy}
+                    type="number"
+                    min={0}
+                    value={config.idle_timeout_seconds ?? 600}
+                    onChange={(e) =>
+                      setConfig((p) => ({
+                        ...p,
+                        idle_timeout_seconds: Number.parseInt(e.target.value, 10),
+                      }))
+                    }
+                    onBlur={(e) =>
+                      void save({ idle_timeout_seconds: Number.parseInt(e.target.value, 10) })
+                    }
+                  />
+                }
+              />
+            </SettingSection>
+          )}
 
           <SettingSection
             title={tr({ zh: "模型", en: "Model" })}

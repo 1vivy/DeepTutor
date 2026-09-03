@@ -73,6 +73,12 @@ class BackendConfig:
     # input; OpenClaw and DeepSeek receive opted-in paths as file references.
     forward_images: bool = False
     extra_args: list[str] = field(default_factory=list)
+    # Remote Hermes gateway connection. Credentials stay in the environment;
+    # ``api_key_env`` is only the name read at request time.
+    base_url: str = ""
+    api_key_env: str = "DEEPTUTOR_HERMES_REMOTE_API_KEY"
+    profile: str = ""
+    idle_timeout_seconds: int = 600
 
 
 @dataclass(slots=True)
@@ -105,6 +111,10 @@ def _backend_to_dict(cfg: BackendConfig) -> dict[str, Any]:
         "thinking": cfg.thinking,
         "forward_images": cfg.forward_images,
         "extra_args": list(cfg.extra_args),
+        "base_url": cfg.base_url,
+        "api_key_env": cfg.api_key_env,
+        "profile": cfg.profile,
+        "idle_timeout_seconds": cfg.idle_timeout_seconds,
     }
 
 
@@ -121,6 +131,10 @@ def _coerce_backend(raw: Any) -> BackendConfig:
     if not isinstance(raw, dict):
         return base
     extra = raw.get("extra_args")
+    try:
+        idle_timeout = int(raw.get("idle_timeout_seconds", base.idle_timeout_seconds))
+    except (TypeError, ValueError):
+        idle_timeout = base.idle_timeout_seconds
     return BackendConfig(
         enabled=bool(raw.get("enabled", base.enabled)),
         model=str(raw.get("model") or "").strip(),
@@ -135,6 +149,11 @@ def _coerce_backend(raw: Any) -> BackendConfig:
         thinking=bool(raw.get("thinking", base.thinking)),
         forward_images=bool(raw.get("forward_images", base.forward_images)),
         extra_args=[str(a) for a in extra] if isinstance(extra, list) else [],
+        base_url=str(raw.get("base_url") or "").strip(),
+        api_key_env=str(raw.get("api_key_env") or base.api_key_env).strip()
+        or base.api_key_env,
+        profile=str(raw.get("profile") or "").strip(),
+        idle_timeout_seconds=max(0, idle_timeout),
     )
 
 

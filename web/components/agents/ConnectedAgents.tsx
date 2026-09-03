@@ -40,6 +40,7 @@ function backendLabel(kind: string, tr: (l: Lang) => string): string {
   if (kind === "opencode") return "opencode";
   if (kind === "mimo") return "MiMo Code";
   if (kind === "hermes") return "Hermes Agent";
+  if (kind === "hermes_remote") return "Hermes Agent (remote)";
   if (kind === "openclaw") return "OpenClaw";
   if (kind === "deepseek_harness") return "DeepSeek Harness";
   if (kind === PARTNER_KIND) return tr({ zh: "伙伴", en: "Partner" });
