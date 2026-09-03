@@ -348,6 +348,8 @@ async def _free_text_options(
 
 async def _hermes_options() -> BackendOptions:
     return await _free_text_options("hermes", "Hermes Agent", _HERMES_EFFORTS)
+
+
 async def _hermes_remote_options() -> BackendOptions:
     backend = get_backend("hermes_remote")
     detected = await backend.detect() if backend else None
@@ -361,8 +363,6 @@ async def _hermes_remote_options() -> BackendOptions:
         allow_custom_model=True,
         detail=detected.detail if detected else "incompatible",
     )
-
-
 
 
 async def _openclaw_options() -> BackendOptions:

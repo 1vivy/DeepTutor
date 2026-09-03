@@ -22,51 +22,51 @@ The per-backend settings live under `backends.hermes_remote` in the normal
 
 The API key is environment-only. It is never accepted as an inline settings
 field, persisted, or returned by `GET /api/subagents/settings`.
+The gateway URL must be HTTP(S) without credentials, query text, or fragments.
+An optional `/p/<profile>` prefix supports Hermes multi-profile routing.
+Redirects are never followed.
 
 ## HTTP contract
 
-The adapter uses an authenticated bearer request (`Authorization: Bearer ...`)
-with explicit connect/read/write/pool timeouts. The API server's endpoint list
-is documented in `gateway/platforms/api_server.py` lines 4-24 and the machine
-capabilities response is at lines 3148-3232.
+The adapter uses authenticated bearer requests (`Authorization: Bearer ...`)
+with explicit connect/read/write/pool timeouts. The endpoints and machine-
+readable feature contract are documented in the
+[Hermes API Server guide](https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server/).
 
-1. `GET /v1/models` detects availability. A successful response is an OpenAI
-   model list (`{"object":"list","data":[...]}`), as implemented at lines
-   3063-3109. Detection reports distinct `not_configured`, `key_missing`,
-   `unreachable`, `unauthorized`, and `incompatible` details.
+1. `GET /v1/capabilities` detects availability and verifies that the configured
+   gateway advertises run submission, event streaming, stopping, approval
+   responses, and session resources. Detection reports distinct
+   `not_configured`, `key_missing`, `unreachable`, `unauthorized`, and
+   `incompatible` details.
 2. `POST /v1/runs` starts a run. The request uses `input` for the user prompt,
    `instructions` for the optional first-session system instruction, `model`
    when configured, `model_options.reasoning_effort` when configured, and
-   `session_id` when resuming. The server accepts those fields at lines
-   6695-6776 and returns HTTP 202 with `{ "run_id": "...", "status":
-   "started" }` at lines 7088-7095. A fresh run uses its run id as the session
-   id (lines 6768-6770); a resumed run keeps the supplied session id.
+   `session_id` when resuming. The server returns HTTP 202 with
+   `{ "run_id": "...", "status": "started" }`. A fresh run uses its run id as
+   the session id; a resumed run keeps the supplied session id.
    Before a resumed run, the adapter fetches
    `GET /api/sessions/{session_id}/messages`. It keeps only non-empty
    user/assistant rows, excludes tool rows, and sends at most the last 40 rows
-   as `conversation_history`. A 404 means the session is gone: the run starts
-   fresh without history and applies `system_prompt` again.
+   as `conversation_history`. A 404 means the session is gone: the old session
+   id and headers are dropped, and the run starts fresh without history while
+   applying `system_prompt` again.
 3. `GET /v1/runs/{run_id}/events` is an SSE stream. Frames contain JSON in a
-   `data:` line (the server serializer is at lines 188-207). The adapter
-   consumes these event objects:
+   `data:` line. The adapter consumes these event objects:
    `message.delta` (`delta`), `tool.started` (`tool`, `preview`),
    `tool.completed` (`tool`, `error`), `reasoning.available` (`text`),
    `approval.request`, `run.completed` (`output`), `run.failed` (`error`), and
    `run.cancelled`. Tool lifecycle events become tool/tool-result rows;
    answer deltas become cumulative text under merge id
    `hermes_remote:final`; other lifecycle events become log/error rows. The
-   server's run callback emits tool/reasoning events at lines 6588-6679,
-   text/completion events at lines 6791-6804 and 6981-6997, and approval events
-   at lines 6848-6875.
+   gateway emits tool/reasoning, text/completion, and approval events through
+   the same stream.
 4. `POST /v1/runs/{run_id}/approval` resolves a pending approval. The body is
    `{ "choice": "once" }` for auto-approve and `{ "choice": "deny" }` when
-   `auto_approve` is false. The accepted choices and response are implemented
-   at lines 7164-7250. A failed approval response is surfaced and the run is
-   stopped instead of waiting indefinitely.
+   `auto_approve` is false. A failed approval response is surfaced and the run
+   is stopped instead of waiting indefinitely.
 5. `POST /v1/runs/{run_id}/stop` interrupts a run. Cancellation posts this
    request with a shielded, bounded cleanup window, then re-raises cancellation;
-   an SSE idle timeout posts it and returns an error. The server's stop behavior
-   is at lines 7312-7342.
+   an SSE idle timeout posts it and returns an error.
 
 Session continuity uses both the gateway's documented
 `X-Hermes-Session-Id` header and `session_id` request field. The adapter also
@@ -77,9 +77,8 @@ gone (404). Every request carries the fixed
 Agents and telling the gateway agent to answer directly rather than delegate
 back to DeepTutor.
 
-The `/v1/runs` API has no image upload field. Image paths are therefore listed
-in the prompt, matching the local Hermes backend's fallback behavior; the
-remote agent must have a way to read those paths for them to be useful.
+The `/v1/runs` API has no image upload field. Attachments and their DeepTutor-
+local paths are therefore not sent to the remote gateway.
 
 ## Isolation and security
 

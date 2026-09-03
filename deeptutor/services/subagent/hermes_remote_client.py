@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 import json
 from types import TracebackType
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import httpx
 
@@ -40,13 +40,34 @@ class HermesRemoteClient:
         *,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
+        base_url = self.validate_base_url(base_url)
         self._client = httpx.AsyncClient(
-            base_url=base_url.rstrip("/"),
+            base_url=f"{base_url}/",
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=_STREAM_TIMEOUT,
             follow_redirects=False,
             transport=transport,
         )
+
+    @staticmethod
+    def validate_base_url(base_url: str) -> str:
+        """Return a canonical HTTP(S) gateway root or reject unsafe input."""
+        value = base_url.strip().rstrip("/")
+        try:
+            parsed = urlsplit(value)
+            parsed.port
+        except ValueError as exc:
+            raise HermesRemoteProtocolError("invalid_base_url") from exc
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise HermesRemoteProtocolError("invalid_base_url")
+        return value
 
     async def __aenter__(self) -> HermesRemoteClient:
         await self._client.__aenter__()
@@ -62,7 +83,7 @@ class HermesRemoteClient:
 
     async def get_json(self, path: str) -> dict[str, Any]:
         """Fetch and parse a JSON object using the bounded request timeout."""
-        response = await self._client.get(path, timeout=_REQUEST_TIMEOUT)
+        response = await self._client.get(path.lstrip("/"), timeout=_REQUEST_TIMEOUT)
         return self._json_object(response)
 
     async def post_json(
@@ -74,7 +95,7 @@ class HermesRemoteClient:
     ) -> dict[str, Any]:
         """POST a JSON object without transport retries."""
         response = await self._client.post(
-            path,
+            path.lstrip("/"),
             json=payload,
             headers=headers,
             timeout=_REQUEST_TIMEOUT,
@@ -103,15 +124,18 @@ class HermesRemoteClient:
         """Yield JSON objects from the gateway's data-only SSE frames."""
         async with self._client.stream(
             "GET",
-            f"/v1/runs/{run_id}/events",
+            f"v1/runs/{run_id}/events",
             timeout=_STREAM_TIMEOUT,
         ) as response:
-            if response.is_error:
+            if not response.is_success:
                 raise HermesRemoteHTTPError(response.status_code)
             event_name = ""
             data_lines: list[str] = []
             async for line in response.aiter_lines():
                 if line.startswith(":"):
+                    # Surface heartbeat comments to the workflow so each one
+                    # resets its idle watchdog without producing a UI event.
+                    yield {"event": "gateway.keepalive"}
                     continue
                 if line.startswith("event:"):
                     event_name = line[6:].strip()
@@ -138,11 +162,11 @@ class HermesRemoteClient:
 
     @staticmethod
     def _json_object(response: httpx.Response) -> dict[str, Any]:
-        if response.is_error:
+        if not response.is_success:
             raise HermesRemoteHTTPError(response.status_code)
         try:
             payload = response.json()
-        except json.JSONDecodeError as exc:
+        except (ValueError, UnicodeError) as exc:
             raise HermesRemoteProtocolError("invalid_json") from exc
         if not isinstance(payload, dict):
             raise HermesRemoteProtocolError("invalid_json_object")

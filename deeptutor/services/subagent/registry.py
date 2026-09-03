@@ -3,10 +3,10 @@
 Add a new subagent by writing a :class:`SubagentBackend` and listing it here;
 the capability, API and UI all discover it through these helpers. Local-CLI
 backends (Claude Code, Codex, Antigravity CLI, Kimi CLI, opencode,
-MiMo Code, Hermes Agent, OpenClaw, DeepSeek Harness) and
-the in-process partner backend live in the same registry but are told apart by
-``local_cli`` — only CLIs are detected on the machine and offered in the
-connect-CLI modal.
+MiMo Code, Hermes Agent, OpenClaw, DeepSeek Harness), configured remote
+backends, and the in-process partner backend live in the same registry.
+``local_cli`` and ``detectable`` control which backends participate in
+connection discovery.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ _BACKENDS: dict[str, SubagentBackend] = {
 
 
 def list_backend_kinds() -> list[str]:
-    """Every connectable backend kind (CLIs + partner)."""
+    """Return every connectable local, remote, and Partner backend kind."""
     return list(_BACKENDS.keys())
 
 

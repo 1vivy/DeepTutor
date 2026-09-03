@@ -24,7 +24,7 @@ import {
 
 type Lang = { zh: string; en: string };
 
-/** The CLI default sentinel — empty model/effort means "let the CLI decide". */
+/** Empty model/effort means "let the selected runtime decide". */
 const CUSTOM = "__custom__";
 
 // Defaults mirror BackendConfig in deeptutor/services/subagent/config.py so the
@@ -181,6 +181,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   mimo: "MiMo Code",
   hermes: "Hermes Agent",
   hermes_remote: "Hermes Agent (remote)",
+  openclaw: "OpenClaw",
   deepseek_harness: "DeepSeek Harness",
 };
 
@@ -208,8 +209,8 @@ const SYSTEM_PROMPT_HINT: Record<string, Lang> = {
     en: "Hermes has no system-prompt flag — the instruction is prefixed to each new session's first message.",
   },
   hermes_remote: {
-    zh: "通过 Hermes 网关 API 的 instructions 字段注入到每个新请求。",
-    en: "Sent through the Hermes gateway API's instructions field on each request.",
+    zh: "新会话（或远端会话已失效）时，通过 Hermes 网关 API 的 instructions 字段注入。",
+    en: "Sent through the Hermes gateway API's instructions field for a fresh or expired session.",
   },
   openclaw: {
     zh: "该指令会前缀在每个新 OpenClaw session key 的第一条消息上。",
@@ -390,10 +391,17 @@ export function SubagentSettingsEditor({ kind }: { kind: string }) {
     <div>
       <SettingsPageHeader
         title={displayName}
-        description={tr({
-          zh: `DeepTutor 通过 consult_subagent 调用本机 ${displayName} 时使用的模型、推理强度与运行参数。设置后即覆盖 CLI 的默认值；留空表示沿用 CLI 默认。`,
-          en: `Model, reasoning effort, and run parameters DeepTutor drives the local ${displayName} with when consulting it. These override the CLI defaults; leave blank to keep the CLI's own default.`,
-        })}
+        description={
+          isRemote
+            ? tr({
+                zh: "配置 DeepTutor 通过 HTTP 调用的远程 Hermes 网关、模型与运行参数。",
+                en: "Configure the remote Hermes gateway, model, and run parameters DeepTutor uses over HTTP.",
+              })
+            : tr({
+                zh: `DeepTutor 通过 consult_subagent 调用本机 ${displayName} 时使用的模型、推理强度与运行参数。设置后即覆盖 CLI 的默认值；留空表示沿用 CLI 默认。`,
+                en: `Model, reasoning effort, and run parameters DeepTutor drives the local ${displayName} with when consulting it. These override the CLI defaults; leave blank to keep the CLI's own default.`,
+              })
+        }
       />
 
       {loading && (
@@ -415,13 +423,24 @@ export function SubagentSettingsEditor({ kind }: { kind: string }) {
               the user can re-pull them on demand. */}
           <SettingSection
             title={tr({ zh: "连接与同步", en: "Connection & sync" })}
-            description={tr({
-              zh: "供应商会不定期增删模型与推理档位——随时点同步即可重新拉取最新列表。",
-              en: "Vendors add and retire models and effort levels over time — sync any time to re-pull the latest lists.",
-            })}
+            description={
+              isRemote
+                ? tr({
+                    zh: "检查已配置网关的连通性与认证状态。",
+                    en: "Check connectivity and authentication for the configured gateway.",
+                  })
+                : tr({
+                    zh: "供应商会不定期增删模型与推理档位——随时点同步即可重新拉取最新列表。",
+                    en: "Vendors add and retire models and effort levels over time — sync any time to re-pull the latest lists.",
+                  })
+            }
           >
             <SettingRow
-              title={tr({ zh: "本机状态", en: "On this machine" })}
+              title={
+                isRemote
+                  ? tr({ zh: "网关状态", en: "Gateway status" })
+                  : tr({ zh: "本机状态", en: "On this machine" })
+              }
               description={
                 options.available
                   ? options.version
@@ -446,8 +465,12 @@ export function SubagentSettingsEditor({ kind }: { kind: string }) {
                     <XCircle className="h-3.5 w-3.5" />
                   )}
                   {options.available
-                    ? tr({ zh: "已安装", en: "Installed" })
-                    : tr({ zh: "未检测到", en: "Not detected" })}
+                    ? isRemote
+                      ? tr({ zh: "可连接", en: "Reachable" })
+                      : tr({ zh: "已安装", en: "Installed" })
+                    : isRemote
+                      ? tr({ zh: "不可用", en: "Unavailable" })
+                      : tr({ zh: "未检测到", en: "Not detected" })}
                 </span>
               }
             />
@@ -459,10 +482,15 @@ export function SubagentSettingsEditor({ kind }: { kind: string }) {
                       zh: `上次同步：${formatTs(options.synced_at, zh)}`,
                       en: `Last synced: ${formatTs(options.synced_at, zh)}`,
                     })
-                  : tr({
-                      zh: "该 CLI 无可枚举的模型接口，下方为常用别名，可自定义任意模型名。",
-                      en: "This CLI has no model-list API; below are the common aliases, and any model name is accepted.",
-                    })
+                  : isRemote
+                    ? tr({
+                        zh: "远程网关当前不提供模型枚举；可以留空使用网关默认值，或手动填写模型名。",
+                        en: "The remote gateway does not currently enumerate models here; use its default or enter a model name manually.",
+                      })
+                    : tr({
+                        zh: "该 CLI 无可枚举的模型接口，下方为常用别名，可自定义任意模型名。",
+                        en: "This CLI has no model-list API; below are the common aliases, and any model name is accepted.",
+                      })
               }
               control={
                 isRemote ? (
@@ -501,7 +529,10 @@ export function SubagentSettingsEditor({ kind }: { kind: string }) {
                     className={`${inputClass} w-[260px]`}
                     disabled={busy}
                     value={config.base_url ?? ""}
-                    placeholder="http://hermes-uni:8642"
+                    placeholder={tr({
+                      zh: "例如：http://hermes-uni:8642",
+                      en: "e.g. http://hermes-uni:8642",
+                    })}
                     onChange={(e) => setConfig((p) => ({ ...p, base_url: e.target.value }))}
                     onBlur={(e) => void save({ base_url: e.target.value.trim() })}
                   />
@@ -542,7 +573,8 @@ export function SubagentSettingsEditor({ kind }: { kind: string }) {
                     className={`${inputClass} w-[260px]`}
                     disabled={busy}
                     type="number"
-                    min={0}
+                    min={1}
+                    max={86400}
                     value={config.idle_timeout_seconds ?? 600}
                     onChange={(e) =>
                       setConfig((p) => ({
@@ -591,7 +623,9 @@ export function SubagentSettingsEditor({ kind }: { kind: string }) {
                     onChange={(e) => onModelSelect(e.target.value)}
                   >
                     <option value="">
-                      {tr({ zh: "CLI 默认", en: "CLI default" })}
+                      {isRemote
+                        ? tr({ zh: "网关默认", en: "Gateway default" })
+                        : tr({ zh: "CLI 默认", en: "CLI default" })}
                     </option>
                     {options.models.map((m) => (
                       <option key={m.slug} value={m.slug}>
@@ -635,7 +669,9 @@ export function SubagentSettingsEditor({ kind }: { kind: string }) {
                     onChange={(e) => void save({ effort: e.target.value })}
                   >
                     <option value="">
-                      {tr({ zh: "CLI 默认", en: "CLI default" })}
+                      {isRemote
+                        ? tr({ zh: "网关默认", en: "Gateway default" })
+                        : tr({ zh: "CLI 默认", en: "CLI default" })}
                     </option>
                     {effortChoices.map((eff) => (
                       <option key={eff} value={eff}>

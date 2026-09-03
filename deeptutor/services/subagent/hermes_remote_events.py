@@ -43,7 +43,9 @@ class HermesRemoteEventMapper:
     async def handle(self, event: dict[str, Any], emitted_text: str) -> str:
         """Map one parsed event and return the updated cumulative answer."""
         name = str(event.get("event") or "")
-        if name == "message.delta":
+        if name == "gateway.keepalive":
+            pass
+        elif name == "message.delta":
             delta = str(event.get("delta") or "")
             emitted_text += delta
             self._result.final_text = emitted_text.strip()

@@ -48,8 +48,21 @@ class _HermesTransport:
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         path = request.url.path
-        if request.method == "GET" and path == "/v1/models":
-            return httpx.Response(200, json={"object": "list", "data": [{"id": "hermes-agent"}]})
+        if request.method == "GET" and path == "/v1/capabilities":
+            return httpx.Response(
+                200,
+                json={
+                    "object": "hermes.api_server.capabilities",
+                    "model": "hermes-agent",
+                    "features": {
+                        "run_submission": True,
+                        "run_events_sse": True,
+                        "run_stop": True,
+                        "run_approval_response": True,
+                        "session_resources": True,
+                    },
+                },
+            )
         if request.method == "GET" and path.endswith("/messages"):
             if self.history_status != 200:
                 return httpx.Response(self.history_status)
@@ -83,7 +96,9 @@ def _backend(
     *,
     auto_approve: bool = True,
 ) -> HermesRemoteBackend:
-    actual = httpx.MockTransport(transport) if isinstance(transport, _HermesTransport) else transport
+    actual = (
+        httpx.MockTransport(transport) if isinstance(transport, _HermesTransport) else transport
+    )
     return HermesRemoteBackend(
         config=BackendConfig(
             base_url="http://hermes.test",
@@ -102,6 +117,13 @@ async def test_detect_distinguishes_configuration_failures(monkeypatch: pytest.M
         config=BackendConfig(base_url="http://hermes.test", api_key_env="TEST_HERMES_KEY"),
     ).detect()
     monkeypatch.setenv("TEST_HERMES_KEY", "synthetic-secret")
+    invalid_url = await HermesRemoteBackend(
+        config=BackendConfig(base_url="file:///etc/passwd", api_key_env="TEST_HERMES_KEY"),
+    ).detect()
+    invalid_key_env = await HermesRemoteBackend(
+        config=BackendConfig(base_url="http://hermes.test", api_key_env="INVALID=NAME"),
+    ).detect()
+
     def unauthorized(_: httpx.Request) -> httpx.Response:
         return httpx.Response(401)
 
@@ -120,13 +142,17 @@ async def test_detect_distinguishes_configuration_failures(monkeypatch: pytest.M
 
     assert missing_url.detail == "not_configured"
     assert missing_key.detail == "key_missing"
+    assert invalid_url.detail == "invalid_base_url"
+    assert invalid_key_env.detail == "invalid_key_env"
     assert unauthorized_result.detail == "unauthorized"
     assert incompatible_result.detail == "incompatible"
     assert unreachable_result.detail == "unreachable"
 
 
 @pytest.mark.asyncio
-async def test_consult_streams_text_tools_and_session_continuity(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_consult_streams_text_tools_and_session_continuity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("TEST_HERMES_KEY", "synthetic-secret")
     transport = _HermesTransport(
         events=[
@@ -177,16 +203,26 @@ async def test_consult_streams_text_tools_and_session_continuity(monkeypatch: py
     assert second_body["instructions"] == CONSULT_ORIGIN_INSTRUCTION
     assert len(second_body["conversation_history"]) == 40
     assert second_body["conversation_history"][0] == {"role": "user", "content": "turn-3"}
-    assert second_body["conversation_history"][-1] == {"role": "assistant", "content": "latest answer"}
+    assert second_body["conversation_history"][-1] == {
+        "role": "assistant",
+        "content": "latest answer",
+    }
     assert all(row["role"] in {"user", "assistant"} for row in second_body["conversation_history"])
     assert all(row["content"] for row in second_body["conversation_history"])
     assert "must not be repeated" not in second_body["instructions"]
-    assert [event.kind for event in emitted[:4]] == [EVENT_TEXT, EVENT_TOOL, EVENT_TOOL_RESULT, EVENT_TEXT]
+    assert [event.kind for event in emitted[:4]] == [
+        EVENT_TEXT,
+        EVENT_TOOL,
+        EVENT_TOOL_RESULT,
+        EVENT_TEXT,
+    ]
     assert emitted[0].meta["merge_id"] == "hermes_remote:final"
 
 
 @pytest.mark.asyncio
-async def test_consult_prepends_custom_system_prompt_on_fresh_run(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_consult_prepends_custom_system_prompt_on_fresh_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("TEST_HERMES_KEY", "synthetic-secret")
     transport = _HermesTransport(events=[{"event": "run.completed", "output": "done"}])
     backend = _backend(transport)
@@ -201,12 +237,16 @@ async def test_consult_prepends_custom_system_prompt_on_fresh_run(monkeypatch: p
         model="hermes-agent",
         effort="high",
     )
-    result = await backend.consult("question", on_event=on_event, config=config)
+    result = await backend.consult(
+        "question",
+        on_event=on_event,
+        config=config,
+        images=["/private/deeptutor/secret-image.png"],
+    )
     body = json.loads(transport.requests[0].content)
     assert result.success is True
     assert body["instructions"].startswith("custom instruction")
     assert CONSULT_ORIGIN_INSTRUCTION in body["instructions"]
     assert body["model"] == "hermes-agent"
     assert body["model_options"]["reasoning_effort"] == "high"
-
-
+    assert "secret-image.png" not in json.dumps(body)
