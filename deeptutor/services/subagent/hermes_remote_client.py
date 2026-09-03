@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 import json
 from types import TracebackType
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -79,6 +80,24 @@ class HermesRemoteClient:
             timeout=_REQUEST_TIMEOUT,
         )
         return self._json_object(response)
+
+    async def get_session_history(self, session_id: str) -> list[dict[str, str]]:
+        """Fetch the resumable user/assistant history for one gateway session."""
+        path_id = quote(session_id, safe="")
+        payload = await self.get_json(f"/api/sessions/{path_id}/messages")
+        if payload.get("object") != "list" or not isinstance(payload.get("data"), list):
+            raise HermesRemoteProtocolError("invalid_session_history")
+        history: list[dict[str, str]] = []
+        for row in payload["data"]:
+            if not isinstance(row, dict):
+                continue
+            role = row.get("role")
+            content = row.get("content")
+            if role not in {"user", "assistant"} or not isinstance(content, str):
+                continue
+            if content.strip():
+                history.append({"role": role, "content": content})
+        return history[-40:]
 
     async def stream_events(self, run_id: str) -> AsyncIterator[dict[str, Any]]:
         """Yield JSON objects from the gateway's data-only SSE frames."""

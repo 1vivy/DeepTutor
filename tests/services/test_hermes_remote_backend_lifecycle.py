@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import anyio
@@ -108,6 +109,36 @@ async def test_idle_timeout_stops_run(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "idle_timeout" in result.error
     assert emitted[-1].kind == EVENT_ERROR
     assert transport.stops == ["run-1"]
+
+@pytest.mark.asyncio
+async def test_missing_session_history_starts_fresh(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TEST_HERMES_KEY", "synthetic-secret")
+    transport = _HermesTransport(
+        events=[{"event": "run.completed", "output": "fresh"}],
+        history_status=404,
+    )
+    backend = _backend(transport)
+
+    async def on_event(_: Any) -> None:
+        return None
+
+    config = BackendConfig(
+        base_url="http://hermes.test",
+        api_key_env="TEST_HERMES_KEY",
+        system_prompt="reapply this instruction",
+    )
+    result = await backend.consult(
+        "question",
+        on_event=on_event,
+        session_id="session-gone",
+        config=config,
+    )
+    body = json.loads(transport.requests[1].content)
+    assert result.success is True
+    assert transport.requests[0].url.path == "/api/sessions/session-gone/messages"
+    assert body["session_id"] == "session-gone"
+    assert "conversation_history" not in body
+    assert body["instructions"].startswith("reapply this instruction")
 
 
 def test_settings_persist_remote_fields_without_inline_secret() -> None:

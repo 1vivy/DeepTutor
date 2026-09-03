@@ -29,8 +29,16 @@ class _BlockingStream(httpx.AsyncByteStream):
 
 
 class _HermesTransport:
-    def __init__(self, *, events: list[dict[str, Any]] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        events: list[dict[str, Any]] | None = None,
+        history: list[dict[str, Any]] | None = None,
+        history_status: int = 200,
+    ) -> None:
         self.events = events or []
+        self.history = history or []
+        self.history_status = history_status
         self.requests: list[httpx.Request] = []
         self.approvals: list[dict[str, Any]] = []
         self.stops: list[str] = []
@@ -42,6 +50,10 @@ class _HermesTransport:
         path = request.url.path
         if request.method == "GET" and path == "/v1/models":
             return httpx.Response(200, json={"object": "list", "data": [{"id": "hermes-agent"}]})
+        if request.method == "GET" and path.endswith("/messages"):
+            if self.history_status != 200:
+                return httpx.Response(self.history_status)
+            return httpx.Response(200, json={"object": "list", "data": self.history})
         if request.method == "POST" and path == "/v1/runs":
             return httpx.Response(202, json={"run_id": "run-1", "status": "started"})
         if request.method == "POST" and path.endswith("/approval"):
@@ -124,6 +136,12 @@ async def test_consult_streams_text_tools_and_session_continuity(monkeypatch: py
             {"event": "message.delta", "delta": "world"},
             {"event": "run.completed", "output": "Hello world"},
         ],
+        history=[
+            *({"role": "user", "content": f"turn-{index}"} for index in range(42)),
+            {"role": "tool", "content": "omit this tool row"},
+            {"role": "user", "content": ""},
+            {"role": "assistant", "content": "latest answer"},
+        ],
     )
     backend = _backend(transport)
     emitted: list[Any] = []
@@ -146,9 +164,9 @@ async def test_consult_streams_text_tools_and_session_continuity(monkeypatch: py
             system_prompt="must not be repeated",
         ),
     )
-
     first_body = json.loads(transport.requests[0].content)
-    second_body = json.loads(transport.requests[2].content)
+
+    second_body = json.loads(transport.requests[3].content)
     assert first.success is True
     assert first.final_text == "Hello world"
     assert first.session_id == "run-1"
@@ -157,6 +175,11 @@ async def test_consult_streams_text_tools_and_session_continuity(monkeypatch: py
     assert CONSULT_ORIGIN_INSTRUCTION in first_body["instructions"]
     assert second_body["session_id"] == "run-1"
     assert second_body["instructions"] == CONSULT_ORIGIN_INSTRUCTION
+    assert len(second_body["conversation_history"]) == 40
+    assert second_body["conversation_history"][0] == {"role": "user", "content": "turn-3"}
+    assert second_body["conversation_history"][-1] == {"role": "assistant", "content": "latest answer"}
+    assert all(row["role"] in {"user", "assistant"} for row in second_body["conversation_history"])
+    assert all(row["content"] for row in second_body["conversation_history"])
     assert "must not be repeated" not in second_body["instructions"]
     assert [event.kind for event in emitted[:4]] == [EVENT_TEXT, EVENT_TOOL, EVENT_TOOL_RESULT, EVENT_TEXT]
     assert emitted[0].meta["merge_id"] == "hermes_remote:final"

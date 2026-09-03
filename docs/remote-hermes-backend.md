@@ -41,6 +41,11 @@ capabilities response is at lines 3148-3232.
    6695-6776 and returns HTTP 202 with `{ "run_id": "...", "status":
    "started" }` at lines 7088-7095. A fresh run uses its run id as the session
    id (lines 6768-6770); a resumed run keeps the supplied session id.
+   Before a resumed run, the adapter fetches
+   `GET /api/sessions/{session_id}/messages`. It keeps only non-empty
+   user/assistant rows, excludes tool rows, and sends at most the last 40 rows
+   as `conversation_history`. A 404 means the session is gone: the run starts
+   fresh without history and applies `system_prompt` again.
 3. `GET /v1/runs/{run_id}/events` is an SSE stream. Frames contain JSON in a
    `data:` line (the server serializer is at lines 188-207). The adapter
    consumes these event objects:
@@ -66,7 +71,8 @@ capabilities response is at lines 3148-3232.
 Session continuity uses both the gateway's documented
 `X-Hermes-Session-Id` header and `session_id` request field. The adapter also
 sends the compatibility `X-Hermes-Session` header. Custom `system_prompt` is
-sent only on a fresh session. Every request carries the fixed
+sent on a fresh session or when the history lookup reports that the session is
+gone (404). Every request carries the fixed
 `CONSULT_ORIGIN_INSTRUCTION` recursion guard identifying DeepTutor Connected
 Agents and telling the gateway agent to answer directly rather than delegate
 back to DeepTutor.

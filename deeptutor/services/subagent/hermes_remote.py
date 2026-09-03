@@ -139,20 +139,30 @@ class HermesRemoteBackend(SubagentBackend):
         if images:
             prompt += "\n\nAttached image paths (the remote gateway has no image upload API):\n"
             prompt += "\n".join(f"- {path}" for path in images)
-        instructions = CONSULT_ORIGIN_INSTRUCTION
-        if not session_id and run_config.system_prompt.strip():
-            instructions = f"{run_config.system_prompt.strip()}\n\n{instructions}"
-        payload: dict[str, Any] = {"input": prompt, "instructions": instructions}
-        if session_id:
-            payload["session_id"] = session_id
-        if run_config.model:
-            payload["model"] = run_config.model
-        if run_config.effort:
-            payload["model_options"] = {"reasoning_effort": run_config.effort}
-        headers = self._session_headers(session_id)
-
         try:
             async with self._client(run_config, key) as client:
+                session_gone = False
+                history: list[dict[str, str]] | None = None
+                if session_id:
+                    try:
+                        history = await client.get_session_history(session_id)
+                    except HermesRemoteHTTPError as exc:
+                        if exc.status_code != 404:
+                            raise
+                        session_gone = True
+                instructions = CONSULT_ORIGIN_INSTRUCTION
+                if run_config.system_prompt.strip() and (not session_id or session_gone):
+                    instructions = f"{run_config.system_prompt.strip()}\n\n{instructions}"
+                payload: dict[str, Any] = {"input": prompt, "instructions": instructions}
+                if session_id:
+                    payload["session_id"] = session_id
+                if history is not None:
+                    payload["conversation_history"] = history
+                if run_config.model:
+                    payload["model"] = run_config.model
+                if run_config.effort:
+                    payload["model_options"] = {"reasoning_effort": run_config.effort}
+                headers = self._session_headers(session_id)
                 started = await client.post_json("/v1/runs", payload, headers=headers or None)
                 run_id = self._run_id(started)
                 result.session_id = str(started.get("session_id") or session_id or run_id)
