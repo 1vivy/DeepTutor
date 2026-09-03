@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 import json
+from types import TracebackType
 from typing import Any
 
 import httpx
@@ -42,7 +43,7 @@ class HermesRemoteClient:
             base_url=base_url.rstrip("/"),
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=_STREAM_TIMEOUT,
-            follow_redirects=True,
+            follow_redirects=False,
             transport=transport,
         )
 
@@ -50,7 +51,12 @@ class HermesRemoteClient:
         await self._client.__aenter__()
         return self
 
-    async def __aexit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         await self._client.__aexit__(exc_type, exc_value, traceback)
 
     async def get_json(self, path: str) -> dict[str, Any]:
