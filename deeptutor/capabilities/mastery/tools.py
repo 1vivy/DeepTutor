@@ -1180,6 +1180,7 @@ class MasteryAssessTool(BaseTool):
             )
         from deeptutor.learning.service import MasteryInteractionError
 
+        interaction = service.store.get_active_interaction(path_id)
         try:
             progress = service.record_qualitative_for_path(
                 path_id,
@@ -1202,7 +1203,21 @@ class MasteryAssessTool(BaseTool):
             "mastery": round(display_mastery(progress, kp), 3),
             "next": next_objective(progress).to_dict(),
         }
-        return _json_result(payload, meta_key="mastery_assess")
+        result = _json_result(payload, meta_key="mastery_assess")
+        if interaction is not None:
+            # Explanation cards consume the same durable verdict envelope as
+            # numerical cards, including after a browser reload.
+            result.metadata["mastery_grade"] = {
+                "result": build_grade_result(
+                    question_id=interaction.question.question_id,
+                    is_correct=passed,
+                    learner_answer=interaction.user_answer,
+                    correct_label="",
+                    choice_options={},
+                    explanation=feedback,
+                )
+            }
+        return result
 
 
 class MasterySkipQuestionTool(BaseTool):

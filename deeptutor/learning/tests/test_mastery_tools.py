@@ -1191,6 +1191,40 @@ async def test_assess_passes_concept(path_id):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("passed", [True, False])
+async def test_qualitative_assessment_settles_the_visible_card(path_id, passed):
+    """A rubric assessment supplies the verdict used on reload by the card."""
+    await _build_named(path_id, "Statistics")
+    status = json.loads((await MasteryStatusTool().execute(_mastery_path_id=path_id)).content)
+    kp_id = status["next"]["knowledge_point_id"]
+    question = await MasteryQuizTool().execute(
+        _mastery_path_id=path_id,
+        knowledge_point_id=kp_id,
+        question="Explain population and sample",
+        expected_answer="Distinguish the full group from its observed subset",
+        question_type="short",
+    )
+    assert question.success
+    _record_answer(path_id, "My own explanation")
+    interaction = LearningStore().get_active_interaction(path_id)
+    result = await MasteryAssessTool().execute(
+        _mastery_path_id=path_id,
+        knowledge_point_id=kp_id,
+        passed=passed,
+        feedback="Feedback against the rubric",
+    )
+    assert result.success
+    assert result.metadata["mastery_grade"]["result"] == {
+        "question_id": interaction.question.question_id,
+        "is_correct": passed,
+        "learner_answer": "My own explanation",
+        "correct_label": "",
+        "correct_body": "",
+        "explanation": "Feedback against the rubric",
+    }
+
+
+@pytest.mark.asyncio
 async def test_assess_rejects_quantitative_type(path_id):
     await _build_basic(path_id)
     status = json.loads((await MasteryStatusTool().execute(_mastery_path_id=path_id)).content)
