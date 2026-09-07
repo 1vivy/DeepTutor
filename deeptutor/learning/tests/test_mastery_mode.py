@@ -415,10 +415,13 @@ async def test_a_built_goal_reports_its_identity_too(path_id):
 
 
 def _pack(language: str) -> dict:
+    from pathlib import Path
+
     import yaml
 
+    source = Path(__file__).resolve().parents[2]
     return yaml.safe_load(
-        open(f"deeptutor/capabilities/mastery/prompts/{language}/mastery_loop.yaml")
+        (source / "capabilities" / "mastery" / "prompts" / language / "mastery_loop.yaml").read_text()
     )
 
 
