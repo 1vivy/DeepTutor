@@ -990,6 +990,9 @@ class TurnExecutor:
             if not transitioned:
                 execution.lease_lost = True
                 raise asyncio.CancelledError
+            # DONE makes the composer/card actionable. Release input locks first;
+            # slow post-turn title generation must not reject the learner's reply.
+            await self._release_input_locks(execution, payload)
             await self._publish_live_event(execution, pending_done_event)
             stream_done_sent = True
             await self._flush_buffered_events(execution)
@@ -1166,17 +1169,8 @@ class TurnExecutor:
             # that finds the queue gone will return ``False`` rather than
             # accumulating on a dead turn.
             self._reply_queues.pop(turn_id, None)
-            if bool(payload.get("mastery_path_lease_managed")):
-                from deeptutor.learning.storage import LearningStore
-
-                # By turn, not by the path the turn started on: mastery_switch
-                # can move a turn onto a different path mid-flight, and freeing
-                # the original id would release someone else's lease while
-                # leaking the one this turn actually holds.
-                with contextlib.suppress(Exception):
-                    await asyncio.shield(
-                        asyncio.to_thread(LearningStore().release_leases_for_turn, turn_id)
-                    )
+            with contextlib.suppress(Exception):
+                await self._release_input_locks(execution, payload)
             async with self._lock:
                 current = self._executions.get(turn_id)
                 if current is not None:
@@ -1184,21 +1178,36 @@ class TurnExecutor:
                         with contextlib.suppress(asyncio.QueueFull):
                             subscriber.queue.put_nowait(None)
                     self._executions.pop(turn_id, None)
-            coordination_task = execution.coordination_task
-            if (
-                coordination_task is not None
-                and coordination_task is not asyncio.current_task()
-                and not coordination_task.done()
-            ):
-                coordination_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await coordination_task
-            if execution.lease is not None and self.coordinator is not None:
-                with contextlib.suppress(Exception):
-                    await self.coordinator.release_turn(execution.lease)
             # A turn may have parsed large attachments or built substantial
             # temporary prompts/results. Reclaim after this coroutine returns,
             # outside the user-visible streaming path.
             from deeptutor.runtime.memory_reclaim import schedule_memory_reclaim
 
             schedule_memory_reclaim()
+
+    async def _release_input_locks(
+        self, execution: _TurnExecution, payload: dict[str, Any]
+    ) -> None:
+        """Stop renewals and unlock replies while retaining metadata fencing."""
+        turn_id = execution.turn_id
+        coordination_task = execution.coordination_task
+        if (
+            coordination_task is not None
+            and coordination_task is not asyncio.current_task()
+            and not coordination_task.done()
+        ):
+            coordination_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await coordination_task
+        if bool(payload.get("mastery_path_lease_managed")):
+            from deeptutor.learning.storage import LearningStore
+
+            # By turn, not by the path the turn started on: mastery_switch
+            # can move a turn onto a different path mid-flight, and freeing
+            # the original id would release someone else's lease while
+            # leaking the one this turn actually holds.
+            await asyncio.shield(
+                asyncio.to_thread(LearningStore().release_leases_for_turn, turn_id)
+            )
+        if execution.lease is not None and self.coordinator is not None:
+            await self.coordinator.release_turn(execution.lease)

@@ -74,12 +74,17 @@ def _model_catalog() -> dict:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("coordinated", [False, True])
 async def test_turn_runtime_replays_events_and_materializes_messages(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
+    coordinated: bool,
 ) -> None:
+    from deeptutor.runtime.coordination.memory import MemoryCoordinator
+
     store = SQLiteSessionStore(tmp_path / "chat_history.db")
-    runtime = TurnRuntimeManager(store)
+    coordinator = MemoryCoordinator() if coordinated else None
+    runtime = TurnRuntimeManager(store, coordinator=coordinator)
     captured: dict[str, object] = {}
     publish_order: list[str] = []
     original_publish = runtime._publish_live_event
@@ -89,6 +94,15 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
         if event.type == StreamEventType.DONE:
             persisted_turn = await store.get_turn(execution.turn_id)
             captured["turn_status_when_done_published"] = (persisted_turn or {}).get("status")
+            if coordinator is not None:
+                # A learner can reply as soon as DONE enables the composer,
+                # even while the preceding turn is still generating its title.
+                assert execution.lease is not None
+                next_lease = await coordinator.acquire_turn(
+                    "next-learner-turn", execution.lease.session_id, "next-worker"
+                )
+                assert next_lease is not None
+                captured["next_lease"] = next_lease
         return await original_publish(execution, event)
 
     monkeypatch.setattr(runtime, "_publish_live_event", publish_with_status_capture)
@@ -197,6 +211,10 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
     assert done_event["metadata"]["status"] == "completed"
     assert captured["turn_status_when_done_published"] == "completed"
     assert captured["title_started_after_done"] is True
+    if coordinator is not None:
+        # Cleanup for the older turn must not release the new turn's lock.
+        assert await coordinator.get_lease("next-learner-turn") == captured["next_lease"]
+        await coordinator.release_turn(captured["next_lease"])
 
     detail = await store.get_session_with_messages(session["id"])
     assert detail is not None
