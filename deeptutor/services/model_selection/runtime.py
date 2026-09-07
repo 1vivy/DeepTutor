@@ -37,7 +37,10 @@ def resolve_llm_config_for_selection(selection: Any) -> LLMConfig:
 
 def activate_llm_selection(selection: Any) -> tuple[LLMConfig, Token[LLMConfig | None]]:
     """Resolve and install a scoped LLM config for the current async context."""
-    config = resolve_llm_config_for_selection(selection)
+    # A turn starts from the saved catalog, including when it uses the default.
+    # The process-local fallback cache can outlive a Settings change (especially
+    # in other workers); an inherited scope must not pin a new turn either.
+    config = llm_config_from_resolved(resolve_llm_runtime_config(llm_selection=selection))
     token = llm_config_module.set_scoped_llm_config(config)
     return config, token
 
