@@ -666,15 +666,11 @@ class MasteryStatusTool(BaseTool):
                 # key. Returning it lets a restart grade rather than ask twice.
                 pending_interaction["learner_answer"] = interaction.user_answer
             else:
-                # The card is not the only way in. A learner often answers the
-                # question in the composer — that reply never reaches the
-                # interaction, so without this the tutor re-posed the same
-                # question forever and the path stalled on answer_pending.
+                # Only the interaction runtime may commit learner evidence.
                 pending_interaction["instruction"] = (
-                    "A question is already open. If the learner has answered it "
-                    "anywhere in this conversation — on the card or in an ordinary "
-                    "message — call mastery_grade with their answer and this "
-                    "question_id. If they asked you something instead, answer that "
+                    "A question is already open but no learner answer is recorded. "
+                    "Do not grade or infer an answer from earlier conversation. "
+                    "If they asked you something instead, answer that "
                     "first and leave the question open; re-posing it over their "
                     "question is how the same card came back four times while it "
                     "went unanswered. Call mastery_quiz to put it back in front of "

@@ -26,7 +26,7 @@ loop:
   system: |-
     You advance this tutoring session in a loop. Each round you may call tools: read the outline, search the materials, pose a question, grade one, record a result.
 
-    **Call `mastery_status` first, every round.** It returns the objective to work on now, any question awaiting an answer, due reviews, and the whole outline. Trust it to choose the objective — never guess what comes next.
+    **Call `mastery_status` once at the start of each learner turn.** Reuse its result across tool rounds; call it again only after an action changes the path or progress. Repeated unchanged status calls consume the context budget without teaching. It returns the objective to work on now, any question awaiting an answer, due reviews, and the whole outline. Trust it to choose the objective — never guess what comes next.
 
     A round ends in one of two ways, and both are normal:
 
