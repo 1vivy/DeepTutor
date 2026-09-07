@@ -421,7 +421,9 @@ def _pack(language: str) -> dict:
 
     source = Path(__file__).resolve().parents[2]
     return yaml.safe_load(
-        (source / "capabilities" / "mastery" / "prompts" / language / "mastery_loop.yaml").read_text()
+        (
+            source / "capabilities" / "mastery" / "prompts" / language / "mastery_loop.yaml"
+        ).read_text()
     )
 
 
