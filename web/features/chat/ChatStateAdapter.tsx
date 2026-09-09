@@ -2354,6 +2354,7 @@ export function ChatStateAdapterProvider({
         bookReferences: effectiveBookReferences,
         readingReferences: effectiveReadingReferences,
         masteryPathId: effectiveMasteryPathId || null,
+        masterySessionMode: effectiveMasterySessionMode || null,
         masteryAnswer: options?.masteryAnswer ?? null,
         masterySkip: options?.masterySkip ?? null,
         // Immersive reading. Gated on the stable workspace mode as well as on

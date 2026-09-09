@@ -116,7 +116,7 @@ export function useMasteryStudySession(
   );
 
   useEffect(() => {
-    if (!topic) return;
+    if (!topic || topic.path_id !== pathId) return;
     const routeKey = currentRouteKey;
     if (initializedRouteRef.current === routeKey) return;
     initializedRouteRef.current = routeKey;
@@ -127,6 +127,11 @@ export function useMasteryStudySession(
         previousSessionId: state.sessionId,
       };
       newSession(courseSessionConfiguration(sessionConfiguration, courseId));
+      // A dispatch does not update the chat adapter until the next commit.
+      // Keep the opening effect blocked in this render, then release it with
+      // the configured draft in the next render.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronize readiness with the route-owned draft dispatch.
+      setSessionResolution({ routeKey, error: null });
       return;
     }
 
@@ -226,7 +231,9 @@ export function useMasteryStudySession(
       ? sessionResolution.error
       : null;
   const sessionLoading = Boolean(
-    routeSessionId && sessionResolution?.routeKey !== currentRouteKey,
+    !topic ||
+      topic.path_id !== pathId ||
+      sessionResolution?.routeKey !== currentRouteKey,
   );
 
   // The kind actually in force: what the server remembers for an existing
