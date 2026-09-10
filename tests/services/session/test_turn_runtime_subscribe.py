@@ -1053,7 +1053,8 @@ async def test_only_unambiguous_composer_choices_are_recorded(
 
 
 @pytest.mark.asyncio
-async def test_question_publication_is_durable_before_pause_callback(tmp_path) -> None:
+@pytest.mark.parametrize("nested", [False, True])
+async def test_question_publication_is_durable_before_pause_callback(tmp_path, nested: bool) -> None:
     """The bus consumer may receive a question after the capability starts waiting."""
     store = SQLiteSessionStore(tmp_path / "chat_history.db")
     runtime = TurnRuntimeManager(store)
@@ -1063,10 +1064,11 @@ async def test_question_publication_is_durable_before_pause_callback(tmp_path) -
         turn_id=turn["id"], session_id=session["id"], capability="chat", payload={}
     )
     runtime._executions[turn["id"]] = execution
+    metadata = {"ask_user": {"questions": [{"id": "q", "prompt": "Goal?"}]}}
     event = StreamEvent(
         type=StreamEventType.TOOL_RESULT,
         source="ask_user",
-        metadata={"ask_user": {"questions": [{"id": "q", "prompt": "Goal?"}]}},
+        metadata={"tool_metadata": metadata} if nested else metadata,
     )
     published = await runtime._publish_live_event(execution, event)
     assert await store.get_events(turn["id"]) == [published]

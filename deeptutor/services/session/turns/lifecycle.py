@@ -588,9 +588,11 @@ class TurnLifecycle:
             if current is not execution:
                 execution.events.append(payload)
             subscribers = list(current.subscribers)
+        tool_metadata = event.metadata.get("tool_metadata")
         if (
             event.type in {StreamEventType.DONE, StreamEventType.WAIT_FOR_INPUT}
             or event.metadata.get("ask_user")
+            or (isinstance(tool_metadata, dict) and tool_metadata.get("ask_user"))
         ):
             # Persist the question at publication as well as before waiting:
             # a capability can enqueue it on its bus before this consumer runs.
