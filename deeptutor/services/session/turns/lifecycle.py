@@ -588,7 +588,12 @@ class TurnLifecycle:
             if current is not execution:
                 execution.events.append(payload)
             subscribers = list(current.subscribers)
-        if event.type == StreamEventType.DONE:
+        if (
+            event.type in {StreamEventType.DONE, StreamEventType.WAIT_FOR_INPUT}
+            or event.metadata.get("ask_user")
+        ):
+            # Persist the question at publication as well as before waiting:
+            # a capability can enqueue it on its bus before this consumer runs.
             # Never expose DONE to a process-local subscriber before the
             # complete event prefix is durable. Redis subscribers already
             # read the same canonical payload from the shared journal.
