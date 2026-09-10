@@ -59,6 +59,9 @@ local expires = (tonumber(now[1]) * 1000) + math.floor(tonumber(now[2]) / 1000) 
 redis.call('PEXPIRE', turn_key, ttl_ms)
 redis.call('PEXPIRE', session_key, ttl_ms)
 redis.call('ZADD', leases_key, expires, turn_id)
+-- A learner may leave ask_user paused longer than the replay retention.
+-- Keep the live prefix and sequence counter until the owner releases its lease.
+for i = 4, 6 do redis.call('EXPIRE', KEYS[i], tonumber(ARGV[6])) end
 return expires
 """
 
@@ -245,15 +248,19 @@ class RedisCoordinator:
         try:
             expires = await self.client.eval(
                 _RENEW_TURN_LUA,
-                3,
+                6,
                 self._key("lease", "turn", lease.turn_id),
                 self._key("lease", "session", lease.session_id),
                 self._key("leases", "turns"),
+                self._key("events", lease.turn_id),
+                self._key("event_payloads", lease.turn_id),
+                self._key("event_seq", lease.turn_id),
                 lease.turn_id,
                 lease.session_id,
                 lease.owner_id,
                 lease.fencing_token,
                 self._ttl_ms,
+                self.stream_retention_seconds,
             )
         except Exception as exc:
             raise CoordinationUnavailableError("Redis turn lease renewal failed") from exc

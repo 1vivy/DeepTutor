@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -75,10 +76,12 @@ def _model_catalog() -> dict:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("coordinated", [False, True])
+@pytest.mark.parametrize("paused", [False, True])
 async def test_turn_runtime_replays_events_and_materializes_messages(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
     coordinated: bool,
+    paused: bool,
 ) -> None:
     from deeptutor.runtime.coordination.memory import MemoryCoordinator
 
@@ -140,6 +143,14 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
             captured["user_message"] = context.user_message
             captured["metadata"] = context.metadata
             captured["source_manifest"] = context.source_manifest
+            if paused:
+                yield StreamEvent(
+                    type=StreamEventType.TOOL_RESULT,
+                    source="ask_user",
+                    metadata={"ask_user": {"questions": [{"id": "q", "prompt": "Goal?"}]}},
+                )
+                reply = await context.runtime.wait_for_user_reply()
+                assert reply["text"] == "Synthetic learner reply"
             yield StreamEvent(
                 type=StreamEventType.CONTENT,
                 source="chat",
@@ -196,6 +207,14 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
         }
     )
 
+    if paused:
+        async with asyncio.timeout(5):
+            while (await store.get_turn(turn["id"]))["status"] != "waiting_input":
+                await asyncio.sleep(0.01)
+        durable = await store.get_events(turn["id"])
+        assert any(e.get("metadata", {}).get("ask_user") for e in durable)
+        assert await runtime.submit_user_reply(turn["id"], "Synthetic learner reply")
+
     events = []
     async for event in runtime.subscribe_turn(turn["id"], after_seq=0):
         events.append(event)
@@ -204,6 +223,7 @@ async def test_turn_runtime_replays_events_and_materializes_messages(
     # filter it out so the timing race doesn't flake the assertion.
     assert [e["type"] for e in events if e["type"] != "session_meta"] == [
         "session",
+        *(["tool_result"] if paused else []),
         "content",
         "done",
     ]

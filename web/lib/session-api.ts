@@ -103,6 +103,7 @@ export interface SessionSummary {
   status?:
     | "idle"
     | "running"
+    | "waiting_input"
     | "completed"
     | "failed"
     | "cancelled"
@@ -116,7 +117,7 @@ export interface ActiveTurnSummary {
   turn_id: string;
   session_id: string;
   capability: string;
-  status: "running" | "completed" | "failed" | "cancelled" | "rejected";
+  status: "running" | "waiting_input" | "completed" | "failed" | "cancelled" | "rejected";
   error: string;
   created_at: number;
   updated_at: number;
@@ -133,6 +134,7 @@ export interface SessionDetail {
   status?:
     | "idle"
     | "running"
+    | "waiting_input"
     | "completed"
     | "failed"
     | "cancelled"

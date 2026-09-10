@@ -90,6 +90,7 @@ import {
 type SessionRuntimeStatus =
   | "idle"
   | "running"
+  | "waiting_input"
   | "completed"
   | "failed"
   | "cancelled"
@@ -899,6 +900,10 @@ function reducer(state: ProviderState, action: Action): ProviderState {
               action.masteryPathId !== undefined
                 ? action.masteryPathId
                 : existing.masteryPathId,
+            masterySessionMode:
+              action.masterySessionMode !== undefined
+                ? action.masterySessionMode
+                : existing.masterySessionMode,
             courseId:
               action.courseId !== undefined
                 ? action.courseId
@@ -908,7 +913,7 @@ function reducer(state: ProviderState, action: Action): ProviderState {
                 ? action.personaSelection
                 : existing.personaSelection,
             messages: action.messages,
-            isStreaming: (action.status || "idle") === "running",
+            isStreaming: action.status === "running" || action.status === "waiting_input",
             currentStage: "",
             activeTurnId: action.activeTurnId || null,
             status: action.status || "idle",
@@ -2015,7 +2020,10 @@ export function ChatStateAdapterProvider({
           session.preferences?.selected_branches,
         ),
       });
-      if (loadedStatus === "running" && (activeTurn?.turn_id || activeTurn?.id)) {
+      if (
+        (loadedStatus === "running" || loadedStatus === "waiting_input") &&
+        (activeTurn?.turn_id || activeTurn?.id)
+      ) {
         // Reached on a revalidate too, when the turn is live on the server but
         // not in this tab (started in another tab, or our socket dropped) —
         // that is exactly the case that still needs a subscribe. A turn we

@@ -103,3 +103,20 @@ async def test_two_redis_coordinators_share_turn_and_background_streams(coordina
         assert await coordinator.release_turn(lease) is True
     finally:
         await second.close()
+
+
+async def test_renewal_retains_paused_question_and_sequence(coordinator) -> None:
+    """A live pause outlasts replay retention without losing its question or cursor."""
+    lease = await coordinator.acquire_turn("paused", "session-paused", "owner")
+    assert lease is not None
+    first = await coordinator.publish_event("paused", {"type": "wait_for_input"})
+    keys = [coordinator._key(kind, "paused") for kind in ("events", "event_payloads", "event_seq")]
+    for key in keys:
+        await coordinator.client.expire(key, 1)
+    assert await coordinator.renew_turn(lease) is not None
+    for key in keys:
+        assert await coordinator.client.ttl(key) > 1
+    assert await coordinator.read_events("paused") == [first]
+    second = await coordinator.publish_event("paused", {"type": "content", "content": "Resumed"})
+    assert second["seq"] == first["seq"] + 1
+    assert await coordinator.release_turn(lease)

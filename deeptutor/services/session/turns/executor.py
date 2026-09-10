@@ -175,6 +175,8 @@ class TurnExecutor:
         self._reply_queues[turn_id] = reply_queue
 
         async def _wait_for_user_reply() -> dict[str, Any] | None:
+            # The question must survive a reconnect after shared-stream expiry.
+            await self._flush_buffered_events(execution)
             # Publish the pause so a turn that wants the same mastery path can
             # tell "busy generating" apart from "parked, learner walked away".
             entered_waiting = await self.store.transition_turn(

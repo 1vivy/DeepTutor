@@ -337,3 +337,33 @@ class TestCompletionEventFields:
         output, meta = completion_event_fields(ctx, "chat")
         assert output == ""
         assert "agent_output" not in meta
+
+
+@pytest.mark.asyncio
+async def test_cancelled_consumer_awaits_paused_capability_cleanup() -> None:
+    """Cancelling a question stream must not orphan its waiting capability."""
+    waiting = asyncio.Event()
+    cleaned = asyncio.Event()
+
+    class PausedCapability(_EchoCapability):
+        async def run(self, context: UnifiedContext, stream: StreamBus) -> None:
+            waiting.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cleaned.set()
+
+    orchestrator = _make_orchestrator({"echo": PausedCapability()})
+
+    async def consume() -> None:
+        async for _event in orchestrator.handle(
+            UnifiedContext(user_message="Ask me", active_capability="echo")
+        ):
+            pass
+
+    consumer = asyncio.create_task(consume())
+    await asyncio.wait_for(waiting.wait(), 1)
+    consumer.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await consumer
+    assert cleaned.is_set()

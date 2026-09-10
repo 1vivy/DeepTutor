@@ -9,6 +9,7 @@ All consumers (CLI, WebSocket, SDK) call the orchestrator.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from typing import Any, AsyncIterator
 import uuid
@@ -169,10 +170,17 @@ class ChatOrchestrator:
         stream = bus.subscribe()
         task = asyncio.create_task(_run())
 
-        async for event in stream:
-            yield event
-
-        await task
+        try:
+            async for event in stream:
+                yield event
+            await task
+        finally:
+            # Closing/cancelling the consumer must also unwind a paused
+            # capability, including its waiting_input transition and reply queue.
+            if not task.done():
+                task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
         await self._publish_completion(context, cap_name)
 
     async def _publish_completion(self, context: UnifiedContext, cap_name: str) -> None:
