@@ -1054,7 +1054,9 @@ async def test_only_unambiguous_composer_choices_are_recorded(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("nested", [False, True])
-async def test_question_publication_is_durable_before_pause_callback(tmp_path, nested: bool) -> None:
+async def test_question_publication_is_durable_before_pause_callback(
+    tmp_path, nested: bool
+) -> None:
     """The bus consumer may receive a question after the capability starts waiting."""
     store = SQLiteSessionStore(tmp_path / "chat_history.db")
     runtime = TurnRuntimeManager(store)
